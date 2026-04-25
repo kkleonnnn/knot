@@ -1,0 +1,236 @@
+# few_shots.yaml — Few-Shot 示例库
+#
+# 用途: 替代 llm_client.py 中的硬编码示例，支持按问题类型动态加载
+# 新增示例: 直接在此文件追加，无需改代码
+#
+# type 标签对应 type_keywords 中的分类键
+# question / sql / explanation / confidence 与原有格式一致
+
+examples:
+  # ── 元数据查询 ────────────────────────────────
+  - id: fs_001
+    type: metadata
+    question: "查看有哪些表"
+    sql: "SHOW TABLES"
+    explanation: "列出当前数据库所有表名"
+    confidence: high
+
+  - id: fs_002
+    type: metadata
+    question: "每张表大概有多少条数据"
+    sql: "SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_rows DESC"
+    explanation: "从系统表获取各表估计行数，按行数降序"
+    confidence: high
+
+  # ── 日期过滤 ──────────────────────────────────
+  - id: fs_003
+    type: date_filter
+    question: "昨天的订单总金额是多少"
+    sql: "SELECT SUM(pay_amount) AS gmv FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "过滤昨天日期，对支付金额求和"
+    confidence: medium
+
+  - id: fs_004
+    type: date_filter
+    question: "查询本月每天的新增用户数"
+    sql: "SELECT DATE(created_at) AS dt, COUNT(*) AS new_users FROM users WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') GROUP BY dt ORDER BY dt"
+    explanation: "按天分组统计本月每天新增用户数"
+    confidence: medium
+
+  - id: fs_005
+    type: date_filter
+    question: "查看上周的订单数据"
+    sql: "SELECT * FROM orders WHERE YEARWEEK(created_at, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) LIMIT 100"
+    explanation: "使用 YEARWEEK 函数过滤上周数据"
+    confidence: medium
+
+  # ── 聚合统计 ──────────────────────────────────
+  - id: fs_006
+    type: aggregation
+    question: "最近7天各渠道的 GMV，按金额降序排列"
+    sql: "SELECT channel, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY channel ORDER BY gmv DESC"
+    explanation: "近7天按渠道分组求 GMV，降序排列"
+    confidence: medium
+
+  - id: fs_007
+    type: aggregation
+    question: "按月统计近半年的 GMV 趋势"
+    sql: "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY month ORDER BY month"
+    explanation: "按月分组统计近6个月 GMV 趋势"
+    confidence: medium
+
+  - id: fs_008
+    type: aggregation
+    question: "计算各渠道的人均下单数"
+    sql: "SELECT channel, COUNT(DISTINCT user_id) AS users, COUNT(*) AS orders, ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT user_id), 2) AS orders_per_user FROM orders GROUP BY channel ORDER BY orders_per_user DESC"
+    explanation: "按渠道统计用户数和订单数，计算人均下单数"
+    confidence: medium
+
+  # ── HAVING 过滤 ────────────────────────────────
+  - id: fs_009
+    type: having
+    question: "统计每个用户的订单数量，只看下了3单以上的"
+    sql: "SELECT user_id, COUNT(*) AS order_cnt FROM orders GROUP BY user_id HAVING order_cnt > 3 ORDER BY order_cnt DESC"
+    explanation: "按用户分组计数，HAVING 过滤3单以上"
+    confidence: medium
+
+  - id: fs_010
+    type: having
+    question: "查询 GMV 超过平均值的渠道"
+    sql: "WITH channel_gmv AS (SELECT channel, SUM(pay_amount) AS gmv FROM orders GROUP BY channel) SELECT channel, gmv FROM channel_gmv WHERE gmv > (SELECT AVG(gmv) FROM channel_gmv) ORDER BY gmv DESC"
+    explanation: "CTE 计算渠道 GMV，过滤超过均值的渠道"
+    confidence: medium
+
+  # ── JOIN 关联 ─────────────────────────────────
+  - id: fs_011
+    type: join
+    question: "查询每个用户的姓名和订单总金额"
+    sql: "SELECT u.name, SUM(o.pay_amount) AS total_gmv FROM users u JOIN orders o ON u.id = o.user_id GROUP BY u.id, u.name ORDER BY total_gmv DESC"
+    explanation: "JOIN users 和 orders，按用户分组求总金额"
+    confidence: medium
+
+  - id: fs_012
+    type: join
+    question: "查询从未下单的用户列表"
+    sql: "SELECT u.id, u.name, u.created_at FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE o.id IS NULL ORDER BY u.created_at DESC"
+    explanation: "LEFT JOIN 后过滤 orders.id 为 NULL，找出没有订单的用户"
+    confidence: medium
+
+  # ── 窗口函数 ──────────────────────────────────
+  - id: fs_013
+    type: window
+    question: "查询近30天每天的 GMV 和7日移动平均"
+    sql: "SELECT dt, gmv, AVG(gmv) OVER (ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS gmv_7d_ma FROM (SELECT DATE(created_at) AS dt, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY dt) t ORDER BY dt"
+    explanation: "子查询按天聚合 GMV，外层用窗口函数计算7日移动平均"
+    confidence: medium
+
+  - id: fs_014
+    type: window
+    question: "查询每个渠道的订单数占总订单数的百分比"
+    sql: "SELECT channel, COUNT(*) AS cnt, ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS pct FROM orders GROUP BY channel ORDER BY cnt DESC"
+    explanation: "窗口函数 SUM() OVER() 计算总量，用于求占比"
+    confidence: medium
+
+  # ── 排名 RANK ─────────────────────────────────
+  - id: fs_015
+    type: rank
+    question: "查询销售额排名前10的商品"
+    sql: "SELECT product_id, product_name, SUM(pay_amount) AS revenue, RANK() OVER (ORDER BY SUM(pay_amount) DESC) AS rnk FROM order_items GROUP BY product_id, product_name ORDER BY revenue DESC LIMIT 10"
+    explanation: "按商品分组求销售额，用 RANK() 排名，取前10"
+    confidence: medium
+
+  # ── CTE 复杂查询 ──────────────────────────────
+  - id: fs_016
+    type: cte
+    question: "用 CTE 分步计算用户留存率"
+    sql: "WITH day0 AS (SELECT DISTINCT user_id FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 7 DAY)), day1 AS (SELECT DISTINCT user_id FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 6 DAY)) SELECT COUNT(d1.user_id) AS retained, COUNT(d0.user_id) AS total, ROUND(COUNT(d1.user_id) * 100.0 / NULLIF(COUNT(d0.user_id), 0), 2) AS retention_rate FROM day0 LEFT JOIN day1 d1 ON d0.user_id = d1.user_id"
+    explanation: "CTE 分别取两天的用户集合，计算次日留存率"
+    confidence: medium
+
+
+# ── 类型关键词映射（用于自动分类问题类型）──────────────────
+# 新增类型时，在这里加对应关键词
+type_keywords:
+  metadata:
+    - "有哪些表"
+    - "表结构"
+    - "字段"
+    - "SHOW TABLES"
+    - "多少张表"
+    - "information_schema"
+    - "表名"
+    - "查看表"
+
+  date_filter:
+    - "昨天"
+    - "今天"
+    - "本月"
+    - "上周"
+    - "上月"
+    - "最近"
+    - "近7天"
+    - "近30天"
+    - "近一个月"
+    - "日期"
+    - "时间"
+    - "当天"
+    - "当月"
+    - "去年"
+    - "今年"
+    - "本季度"
+    - "上季度"
+    - "每天"
+    - "每月"
+    - "趋势"
+
+  aggregation:
+    - "总计"
+    - "合计"
+    - "总金额"
+    - "总数"
+    - "平均"
+    - "统计"
+    - "GMV"
+    - "汇总"
+    - "按渠道"
+    - "分组"
+    - "求和"
+    - "计数"
+    - "多少"
+
+  having:
+    - "超过"
+    - "大于"
+    - "多于"
+    - "以上"
+    - "3单以上"
+    - "筛选"
+    - "过滤"
+    - "只看"
+    - "条件"
+    - "超出"
+    - "高于均值"
+
+  join:
+    - "关联"
+    - "对应"
+    - "每个用户"
+    - "用户的订单"
+    - "商品的销售"
+    - "相关联"
+    - "匹配"
+    - "联合"
+    - "未下单"
+    - "没有"
+
+  window:
+    - "移动平均"
+    - "环比"
+    - "同比"
+    - "累计"
+    - "增长率"
+    - "占比"
+    - "百分比"
+    - "窗口"
+    - "7日"
+    - "30日"
+
+  rank:
+    - "排名"
+    - "TOP"
+    - "前10"
+    - "前N"
+    - "第一"
+    - "最多"
+    - "最少"
+    - "最高"
+    - "最低"
+    - "排行"
+    - "名次"
+
+  cte:
+    - "分步"
+    - "留存"
+    - "复杂"
+    - "中间结果"
+    - "子查询"
