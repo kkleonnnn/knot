@@ -9,8 +9,14 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+# 检查前端是否已构建（或仍是旧版 babel 页面）
+if [ ! -f bi_agent/static/index.html ] || grep -q "babel" bi_agent/static/index.html 2>/dev/null; then
+  echo "📦 构建前端..."
+  cd frontend && npm install && npm run build && cd ..
+fi
+
 if ! python3 -c "import uvicorn" 2>/dev/null; then
-  echo "📦 安装依赖..."
+  echo "📦 安装 Python 依赖..."
   pip3 install -r requirements.txt
 fi
 

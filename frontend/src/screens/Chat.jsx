@@ -1,0 +1,748 @@
+import { useState, useRef, useEffect } from 'react';
+import { I, iconBtn, pillBtn, LineChart, BarChart, PieChart, TypingDots } from '../Shared.jsx';
+import { usePersist, toast, Spinner } from '../utils.jsx';
+import { AppShell } from '../Shell.jsx';
+import { api } from '../api.js';
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+function SchemaPanel({ T, tables, onInsert }) {
+  const [expanded, setExpanded] = useState({});
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const toggle = (name) => setExpanded(prev => ({ ...prev, [name]: !prev[name] }));
+  const filtered = tables.filter(t =>
+    !debouncedSearch || t.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    t.columns.some(c => c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 6, padding: '5px 8px', marginBottom: 4, gap: 6 }}>
+        <I.search style={{ color: T.muted, flexShrink: 0 }}/>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索表/字段…"
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: T.text, fontFamily: 'inherit' }}/>
+      </div>
+      {filtered.length === 0 && (
+        <div style={{ fontSize: 12, color: T.muted, padding: '8px 4px' }}>
+          {tables.length === 0 ? '暂无表结构' : '无匹配结果'}
+        </div>
+      )}
+      <div className="cb-sb" style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {filtered.map(t => (
+          <div key={t.name}>
+            <div onClick={() => toggle(t.name)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px',
+              borderRadius: 5, cursor: 'pointer', color: T.subtext, fontSize: 12.5,
+              background: expanded[t.name] ? T.accentSoft : 'transparent',
+            }}>
+              <I.chev style={{ transform: expanded[t.name] ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform .15s', color: T.muted, flexShrink: 0 }}/>
+              <I.db style={{ color: expanded[t.name] ? T.accent : T.muted, flexShrink: 0 }}/>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: expanded[t.name] ? T.accent : T.subtext, fontWeight: expanded[t.name] ? 500 : 400 }}>{t.name}</span>
+              <button onClick={e => { e.stopPropagation(); onInsert(t.name); }} title="插入到问题"
+                style={{ ...iconBtn(T), width: 18, height: 18, opacity: 0.5, fontSize: 10 }}>+</button>
+            </div>
+            {expanded[t.name] && (
+              <div style={{ paddingLeft: 20, paddingBottom: 2 }}>
+                {t.columns.map(c => (
+                  <div key={c.name} onClick={() => onInsert(`${t.name}.${c.name}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 4, cursor: 'pointer', color: T.muted, fontSize: 11.5 }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.hover}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{c.name}</span>
+                      {c.comment && <span style={{ fontSize: 10, color: T.accent, opacity: 0.8, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.comment}</span>}
+                    </div>
+                    <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, opacity: 0.6, flexShrink: 0 }}>{c.type.split('(')[0]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
+  const [convs, setConvs] = useState([]);
+  const [activeConvId, setActiveConvId] = usePersist('cb_conv', null);
+  const [messages, setMessages] = useState([]);
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [dbOk, setDbOk] = useState(null);
+  const [useAgent, setUseAgent] = useState(false);
+  const [agentEvents, setAgentEvents] = useState([]);
+  const [sidebarTab, setSidebarTab] = useState('history');
+  const [schema, setSchema] = useState([]);
+  const [activeUpload, setActiveUpload] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => { loadConvs(); checkDb(); loadSchema(); }, []);
+  useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
+
+  const loadConvs = async () => {
+    try { const d = await api.get('/api/conversations'); setConvs(d); } catch {}
+  };
+  const checkDb = async () => {
+    try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
+  };
+  const loadMessages = async (cid) => {
+    try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
+  };
+  const loadSchema = async () => {
+    try { const d = await api.get('/api/db/schema'); setSchema(d.tables || []); } catch {}
+  };
+
+  const newChat = async () => {
+    try {
+      const d = await api.post('/api/conversations', { title: '新对话' });
+      setConvs(prev => [d, ...prev]);
+      setActiveConvId(d.id);
+      setMessages([]);
+    } catch { toast('创建对话失败', true); }
+  };
+
+  const deleteConv = async (cid, e) => {
+    e.stopPropagation();
+    try {
+      await api.del(`/api/conversations/${cid}`);
+      setConvs(prev => prev.filter(c => c.id !== cid));
+      if (activeConvId === cid) { setActiveConvId(null); setMessages([]); }
+    } catch { toast('删除失败', true); }
+  };
+
+  const sendQuery = async (e) => {
+    e?.preventDefault();
+    if (!question.trim() || loading) return;
+    if (!activeConvId) { await newChat(); return; }
+
+    const q = question.trim();
+    setQuestion('');
+    setLoading(true);
+    setAgentEvents([]);
+
+    const tempId = Date.now();
+    const tempMsg = { id: tempId, question: q, sql: '', rows: [], explanation: '', confidence: '', error: '', loading: true };
+    setMessages(prev => [...prev, tempMsg]);
+
+    if (!useAgent) {
+      try {
+        const body = { question: q };
+        if (activeUpload) body.upload_id = activeUpload.id;
+        const d = await api.post(`/api/conversations/${activeConvId}/query`, body);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...d, loading: false } : m));
+        loadConvs();
+      } catch (err) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: String(err) } : m));
+      } finally { setLoading(false); }
+      return;
+    }
+
+    try {
+      const body = { question: q };
+      if (activeUpload) body.upload_id = activeUpload.id;
+
+      const resp = await fetch(`/api/conversations/${activeConvId}/query-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api._token()}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let ev;
+          try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (ev.type === 'agent_start' || ev.type === 'agent_done' || ev.type === 'sql_step') {
+            setAgentEvents(prev => [...prev, ev].slice(-20));
+          }
+          if (ev.type === 'clarification_needed') {
+            setAgentEvents(prev => [...prev, ev].slice(-20));
+            setMessages(prev => prev.map(m => m.id === tempId ? {
+              id: ev.message_id, question: q,
+              explanation: ev.question, is_clarification: true,
+              sql: '', rows: [], confidence: 'low', error: '',
+              input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
+              cost_usd: ev.cost_usd, loading: false,
+            } : m));
+            setLoading(false);
+          }
+          if (ev.type === 'error') {
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: ev.message } : m));
+            setLoading(false);
+          }
+          if (ev.type === 'final') {
+            setMessages(prev => prev.map(m => m.id === tempId ? {
+              id: ev.message_id, question: q,
+              sql: ev.sql, rows: ev.rows || [],
+              explanation: ev.explanation, confidence: ev.confidence,
+              error: ev.error || '',
+              insight: ev.insight, suggested_followups: ev.suggested_followups || [],
+              input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
+              cost_usd: ev.cost_usd, query_time_ms: ev.query_time_ms,
+              loading: false,
+            } : m));
+            loadConvs();
+            setLoading(false);
+          }
+        }
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: String(err) } : m));
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+  };
+
+  const copyToClipboard = (text) => { navigator.clipboard?.writeText(text); toast('已复制'); };
+
+  const downloadCSV = (rows, question) => {
+    if (!rows || !rows.length) return;
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `bi-agent-${Date.now()}.csv`;
+    a.click();
+  };
+
+  const handleUpload = async (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      setActiveUpload(d);
+      toast(`已加载 ${d.filename}（${d.row_count} 行）`);
+    } catch (e) { toast(`上传失败: ${e.message}`, true); }
+  };
+
+  const convList = convs.map(c => (
+    <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
+      borderRadius: 6, cursor: 'pointer',
+      background: c.id === activeConvId ? T.accentSoft : 'transparent',
+      color: c.id === activeConvId ? T.accent : T.subtext, fontSize: 12.5,
+      borderLeft: c.id === activeConvId ? `2px solid ${T.accent}` : '2px solid transparent',
+      paddingLeft: c.id === activeConvId ? 8 : 10,
+      fontWeight: c.id === activeConvId ? 500 : 400,
+    }}>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
+      <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
+    </div>
+  ));
+
+  const sidebarContent = (
+    <>
+      <button onClick={newChat} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
+        padding: '9px 10px', borderRadius: 8, background: 'transparent',
+        color: T.text, border: `1px solid ${T.border}`,
+        fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer', marginBottom: 8,
+      }}>
+        <I.plus width="14" height="14"/> 新建对话
+      </button>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
+        {[['history', <I.history/>, '历史'], ['schema', <I.db/>, '表结构']].map(([tab, icon, label]) => (
+          <button key={tab} onClick={() => setSidebarTab(tab)} style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', fontSize: 11.5, cursor: 'pointer',
+            background: sidebarTab === tab ? T.accentSoft : 'transparent',
+            color: sidebarTab === tab ? T.accent : T.muted,
+            border: `1px solid ${sidebarTab === tab ? T.accent + '40' : T.border}`,
+          }}>{icon} {label}</button>
+        ))}
+      </div>
+      {sidebarTab === 'history'
+        ? <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
+        : <SchemaPanel T={T} tables={schema} onInsert={(txt) => setQuestion(q => q ? q + ' ' + txt : txt)}/>
+      }
+    </>
+  );
+
+  const title = activeConvId ? (convs.find(c => c.id === activeConvId)?.title || '对话') : '新对话';
+
+  return (
+    <AppShell T={T} user={user} active="chat" sidebarContent={sidebarContent}
+              topbarTitle={title} hideSidebarNewChat
+              showConnectionPill connectionOk={dbOk}
+              onToggleTheme={onToggleTheme} onNewChat={newChat}
+              onNavigate={onNavigate} onLogout={onLogout}>
+      {!activeConvId || messages.length === 0
+        ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
+                     hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
+                     loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
+                     useAgent={useAgent} setUseAgent={setUseAgent}
+                     activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
+        : <ChatConversation T={T} messages={messages} scrollRef={scrollRef} loading={loading}
+                            question={question} setQuestion={setQuestion}
+                            onSubmit={sendQuery} onKeyDown={handleKeyDown}
+                            onCopy={copyToClipboard} onDownload={downloadCSV}
+                            useAgent={useAgent} setUseAgent={setUseAgent}
+                            agentEvents={agentEvents}
+                            activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
+      }
+    </AppShell>
+  );
+}
+
+function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDown, useAgent, setUseAgent, activeUpload, setActiveUpload, onUpload }) {
+  const firstName = user?.display_name?.split(' ')[0] || user?.username || '你';
+  const suggestions = [
+    '今天的订单总量是多少？',
+    '最近 7 天每日 GMV 趋势',
+    '新用户注册数量（本月）',
+    '查看数据库有哪些表',
+  ];
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 28px' }}>
+      <div style={{ width: '100%', maxWidth: 640, textAlign: 'center', marginBottom: 22 }}>
+        <div style={{ fontSize: 28, fontWeight: 600, color: T.text, letterSpacing: '-0.02em', marginBottom: 8 }}>Hi {firstName}</div>
+        <div style={{ fontSize: 14, color: T.subtext }}>今天想了解哪部分业务数据？</div>
+      </div>
+      <Composer T={T} value={question} onChange={setQuestion} loading={loading}
+                onSubmit={onSubmit} onKeyDown={onKeyDown}
+                useAgent={useAgent} setUseAgent={setUseAgent}
+                activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}/>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 14, maxWidth: 640, width: '100%' }}>
+        {suggestions.map((s, i) => (
+          <button key={i} onClick={() => setQuestion(s)} style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px',
+            border: `1px solid ${T.border}`, borderRadius: 8,
+            cursor: 'pointer', background: T.content, textAlign: 'left',
+            color: T.subtext, fontSize: 12.5, fontFamily: 'inherit',
+          }}>
+            <I.sparkle style={{ color: T.accent, flexShrink: 0 }}/>
+            {s}
+          </button>
+        ))}
+      </div>
+      <div style={{ marginTop: 20, fontSize: 11, color: T.muted }}>BI-Agent 可能出错 · 关键结果请核对原始数据</div>
+    </div>
+  );
+}
+
+function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, useAgent, setUseAgent, agentEvents, activeUpload, setActiveUpload, onUpload }) {
+  const showPanel = useAgent && agentEvents.length > 0;
+  return (
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <div ref={scrollRef} className="cb-sb" style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {messages.map((msg, i) => (
+            <div key={msg.id || i} className="cb-fadein">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <div style={{
+                  background: T.chipBg, border: `1px solid ${T.chipBorder}`, color: T.text,
+                  padding: '10px 14px', borderRadius: 12, borderTopRightRadius: 4,
+                  fontSize: 14, maxWidth: 520,
+                }}>{msg.question}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, background: T.accent, color: '#fff', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }}>
+                  <I.sparkle width="14" height="14"/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {msg.loading
+                    ? <ThinkingCard T={T} agentEvents={agentEvents}/>
+                    : <ResultBlock T={T} msg={msg} onCopy={onCopy} onDownload={onDownload}
+                                   onFollowup={(q) => setQuestion(q)}/>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '10px 28px 18px', background: `linear-gradient(to top, ${T.content} 80%, ${T.content}00)` }}>
+          <div style={{ maxWidth: 800, margin: '0 auto' }}>
+            <Composer T={T} value={question} onChange={setQuestion} loading={loading}
+                      onSubmit={onSubmit} onKeyDown={onKeyDown}
+                      useAgent={useAgent} setUseAgent={setUseAgent}
+                      activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}
+                      placeholder="继续追问…"/>
+          </div>
+        </div>
+      </div>
+      {useAgent && <AgentThinkingPanel T={T} events={agentEvents} visible={showPanel}/>}
+    </div>
+  );
+}
+
+function ThinkingCard({ T, agentEvents = [] }) {
+  const AGENT_LABELS = { clarifier: '理解问题', sql_planner: '生成 SQL', validator: '验证结果', presenter: '整理洞察' };
+  const lastStart = [...agentEvents].reverse().find(e => e.type === 'agent_start');
+  const label = lastStart ? AGENT_LABELS[lastStart.agent] || lastStart.label : '正在思考';
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '13px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.subtext }}>
+        <TypingDots color={T.accent}/>
+        <span>{agentEvents.length > 0 ? `${label}…` : '正在生成 SQL…'}</span>
+      </div>
+    </div>
+  );
+}
+
+function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
+  const [sqlOpen, setSqlOpen] = useState(false);
+  const [chartType, setChartType] = useState('auto');
+  const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
+          insight, suggested_followups, is_clarification } = msg;
+
+  if (is_clarification) {
+    return (
+      <div style={{ background: T.card, border: `1px solid ${T.accent}30`, borderRadius: 10, padding: '14px 16px' }}>
+        <div style={{ fontSize: 13, color: T.accent, fontWeight: 500, marginBottom: 4 }}>需要澄清</div>
+        <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.65 }}>{explanation}</div>
+        {(input_tokens > 0 || output_tokens > 0) && (
+          <div style={{ display: 'flex', gap: 12, fontSize: 11, color: T.muted, fontFamily: T.mono, marginTop: 8 }}>
+            <span>↑ {input_tokens?.toLocaleString()} tok</span>
+            <span>↓ {output_tokens?.toLocaleString()} tok</span>
+            {cost_usd > 0 && <span>$ {cost_usd?.toFixed(5)}</span>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (error && !sql) {
+    return (
+      <div style={{ background: T.accentSoft, border: `1px solid ${T.accent}30`, borderRadius: 10, padding: '13px 16px', color: T.accent, fontSize: 13 }}>
+        {error}
+      </div>
+    );
+  }
+
+  const cols = rows && rows.length > 0 ? Object.keys(rows[0]) : [];
+  const isNumericCol = (col) => rows && rows.some(r => typeof r[col] === 'number' && r[col] !== null);
+  const numericCols = cols.filter(isNumericCol);
+  const labelCols = cols.filter(c => !isNumericCol(c));
+  const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
+
+  const isDateLike = chartable && rows.some(r => /\d{4}[-/年]\d/.test(String(r[labelCols[0]] || '')));
+  const autoType = (() => {
+    if (!chartable) return 'bar';
+    if (isDateLike || rows.length > 12) return 'line';
+    if (numericCols.length === 1 && rows.length <= 10) return 'pie';
+    return 'bar';
+  })();
+
+  const activeType = chartType === 'auto' ? autoType : chartType;
+
+  const chartData = chartable
+    ? (isDateLike ? [...rows].sort((a, b) => String(a[labelCols[0]]).localeCompare(String(b[labelCols[0]]))) : rows)
+        .slice(0, 50).map(r => {
+          const pt = { [labelCols[0]]: r[labelCols[0]] };
+          numericCols.forEach(c => { pt[c] = r[c]; });
+          return pt;
+        })
+    : [];
+  const pieData = chartable
+    ? rows.slice(0, 8).map(r => ({ [labelCols[0]]: r[labelCols[0]], [numericCols[0]]: r[numericCols[0]] }))
+    : [];
+
+  const chartBtns = [
+    { id: 'line', label: '折线' },
+    { id: 'bar',  label: '柱状' },
+    { id: 'pie',  label: '饼图' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {explanation && <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.65 }}>{explanation}</div>}
+      {error && <div style={{ padding: '8px 12px', background: T.accentSoft, borderRadius: 6, color: T.accent, fontSize: 12.5 }}>{error}</div>}
+
+      {rows && rows.length > 0 && (
+        <>
+          {chartable && (
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 12px 10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{labelCols[0]} · {numericCols[0]}</span>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {chartBtns.map(btn => (
+                    <button key={btn.id} onClick={() => setChartType(btn.id)} style={{
+                      padding: '3px 9px', borderRadius: 5, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer',
+                      background: activeType === btn.id ? T.accent : 'transparent',
+                      color: activeType === btn.id ? '#fff' : T.muted,
+                      border: `1px solid ${activeType === btn.id ? T.accent : T.border}`,
+                      transition: 'all .15s',
+                    }}>{btn.label}</button>
+                  ))}
+                </div>
+              </div>
+              {activeType === 'line' && <LineChart data={chartData} stroke={T.accent} fill labelColor={T.muted} gridColor={T.borderSoft} width={640} height={190}/>}
+              {activeType === 'bar'  && <BarChart  data={chartData} color={T.accent} labelColor={T.muted} gridColor={T.borderSoft} width={640} height={210}/>}
+              {activeType === 'pie'  && <PieChart  data={pieData} width={640} height={210} labelColor={T.muted}/>}
+            </div>
+          )}
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
+              <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rows.length} 行 · {cols.length} 列</span>
+              <button onClick={() => onDownload(rows, msg.question)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="下载 CSV"><I.dl/></button>
+            </div>
+            <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 280 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: T.bg }}>
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 100).map((row, ri) => (
+                    <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? `1px solid ${T.borderSoft}` : 'none' }}>
+                      {cols.map(c => <td key={c} style={{ padding: '8px 12px', color: T.text, whiteSpace: 'nowrap', fontFamily: typeof row[c] === 'number' ? T.mono : 'inherit' }}>{row[c] === null || row[c] === undefined ? <span style={{ color: T.muted }}>—</span> : String(row[c])}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {insight && (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 16px' }}>
+          <div style={{ fontSize: 11, color: T.accent, fontWeight: 600, marginBottom: 6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>洞察</div>
+          <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.7 }}>{insight}</div>
+        </div>
+      )}
+
+      {suggested_followups && suggested_followups.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {suggested_followups.map((q, i) => (
+            <button key={i} onClick={() => onFollowup && onFollowup(q)} style={{
+              padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+              background: T.accentSoft, color: T.accent,
+              border: `1px solid ${T.accent}30`, transition: 'all .15s',
+            }}>{q}</button>
+          ))}
+        </div>
+      )}
+
+      {sql && (
+        <div style={{ background: T.codeBg, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div onClick={() => setSqlOpen(!sqlOpen)} style={{
+            cursor: 'pointer', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,
+            color: T.subtext, fontSize: 12.5,
+          }}>
+            <I.sql/> <span>查看 SQL</span>
+            <span style={{ marginLeft: 'auto', color: T.muted, fontSize: 11, fontFamily: T.mono }}>
+              {query_time_ms ? `${query_time_ms}ms` : ''}
+              {retry_count > 0 ? ` · ${retry_count}次重试` : ''}
+            </span>
+            <I.chev style={{ transform: sqlOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}/>
+          </div>
+          {sqlOpen && (
+            <div style={{ position: 'relative', borderTop: `1px solid ${T.border}` }}>
+              <button onClick={() => onCopy(sql)} style={{ ...iconBtn(T), position: 'absolute', top: 8, right: 8 }} title="复制"><I.copy/></button>
+              <pre style={{ margin: 0, padding: '10px 16px 14px', fontFamily: T.mono, fontSize: 12, lineHeight: 1.65, color: T.codeText, overflowX: 'auto', paddingRight: 40 }}>{sql}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(input_tokens > 0 || output_tokens > 0) && (
+        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: T.muted, fontFamily: T.mono }}>
+          <span>↑ {input_tokens?.toLocaleString()} tok</span>
+          <span>↓ {output_tokens?.toLocaleString()} tok</span>
+          {cost_usd > 0 && <span>$ {cost_usd?.toFixed(5)}</span>}
+          {confidence && <span style={{ color: confidence === 'high' ? T.success : confidence === 'medium' ? T.warn : T.accent }}>{confidence}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentThinkingPanel({ T, events, visible }) {
+  if (!visible) return null;
+
+  const AGENTS = [
+    { key: 'clarifier',   label: '理解问题', emoji: '💡' },
+    { key: 'sql_planner', label: '生成 SQL', emoji: '🔍' },
+    { key: 'validator',   label: '验证结果', emoji: '✓' },
+    { key: 'presenter',   label: '整理洞察', emoji: '📊' },
+  ];
+
+  const getStatus = (key) => {
+    const started = events.some(e => e.type === 'agent_start' && e.agent === key);
+    const done    = events.some(e => e.type === 'agent_done'  && e.agent === key);
+    if (!started) return 'pending';
+    return done ? 'done' : 'thinking';
+  };
+
+  const getDoneOutput = (key) => {
+    const ev = events.find(e => e.type === 'agent_done' && e.agent === key);
+    return ev?.output || null;
+  };
+
+  const sqlSteps = events.filter(e => e.type === 'sql_step');
+
+  return (
+    <aside style={{
+      width: 272, flexShrink: 0, height: '100%', overflowY: 'auto',
+      borderLeft: `1px solid ${T.border}`, background: T.sidebar,
+      padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 8,
+    }} className="cb-sb">
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: T.muted, letterSpacing: '0.05em',
+                    textTransform: 'uppercase', marginBottom: 4 }}>思考过程</div>
+
+      {AGENTS.map(({ key, label, emoji }) => {
+        const status = getStatus(key);
+        const output = getDoneOutput(key);
+        const isPending  = status === 'pending';
+        const isThinking = status === 'thinking';
+        const isDone     = status === 'done';
+
+        return (
+          <div key={key} style={{
+            background: T.card, borderRadius: 8,
+            border: `1px solid ${isThinking ? T.accent + '60' : T.border}`,
+            padding: '10px 12px', opacity: isPending ? 0.45 : 1,
+            transition: 'all .2s',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: output || (isThinking && key === 'sql_planner') ? 6 : 0 }}>
+              <span style={{ fontSize: 13 }}>{emoji}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 500, color: T.text, flex: 1 }}>{label}</span>
+              {isDone     && <span style={{ fontSize: 10, color: T.success || '#09AB3B', fontWeight: 600 }}>✓</span>}
+              {isThinking && <TypingDots color={T.accent}/>}
+              {isPending  && <span style={{ fontSize: 10, color: T.muted }}>○</span>}
+            </div>
+
+            {key === 'clarifier' && isDone && output?.refined_question && (
+              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
+                <div style={{ color: T.muted, fontSize: 10.5, marginBottom: 2 }}>精确问题</div>
+                <div style={{ color: T.text }}>{output.refined_question}</div>
+                {output.approach && <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
+              </div>
+            )}
+
+            {key === 'sql_planner' && (isThinking || isDone) && sqlSteps.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {sqlSteps.map((s, i) => (
+                  <div key={i} style={{ fontSize: 11, color: T.muted, lineHeight: 1.45,
+                                        paddingLeft: 8, borderLeft: `2px solid ${T.border}` }}>
+                    {s.step > 0 && <span style={{ color: T.accent, fontWeight: 600, marginRight: 4 }}>S{s.step}</span>}
+                    {s.thought ? s.thought.slice(0, 80) : s.action}
+                    {s.thought && s.thought.length > 80 ? '…' : ''}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {key === 'validator' && isDone && output && (
+              <div style={{ fontSize: 11.5, color: T.subtext }}>
+                <span style={{
+                  fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
+                  background: output.confidence === 'high' ? '#09AB3B22' : output.confidence === 'medium' ? '#FF990022' : T.accentSoft,
+                  color: output.confidence === 'high' ? '#09AB3B' : output.confidence === 'medium' ? '#FF9900' : T.accent,
+                }}>{output.confidence}</span>
+                {output.notes && <span style={{ marginLeft: 6 }}>{output.notes}</span>}
+              </div>
+            )}
+
+            {key === 'presenter' && isDone && output?.insight && (
+              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.5 }}>
+                {output.insight.slice(0, 100)}{output.insight.length > 100 ? '…' : ''}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </aside>
+  );
+}
+
+function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
+                   placeholder = '用中文提问…',
+                   useAgent, setUseAgent, activeUpload, setActiveUpload, onUpload }) {
+  const fileRef = useRef(null);
+
+  const handleFile = (e) => {
+    const f = e.target.files?.[0];
+    if (f && onUpload) onUpload(f);
+    e.target.value = '';
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%', maxWidth: 640 }}>
+      {activeUpload && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
+          padding: '5px 10px', background: T.accentSoft, borderRadius: 8,
+          border: `1px solid ${T.accent}30`,
+        }}>
+          <I.file style={{ color: T.accent, flexShrink: 0 }}/>
+          <span style={{ flex: 1, fontSize: 12, color: T.accent, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeUpload.filename} · {activeUpload.row_count} 行
+          </span>
+          <button onClick={() => setActiveUpload(null)} style={{ ...iconBtn(T), width: 18, height: 18, color: T.accent }}>
+            <I.x width="10" height="10"/>
+          </button>
+        </div>
+      )}
+      <div style={{
+        background: T.inputBg, border: `1px solid ${T.inputBorder}`,
+        borderRadius: 14, padding: '12px 14px', width: '100%',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -16px rgba(0,0,0,0.12)',
+      }}>
+        <textarea
+          value={value} onChange={e => onChange(e.target.value)} onKeyDown={onKeyDown}
+          placeholder={activeUpload ? `询问关于 ${activeUpload.filename} 的问题…` : placeholder} rows={1}
+          style={{
+            width: '100%', background: 'transparent', border: 'none', outline: 'none', resize: 'none',
+            fontSize: 14, color: T.text, fontFamily: T.sans, lineHeight: 1.5, minHeight: 24, maxHeight: 120,
+            overflow: 'auto',
+          }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 11.5, color: T.muted, userSelect: 'none' }}>
+            <div style={{
+              width: 28, height: 15, borderRadius: 999, background: useAgent ? T.accent : T.border, position: 'relative', transition: 'background .15s', flexShrink: 0,
+            }} onClick={() => setUseAgent(!useAgent)}>
+              <span style={{ position: 'absolute', top: 1.5, left: useAgent ? 14 : 1.5, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .15s' }}/>
+            </div>
+            多Agent
+          </label>
+          <div style={{ flex: 1 }}/>
+          {onUpload && (
+            <>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: 'none' }}/>
+              <button onClick={() => fileRef.current?.click()} title="上传 CSV / Excel"
+                style={{ ...iconBtn(T), color: activeUpload ? T.accent : T.muted }}>
+                <I.clip/>
+              </button>
+            </>
+          )}
+          <button onClick={onSubmit} disabled={loading || !value.trim()} style={{
+            width: 30, height: 30, borderRadius: 8, border: 'none',
+            background: loading || !value.trim() ? T.muted : T.sendBg, color: T.sendFg,
+            display: 'grid', placeItems: 'center', cursor: loading || !value.trim() ? 'not-allowed' : 'pointer',
+          }}>
+            {loading ? <Spinner size={12} color="#fff"/> : <I.send/>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

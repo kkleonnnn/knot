@@ -1,6 +1,7 @@
-// shared.jsx — icons, theme, line chart, global styles
+import { useRef, useEffect } from 'react';
+import * as echarts from 'echarts';
 
-const I = {
+export const I = {
   plus:    (p={}) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...p}><path d="M12 5v14M5 12h14"/></svg>,
   search:  (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
   history: (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>,
@@ -39,8 +40,7 @@ const I = {
   book:    (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
 };
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
-function buildTheme(dark) {
+export function buildTheme(dark) {
   return {
     dark,
     bg:          dark ? '#0E1117' : '#F5F5F4',
@@ -71,13 +71,13 @@ function buildTheme(dark) {
   };
 }
 
-// ─── Style helpers ────────────────────────────────────────────────────────────
-const iconBtn = (T) => ({
+export const iconBtn = (T) => ({
   width: 28, height: 28, display: 'inline-grid', placeItems: 'center',
   background: 'transparent', border: 'none', borderRadius: 6,
   color: T.subtext, cursor: 'pointer',
 });
-const pillBtn = (T, primary = false) => ({
+
+export const pillBtn = (T, primary = false) => ({
   display: 'inline-flex', alignItems: 'center', gap: 5,
   padding: '6px 11px', borderRadius: 6, fontSize: 12.5,
   background: primary ? T.accent : 'transparent',
@@ -86,10 +86,8 @@ const pillBtn = (T, primary = false) => ({
   fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
 });
 
-// ─── Chart colors ────────────────────────────────────────────────────────────
-const CHART_COLORS = ['#FF4B4B','#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16'];
+export const CHART_COLORS = ['#FF4B4B','#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16'];
 
-// ─── ECharts tooltip style ────────────────────────────────────────────────────
 const EC_TOOLTIP = {
   backgroundColor: 'rgba(20,25,35,0.92)',
   borderColor: 'rgba(255,255,255,0.1)',
@@ -103,18 +101,17 @@ const fmtNum = v =>
   Math.abs(v) >= 1e3 ? `${(v/1e3).toFixed(0)}K` :
   typeof v === 'number' ? v.toLocaleString() : v;
 
-// ─── LineChart ────────────────────────────────────────────────────────────────
-function LineChart({ data, height = 220, stroke = '#FF4B4B', colors = CHART_COLORS,
-                    fill = true, labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
-  const elRef = React.useRef(null);
-  const ec    = React.useRef(null);
+export function LineChart({ data, height = 220, stroke = '#FF4B4B', colors = CHART_COLORS,
+                           fill = true, labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
+  const elRef = useRef(null);
+  const ec    = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     ec.current = echarts.init(elRef.current, null, { renderer: 'svg' });
     return () => { ec.current.dispose(); ec.current = null; };
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!ec.current || !data || data.length < 2) return;
     const keys  = Object.keys(data[0]);
     const xKey  = keys[0];
@@ -161,18 +158,17 @@ function LineChart({ data, height = 220, stroke = '#FF4B4B', colors = CHART_COLO
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }
 
-// ─── BarChart ─────────────────────────────────────────────────────────────────
-function BarChart({ data, height = 220, color = '#FF4B4B', colors = CHART_COLORS,
-                   labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
-  const elRef = React.useRef(null);
-  const ec    = React.useRef(null);
+export function BarChart({ data, height = 220, color = '#FF4B4B', colors = CHART_COLORS,
+                          labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
+  const elRef = useRef(null);
+  const ec    = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     ec.current = echarts.init(elRef.current, null, { renderer: 'svg' });
     return () => { ec.current.dispose(); ec.current = null; };
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!ec.current || !data || !data.length) return;
     const keys  = Object.keys(data[0]);
     const xKey  = keys[0];
@@ -212,17 +208,16 @@ function BarChart({ data, height = 220, color = '#FF4B4B', colors = CHART_COLORS
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }
 
-// ─── PieChart ─────────────────────────────────────────────────────────────────
-function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor = '#8a8d93' }) {
-  const elRef = React.useRef(null);
-  const ec    = React.useRef(null);
+export function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor = '#8a8d93' }) {
+  const elRef = useRef(null);
+  const ec    = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     ec.current = echarts.init(elRef.current, null, { renderer: 'svg' });
     return () => { ec.current.dispose(); ec.current = null; };
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!ec.current || !data || !data.length) return;
     const keys = Object.keys(data[0]);
     const labelKey = keys[0], valKey = keys[1];
@@ -262,8 +257,7 @@ function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor = '#8a
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }
 
-// ─── TypingDots ───────────────────────────────────────────────────────────────
-function TypingDots({ color = '#FF4B4B' }) {
+export function TypingDots({ color = '#FF4B4B' }) {
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
       {[0,1,2].map(i => <span key={i} style={{
@@ -274,7 +268,7 @@ function TypingDots({ color = '#FF4B4B' }) {
   );
 }
 
-// ─── Global styles ────────────────────────────────────────────────────────────
+// Inject global CSS animations + scrollbar styles
 (function injectStyles() {
   if (document.getElementById('cb-styles')) return;
   const s = document.createElement('style');
@@ -299,13 +293,3 @@ function TypingDots({ color = '#FF4B4B' }) {
   `;
   document.head.appendChild(s);
 })();
-
-window.I = I;
-window.buildTheme = buildTheme;
-window.iconBtn = iconBtn;
-window.pillBtn = pillBtn;
-window.CHART_COLORS = CHART_COLORS;
-window.LineChart = LineChart;
-window.BarChart = BarChart;
-window.PieChart = PieChart;
-window.TypingDots = TypingDots;

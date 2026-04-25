@@ -1,6 +1,6 @@
-// shell.jsx — AppShell: sidebar + topbar + content slot
+import { I, iconBtn } from './Shared.jsx';
 
-function AppShell({
+export function AppShell({
   T, user, active = 'chat', sidebarContent,
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
@@ -128,7 +128,7 @@ function AppShell({
   );
 }
 
-function SideHeading({ T, children }) {
+export function SideHeading({ T, children }) {
   return (
     <div style={{
       padding: '12px 10px 4px', fontSize: 10.5, color: T.muted,
@@ -137,7 +137,7 @@ function SideHeading({ T, children }) {
   );
 }
 
-function SideNavRow({ T, icon, label, active, onClick }) {
+export function SideNavRow({ T, icon, label, active, onClick }) {
   return (
     <div onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px',
@@ -153,7 +153,3 @@ function SideNavRow({ T, icon, label, active, onClick }) {
     </div>
   );
 }
-
-window.AppShell = AppShell;
-window.SideHeading = SideHeading;
-window.SideNavRow = SideNavRow;
