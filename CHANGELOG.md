@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604270145] - 2026-04-27 批次4（日期感知 + 业务化 prompt seed）
+
+### Fixed
+- 未来日期误判：clarifier / validator 因 LLM 训练截止时间把 ≤ 今日的日期判为"未来"，触发无谓重试（42s→11s）。4 个 agent prompt 全部注入 `今日：YYYY-MM-DD`（系统时间为权威）；llm_client.build_system_prompt 同步注入
+
+### Added
+- `prompts.get_prompt` 支持 `{__default__}` 占位符 → admin 可在 DB 中写"默认 + 业务追加"而不必抄全文
+- `scripts/seed_v021_b3.py` 一次性 seed：6 条 few-shot（metric/trend/compare/rank/distribution/retention 6 类型覆盖）+ 4 个 agent 的业务追加约束（时间口径、字段映射、SQL 风格、洞察文风）
+
+### Verified（端到端 OpenRouter 实测）
+- "2026年4月25日注册用户数是多少" → clarifier 一次明确 / sql_planner 1 步 / validator high / presenter 8 人 + 2 条 followup，11.9s, $0.0079
+
 ## [0.2.1.202604262315] - 2026-04-26 批次3（遗留收尾）
 
 ### Fixed

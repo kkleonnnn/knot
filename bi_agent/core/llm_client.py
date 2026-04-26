@@ -115,7 +115,9 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 你的唯一任务是把用户的自然语言问题转换成可执行的 SQL 查询语句。
 不要解释你自己，不要打招呼，只输出要求格式的 JSON。"""
 
-    section_db = """## 数据库环境
+    from datetime import date as _d
+    section_db = f"""## 数据库环境
+- 今日: {_d.today().isoformat()}（系统时间，权威；CURDATE()/NOW() 都以此为基准）
 - 数据库类型: Apache Doris（完全兼容 MySQL 5.7 语法）
 - 时间函数: DATE_SUB(CURDATE(), INTERVAL N DAY) 或 CURRENT_DATE - INTERVAL N DAY
 - 字符串函数: CONCAT(), SUBSTRING(), LENGTH()

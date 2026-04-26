@@ -5,9 +5,14 @@ SQL Planner reuses the existing sql_agent.run_sql_agent().
 
 import json
 import re
+from datetime import date as _date
 
 import llm_client
 import prompts as _prompts_mod
+
+
+def _today() -> str:
+    return _date.today().isoformat()
 from config import (
     MODELS, DEFAULT_MODEL,
     PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -103,6 +108,8 @@ def _parse_json(text: str) -> dict:
 _CLARIFIER_SYS = """你是数据分析助手的「问题理解专家」。
 判断用户问题是否明确可执行，并给出精确化的查询描述。
 
+今日：{today}（系统时间，权威。用户问题中出现的此日期之前的任何日期都视为历史日期，不要因模型训练截止时间而判断为"未来"）
+
 输出严格 JSON（禁止任何其他内容）：
 {
   "is_clear": true,
@@ -134,7 +141,8 @@ def run_clarifier(
     schema_slice = (schema_text or "")[:6000] or "(无 Schema)"
     history_text = "\n".join(f"Q: {h.get('question', '')}" for h in history[-3:]) or "无"
     system = _prompts_mod.get_prompt(
-        "clarifier", _CLARIFIER_SYS, {"schema": schema_slice, "history": history_text}
+        "clarifier", _CLARIFIER_SYS,
+        {"schema": schema_slice, "history": history_text, "today": _today()},
     )
 
     model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
@@ -163,6 +171,8 @@ def run_clarifier(
 
 _VALIDATOR_SYS = """你是数据质量验证专家。根据用户问题和 SQL 查询结果，判断结果是否合理可靠。
 
+今日：{today}（系统时间，权威。≤ 今日的任何日期都是历史日期，不要因模型训练截止时间而判断为"未来日期"）
+
 输出严格 JSON：
 {
   "is_valid": true,
@@ -176,7 +186,8 @@ confidence 含义：
 - "medium"：有轻微问题（如数据偏少）但基本可用
 - "low"：结果明显异常（空结果但不应为空、数值量级异常、时间范围错误等），需重试
 
-confidence 为 low 时必须在 issues 中列出具体问题。"""
+confidence 为 low 时必须在 issues 中列出具体问题。
+不要把"今日及之前的日期"判定为未来日期或异常。"""
 
 
 def run_validator(
@@ -198,7 +209,7 @@ def run_validator(
     it = ot = 0
     cost = 0.0
     result = {}
-    sys_prompt = _prompts_mod.get_prompt("validator", _VALIDATOR_SYS)
+    sys_prompt = _prompts_mod.get_prompt("validator", _VALIDATOR_SYS, {"today": _today()})
     try:
         text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=300)
@@ -221,6 +232,8 @@ def run_validator(
 
 _PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果，给出简洁的分析洞察，并推荐高价值的追问方向。
 
+今日：{today}（系统时间，权威）
+
 输出严格 JSON：
 {
   "insight": "2-3句分析洞察，直接点出关键发现、趋势或异常",
@@ -228,7 +241,8 @@ _PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果
 }
 
 结果为空时，insight 说明可能原因并给出排查建议。
-suggested_followups 给出2个最有价值的下一步分析方向（简洁，不超过15字）。"""
+suggested_followups 给出2个最有价值的下一步分析方向（简洁，不超过15字）。
+洞察用动词开头，不超过 3 句，不要把当前/历史日期表述为"未来"。"""
 
 
 def run_presenter(
@@ -251,7 +265,7 @@ def run_presenter(
     it = ot = 0
     cost = 0.0
     result = {}
-    sys_prompt = _prompts_mod.get_prompt("presenter", _PRESENTER_SYS)
+    sys_prompt = _prompts_mod.get_prompt("presenter", _PRESENTER_SYS, {"today": _today()})
     try:
         text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=512)

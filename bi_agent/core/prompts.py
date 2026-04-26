@@ -18,14 +18,21 @@ def _safe_format(template: str, mapping: dict) -> str:
 
 
 def get_prompt(agent_name: str, default: str, mapping: dict = None) -> str:
-    """读 DB；DB 为空回退 default。再用 mapping 做安全格式化。"""
+    """读 DB；DB 为空回退 default。再用 mapping 做安全格式化。
+
+    DB content 内可包含 `{__default__}` 占位符 → 在该位置嵌入内置 default
+    （便于 admin 在默认基础上"追加"业务约束而不必抄全文）。
+    """
     content = ""
     try:
         import persistence
         content = persistence.get_prompt_template(agent_name) or ""
     except Exception:
         content = ""
-    template = content if content.strip() else default
+    if content.strip():
+        template = content.replace("{__default__}", default)
+    else:
+        template = default
     if mapping:
         return _safe_format(template, mapping)
     return template

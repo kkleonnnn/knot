@@ -6,6 +6,7 @@ Think → Act → Observe → ... → Final Answer
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import date as _date
 from typing import List, Tuple
 
 import db_connector
@@ -42,6 +43,8 @@ class AgentResult:
 
 
 _AGENT_SYSTEM_TEMPLATE = """你是一个 SQL Agent，通过 ReAct（推理-行动）模式帮用户回答数据仓库问题。
+
+今日：{today}（系统时间，权威。SQL 中的 CURDATE() / NOW() 都以此为基准；用户提问中 ≤ 今日的日期都视为历史日期）
 
 每一步必须按以下格式输出（严格遵守格式，不输出其他任何内容）:
 Thought: [分析当前状况，决定下一步]
@@ -226,6 +229,7 @@ def run_sql_agent(
             "db_env": "Apache Doris（兼容 MySQL 5.7 语法）",
             "schema": schema_text,
             "business_ctx": business_section,
+            "today": _date.today().isoformat(),
         },
     )
 
