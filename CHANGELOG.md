@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604270215] - 2026-04-27 批次5（多轮上下文）
+
+### Fixed
+- 多轮代词无法关联：history 传给 clarifier 时只有 Q 文本，丢掉 SQL/结果，导致"这些用户"无法回指上一轮口径；现在 history 渲染为 `Q + SQL + 前 2 行结果`
+- Clarifier prompt 增加强制代词解析规则：遇到「这些/上述/刚才的/他们/那批」必直接 is_clear=true，禁止以"聚合表无明细/是否存在 xx 表"为由追问（属 sql_planner 责任）；附正确示例
+
+### Verified
+- Q1 "2026-04-25 注册用户数" → 8 人（ads_operation_report_daily 聚合）
+- Q2 "把这些用户的ID列一下" → clarifier 一次明确 → sql_planner 自动从 ads 切到 ohx_dwd.dwd_user_reg → 返回 8 个 user_id（与 Q1 数值对应）
+
 ## [0.2.1.202604270145] - 2026-04-27 批次4（日期感知 + 业务化 prompt seed）
 
 ### Fixed

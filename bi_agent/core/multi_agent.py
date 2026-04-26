@@ -122,6 +122,18 @@ is_clear 为 false 仅当：核心指标存在多种完全不同的解释（如"
 注意：下方 Schema 包含字段名+注释，若字段注释能直接对应问题中的概念（如"注册用户"对应 user.created_at），视为 is_clear=true，不要追问。
 如对话历史中已有澄清回复，直接视为 is_clear=true 并将澄清信息融入 refined_question。
 
+代词解析（强制规则）：用户用「这些」「上述」「刚才的」「他们」「那批」等指代词时：
+1. 必须结合 history 中上一条 Q+SQL+结果定位到具体口径
+2. is_clear=true，把口径完整写入 refined_question（如"列出 2026-04-25 注册的用户ID"）
+3. 禁止以"上一题用的是聚合表/没有明细字段/数据库中是否存在 xx 表"为由追问 —— 这些是 sql_planner 的责任，不是澄清范围；找不到合适表由 sql_planner 报错
+4. 数据源/表选择的疑虑写到 analysis_approach 里供下游参考，不要写到 clarification_question
+5. 仅当 history 为空且代词无法从字面推断时才追问
+
+正确示例：
+  history Q: "2026-04-25 注册用户数" → SQL 用 ads_operation_report_daily.reg_user_num=8
+  当前 Q: "把这些用户的ID列一下"
+  正确输出：{"is_clear": true, "refined_question": "列出 2026-04-25 当天注册的用户的 ID", "analysis_approach": "上一题用的是聚合表无 ID，需 sql_planner 在 dwd/ods 层找用户注册明细表"}
+
 Schema（表 / 字段 / 注释）：
 {schema}
 
@@ -139,7 +151,23 @@ def run_clarifier(
 ) -> dict:
     # v0.2.1 修复 clarifier 字段盲区：传完整 schema（含字段名+注释），上限 6000 字防超 token
     schema_slice = (schema_text or "")[:6000] or "(无 Schema)"
-    history_text = "\n".join(f"Q: {h.get('question', '')}" for h in history[-3:]) or "无"
+    # v0.2.1 批次4：history 同时给出上一次的 SQL 与结果摘要，让 clarifier 能解析
+    # 「这些用户」「上述」「刚才的」等代词，避免追问已可推断的上下文
+    if history:
+        lines = []
+        for h in history[-3:]:
+            q = h.get("question", "")
+            sql = (h.get("sql") or "").strip().replace("\n", " ")
+            rows = h.get("rows") or []
+            if sql:
+                sql_short = sql if len(sql) <= 220 else sql[:220] + "…"
+                sample = json.dumps(rows[:2], ensure_ascii=False, default=str) if rows else "[]"
+                lines.append(f"Q: {q}\n  SQL: {sql_short}\n  结果(前2行,共{len(rows)}行): {sample}")
+            else:
+                lines.append(f"Q: {q}")
+        history_text = "\n".join(lines)
+    else:
+        history_text = "无"
     system = _prompts_mod.get_prompt(
         "clarifier", _CLARIFIER_SYS,
         {"schema": schema_slice, "history": history_text, "today": _today()},
