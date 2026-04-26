@@ -1,0 +1,75 @@
+"""
+prompts.py — admin 维护 4 个 agent 的 system prompt 覆盖
+agent_name ∈ {clarifier, sql_planner, validator, presenter}
+"""
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+
+import persistence
+from ..dependencies import require_admin
+
+router = APIRouter()
+
+VALID_AGENTS = {"clarifier", "sql_planner", "validator", "presenter"}
+
+
+@router.get("/api/prompts")
+async def list_prompts(admin=Depends(require_admin)):
+    rows = persistence.list_prompt_templates()
+    return rows
+
+
+@router.get("/api/prompts/{agent_name}")
+async def get_prompt(agent_name: str, admin=Depends(require_admin)):
+    if agent_name not in VALID_AGENTS:
+        raise HTTPException(status_code=404, detail="未知 agent")
+    return {"agent_name": agent_name, "content": persistence.get_prompt_template(agent_name)}
+
+
+@router.put("/api/prompts/{agent_name}")
+async def set_prompt(agent_name: str, payload: dict = Body(...), admin=Depends(require_admin)):
+    if agent_name not in VALID_AGENTS:
+        raise HTTPException(status_code=404, detail="未知 agent")
+    content = payload.get("content", "")
+    persistence.set_prompt_template(agent_name, content, updated_by=admin["id"])
+    return {"ok": True}
+
+
+@router.delete("/api/prompts/{agent_name}")
+async def delete_prompt(agent_name: str, admin=Depends(require_admin)):
+    if agent_name not in VALID_AGENTS:
+        raise HTTPException(status_code=404, detail="未知 agent")
+    persistence.delete_prompt_template(agent_name)
+    return {"ok": True}
+
+
+@router.post("/api/prompts/upload")
+async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_admin)):
+    """xlsx：列名 agent_name / content"""
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
+    try:
+        from openpyxl import load_workbook
+        from io import BytesIO
+        data = await file.read()
+        wb = load_workbook(filename=BytesIO(data), data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            raise HTTPException(status_code=400, detail="文件内容为空")
+        header = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
+        n = 0
+        for r in rows[1:]:
+            d = {header[i]: r[i] for i in range(min(len(header), len(r)))}
+            agent = (d.get("agent_name") or "").strip() if isinstance(d.get("agent_name"), str) else ""
+            content = d.get("content") or ""
+            content = str(content) if content is not None else ""
+            if agent in VALID_AGENTS and content.strip():
+                persistence.set_prompt_template(agent, content, updated_by=admin["id"])
+                n += 1
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"解析失败: {str(e)[:200]}")
+
+    return {"updated": n}

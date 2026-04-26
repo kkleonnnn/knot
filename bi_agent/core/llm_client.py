@@ -20,15 +20,38 @@ from config import (
 # ── Few-Shot library ───────────────────────────────────────────────────
 
 def _load_few_shots() -> dict:
+    """优先从 DB 读取（admin 维护）；DB 为空时回退 few_shots.yaml。"""
+    yaml_data = {"examples": [], "type_keywords": {}}
     yaml_path = os.path.join(os.path.dirname(__file__), "few_shots.yaml")
-    if not os.path.exists(yaml_path):
-        return {"examples": [], "type_keywords": {}}
+    if os.path.exists(yaml_path):
+        try:
+            import yaml
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                yaml_data = yaml.safe_load(f) or yaml_data
+        except Exception:
+            pass
+
     try:
-        import yaml
-        with open(yaml_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {"examples": [], "type_keywords": {}}
+        import persistence
+        rows = persistence.list_few_shots(only_active=True)
+        if rows:
+            return {
+                "examples": [
+                    {
+                        "id": r["id"],
+                        "question": r["question"],
+                        "sql": r["sql"],
+                        "type": r.get("type") or "aggregation",
+                        "explanation": "",
+                        "confidence": "medium",
+                    }
+                    for r in rows
+                ],
+                "type_keywords": yaml_data.get("type_keywords", {}),
+            }
     except Exception:
-        return {"examples": [], "type_keywords": {}}
+        pass
+    return yaml_data
 
 
 def classify_question_type(question: str, type_keywords: dict) -> str:
@@ -92,7 +115,9 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 你的唯一任务是把用户的自然语言问题转换成可执行的 SQL 查询语句。
 不要解释你自己，不要打招呼，只输出要求格式的 JSON。"""
 
-    section_db = """## 数据库环境
+    from datetime import date as _d
+    section_db = f"""## 数据库环境
+- 今日: {_d.today().isoformat()}（系统时间，权威；CURDATE()/NOW() 都以此为基准）
 - 数据库类型: Apache Doris（完全兼容 MySQL 5.7 语法）
 - 时间函数: DATE_SUB(CURDATE(), INTERVAL N DAY) 或 CURRENT_DATE - INTERVAL N DAY
 - 字符串函数: CONCAT(), SUBSTRING(), LENGTH()
@@ -144,7 +169,18 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 
 # ── OpenRouter detection ───────────────────────────────────────────────
 
+def _app_or_key() -> str:
+    try:
+        import persistence
+        return persistence.get_app_setting("openrouter_api_key", "") or ""
+    except Exception:
+        return ""
+
+
 def _is_openrouter_model(model_key: str) -> bool:
+    cfg = MODELS.get(model_key)
+    if cfg and cfg.get("provider") == "openrouter":
+        return True
     return "/" in model_key and model_key not in MODELS
 
 
@@ -160,7 +196,7 @@ def generate_sql(
     openrouter_api_key: str = "",
 ) -> dict:
     if _is_openrouter_model(model_key):
-        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:
             return _error_result("未设置 OpenRouter API Key，请在「API & 模型」页面填写")
         model_cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
@@ -355,7 +391,7 @@ def fix_sql(question, schema_text, failed_sql, error_message,
             model_key=DEFAULT_MODEL, api_key="", business_context="",
             openrouter_api_key: str = "") -> dict:
     if _is_openrouter_model(model_key):
-        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:
             return _error_result("未设置 OpenRouter API Key")
         model_cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}

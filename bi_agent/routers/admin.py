@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 import auth_utils
 import config as cfg
@@ -37,8 +37,13 @@ async def admin_list_users(admin=Depends(require_admin)):
     ]
 
 
+_VALID_ROLES = {"admin", "analyst"}
+
+
 @router.post("/api/admin/users")
 async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)):
+    if req.role not in _VALID_ROLES:
+        raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     ph = auth_utils.hash_password(req.password)
     ok = persistence.create_user(
         req.username, ph, req.display_name or req.username, req.role,
@@ -52,6 +57,8 @@ async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)
 
 @router.put("/api/admin/users/{user_id}")
 async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admin)):
+    if req.role is not None and req.role not in _VALID_ROLES:
+        raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in ("password", "source_ids")}
     if "default_source_id" in req.__fields_set__:
         kwargs["default_source_id"] = req.default_source_id
@@ -189,6 +196,25 @@ async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(req
         "validator":   req.validator,
         "presenter":   req.presenter,
     })
+    return {"ok": True}
+
+
+# ── API Keys (app-level, admin-only) ───────────────────────────────────
+
+@router.get("/api/admin/api-keys")
+async def get_api_keys(admin=Depends(require_admin)):
+    return {
+        "openrouter_api_key": persistence.get_app_setting("openrouter_api_key", ""),
+        "embedding_api_key":  persistence.get_app_setting("embedding_api_key", ""),
+    }
+
+
+@router.put("/api/admin/api-keys")
+async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
+    if "openrouter_api_key" in payload:
+        persistence.set_app_setting("openrouter_api_key", payload["openrouter_api_key"] or "")
+    if "embedding_api_key" in payload:
+        persistence.set_app_setting("embedding_api_key", payload["embedding_api_key"] or "")
     return {"ok": True}
 
 

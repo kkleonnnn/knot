@@ -6,7 +6,15 @@ export const api = {
       method, headers: this._h(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (r.status === 401) { localStorage.removeItem('cb_token'); window.location.reload(); return; }
+    if (r.status === 401) {
+      localStorage.removeItem('cb_token');
+      localStorage.removeItem('cb_user');
+      localStorage.removeItem('cb_screen');
+      localStorage.removeItem('cb_conv');
+      localStorage.removeItem('cb_loading');
+      window.location.reload();
+      return;
+    }
     if (!r.ok) { const t = await r.text(); throw new Error(t || r.statusText); }
     if (r.status === 204) return {};
     return r.json();

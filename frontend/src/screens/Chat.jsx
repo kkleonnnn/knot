@@ -4,73 +4,6 @@ import { usePersist, toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
-function useDebounce(value, delay) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
-}
-
-function SchemaPanel({ T, tables, onInsert }) {
-  const [expanded, setExpanded] = useState({});
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 300);
-  const toggle = (name) => setExpanded(prev => ({ ...prev, [name]: !prev[name] }));
-  const filtered = tables.filter(t =>
-    !debouncedSearch || t.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-    t.columns.some(c => c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
-  );
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 6, padding: '5px 8px', marginBottom: 4, gap: 6 }}>
-        <I.search style={{ color: T.muted, flexShrink: 0 }}/>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索表/字段…"
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: T.text, fontFamily: 'inherit' }}/>
-      </div>
-      {filtered.length === 0 && (
-        <div style={{ fontSize: 12, color: T.muted, padding: '8px 4px' }}>
-          {tables.length === 0 ? '暂无表结构' : '无匹配结果'}
-        </div>
-      )}
-      <div className="cb-sb" style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {filtered.map(t => (
-          <div key={t.name}>
-            <div onClick={() => toggle(t.name)} style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px',
-              borderRadius: 5, cursor: 'pointer', color: T.subtext, fontSize: 12.5,
-              background: expanded[t.name] ? T.accentSoft : 'transparent',
-            }}>
-              <I.chev style={{ transform: expanded[t.name] ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform .15s', color: T.muted, flexShrink: 0 }}/>
-              <I.db style={{ color: expanded[t.name] ? T.accent : T.muted, flexShrink: 0 }}/>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: expanded[t.name] ? T.accent : T.subtext, fontWeight: expanded[t.name] ? 500 : 400 }}>{t.name}</span>
-              <button onClick={e => { e.stopPropagation(); onInsert(t.name); }} title="插入到问题"
-                style={{ ...iconBtn(T), width: 18, height: 18, opacity: 0.5, fontSize: 10 }}>+</button>
-            </div>
-            {expanded[t.name] && (
-              <div style={{ paddingLeft: 20, paddingBottom: 2 }}>
-                {t.columns.map(c => (
-                  <div key={c.name} onClick={() => onInsert(`${t.name}.${c.name}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 4, cursor: 'pointer', color: T.muted, fontSize: 11.5 }}
-                    onMouseEnter={e => e.currentTarget.style.background = T.hover}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{c.name}</span>
-                      {c.comment && <span style={{ fontSize: 10, color: T.accent, opacity: 0.8, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.comment}</span>}
-                    </div>
-                    <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, opacity: 0.6, flexShrink: 0 }}>{c.type.split('(')[0]}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [convs, setConvs] = useState([]);
   const [activeConvId, setActiveConvId] = usePersist('cb_conv', null);
@@ -78,28 +11,30 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbOk, setDbOk] = useState(null);
-  const [useAgent, setUseAgent] = useState(false);
   const [agentEvents, setAgentEvents] = useState([]);
-  const [sidebarTab, setSidebarTab] = useState('history');
-  const [schema, setSchema] = useState([]);
   const [activeUpload, setActiveUpload] = useState(null);
   const scrollRef = useRef(null);
 
-  useEffect(() => { loadConvs(); checkDb(); loadSchema(); }, []);
+  useEffect(() => { loadConvs(); checkDb(); }, []);
   useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const loadConvs = async () => {
-    try { const d = await api.get('/api/conversations'); setConvs(d); } catch {}
+    try {
+      const d = await api.get('/api/conversations');
+      setConvs(d);
+      // 若当前 activeConvId 不在该 user 的列表中（账号切换 / 会话已删），重置避免 query 报 404
+      if (activeConvId && !d.some(c => c.id === activeConvId)) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+    } catch {}
   };
   const checkDb = async () => {
     try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
   };
   const loadMessages = async (cid) => {
     try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
-  };
-  const loadSchema = async () => {
-    try { const d = await api.get('/api/db/schema'); setSchema(d.tables || []); } catch {}
   };
 
   const newChat = async () => {
@@ -123,7 +58,18 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const sendQuery = async (e) => {
     e?.preventDefault();
     if (!question.trim() || loading) return;
-    if (!activeConvId) { await newChat(); return; }
+
+    // 没活动会话则即时创建并直接用 id 发送，避免依赖 setState 异步更新导致首次发送丢失
+    let convId = activeConvId;
+    if (!convId) {
+      try {
+        const d = await api.post('/api/conversations', { title: '新对话' });
+        setConvs(prev => [d, ...prev]);
+        setActiveConvId(d.id);
+        setMessages([]);
+        convId = d.id;
+      } catch { toast('创建对话失败', true); return; }
+    }
 
     const q = question.trim();
     setQuestion('');
@@ -134,24 +80,11 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     const tempMsg = { id: tempId, question: q, sql: '', rows: [], explanation: '', confidence: '', error: '', loading: true };
     setMessages(prev => [...prev, tempMsg]);
 
-    if (!useAgent) {
-      try {
-        const body = { question: q };
-        if (activeUpload) body.upload_id = activeUpload.id;
-        const d = await api.post(`/api/conversations/${activeConvId}/query`, body);
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...d, loading: false } : m));
-        loadConvs();
-      } catch (err) {
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: String(err) } : m));
-      } finally { setLoading(false); }
-      return;
-    }
-
     try {
       const body = { question: q };
       if (activeUpload) body.upload_id = activeUpload.id;
 
-      const resp = await fetch(`/api/conversations/${activeConvId}/query-stream`, {
+      const resp = await fetch(`/api/conversations/${convId}/query-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api._token()}` },
         body: JSON.stringify(body),
@@ -266,21 +199,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
       }}>
         <I.plus width="14" height="14"/> 新建对话
       </button>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
-        {[['history', <I.history/>, '历史'], ['schema', <I.db/>, '表结构']].map(([tab, icon, label]) => (
-          <button key={tab} onClick={() => setSidebarTab(tab)} style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', fontSize: 11.5, cursor: 'pointer',
-            background: sidebarTab === tab ? T.accentSoft : 'transparent',
-            color: sidebarTab === tab ? T.accent : T.muted,
-            border: `1px solid ${sidebarTab === tab ? T.accent + '40' : T.border}`,
-          }}>{icon} {label}</button>
-        ))}
-      </div>
-      {sidebarTab === 'history'
-        ? <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
-        : <SchemaPanel T={T} tables={schema} onInsert={(txt) => setQuestion(q => q ? q + ' ' + txt : txt)}/>
-      }
+      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
     </>
   );
 
@@ -296,21 +215,19 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
         ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
                      hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
-                     useAgent={useAgent} setUseAgent={setUseAgent}
-                     activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
+                                          activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
         : <ChatConversation T={T} messages={messages} scrollRef={scrollRef} loading={loading}
                             question={question} setQuestion={setQuestion}
                             onSubmit={sendQuery} onKeyDown={handleKeyDown}
                             onCopy={copyToClipboard} onDownload={downloadCSV}
-                            useAgent={useAgent} setUseAgent={setUseAgent}
-                            agentEvents={agentEvents}
+                                                        agentEvents={agentEvents}
                             activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
       }
     </AppShell>
   );
 }
 
-function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDown, useAgent, setUseAgent, activeUpload, setActiveUpload, onUpload }) {
+function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDown, activeUpload, setActiveUpload, onUpload }) {
   const firstName = user?.display_name?.split(' ')[0] || user?.username || '你';
   const suggestions = [
     '今天的订单总量是多少？',
@@ -326,8 +243,7 @@ function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDow
       </div>
       <Composer T={T} value={question} onChange={setQuestion} loading={loading}
                 onSubmit={onSubmit} onKeyDown={onKeyDown}
-                useAgent={useAgent} setUseAgent={setUseAgent}
-                activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}/>
+                                activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}/>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 14, maxWidth: 640, width: '100%' }}>
         {suggestions.map((s, i) => (
           <button key={i} onClick={() => setQuestion(s)} style={{
@@ -346,8 +262,8 @@ function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDow
   );
 }
 
-function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, useAgent, setUseAgent, agentEvents, activeUpload, setActiveUpload, onUpload }) {
-  const showPanel = useAgent && agentEvents.length > 0;
+function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, agentEvents, activeUpload, setActiveUpload, onUpload }) {
+  const showPanel = agentEvents.length > 0;
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -379,13 +295,12 @@ function ChatConversation({ T, messages, scrollRef, loading, question, setQuesti
           <div style={{ maxWidth: 800, margin: '0 auto' }}>
             <Composer T={T} value={question} onChange={setQuestion} loading={loading}
                       onSubmit={onSubmit} onKeyDown={onKeyDown}
-                      useAgent={useAgent} setUseAgent={setUseAgent}
-                      activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}
+                                            activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={onUpload}
                       placeholder="继续追问…"/>
           </div>
         </div>
       </div>
-      {useAgent && <AgentThinkingPanel T={T} events={agentEvents} visible={showPanel}/>}
+      {showPanel && <AgentThinkingPanel T={T} events={agentEvents} visible={showPanel}/>}
     </div>
   );
 }
@@ -675,7 +590,7 @@ function AgentThinkingPanel({ T, events, visible }) {
 
 function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
                    placeholder = '用中文提问…',
-                   useAgent, setUseAgent, activeUpload, setActiveUpload, onUpload }) {
+                   activeUpload, setActiveUpload, onUpload }) {
   const fileRef = useRef(null);
 
   const handleFile = (e) => {
@@ -716,14 +631,6 @@ function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
           }}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 11.5, color: T.muted, userSelect: 'none' }}>
-            <div style={{
-              width: 28, height: 15, borderRadius: 999, background: useAgent ? T.accent : T.border, position: 'relative', transition: 'background .15s', flexShrink: 0,
-            }} onClick={() => setUseAgent(!useAgent)}>
-              <span style={{ position: 'absolute', top: 1.5, left: useAgent ? 14 : 1.5, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .15s' }}/>
-            </div>
-            多Agent
-          </label>
           <div style={{ flex: 1 }}/>
           {onUpload && (
             <>

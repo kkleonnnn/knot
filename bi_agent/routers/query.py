@@ -63,7 +63,8 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
             raise HTTPException(status_code=400, detail="数据库未配置或连接失败，请联系管理员")
 
     api_key = req.api_key or user.get("api_key") or ""
-    openrouter_api_key = user.get("openrouter_api_key") or ""
+    openrouter_api_key = persistence.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
+    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
     model_key = _resolve_model(
         req.model_key or user.get("preferred_model") or cfg.DEFAULT_MODEL,
         user, api_key, openrouter_api_key,
@@ -71,7 +72,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
     semantic = _enrich_semantic(
         req.question, persistence.get_semantic_layer(),
-        api_key, openrouter_api_key, user.get("embedding_api_key") or "",
+        api_key, openrouter_api_key, embedding_api_key,
     )
     history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10]}
                for m in persistence.get_messages(conv_id)[-3:]]
@@ -188,7 +189,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             raise HTTPException(status_code=400, detail="数据库未配置或连接失败，请联系管理员")
 
     api_key = req.api_key or user.get("api_key") or ""
-    openrouter_api_key = user.get("openrouter_api_key") or ""
+    openrouter_api_key = persistence.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
+    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
     model_key = _resolve_model(
         req.model_key or user.get("preferred_model") or cfg.DEFAULT_MODEL,
         user, api_key, openrouter_api_key,
@@ -196,12 +198,12 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
     semantic = _enrich_semantic(
         req.question, persistence.get_semantic_layer(),
-        api_key, openrouter_api_key, user.get("embedding_api_key") or "",
+        api_key, openrouter_api_key, embedding_api_key,
     )
     history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10]}
                for m in persistence.get_messages(conv_id)[-3:]]
 
-    user_agent_cfg = persistence.get_user_agent_model_config(user["id"])
+    user_agent_cfg = persistence.get_agent_model_config()
 
     def _agent_key(role: str) -> str:
         m = user_agent_cfg.get(role) or model_key

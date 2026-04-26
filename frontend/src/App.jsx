@@ -4,7 +4,6 @@ import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
-import { UserConfigScreen } from './screens/UserConfig.jsx';
 
 export default function App() {
   const [T, toggleTheme] = useTheme();
@@ -25,11 +24,17 @@ export default function App() {
     });
   }, []);
 
-  const handleLogin = (u) => { setUser(u); setScreen('chat'); };
+  const handleLogin = (u) => {
+    // 切账号时清掉上一个 user 的会话引用，防止 cb_conv 残留导致 POST 404
+    localStorage.removeItem('cb_conv');
+    setUser(u);
+    setScreen('chat');
+  };
   const handleLogout = () => {
     localStorage.removeItem('cb_token');
     localStorage.removeItem('cb_user');
     localStorage.removeItem('cb_screen');
+    localStorage.removeItem('cb_conv');
     setUser(null);
     setScreen('chat');
   };
@@ -47,9 +52,14 @@ export default function App() {
 
   const commonProps = { T, user, onToggleTheme: toggleTheme, onNavigate: navigate, onLogout: handleLogout };
 
-  const adminTabMap = { 'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models', 'admin-knowledge': 'knowledge' };
+  const adminTabMap = {
+    'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',
+    'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
+  };
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
-  if (screen === 'user-config' || screen === 'settings') return <UserConfigScreen {...commonProps}/>;
+  // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板
+  if ((screen === 'user-config' || screen === 'settings') && user.role === 'admin')
+    return <AdminScreen {...commonProps} screen="admin-models" initialTab="models"/>;
   return <ChatScreen {...commonProps}/>;
 }
