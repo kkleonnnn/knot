@@ -195,13 +195,16 @@ def run_sql_agent(
         steps=[], total_cost_usd=0, total_input_tokens=0, total_output_tokens=0,
     )
 
-    if "/" in model_key and model_key not in MODELS:
+    _registered = MODELS.get(model_key)
+    _is_or = (_registered and _registered.get("provider") == "openrouter") or \
+             ("/" in model_key and not _registered)
+    if _is_or:
         key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:
             return _err("未设置 OpenRouter API Key，请在「API & 模型」页面填写")
-        model_cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
+        model_cfg = _registered or {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
     else:
-        model_cfg = MODELS.get(model_key)
+        model_cfg = _registered
         if not model_cfg:
             return _err(f"未知模型: {model_key}")
         key = api_key or PROVIDER_API_KEYS.get(model_cfg["provider"], "")

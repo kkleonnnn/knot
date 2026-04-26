@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 import db_connector
 from ..dependencies import get_current_user
-from ..engine_cache import get_user_engine, _engine_cache
+from ..engine_cache import get_user_engine, get_user_databases
 from ..schemas import DataSourceRequest
 
 router = APIRouter()
@@ -23,11 +23,10 @@ async def db_status(user=Depends(get_current_user)):
 
 @router.get("/api/db/schema")
 async def get_db_schema(user=Depends(get_current_user)):
-    uid = user["id"]
     engine, _ = get_user_engine(user)
     if engine is None:
         return {"tables": []}
-    databases = (_engine_cache.get(uid) or {}).get("databases")
+    databases = get_user_databases(user["id"])
     return {"tables": db_connector.get_schema_structured(engine, databases=databases)}
 
 

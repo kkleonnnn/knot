@@ -153,6 +153,9 @@ def init_db():
             SELECT id, default_source_id FROM users WHERE default_source_id IS NOT NULL
         """)
 
+    # v0.2.1: 角色精简——viewer 合并入 analyst（保留 admin / analyst 二元）
+    conn.execute("UPDATE users SET role='analyst' WHERE role='viewer'")
+
     # Seed admin account
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
         from auth_utils import hash_password

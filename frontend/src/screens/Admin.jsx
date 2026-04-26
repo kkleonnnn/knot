@@ -68,7 +68,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const TAB_TITLES = { users: '用户', sources: '数据源', models: '模型库', knowledge: '知识库' };
 
   const roleChip = (role) => {
-    const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'], viewer: ['#8A8D94', 'rgba(0,0,0,0.06)'] };
+    const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
     const [c, bg] = map[role] || [T.muted, T.hover];
     return <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 999, background: bg, color: c, fontWeight: 600 }}>{role}</span>;
   };
@@ -258,7 +258,7 @@ function UserFormModal({ T, data, sources, onClose, onSave }) {
         <Input T={T} label="账号" value={form.username} onChange={v => set('username', v)} required={!isEdit} placeholder="username"/>
         <Input T={T} label={isEdit ? '新密码（留空不修改）' : '密码'} value={form.password} onChange={v => set('password', v)} type="password" required={!isEdit} placeholder="••••••••"/>
         <Input T={T} label="显示名称" value={form.display_name} onChange={v => set('display_name', v)} placeholder="张三" optional/>
-        <Select T={T} label="角色" value={form.role} onChange={v => set('role', v)} options={[{ value: 'analyst', label: 'analyst — 分析师' }, { value: 'admin', label: 'admin — 管理员' }, { value: 'viewer', label: 'viewer — 只读' }]}/>
+        <Select T={T} label="角色" value={form.role} onChange={v => set('role', v)} options={[{ value: 'analyst', label: 'analyst — 分析师' }, { value: 'admin', label: 'admin — 管理员' }]}/>
         <div style={{ height: 1, background: T.border, margin: '12px 0' }}/>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>数据源（可多选，查询时自动合并表结构）</div>
         {(sources || []).length === 0

@@ -42,11 +42,11 @@ export function AppShell({
           </>
         ) : (
           <>
-            <SideHeading T={T}>个人</SideHeading>
-            <SideNavRow T={T} icon={<I.key/>} label="API &amp; 模型" active={active === 'user-config'}
-                        onClick={() => onNavigate('user-config')}/>
             {isAdmin && (
               <>
+                <SideHeading T={T}>个人</SideHeading>
+                <SideNavRow T={T} icon={<I.key/>} label="API &amp; 模型" active={active === 'user-config'}
+                            onClick={() => onNavigate('user-config')}/>
                 <SideHeading T={T}>管理员</SideHeading>
                 <SideNavRow T={T} icon={<I.db/>} label="数据源" active={active === 'admin-sources'}
                             onClick={() => onNavigate('admin-sources')}/>
@@ -85,7 +85,9 @@ export function AppShell({
                 {isAdmin && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 600 }}>ADMIN</span>}
               </div>
             </div>
-            <button onClick={() => onNavigate('settings')} style={iconBtn(T)} title="设置"><I.gear/></button>
+            {isAdmin && (
+              <button onClick={() => onNavigate('settings')} style={iconBtn(T)} title="设置"><I.gear/></button>
+            )}
             <button onClick={onLogout} style={iconBtn(T)} title="退出"><I.logout/></button>
           </div>
         </div>

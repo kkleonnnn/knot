@@ -145,6 +145,9 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 # ── OpenRouter detection ───────────────────────────────────────────────
 
 def _is_openrouter_model(model_key: str) -> bool:
+    cfg = MODELS.get(model_key)
+    if cfg and cfg.get("provider") == "openrouter":
+        return True
     return "/" in model_key and model_key not in MODELS
 
 

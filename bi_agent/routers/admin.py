@@ -37,8 +37,13 @@ async def admin_list_users(admin=Depends(require_admin)):
     ]
 
 
+_VALID_ROLES = {"admin", "analyst"}
+
+
 @router.post("/api/admin/users")
 async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)):
+    if req.role not in _VALID_ROLES:
+        raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     ph = auth_utils.hash_password(req.password)
     ok = persistence.create_user(
         req.username, ph, req.display_name or req.username, req.role,
@@ -52,6 +57,8 @@ async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)
 
 @router.put("/api/admin/users/{user_id}")
 async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admin)):
+    if req.role is not None and req.role not in _VALID_ROLES:
+        raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in ("password", "source_ids")}
     if "default_source_id" in req.__fields_set__:
         kwargs["default_source_id"] = req.default_source_id

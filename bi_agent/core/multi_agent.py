@@ -17,11 +17,15 @@ from config import (
 
 def _resolve(model_key: str, api_key: str = "", openrouter_api_key: str = ""):
     """Return (resolved_model_key, api_key, model_cfg)."""
-    if "/" in model_key and model_key not in MODELS:
+    registered = MODELS.get(model_key)
+    if registered and registered.get("provider") == "openrouter":
+        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        return model_key, key, registered
+    if "/" in model_key and not registered:
         key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
         cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
         return model_key, key, cfg
-    cfg = MODELS.get(model_key)
+    cfg = registered
     if not cfg:
         model_key = DEFAULT_MODEL
         cfg = MODELS[model_key]

@@ -50,6 +50,7 @@ export default function App() {
   const adminTabMap = { 'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models', 'admin-knowledge': 'knowledge' };
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
-  if (screen === 'user-config' || screen === 'settings') return <UserConfigScreen {...commonProps}/>;
+  // analyst 无任何设置入口；直接访问 settings/user-config 时兜底重定向到 chat
+  if ((screen === 'user-config' || screen === 'settings') && user.role === 'admin') return <UserConfigScreen {...commonProps}/>;
   return <ChatScreen {...commonProps}/>;
 }
