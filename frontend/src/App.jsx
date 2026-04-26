@@ -4,7 +4,6 @@ import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
-import { UserConfigScreen } from './screens/UserConfig.jsx';
 
 export default function App() {
   const [T, toggleTheme] = useTheme();

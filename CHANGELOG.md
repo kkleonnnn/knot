@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604270230] - 2026-04-27 v0.2 收尾
+
+### Changed
+- CLAUDE.md：技术债表移除「前端 babel.min.js 3MB 首屏慢」（v0.2.0 Vite 构建已闭环）；新增低优条目记录 `bi_agent/routers/user.py` 待清理
+- CLAUDE.md：`bi_agent/routers/` 列表对齐当前 11 个 router；`bi_agent/static/` 注释更新为 Vite 产物
+
+### Removed
+- 删除前端死代码 `frontend/src/screens/UserConfig.jsx`（v0.2.1 批次2 起 admin 重定向至 `/admin-models`、analyst 无入口，此屏不再被路由命中）；同步移除 App.jsx 的无效 import
+
+### Verified
+- `npm run build` 通过；产物 1395 KB / gzip 446 KB，与移除前一致（dead-code，bundle 未变）
+- 历史 [Known issues] 全部闭环：clarifier 字段盲区 / schema 跨库截断 / 跨连接多源 / analyst 404 / 未来日期误判 / 多轮代词 6 项均已 Fixed
+
 ## [0.2.1.202604270215] - 2026-04-27 批次5（多轮上下文）
 
 ### Fixed

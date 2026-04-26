@@ -33,9 +33,9 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 | `bi_agent/dependencies.py` | JWT 常量、create_token、get_current_user、require_admin |
 | `bi_agent/schemas.py` | 所有 Pydantic 请求模型（9 个） |
 | `bi_agent/engine_cache.py` | 用户 DB 引擎缓存（TTL 1h）、_upload_engine |
-| `bi_agent/routers/` | 8 个业务域路由文件 |
+| `bi_agent/routers/` | 业务域路由文件（auth / admin / conversations / database / few_shots / knowledge / prompts / query / templates / uploads / user） |
 | `bi_agent/core/` | 核心模块（config, persistence, llm_client, sql_agent, multi_agent 等） |
-| `bi_agent/static/` | 前端 SPA（React + ECharts + babel.min.js 3MB） |
+| `bi_agent/static/` | Vite 构建产物（`frontend/` 源码 → `npm run build` 输出至此） |
 | `bi_agent/data/` | SQLite 数据库（gitignore，运行时自动创建） |
 
 ## 导入约定
@@ -75,10 +75,10 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 
 | 优先级 | 问题 | 目标分支 |
 |--------|------|---------|
-| 高 | 前端 babel.min.js 3MB 首屏慢 | feat/frontend-vite |
 | 高 | async 路由中调用 sync SQLAlchemy，高并发阻塞 | feat/async-db |
 | 中 | 无结构化日志（全部 print） | chore/structured-logging |
 | 低 | uploads.db 与 bi_agent.db 可合并 | — |
+| 低 | `bi_agent/routers/user.py` 的 `/api/user/config` `/api/user/agent-models` 已无前端调用，留作向后兼容；下个 MINOR 可一并删 | chore/cleanup |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
