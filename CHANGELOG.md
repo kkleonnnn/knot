@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604270250] - 2026-04-27 查询页瘦身
+
+### Removed
+- 聊天侧栏「表结构」tab + `SchemaPanel`/`useDebounce`/`/api/db/schema` 拉取（运营人员不需要直接接触库表，schema 由 sql_planner 在后端使用）
+- 输入框「多Agent」开关：默认走 4-Agent 流式管线；非流式 `/query` 分支 + `useAgent` 状态/props 全删
+
+### Changed
+- 侧栏简化为单一历史列表（无 tab 切换）
+- `AgentThinkingPanel` 仅在有事件时渲染
+
 ## [0.2.1.202604270230] - 2026-04-27 v0.2 收尾
 
 ### Changed
