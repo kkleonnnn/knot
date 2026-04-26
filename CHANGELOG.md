@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604262315] - 2026-04-26 批次3（遗留收尾）
+
+### Fixed
+- analyst 提问 404：登录/登出未清 `cb_conv`，跨账号继承陈旧 conv_id 导致 POST `/api/conversations/{id}/query` 404；登录与登出均清掉 `cb_conv`，并在 `loadConvs` 校验 activeConvId 不在列表时自动重置；首次发问无 conv 时直接用新建返回的 id 发送（不再依赖 setState 异步）
+- Clarifier 字段盲区：原来只看表名清单 25 张，把"昨天注册用户数"这种明确问题误判为需澄清；改为把完整 schema（表 / 字段 / 注释）截前 6000 字喂给 clarifier，prompt 提示"字段注释能对应概念时不要追问"
+- Schema 截断跨库失衡：`get_schema` 改为按 DB 平均配额抽样，每个库都至少进入 schema，避免后置库（ohx_dwd）一张表都进不来
+- 跨连接多源 schema 合并：用户跨 `(host,port,user)` 多组 datasource 时，新增 `MultiSourceEngine` 派发引擎；`get_schema` 按组分别抓取并以 "## 连接组 {key}" 头部串接；`execute_query` 在 `_MultiConn.execute` 时按 SQL 中首个 `db.tbl` 前缀路由到对应组的 engine
+
+### Changed
+- `engine_cache._engine_cache` 多组场景缓存 key 改为 `(uid, "multi:"+sorted_keys)`；`SCHEMA_FILTER_MAX_TABLES` 在多组时按组均分配额（最低 4）
+
 ## [0.2.1.202604262115] - 2026-04-26 批次2
 
 ### Added

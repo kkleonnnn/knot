@@ -53,17 +53,37 @@ def get_schema(engine, databases: list = None, max_tables: int = MAX_TABLES_IN_S
             if not databases:
                 result = conn.execute(text("SHOW TABLES"))
                 raw_tables = [(None, row[0]) for row in result.fetchall()]
+                total = len(raw_tables)
+                truncated = total > max_tables
+                raw_tables = raw_tables[:max_tables]
             else:
-                raw_tables = []
+                # v0.2.1 修复跨库失衡：按 DB 平均配额（向上取整），保证每个库都进入 schema
+                per_db: dict = {}
+                total = 0
                 for db in databases:
-                    result = conn.execute(text(f"SHOW TABLES FROM `{db}`"))
-                    raw_tables.extend((db, row[0]) for row in result.fetchall())
+                    rows = [r[0] for r in conn.execute(text(f"SHOW TABLES FROM `{db}`")).fetchall()]
+                    per_db[db] = rows
+                    total += len(rows)
+
+                if total <= max_tables:
+                    raw_tables = [(db, t) for db, ts in per_db.items() for t in ts]
+                    truncated = False
+                else:
+                    quota = max(max_tables // max(len(databases), 1), 1)
+                    picked = []
+                    leftover = []
+                    for db, ts in per_db.items():
+                        picked.extend((db, t) for t in ts[:quota])
+                        leftover.extend((db, t) for t in ts[quota:])
+                    # 余额按顺序补齐到 max_tables
+                    remaining = max_tables - len(picked)
+                    if remaining > 0:
+                        picked.extend(leftover[:remaining])
+                    raw_tables = picked
+                    truncated = True
 
             if not raw_tables:
                 return "（数据库中没有找到任何表）"
-
-            truncated = len(raw_tables) > max_tables
-            raw_tables = raw_tables[:max_tables]
 
             schema_parts = []
             for db, table_name in raw_tables:
@@ -92,7 +112,7 @@ def get_schema(engine, databases: list = None, max_tables: int = MAX_TABLES_IN_S
                     schema_parts.append(f"### {display}\n（无法读取表结构）")
 
             if truncated:
-                schema_parts.append(f'---\n> 共有 {len(raw_tables)} 张表，已加载前 {max_tables} 张。')
+                schema_parts.append(f'---\n> 库内表总数 > {max_tables}，已按库平均抽样加载 {len(raw_tables)} 张。')
 
             return "\n\n".join(schema_parts)
     except Exception as e:

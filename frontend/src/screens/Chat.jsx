@@ -90,7 +90,15 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const loadConvs = async () => {
-    try { const d = await api.get('/api/conversations'); setConvs(d); } catch {}
+    try {
+      const d = await api.get('/api/conversations');
+      setConvs(d);
+      // 若当前 activeConvId 不在该 user 的列表中（账号切换 / 会话已删），重置避免 query 报 404
+      if (activeConvId && !d.some(c => c.id === activeConvId)) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+    } catch {}
   };
   const checkDb = async () => {
     try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
@@ -123,7 +131,18 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const sendQuery = async (e) => {
     e?.preventDefault();
     if (!question.trim() || loading) return;
-    if (!activeConvId) { await newChat(); return; }
+
+    // 没活动会话则即时创建并直接用 id 发送，避免依赖 setState 异步更新导致首次发送丢失
+    let convId = activeConvId;
+    if (!convId) {
+      try {
+        const d = await api.post('/api/conversations', { title: '新对话' });
+        setConvs(prev => [d, ...prev]);
+        setActiveConvId(d.id);
+        setMessages([]);
+        convId = d.id;
+      } catch { toast('创建对话失败', true); return; }
+    }
 
     const q = question.trim();
     setQuestion('');
@@ -138,7 +157,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
       try {
         const body = { question: q };
         if (activeUpload) body.upload_id = activeUpload.id;
-        const d = await api.post(`/api/conversations/${activeConvId}/query`, body);
+        const d = await api.post(`/api/conversations/${convId}/query`, body);
         setMessages(prev => prev.map(m => m.id === tempId ? { ...d, loading: false } : m));
         loadConvs();
       } catch (err) {
@@ -151,7 +170,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
       const body = { question: q };
       if (activeUpload) body.upload_id = activeUpload.id;
 
-      const resp = await fetch(`/api/conversations/${activeConvId}/query-stream`, {
+      const resp = await fetch(`/api/conversations/${convId}/query-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api._token()}` },
         body: JSON.stringify(body),

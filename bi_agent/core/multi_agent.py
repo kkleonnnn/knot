@@ -112,9 +112,12 @@ _CLARIFIER_SYS = """你是数据分析助手的「问题理解专家」。
 }
 
 is_clear 为 false 仅当：核心指标存在多种完全不同的解释（如"利润"可能是净利润或手续费），且这些解释会导致完全不同的 SQL。
+注意：下方 Schema 包含字段名+注释，若字段注释能直接对应问题中的概念（如"注册用户"对应 user.created_at），视为 is_clear=true，不要追问。
 如对话历史中已有澄清回复，直接视为 is_clear=true 并将澄清信息融入 refined_question。
 
-可用表（仅供参考）：{tables}
+Schema（表 / 字段 / 注释）：
+{schema}
+
 对话历史：
 {history}"""
 
@@ -127,10 +130,11 @@ def run_clarifier(
     api_key: str = "",
     openrouter_api_key: str = "",
 ) -> dict:
-    tables = ", ".join(re.findall(r'^### (\S+)', schema_text, re.MULTILINE)[:25]) or "(无 Schema)"
+    # v0.2.1 修复 clarifier 字段盲区：传完整 schema（含字段名+注释），上限 6000 字防超 token
+    schema_slice = (schema_text or "")[:6000] or "(无 Schema)"
     history_text = "\n".join(f"Q: {h.get('question', '')}" for h in history[-3:]) or "无"
     system = _prompts_mod.get_prompt(
-        "clarifier", _CLARIFIER_SYS, {"tables": tables, "history": history_text}
+        "clarifier", _CLARIFIER_SYS, {"schema": schema_slice, "history": history_text}
     )
 
     model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)

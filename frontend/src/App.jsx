@@ -25,11 +25,17 @@ export default function App() {
     });
   }, []);
 
-  const handleLogin = (u) => { setUser(u); setScreen('chat'); };
+  const handleLogin = (u) => {
+    // 切账号时清掉上一个 user 的会话引用，防止 cb_conv 残留导致 POST 404
+    localStorage.removeItem('cb_conv');
+    setUser(u);
+    setScreen('chat');
+  };
   const handleLogout = () => {
     localStorage.removeItem('cb_token');
     localStorage.removeItem('cb_user');
     localStorage.removeItem('cb_screen');
+    localStorage.removeItem('cb_conv');
     setUser(null);
     setScreen('chat');
   };
