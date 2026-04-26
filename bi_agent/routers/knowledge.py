@@ -29,8 +29,8 @@ async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_a
     if not chunks:
         raise HTTPException(status_code=400, detail="文件内容为空")
 
-    embedding_api_key = admin.get("embedding_api_key") or ""
-    or_key = admin.get("openrouter_api_key") or ""
+    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or admin.get("embedding_api_key") or ""
+    or_key = persistence.get_app_setting("openrouter_api_key", "") or admin.get("openrouter_api_key") or ""
 
     embeddings = []
     for chunk in chunks:

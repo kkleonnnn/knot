@@ -58,14 +58,17 @@ async def get_user_config(user=Depends(get_current_user)):
         "avg_response_ms":    usage.get("avg_response_ms", 0),
         "query_count":        usage.get("query_count", 0),
         "models":             enabled_models,
-        "openrouter_api_key": user.get("openrouter_api_key") or "",
-        "embedding_api_key":  user.get("embedding_api_key") or "",
+        # v0.2.1 批次2：API key 归口管理员；用户层永远返回空字符串
+        "openrouter_api_key": "",
+        "embedding_api_key":  "",
     }
 
 
 @router.put("/api/user/config")
 async def update_user_config(req: UpdateUserConfigRequest, user=Depends(get_current_user)):
-    kwargs = {k: v for k, v in req.dict().items() if v is not None}
+    # v0.2.1 批次2：API key 归口管理员，用户写入直接忽略
+    blocked = {"openrouter_api_key", "embedding_api_key"}
+    kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in blocked}
     if kwargs:
         persistence.update_user(user["id"], **kwargs)
     return {"ok": True}

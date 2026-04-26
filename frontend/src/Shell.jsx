@@ -44,18 +44,19 @@ export function AppShell({
           <>
             {isAdmin && (
               <>
-                <SideHeading T={T}>个人</SideHeading>
-                <SideNavRow T={T} icon={<I.key/>} label="API &amp; 模型" active={active === 'user-config'}
-                            onClick={() => onNavigate('user-config')}/>
                 <SideHeading T={T}>管理员</SideHeading>
                 <SideNavRow T={T} icon={<I.db/>} label="数据源" active={active === 'admin-sources'}
                             onClick={() => onNavigate('admin-sources')}/>
                 <SideNavRow T={T} icon={<I.users/>} label="用户" active={active === 'admin-users'}
                             onClick={() => onNavigate('admin-users')}/>
-                <SideNavRow T={T} icon={<I.sparkle/>} label="模型库" active={active === 'admin-models'}
+                <SideNavRow T={T} icon={<I.sparkle/>} label="API &amp; 模型" active={active === 'admin-models'}
                             onClick={() => onNavigate('admin-models')}/>
                 <SideNavRow T={T} icon={<I.book/>} label="知识库" active={active === 'admin-knowledge'}
                             onClick={() => onNavigate('admin-knowledge')}/>
+                <SideNavRow T={T} icon={<I.zap/>} label="Few-shot 示例" active={active === 'admin-fewshots'}
+                            onClick={() => onNavigate('admin-fewshots')}/>
+                <SideNavRow T={T} icon={<I.pencil/>} label="Prompt 模板" active={active === 'admin-prompts'}
+                            onClick={() => onNavigate('admin-prompts')}/>
               </>
             )}
             <div style={{ flex: 1 }}/>

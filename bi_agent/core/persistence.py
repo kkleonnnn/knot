@@ -124,6 +124,23 @@ def init_db():
             value      TEXT DEFAULT '',
             updated_at TEXT DEFAULT (datetime('now','localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS few_shots (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            question   TEXT    NOT NULL,
+            sql        TEXT    NOT NULL,
+            type       TEXT    DEFAULT '',
+            is_active  INTEGER DEFAULT 1,
+            created_at TEXT    DEFAULT (datetime('now','localtime')),
+            updated_at TEXT    DEFAULT (datetime('now','localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+            agent_name TEXT PRIMARY KEY,
+            content    TEXT NOT NULL,
+            updated_by INTEGER,
+            updated_at TEXT DEFAULT (datetime('now','localtime'))
+        );
     """)
 
     # Add new columns to users if they don't exist (SQLite-safe migration)
@@ -155,6 +172,13 @@ def init_db():
 
     # v0.2.1: 角色精简——viewer 合并入 analyst（保留 admin / analyst 二元）
     conn.execute("UPDATE users SET role='analyst' WHERE role='viewer'")
+
+    # v0.2.1 批次2：API key / agent 模型配置归口管理员；清掉用户级旧值（仅执行一次）
+    if not conn.execute("SELECT 1 FROM app_settings WHERE key='_v021b2_user_keys_cleared'").fetchone():
+        conn.execute("UPDATE users SET openrouter_api_key='', embedding_api_key='', agent_model_config=NULL")
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('_v021b2_user_keys_cleared', '1')"
+        )
 
     # Seed admin account
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
@@ -607,5 +631,128 @@ def set_user_agent_model_config(user_id: int, config: dict):
     v = json.dumps(config, ensure_ascii=False)
     conn = get_conn()
     conn.execute("UPDATE users SET agent_model_config=? WHERE id=?", (v, user_id))
+    conn.commit()
+    conn.close()
+
+
+# ── Generic app_settings ───────────────────────────────────────────────
+
+def get_app_setting(key: str, default: str = "") -> str:
+    conn = get_conn()
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+
+def set_app_setting(key: str, value: str):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=?, updated_at=datetime('now','localtime')",
+        (key, value, value),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Few-shot examples (DB-backed) ──────────────────────────────────────
+
+def list_few_shots(only_active: bool = False) -> list:
+    conn = get_conn()
+    if only_active:
+        rows = conn.execute(
+            "SELECT * FROM few_shots WHERE is_active=1 ORDER BY id DESC"
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM few_shots ORDER BY id DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_few_shot(question: str, sql: str, type_: str = "", is_active: int = 1) -> int:
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO few_shots (question, sql, type, is_active) VALUES (?,?,?,?)",
+        (question, sql, type_ or "", 1 if is_active else 0),
+    )
+    fid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return fid
+
+
+def update_few_shot(fid: int, **kwargs):
+    if not kwargs:
+        return
+    allowed = {"question", "sql", "type", "is_active"}
+    fields = {k: v for k, v in kwargs.items() if k in allowed}
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k}=?" for k in fields) + ", updated_at=datetime('now','localtime')"
+    values = list(fields.values()) + [fid]
+    conn = get_conn()
+    conn.execute(f"UPDATE few_shots SET {set_clause} WHERE id=?", values)
+    conn.commit()
+    conn.close()
+
+
+def delete_few_shot(fid: int):
+    conn = get_conn()
+    conn.execute("DELETE FROM few_shots WHERE id=?", (fid,))
+    conn.commit()
+    conn.close()
+
+
+def bulk_insert_few_shots(items: list) -> int:
+    """items: list of {question, sql, type?, is_active?}; returns inserted count."""
+    if not items:
+        return 0
+    conn = get_conn()
+    conn.executemany(
+        "INSERT INTO few_shots (question, sql, type, is_active) VALUES (?,?,?,?)",
+        [
+            (it.get("question", ""), it.get("sql", ""),
+             it.get("type", "") or "", 1 if it.get("is_active", 1) else 0)
+            for it in items if it.get("question") and it.get("sql")
+        ],
+    )
+    conn.commit()
+    conn.close()
+    return len(items)
+
+
+# ── Prompt templates (per-agent system prompt overrides) ───────────────
+
+def list_prompt_templates() -> list:
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM prompt_templates ORDER BY agent_name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_prompt_template(agent_name: str) -> str:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT content FROM prompt_templates WHERE agent_name=?", (agent_name,)
+    ).fetchone()
+    conn.close()
+    return row["content"] if row and row["content"] else ""
+
+
+def set_prompt_template(agent_name: str, content: str, updated_by: int = None):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prompt_templates (agent_name, content, updated_by) VALUES (?,?,?) "
+        "ON CONFLICT(agent_name) DO UPDATE SET content=?, updated_by=?, "
+        "updated_at=datetime('now','localtime')",
+        (agent_name, content, updated_by, content, updated_by),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_prompt_template(agent_name: str):
+    conn = get_conn()
+    conn.execute("DELETE FROM prompt_templates WHERE agent_name=?", (agent_name,))
     conn.commit()
     conn.close()

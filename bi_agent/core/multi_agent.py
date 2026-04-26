@@ -7,6 +7,7 @@ import json
 import re
 
 import llm_client
+import prompts as _prompts_mod
 from config import (
     MODELS, DEFAULT_MODEL,
     PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -15,14 +16,24 @@ from config import (
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
+def _app_or_key() -> str:
+    try:
+        import persistence
+        return persistence.get_app_setting("openrouter_api_key", "") or ""
+    except Exception:
+        return ""
+
+
 def _resolve(model_key: str, api_key: str = "", openrouter_api_key: str = ""):
-    """Return (resolved_model_key, api_key, model_cfg)."""
+    """Return (resolved_model_key, api_key, model_cfg).
+    OR key fallback chain: explicit arg → app_settings → env (PROVIDER_API_KEYS).
+    """
     registered = MODELS.get(model_key)
     if registered and registered.get("provider") == "openrouter":
-        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         return model_key, key, registered
     if "/" in model_key and not registered:
-        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
         return model_key, key, cfg
     cfg = registered
@@ -93,12 +104,12 @@ _CLARIFIER_SYS = """你是数据分析助手的「问题理解专家」。
 判断用户问题是否明确可执行，并给出精确化的查询描述。
 
 输出严格 JSON（禁止任何其他内容）：
-{{
+{
   "is_clear": true,
   "clarification_question": null,
   "refined_question": "精确化后的完整问题描述",
   "analysis_approach": "一句话说明分析思路"
-}}
+}
 
 is_clear 为 false 仅当：核心指标存在多种完全不同的解释（如"利润"可能是净利润或手续费），且这些解释会导致完全不同的 SQL。
 如对话历史中已有澄清回复，直接视为 is_clear=true 并将澄清信息融入 refined_question。
@@ -118,7 +129,9 @@ def run_clarifier(
 ) -> dict:
     tables = ", ".join(re.findall(r'^### (\S+)', schema_text, re.MULTILINE)[:25]) or "(无 Schema)"
     history_text = "\n".join(f"Q: {h.get('question', '')}" for h in history[-3:]) or "无"
-    system = _CLARIFIER_SYS.format(tables=tables, history=history_text)
+    system = _prompts_mod.get_prompt(
+        "clarifier", _CLARIFIER_SYS, {"tables": tables, "history": history_text}
+    )
 
     model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
     it = ot = 0
@@ -181,8 +194,9 @@ def run_validator(
     it = ot = 0
     cost = 0.0
     result = {}
+    sys_prompt = _prompts_mod.get_prompt("validator", _VALIDATOR_SYS)
     try:
-        text, it, ot, cost = _llm(model_key, key, cfg, _VALIDATOR_SYS,
+        text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=300)
         result = _parse_json(text)
     except Exception:
@@ -233,8 +247,9 @@ def run_presenter(
     it = ot = 0
     cost = 0.0
     result = {}
+    sys_prompt = _prompts_mod.get_prompt("presenter", _PRESENTER_SYS)
     try:
-        text, it, ot, cost = _llm(model_key, key, cfg, _PRESENTER_SYS,
+        text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=512)
         result = _parse_json(text)
     except Exception:

@@ -14,6 +14,18 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const [modal, setModal] = useState(null);
   const [kbUploading, setKbUploading] = useState(false);
   const kbFileRef = useRef(null);
+  // 批次 2 新增
+  const [apiKeys, setApiKeys] = useState({ openrouter_api_key: '', embedding_api_key: '' });
+  const [apiKeysSaving, setApiKeysSaving] = useState(false);
+  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', validator: '', presenter: '' });
+  const [agentSaving, setAgentSaving] = useState(false);
+  const [fewShots, setFewShots] = useState([]);
+  const [fsUploading, setFsUploading] = useState(false);
+  const fsFileRef = useRef(null);
+  const [prompts, setPrompts] = useState({ clarifier: '', sql_planner: '', validator: '', presenter: '' });
+  const [promptsSaving, setPromptsSaving] = useState({});
+  const [pmUploading, setPmUploading] = useState(false);
+  const pmFileRef = useRef(null);
 
   useEffect(() => { setTab(initialTab); }, [initialTab]);
   useEffect(() => { loadAll(); }, [tab]);
@@ -22,8 +34,26 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     try {
       if (tab === 'users') { const [d, s] = await Promise.all([api.get('/api/admin/users'), api.get('/api/admin/datasources')]); setUsers(d); setSources(s); }
       if (tab === 'sources') { const d = await api.get('/api/admin/datasources'); setSources(d); }
-      if (tab === 'models') { const d = await api.get('/api/admin/models'); setModels(d); }
+      if (tab === 'models') {
+        const [d, ks, ac] = await Promise.all([
+          api.get('/api/admin/models'),
+          api.get('/api/admin/api-keys').catch(() => ({})),
+          api.get('/api/admin/agent-models').catch(() => ({})),
+        ]);
+        setModels(d);
+        setApiKeys({ openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' });
+        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', validator: ac.validator || '', presenter: ac.presenter || '' });
+      }
       if (tab === 'knowledge') { const d = await api.get('/api/knowledge'); setKnowledgeDocs(d); }
+      if (tab === 'fewshots') { const d = await api.get('/api/few-shots').catch(() => []); setFewShots(d || []); }
+      if (tab === 'prompts') {
+        const ps = { clarifier: '', sql_planner: '', validator: '', presenter: '' };
+        const all = await Promise.all(Object.keys(ps).map(k =>
+          api.get(`/api/prompts/${k}`).then(r => [k, r.content || '']).catch(() => [k, ''])
+        ));
+        for (const [k, v] of all) ps[k] = v;
+        setPrompts(ps);
+      }
       const s = await api.get('/api/admin/stats'); setStats(s);
     } catch {}
   };
@@ -65,7 +95,76 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     try { await api.post(`/api/admin/models/${key}/default`); loadAll(); toast('已设为默认'); } catch (e) { toast(String(e), true); }
   };
 
-  const TAB_TITLES = { users: '用户', sources: '数据源', models: '模型库', knowledge: '知识库' };
+  const saveApiKeys = async () => {
+    setApiKeysSaving(true);
+    try { await api.put('/api/admin/api-keys', apiKeys); toast('API Key 已保存'); }
+    catch (e) { toast(String(e), true); }
+    finally { setApiKeysSaving(false); }
+  };
+
+  const saveAgentCfg = async () => {
+    setAgentSaving(true);
+    try { await api.put('/api/admin/agent-models', agentCfg); toast('Agent 模型配置已保存'); }
+    catch (e) { toast(String(e), true); }
+    finally { setAgentSaving(false); }
+  };
+
+  const downloadTemplate = (kind, filename) => {
+    const url = `/api/templates/${kind}`;
+    fetch(url, { headers: { Authorization: `Bearer ${api._token()}` } })
+      .then(r => r.ok ? r.blob() : Promise.reject(new Error('下载失败')))
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+      })
+      .catch(e => toast(String(e), true));
+  };
+
+  const uploadFewShots = async (file) => {
+    setFsUploading(true);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const r = await fetch('/api/few-shots/upload', {
+        method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd,
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      toast(`已导入 ${d.inserted} 条`);
+      loadAll();
+    } catch (e) { toast(`上传失败: ${e.message}`, true); }
+    finally { setFsUploading(false); }
+  };
+
+  const deleteFewShot = async (id) => {
+    if (!confirm('删除该示例？')) return;
+    try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); }
+    catch (e) { toast(String(e), true); }
+  };
+
+  const savePrompt = async (agent) => {
+    setPromptsSaving(s => ({ ...s, [agent]: true }));
+    try { await api.put(`/api/prompts/${agent}`, { content: prompts[agent] }); toast(`${agent} prompt 已保存`); }
+    catch (e) { toast(String(e), true); }
+    finally { setPromptsSaving(s => ({ ...s, [agent]: false })); }
+  };
+
+  const uploadPrompts = async (file) => {
+    setPmUploading(true);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const r = await fetch('/api/prompts/upload', {
+        method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd,
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      toast(`已更新 ${d.updated} 个 agent 模板`);
+      loadAll();
+    } catch (e) { toast(`上传失败: ${e.message}`, true); }
+    finally { setPmUploading(false); }
+  };
+
+  const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板' };
 
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
@@ -81,6 +180,9 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                 : tab === 'sources' ? <button onClick={() => setModal({ type: 'source' })} style={{ ...pillBtn(T, true), padding: '6px 12px' }}><I.plus width="13" height="13"/> 添加数据源</button>
                 : tab === 'knowledge' ? (
                   <>
+                    <button onClick={() => downloadTemplate('knowledge', 'knowledge_template.txt')} style={{ ...pillBtn(T), padding: '6px 12px' }}>
+                      下载模板
+                    </button>
                     <input ref={kbFileRef} type="file" accept=".pdf,.md,.markdown,.txt" style={{ display: 'none' }}
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleKbUpload(f); e.target.value = ''; }}/>
                     <button onClick={() => kbFileRef.current?.click()} disabled={kbUploading}
@@ -88,7 +190,31 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                       {kbUploading ? <><Spinner size={11} color="#fff"/> 处理中…</> : <><I.plus width="13" height="13"/> 上传文档</>}
                     </button>
                   </>
-                ) : null
+                )
+                : tab === 'fewshots' ? (
+                  <>
+                    <button onClick={() => downloadTemplate('few_shots', 'few_shots_template.xlsx')} style={{ ...pillBtn(T), padding: '6px 12px' }}>下载模板</button>
+                    <input ref={fsFileRef} type="file" accept=".xlsx" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadFewShots(f); e.target.value = ''; }}/>
+                    <button onClick={() => fsFileRef.current?.click()} disabled={fsUploading}
+                      style={{ ...pillBtn(T, true), padding: '6px 12px' }}>
+                      {fsUploading ? <><Spinner size={11} color="#fff"/> 上传中…</> : <><I.plus width="13" height="13"/> 上传 xlsx</>}
+                    </button>
+                    <button onClick={() => setModal({ type: 'fewshot' })} style={{ ...pillBtn(T), padding: '6px 12px' }}><I.plus width="13" height="13"/> 新建</button>
+                  </>
+                )
+                : tab === 'prompts' ? (
+                  <>
+                    <button onClick={() => downloadTemplate('prompts', 'prompts_template.xlsx')} style={{ ...pillBtn(T), padding: '6px 12px' }}>下载模板</button>
+                    <input ref={pmFileRef} type="file" accept=".xlsx" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadPrompts(f); e.target.value = ''; }}/>
+                    <button onClick={() => pmFileRef.current?.click()} disabled={pmUploading}
+                      style={{ ...pillBtn(T, true), padding: '6px 12px' }}>
+                      {pmUploading ? <><Spinner size={11} color="#fff"/> 上传中…</> : <><I.plus width="13" height="13"/> 上传 xlsx</>}
+                    </button>
+                  </>
+                )
+                : null
               }
               onToggleTheme={onToggleTheme} onNewChat={() => {}} onNavigate={onNavigate} onLogout={onLogout}>
       <div className="cb-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
@@ -145,6 +271,56 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
 
         {tab === 'models' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* API Keys */}
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, marginBottom: 2 }}>API Key（应用级）</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>所有用户共用 · OpenRouter 用于 LLM、Embedding 用于知识库向量检索（默认 text-embedding-3-small，未填则降级关键词匹配）</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Input T={T} label="OpenRouter API Key" value={apiKeys.openrouter_api_key}
+                       onChange={v => setApiKeys(s => ({ ...s, openrouter_api_key: v }))}
+                       type="password" placeholder="sk-or-v1-…" mono
+                       trailing={<span style={{ fontSize: 11, color: apiKeys.openrouter_api_key ? T.success : T.muted }}>{apiKeys.openrouter_api_key ? '已填写' : '未填写'}</span>}/>
+                <Input T={T} label="Embedding API Key" value={apiKeys.embedding_api_key}
+                       onChange={v => setApiKeys(s => ({ ...s, embedding_api_key: v }))}
+                       type="password" placeholder="sk-…（OpenAI / 兼容端点）" mono
+                       trailing={<span style={{ fontSize: 11, color: apiKeys.embedding_api_key ? T.success : T.muted }}>{apiKeys.embedding_api_key ? '已填写' : '未填写'}</span>}/>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={saveApiKeys} disabled={apiKeysSaving} style={{ ...pillBtn(T, true), padding: '6px 14px' }}>
+                  {apiKeysSaving ? <><Spinner size={11} color="#fff"/> 保存中…</> : '保存 Key'}
+                </button>
+              </div>
+            </div>
+
+            {/* 4-Agent Model Assignment */}
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, marginBottom: 2 }}>4 个 Agent 模型分配</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 14 }}>为每个 agent 指定模型，留空则跟随系统默认（DEFAULT_MODEL）</div>
+              {[
+                { key: 'clarifier',   label: '理解问题',   hint: '推荐轻量' },
+                { key: 'sql_planner', label: '生成 SQL',   hint: '推荐最强' },
+                { key: 'validator',   label: '验证结果',   hint: '推荐轻量' },
+                { key: 'presenter',   label: '整理洞察',   hint: '推荐中等' },
+              ].map(({ key, label, hint }) => (
+                <div key={key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, color: T.text, fontWeight: 500 }}>{label}</span>
+                  <select value={agentCfg[key] || ''} onChange={e => setAgentCfg(p => ({ ...p, [key]: e.target.value }))}
+                    style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '6px 10px', fontSize: 12, color: T.text, fontFamily: T.sans, cursor: 'pointer', outline: 'none' }}>
+                    <option value="">默认</option>
+                    {models.filter(m => m.enabled !== false).map(m => (
+                      <option key={m.model_id} value={m.model_id}>{m.name} · {m.provider}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 11, color: T.muted, textAlign: 'right' }}>{hint}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button onClick={saveAgentCfg} disabled={agentSaving} style={{ ...pillBtn(T, true), padding: '6px 14px' }}>
+                  {agentSaving ? <><Spinner size={11} color="#fff"/> 保存中…</> : '保存 Agent 配置'}
+                </button>
+              </div>
+            </div>
+
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.7fr 100px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
                 <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>状态</div><div></div>
@@ -201,10 +377,75 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
             )}
           </div>
         )}
+        {tab === 'fewshots' && (
+          <div>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.6 }}>
+              管理 SQL Agent 的 few-shot 示例。DB 为空时自动回退到内置 yaml；上传 xlsx 可批量导入（列：question / sql / type / is_active）。
+            </div>
+            {fewShots.length === 0 ? (
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: T.muted, background: T.card, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                暂无示例 · 点击右上角「新建」或上传 xlsx
+              </div>
+            ) : (
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 0.8fr 0.6fr 80px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+                  <div>问题</div><div>SQL</div><div>类型</div><div>状态</div><div></div>
+                </div>
+                {fewShots.map((f, i) => (
+                  <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 0.8fr 0.6fr 80px', padding: '11px 16px', borderBottom: i < fewShots.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5 }}>
+                    <div style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.question}</div>
+                    <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.sql}</div>
+                    <div style={{ color: T.subtext, fontSize: 11.5 }}>{f.type || '—'}</div>
+                    <div style={{ fontSize: 11.5, color: f.is_active ? T.success : T.muted }}>{f.is_active ? '启用' : '禁用'}</div>
+                    <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                      <button onClick={() => setModal({ type: 'fewshot', data: f })} style={iconBtn(T)} title="编辑"><I.pencil/></button>
+                      <button onClick={() => deleteFewShot(f.id)} style={iconBtn(T)} title="删除"><I.trash/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'prompts' && (
+          <div>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.6 }}>
+              覆盖 4 个 Agent 的 system prompt。留空则使用内置默认（不影响现有行为）。可使用占位符：clarifier 支持 {'{tables}'} {'{history}'}；sql_planner 支持 {'{max_steps}'} {'{db_env}'} {'{schema}'} {'{business_ctx}'}；validator / presenter 无占位符。
+            </div>
+            {[
+              { key: 'clarifier',   label: 'Clarifier · 理解问题' },
+              { key: 'sql_planner', label: 'SQL Planner · 生成 SQL' },
+              { key: 'validator',   label: 'Validator · 验证结果' },
+              { key: 'presenter',   label: 'Presenter · 整理洞察' },
+            ].map(({ key, label }) => (
+              <div key={key} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600 }}>{label}</div>
+                  <button onClick={() => savePrompt(key)} disabled={promptsSaving[key]} style={{ ...pillBtn(T, true), padding: '4px 10px', fontSize: 11.5 }}>
+                    {promptsSaving[key] ? <><Spinner size={10} color="#fff"/> 保存中</> : '保存'}
+                  </button>
+                </div>
+                <textarea
+                  value={prompts[key]}
+                  onChange={e => setPrompts(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder="留空使用内置默认 prompt"
+                  style={{
+                    width: '100%', minHeight: 140, resize: 'vertical',
+                    background: T.inputBg, color: T.text, fontFamily: T.mono, fontSize: 12,
+                    border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '8px 10px',
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {modal?.type === 'user' && <UserFormModal T={T} data={modal.data} sources={sources} onClose={() => setModal(null)} onSave={loadAll}/>}
       {modal?.type === 'source' && <SourceFormModal T={T} data={modal.data} onClose={() => setModal(null)} onSave={loadAll}/>}
+      {modal?.type === 'fewshot' && <FewShotModal T={T} data={modal.data} onClose={() => setModal(null)} onSave={loadAll}/>}
     </AppShell>
   );
 }
@@ -356,6 +597,55 @@ function SourceFormModal({ T, data, onClose, onSave }) {
         <button onClick={testConn} disabled={testing} style={pillBtn(T)}>
           {testing ? <><Spinner size={11}/> 测试中…</> : <><I.wifi/> 测试连接</>}
         </button>
+        <button onClick={onClose} style={pillBtn(T)}>取消</button>
+        <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
+          {loading ? <Spinner size={12} color="#fff"/> : '保存'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+
+function FewShotModal({ T, data, onClose, onSave }) {
+  const isEdit = !!data;
+  const [form, setForm] = useState({
+    question: data?.question || '',
+    sql: data?.sql || '',
+    type: data?.type || '',
+    is_active: data?.is_active ?? 1,
+  });
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    if (!form.question.trim() || !form.sql.trim()) { toast('question / sql 必填', true); return; }
+    setLoading(true);
+    try {
+      if (isEdit) await api.put(`/api/few-shots/${data.id}`, form);
+      else await api.post('/api/few-shots', form);
+      toast(isEdit ? '已更新' : '已创建');
+      onSave(); onClose();
+    } catch (e) { toast(String(e), true); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal T={T} onClose={onClose} width={560}>
+      <ModalHeader T={T} title={isEdit ? '编辑 Few-shot' : '新建 Few-shot'} onClose={onClose}/>
+      <div style={{ padding: '16px 20px', maxHeight: '70vh', overflowY: 'auto' }} className="cb-sb">
+        <Input T={T} label="问题" value={form.question} onChange={v => set('question', v)} required placeholder="昨天的订单总数"/>
+        <div style={{ fontSize: 12, color: T.subtext, marginBottom: 4 }}>SQL</div>
+        <textarea value={form.sql} onChange={e => set('sql', e.target.value)} placeholder="SELECT ..."
+          style={{ width: '100%', minHeight: 120, resize: 'vertical', background: T.inputBg, color: T.text,
+                   fontFamily: T.mono, fontSize: 12, border: `1px solid ${T.inputBorder}`, borderRadius: 7,
+                   padding: '8px 10px', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}/>
+        <Input T={T} label="类型 type" value={form.type} onChange={v => set('type', v)} optional
+               placeholder="aggregation · rank · join · …"/>
+        <Select T={T} label="状态" value={String(form.is_active)} onChange={v => set('is_active', Number(v))}
+                options={[{ value: '1', label: '启用' }, { value: '0', label: '禁用' }]}/>
+      </div>
+      <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onClose} style={pillBtn(T)}>取消</button>
         <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
           {loading ? <Spinner size={12} color="#fff"/> : '保存'}

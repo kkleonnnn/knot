@@ -10,6 +10,7 @@ from typing import List, Tuple
 
 import db_connector
 import llm_client
+import prompts as _prompts_mod
 from config import (
     DEFAULT_MODEL, MAX_TOKENS_PER_QUERY,
     MODELS, PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -199,7 +200,13 @@ def run_sql_agent(
     _is_or = (_registered and _registered.get("provider") == "openrouter") or \
              ("/" in model_key and not _registered)
     if _is_or:
-        key = openrouter_api_key or PROVIDER_API_KEYS.get("openrouter", "")
+        _app_key = ""
+        try:
+            import persistence
+            _app_key = persistence.get_app_setting("openrouter_api_key", "") or ""
+        except Exception:
+            pass
+        key = openrouter_api_key or _app_key or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:
             return _err("未设置 OpenRouter API Key，请在「API & 模型」页面填写")
         model_cfg = _registered or {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
@@ -212,11 +219,14 @@ def run_sql_agent(
             return _err(f"未设置 {model_cfg['provider']} 的 API Key")
 
     business_section = f"## 业务语义层\n{business_context.strip()}" if business_context.strip() else ""
-    system_prompt = _AGENT_SYSTEM_TEMPLATE.format(
-        max_steps=max_steps,
-        db_env="Apache Doris（兼容 MySQL 5.7 语法）",
-        schema=schema_text,
-        business_ctx=business_section,
+    system_prompt = _prompts_mod.get_prompt(
+        "sql_planner", _AGENT_SYSTEM_TEMPLATE,
+        {
+            "max_steps": max_steps,
+            "db_env": "Apache Doris（兼容 MySQL 5.7 语法）",
+            "schema": schema_text,
+            "business_ctx": business_section,
+        },
     )
 
     messages = [{"role": "user", "content": f"用户问题: {question}"}]

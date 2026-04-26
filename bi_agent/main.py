@@ -19,6 +19,9 @@ from fastapi.responses import FileResponse
 import persistence
 from .dependencies import UPLOADS_DB
 from .routers import auth, conversations, query, database, uploads, knowledge, admin, user
+from .routers import few_shots as few_shots_router
+from .routers import prompts as prompts_router
+from .routers import templates as templates_router
 
 app = FastAPI(title="BI-Agent", version="0.2.1")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -27,7 +30,8 @@ UPLOADS_DB.parent.mkdir(parents=True, exist_ok=True)
 persistence.init_db()
 
 for _router in [auth.router, conversations.router, query.router, database.router,
-                uploads.router, knowledge.router, admin.router, user.router]:
+                uploads.router, knowledge.router, admin.router, user.router,
+                few_shots_router.router, prompts_router.router, templates_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

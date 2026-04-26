@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.202604262115] - 2026-04-26 批次2
+
+### Added
+- B2 few-shot 可视化：`few_shots` 表 + admin `/api/few-shots` CRUD + xlsx 批量导入；DB 为空时自动回退 `few_shots.yaml`
+- B2 Prompt 模板：`prompt_templates` 表 + admin `/api/prompts` CRUD + xlsx 批量导入；4 个 agent（clarifier / sql_planner / validator / presenter）可独立覆盖 system prompt，留空使用内置默认
+- B2 模板下载：`/api/templates/{few_shots|prompts|knowledge}` 提供 xlsx / txt 下载
+- B3 admin API Key 集中管理：`/api/admin/api-keys`（OpenRouter + Embedding）；存 `app_settings` 表
+- B3 admin 4-Agent 模型分配 UI（复用已有 `/api/admin/agent-models`）
+- 前端 Admin 新增 Few-shot / Prompt 两个 tab；模型 tab 顶部新增 API Key + 4-Agent 模型分配两块卡片
+- `bi_agent/core/prompts.py`：通用 prompt 加载器（DB 优先 / 默认回退 / 安全占位符替换）
+
+### Changed
+- API Key 与 4-agent 模型配置归口管理员；用户不再有任何 key 输入入口
+- `multi_agent._resolve` / `sql_agent.run_sql_agent` / `llm_client._invoke_*` / `query.py` / `knowledge.py` 改为优先读 `app_settings.openrouter_api_key` / `embedding_api_key`
+- `query.py` agent 模型配置从 per-user (`get_user_agent_model_config`) 切换到 admin 级 (`get_agent_model_config`)
+- `frontend/src/Shell.jsx` 移除「个人」分区的 API & 模型入口；admin-models 改名为「API & 模型」
+- `frontend/src/App.jsx` user-config / settings 路由对 admin 重定向到 admin-models 面板
+
+### Migration（一次性）
+- 清空 `users.openrouter_api_key` / `embedding_api_key` / `agent_model_config`（写入 `app_settings._v021b2_user_keys_cleared` 标记防重复）
+
+### Known issues（沿用上一段）
+- Clarifier 字段盲区 / Schema 截断跨库失衡 / 跨连接多源 schema 合并 / analyst 提问 404（待下一轮）
+
 ## [0.2.1] - 2026-04-26
 
 ### Changed

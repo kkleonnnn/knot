@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 import auth_utils
 import config as cfg
@@ -196,6 +196,25 @@ async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(req
         "validator":   req.validator,
         "presenter":   req.presenter,
     })
+    return {"ok": True}
+
+
+# ── API Keys (app-level, admin-only) ───────────────────────────────────
+
+@router.get("/api/admin/api-keys")
+async def get_api_keys(admin=Depends(require_admin)):
+    return {
+        "openrouter_api_key": persistence.get_app_setting("openrouter_api_key", ""),
+        "embedding_api_key":  persistence.get_app_setting("embedding_api_key", ""),
+    }
+
+
+@router.put("/api/admin/api-keys")
+async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
+    if "openrouter_api_key" in payload:
+        persistence.set_app_setting("openrouter_api_key", payload["openrouter_api_key"] or "")
+    if "embedding_api_key" in payload:
+        persistence.set_app_setting("embedding_api_key", payload["embedding_api_key"] or "")
     return {"ok": True}
 
 
