@@ -31,6 +31,18 @@ UPLOADS_DB.parent.mkdir(parents=True, exist_ok=True)
 persistence.init_db()
 
 
+@app.on_event("startup")
+async def _bump_threadpool():
+    """v0.2.2: 把 anyio 默认线程池 token 数从 40 提到 ANYIO_TOKENS（默认 64）。
+    所有 LLM 调用走 run_in_executor（同步 SDK），并发受这里限制。
+    全异步化（httpx.AsyncClient + AsyncOpenAI/AsyncAnthropic）放下个 MINOR。"""
+    import os
+    from anyio import to_thread
+    tokens = int(os.getenv("ANYIO_TOKENS", "64"))
+    to_thread.current_default_thread_limiter().total_tokens = tokens
+    logger.info(f"anyio threadpool tokens = {tokens}")
+
+
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
     """每个请求绑一个 request_id，串起 agent 链路日志。

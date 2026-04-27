@@ -75,8 +75,9 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 
 | 优先级 | 问题 | 目标分支 |
 |--------|------|---------|
-| 高 | async 路由中调用 sync SQLAlchemy，高并发阻塞 | feat/async-db |
-| 中 | 无结构化日志（全部 print） | chore/structured-logging |
+| 高 | LLM 调用走 run_in_executor + 同步 SDK；v0.2.2 把 anyio 池开到 64，但仍非真异步。下个 MINOR 切 httpx.AsyncClient / AsyncOpenAI / AsyncAnthropic | feat/async-llm |
+| 中 | 路由中 sync SQLAlchemy；DB 端短查询为主，暂不切 async，跟着上一项一起做 | feat/async-db |
+| ~~中~~ ✅ v0.2.2 已用 loguru | 结构化日志 | — |
 | 低 | uploads.db 与 bi_agent.db 可合并 | — |
 | 低 | `bi_agent/routers/user.py` 的 `/api/user/config` `/api/user/agent-models` 已无前端调用，留作向后兼容；下个 MINOR 可一并删 | chore/cleanup |
 
