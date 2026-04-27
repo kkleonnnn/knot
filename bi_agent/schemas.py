@@ -81,5 +81,4 @@ class UpdateUserConfigRequest(BaseModel):
 class AgentModelConfigRequest(BaseModel):
     clarifier: str = ""
     sql_planner: str = ""
-    validator: str = ""
     presenter: str = ""

@@ -1,6 +1,7 @@
 """
-multi_agent.py — 4-Agent Orchestrator (Clarifier / SQL Planner / Validator / Presenter)
+multi_agent.py — 3-Agent Orchestrator (Clarifier / SQL Planner / Presenter)
 SQL Planner reuses the existing sql_agent.run_sql_agent().
+v0.2.2: Validator agent removed; Presenter prompt now does light anomaly check inline.
 """
 
 import json
@@ -195,89 +196,40 @@ def run_clarifier(
     }
 
 
-# ── Agent 3: Validator ─────────────────────────────────────────────────────────
-
-_VALIDATOR_SYS = """你是数据质量验证专家。根据用户问题和 SQL 查询结果，判断结果是否合理可靠。
-
-今日：{today}（系统时间，权威。≤ 今日的任何日期都是历史日期，不要因模型训练截止时间而判断为"未来日期"）
-
-输出严格 JSON：
-{
-  "is_valid": true,
-  "confidence": "high",
-  "issues": [],
-  "notes": "一句话说明"
-}
-
-confidence 含义：
-- "high"：结果符合预期，数据可信
-- "medium"：有轻微问题（如数据偏少）但基本可用
-- "low"：结果明显异常（空结果但不应为空、数值量级异常、时间范围错误等），需重试
-
-confidence 为 low 时必须在 issues 中列出具体问题。
-不要把"今日及之前的日期"判定为未来日期或异常。"""
-
-
-def run_validator(
-    question: str,
-    sql: str,
-    rows: list,
-    model_key: str,
-    api_key: str = "",
-    openrouter_api_key: str = "",
-) -> dict:
-    if not sql:
-        return {"is_valid": False, "confidence": "low", "issues": ["未生成有效 SQL"], "notes": "SQL 为空",
-                "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
-
-    sample = json.dumps(rows[:8], ensure_ascii=False, default=str) if rows else "[]"
-    user_msg = f"问题：{question}\nSQL：{sql}\n结果（前8行，共 {len(rows)} 行）：{sample}"
-
-    model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
-    it = ot = 0
-    cost = 0.0
-    result = {}
-    sys_prompt = _prompts_mod.get_prompt("validator", _VALIDATOR_SYS, {"today": _today()})
-    try:
-        text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
-                                   [{"role": "user", "content": user_msg}], max_tokens=300)
-        result = _parse_json(text)
-    except Exception:
-        pass
-
-    return {
-        "is_valid": result.get("is_valid", True),
-        "confidence": result.get("confidence", "medium"),
-        "issues": result.get("issues", []),
-        "notes": result.get("notes", ""),
-        "input_tokens": it,
-        "output_tokens": ot,
-        "cost_usd": cost,
-    }
-
-
-# ── Agent 4: Presenter ─────────────────────────────────────────────────────────
+# ── Agent 3: Presenter ─────────────────────────────────────────────────────────
 
 _PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果，给出简洁的分析洞察，并推荐高价值的追问方向。
+同时承担轻量结果质量检查：发现数据可能存在异常时，在 insight 开头加 ⚠️ 并简述疑点，但仍要给出洞察、不要拒绝输出。
 
-今日：{today}（系统时间，权威）
+今日：{today}（系统时间，权威。≤ 今日的任何日期都是历史日期）
 
 输出严格 JSON：
 {
-  "insight": "2-3句分析洞察，直接点出关键发现、趋势或异常",
+  "insight": "2-3句分析洞察，直接点出关键发现、趋势或异常；如有疑点用 ⚠️ 开头",
+  "confidence": "high",
   "suggested_followups": ["追问方向1", "追问方向2"]
 }
 
+confidence 含义：
+- "high"：结果符合预期、数据可信
+- "medium"：有轻微疑点（数据偏少、量级略异常）但基本可用
+- "low"：结果明显异常（应有数据却为空、数值量级离谱、时间范围错位）
+
+异常判断规则：
+- 应有数据却空集（如查"昨天的订单数"返回 0 行）→ confidence=low，insight 用 ⚠️ 开头说明可能原因
+- 全 0 / 全 NULL 的聚合结果 → confidence=low
+- ≤ 今日的日期是历史日期，不要判定为"未来"
+- 单聚合标量结果（COUNT/SUM）非 0 即 high
+
 结果为空时，insight 说明可能原因并给出排查建议。
-suggested_followups 给出2个最有价值的下一步分析方向（简洁，不超过15字）。
-洞察用动词开头，不超过 3 句，不要把当前/历史日期表述为"未来"。"""
+suggested_followups 给出 2 个最有价值的下一步分析方向（简洁，不超过 15 字）。
+洞察用动词开头（或 ⚠️ 开头），不超过 3 句。"""
 
 
 def run_presenter(
     question: str,
     sql: str,
     rows: list,
-    validator_notes: str,
     model_key: str,
     api_key: str = "",
     openrouter_api_key: str = "",
@@ -285,8 +237,8 @@ def run_presenter(
     sample = json.dumps(rows[:10], ensure_ascii=False, default=str) if rows else "[]"
     user_msg = (
         f"问题：{question}\n"
-        f"查询结果（前10行，共 {len(rows)} 行）：{sample}\n"
-        f"验证说明：{validator_notes or '无'}"
+        f"SQL：{sql or '(无)'}\n"
+        f"查询结果（前10行，共 {len(rows)} 行）：{sample}"
     )
 
     model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
@@ -303,6 +255,7 @@ def run_presenter(
 
     return {
         "insight": result.get("insight", ""),
+        "confidence": result.get("confidence", "high"),
         "suggested_followups": result.get("suggested_followups", []),
         "input_tokens": it,
         "output_tokens": ot,

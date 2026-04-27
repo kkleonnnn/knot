@@ -72,11 +72,6 @@ PROMPT_OVERRIDES = {
         "- 占比类计算统一用 ROUND(X*100.0/SUM(X) OVER(), 2)\n"
         "- 同环比统一用 SUM(CASE WHEN ... THEN 1 ELSE 0 END) 方式落在一行"
     )),
-    "validator": "{__default__}" + _TAIL.format(rules=(
-        "- 数值结果若全为 0 或全为 NULL 视为 low confidence\n"
-        "- 时间筛选若把 ≤ 今日的日期判定为未来导致空集，confidence=low 并在 issues 写「日期判断错误」\n"
-        "- 单聚合标量结果（COUNT/SUM）非 0 即 high"
-    )),
     "presenter": "{__default__}" + _TAIL.format(rules=(
         "- 洞察用动词开头，不超过 3 句\n"
         "- 数值带单位（元/人/单/%）；同比环比带正负号\n"

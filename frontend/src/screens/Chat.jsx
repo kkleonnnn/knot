@@ -306,7 +306,7 @@ function ChatConversation({ T, messages, scrollRef, loading, question, setQuesti
 }
 
 function ThinkingCard({ T, agentEvents = [] }) {
-  const AGENT_LABELS = { clarifier: '理解问题', sql_planner: '生成 SQL', validator: '验证结果', presenter: '整理洞察' };
+  const AGENT_LABELS = { clarifier: '理解问题', sql_planner: '生成 SQL', presenter: '整理洞察' };
   const lastStart = [...agentEvents].reverse().find(e => e.type === 'agent_start');
   const label = lastStart ? AGENT_LABELS[lastStart.agent] || lastStart.label : '正在思考';
   return (
@@ -495,7 +495,6 @@ function AgentThinkingPanel({ T, events, visible }) {
   const AGENTS = [
     { key: 'clarifier',   label: '理解问题', emoji: '💡' },
     { key: 'sql_planner', label: '生成 SQL', emoji: '🔍' },
-    { key: 'validator',   label: '验证结果', emoji: '✓' },
     { key: 'presenter',   label: '整理洞察', emoji: '📊' },
   ];
 
@@ -565,19 +564,15 @@ function AgentThinkingPanel({ T, events, visible }) {
               </div>
             )}
 
-            {key === 'validator' && isDone && output && (
-              <div style={{ fontSize: 11.5, color: T.subtext }}>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
-                  background: output.confidence === 'high' ? '#09AB3B22' : output.confidence === 'medium' ? '#FF990022' : T.accentSoft,
-                  color: output.confidence === 'high' ? '#09AB3B' : output.confidence === 'medium' ? '#FF9900' : T.accent,
-                }}>{output.confidence}</span>
-                {output.notes && <span style={{ marginLeft: 6 }}>{output.notes}</span>}
-              </div>
-            )}
-
             {key === 'presenter' && isDone && output?.insight && (
               <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.5 }}>
+                {output.confidence && output.confidence !== 'high' && (
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4, marginRight: 6,
+                    background: output.confidence === 'medium' ? '#FF990022' : T.accentSoft,
+                    color: output.confidence === 'medium' ? '#FF9900' : T.accent,
+                  }}>{output.confidence}</span>
+                )}
                 {output.insight.slice(0, 100)}{output.insight.length > 100 ? '…' : ''}
               </div>
             )}
