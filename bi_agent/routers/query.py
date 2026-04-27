@@ -12,6 +12,7 @@ import doc_rag
 import sql_agent as agent_module
 import multi_agent as multi_agent_module
 import llm_client
+from logging_setup import logger
 from ..dependencies import get_current_user
 from ..engine_cache import get_user_engine, _upload_engine
 from ..schemas import QueryRequest
@@ -216,6 +217,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
     t0 = time.time()
 
+    logger.info(f"query-stream conv={conv_id} user={user['id']} model={model_key} q={req.question[:80]!r}")
+
     async def generate():
         loop = asyncio.get_running_loop()
         total_input = total_output = 0
@@ -264,6 +267,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             "output_tokens": total_output, "cost_usd": total_cost})
                 return
 
+            logger.info(f"clarifier done refined={clarifier_result['refined_question'][:80]!r}")
             yield emit({"type": "agent_done", "agent": "clarifier",
                         "output": {"refined_question": clarifier_result["refined_question"],
                                    "approach": clarifier_result["analysis_approach"]}})
@@ -285,6 +289,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
                             "action": s.action, "observation": s.observation})
 
+            logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} sql={sql_result.sql[:120]!r}")
             yield emit({"type": "agent_done", "agent": "sql_planner",
                         "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
 
@@ -302,6 +307,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             total_cost += presenter_result["cost_usd"]
             confidence = presenter_result.get("confidence", "high")
 
+            logger.info(f"presenter done confidence={confidence} cost_usd={total_cost:.4f}")
             yield emit({"type": "agent_done", "agent": "presenter",
                         "output": {"insight": presenter_result["insight"],
                                    "confidence": confidence}})
@@ -335,6 +341,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "cost_usd": total_cost, "query_time_ms": query_time_ms,
             })
         except Exception as _exc:
+            logger.exception(f"query-stream pipeline failed: {_exc}")
             yield emit({"type": "error", "message": str(_exc)})
 
     return StreamingResponse(
