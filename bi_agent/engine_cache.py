@@ -159,6 +159,24 @@ def get_user_engine(user: dict):
                     if not ok:
                         print(f"[engine_cache] WARN user_id={uid} group {gkey} test failed: {reason}")
                         continue
+                    # 只读权限探测（best-effort，不阻断）
+                    try:
+                        ro_status, ro_detail = db_connector.check_readonly_grants(eng)
+                        if ro_status == "writable":
+                            print(
+                                f"[engine_cache] WARN user_id={uid} group {gkey} 账号疑似有写权限！"
+                                f"强烈建议改用只读账号。grants={str(ro_detail)[:200]}"
+                            )
+                            if getattr(cfg, "STRICT_READONLY_GRANTS", False):
+                                print(f"[engine_cache] STRICT_READONLY_GRANTS=1，拒绝构建该组 engine")
+                                continue
+                        elif ro_status == "unknown":
+                            print(
+                                f"[engine_cache] info user_id={uid} group {gkey} 无法探测 grants；"
+                                f"依赖 SQL 解析层 guardrail。"
+                            )
+                    except Exception as _e:
+                        print(f"[engine_cache] grants probe error (ignored): {_e}")
                     g_schema = db_connector.get_schema(
                         eng, databases=databases,
                         max_tables=(cfg.SCHEMA_FILTER_MAX_TABLES if len(groups) == 1 else per_group_quota),

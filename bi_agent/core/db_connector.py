@@ -30,6 +30,36 @@ def create_engine(host, port, user, password, database):
     )
 
 
+_WRITE_PRIVS_RE = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|GRANT|REPLACE|LOAD|ALL\s+PRIVILEGES|ALL)\b",
+    re.IGNORECASE,
+)
+
+
+def check_readonly_grants(engine) -> tuple:
+    """探测 DB 账号是否拥有写权限（best-effort）。返回 (status, detail)。
+    status: "readonly" | "writable" | "unknown"
+    - readonly: 仅 SELECT/SHOW/USAGE 等只读权限，安全
+    - writable: 检测到 INSERT/UPDATE/DELETE/DROP/CREATE/ALTER 等写权限，建议联系 DBA 改为只读账号
+    - unknown: SHOW GRANTS 失败或返回内容无法解析，无法判定
+    """
+    try:
+        with engine.connect() as conn:
+            try:
+                rows = conn.execute(text("SHOW GRANTS FOR CURRENT_USER")).fetchall()
+            except Exception:
+                rows = conn.execute(text("SHOW GRANTS")).fetchall()
+        if not rows:
+            return "unknown", "SHOW GRANTS 返回空"
+        grants_text = " | ".join(str(r[0]) for r in rows)
+        # GRANT USAGE / GRANT SELECT 视为只读；任何写关键词都视为可写
+        if _WRITE_PRIVS_RE.search(grants_text):
+            return "writable", grants_text[:300]
+        return "readonly", grants_text[:300]
+    except Exception as e:
+        return "unknown", f"SHOW GRANTS 不支持或失败：{str(e)[:120]}"
+
+
 def test_connection(engine) -> tuple:
     try:
         with engine.connect() as conn:
@@ -264,19 +294,51 @@ def get_schema_structured(engine, databases: list = None) -> list:
 
 
 def _is_safe_sql(sql: str) -> tuple:
-    cleaned = sql.strip()
-    if not cleaned.upper().startswith("SELECT"):
-        return False, "只允许执行 SELECT 查询"
+    """v0.2.2: 用 sqlglot AST 解析做只读校验，比正则黑名单稳。
+    通过条件：单条语句、根节点是 Select / With / Union / Show / Describe，且 AST 内不出现任何写/DDL 节点。
+    解析失败 → 退回最严策略，拒绝执行。"""
+    cleaned = sql.strip().rstrip(";").strip()
+    if not cleaned:
+        return False, "SQL 为空"
 
-    dangerous = [
-        r"\bINSERT\b", r"\bUPDATE\b", r"\bDELETE\b",
-        r"\bDROP\b", r"\bTRUNCATE\b", r"\bALTER\b",
-        r"\bCREATE\b", r"\bGRANT\b", r"\bREVOKE\b",
-    ]
-    sql_upper = cleaned.upper()
-    for pattern in dangerous:
-        if re.search(pattern, sql_upper):
-            keyword = pattern.replace(r"\b", "").replace("\\b", "")
-            return False, f"包含危险关键词 {keyword}"
+    try:
+        import sqlglot
+        from sqlglot import expressions as exp
+    except ImportError:
+        # sqlglot 未安装时退回极严的字符串前缀检查（保守拒绝写关键词）
+        head = cleaned.split(None, 1)[0].upper()
+        if head not in {"SELECT", "WITH", "SHOW", "DESCRIBE", "DESC", "EXPLAIN"}:
+            return False, "guardrail 退化模式：只允许 SELECT / WITH / SHOW / DESCRIBE / EXPLAIN"
+        return True, ""
+
+    try:
+        statements = sqlglot.parse(cleaned, dialect="mysql")
+    except Exception as e:
+        return False, f"SQL 解析失败：{str(e)[:120]}"
+
+    statements = [s for s in statements if s is not None]
+    if len(statements) == 0:
+        return False, "SQL 解析为空"
+    if len(statements) > 1:
+        return False, "禁止多条语句（防 SQL 注入 stacked query）"
+
+    root = statements[0]
+
+    # 允许的根节点类型：只读
+    allowed_roots = (exp.Select, exp.Subquery, exp.Union, exp.Intersect, exp.Except,
+                     exp.With, exp.Show, exp.Describe)
+    if not isinstance(root, allowed_roots):
+        return False, f"禁止的根语句类型：{type(root).__name__}"
+
+    # AST 内不允许出现的节点类型（任何写 / DDL / 权限 / 系统 操作）
+    write_nodes = (
+        exp.Insert, exp.Update, exp.Delete, exp.Merge,
+        exp.Drop, exp.Create, exp.Alter, exp.TruncateTable,
+        exp.Set, exp.Use, exp.Grant,
+        exp.Command,  # sqlglot 把不识别的语句兜底成 Command（如 GRANT / REVOKE / LOAD / CALL）
+    )
+    for node in root.walk():
+        if isinstance(node, write_nodes):
+            return False, f"禁止的写/DDL 节点：{type(node).__name__}"
 
     return True, ""

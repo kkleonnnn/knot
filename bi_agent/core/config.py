@@ -198,3 +198,6 @@ AGENT_MAX_STEPS          = int(os.getenv("AGENT_MAX_STEPS",          "5"))
 SCHEMA_FILTER_MAX_TABLES = int(os.getenv("SCHEMA_FILTER_MAX_TABLES", "10"))
 RAG_TOP_K                = int(os.getenv("RAG_TOP_K",                "5"))
 FEW_SHOT_MAX_EXAMPLES    = int(os.getenv("FEW_SHOT_MAX_EXAMPLES",    "4"))
+
+# 只读 grants 严格模式：1 = 探测到 writable 拒绝构建 engine；默认 0 仅 warn
+STRICT_READONLY_GRANTS   = os.getenv("STRICT_READONLY_GRANTS", "0") == "1"
