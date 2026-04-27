@@ -1,0 +1,52 @@
+# BI-Agent eval 用例集（v0.2.2 起草，目标 30 条）
+#
+# 每条 case 字段：
+#   id            : 唯一短 id
+#   question      : 用户原问题
+#   expects:
+#     intent      : metric|trend|compare|rank|distribution|retention（信息字段，不强制断言）
+#     must_tables : SQL 必须涉及的表（大小写不敏感，substring 匹配）
+#     must_keywords  : SQL 必须包含的关键词（大小写不敏感）
+#     forbid_keywords: SQL 不允许出现的关键词
+#     judge_rubric: 给 LLM-as-judge 用的洞察评分 rubric（v0.2.3 启用）
+
+cases:
+  - id: yesterday_signups
+    question: 昨天注册用户数
+    expects:
+      intent: metric
+      must_tables: [users]
+      must_keywords: ["count", "created_at"]
+      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+
+  - id: weekly_gmv_trend
+    question: 最近 7 天每日 GMV 趋势
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: ["sum(amount)", "group by", "pay_time"]
+      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+
+  - id: month_over_month_signup
+    question: 本月新用户数对比上月
+    expects:
+      intent: compare
+      must_tables: [users]
+      must_keywords: ["case when"]
+      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+
+  - id: top10_paid_users
+    question: 给我看 Top 10 付费用户
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: ["sum(amount)", "order by", "limit", "10"]
+      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+
+  - id: pay_channel_distribution
+    question: 各支付渠道占比
+    expects:
+      intent: distribution
+      must_tables: [orders]
+      must_keywords: ["pay_channel", "group by"]
+      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
