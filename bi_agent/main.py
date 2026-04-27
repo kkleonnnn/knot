@@ -11,12 +11,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "core"))
 mimetypes.add_type("application/javascript", ".jsx")
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 import persistence
+from logging_setup import logger, set_request_id, new_request_id
 from .dependencies import UPLOADS_DB
 from .routers import auth, conversations, query, database, uploads, knowledge, admin, user
 from .routers import few_shots as few_shots_router
@@ -28,6 +29,35 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 UPLOADS_DB.parent.mkdir(parents=True, exist_ok=True)
 persistence.init_db()
+
+
+@app.on_event("startup")
+async def _bump_threadpool():
+    """v0.2.2: 把 anyio 默认线程池 token 数从 40 提到 ANYIO_TOKENS（默认 64）。
+    所有 LLM 调用走 run_in_executor（同步 SDK），并发受这里限制。
+    全异步化（httpx.AsyncClient + AsyncOpenAI/AsyncAnthropic）放下个 MINOR。"""
+    import os
+    from anyio import to_thread
+    tokens = int(os.getenv("ANYIO_TOKENS", "64"))
+    to_thread.current_default_thread_limiter().total_tokens = tokens
+    logger.info(f"anyio threadpool tokens = {tokens}")
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """每个请求绑一个 request_id，串起 agent 链路日志。
+    支持上游传 X-Request-ID 透传；否则随机生成。"""
+    req_id = request.headers.get("x-request-id") or new_request_id()
+    set_request_id(req_id)
+    logger.info(f"→ {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.exception(f"✗ {request.method} {request.url.path} unhandled: {exc}")
+        raise
+    response.headers["X-Request-ID"] = req_id
+    logger.info(f"← {request.method} {request.url.path} {response.status_code}")
+    return response
 
 for _router in [auth.router, conversations.router, query.router, database.router,
                 uploads.router, knowledge.router, admin.router, user.router,

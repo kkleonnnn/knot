@@ -1,6 +1,7 @@
 """
-prompts.py — admin 维护 4 个 agent 的 system prompt 覆盖
-agent_name ∈ {clarifier, sql_planner, validator, presenter}
+prompts.py — admin 维护 3 个 agent 的 system prompt 覆盖
+agent_name ∈ {clarifier, sql_planner, presenter}
+v0.2.2: validator 已移除；仍存在的 validator 模板会被忽略（保留 DB 数据待清理）
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
@@ -9,7 +10,7 @@ from ..dependencies import require_admin
 
 router = APIRouter()
 
-VALID_AGENTS = {"clarifier", "sql_planner", "validator", "presenter"}
+VALID_AGENTS = {"clarifier", "sql_planner", "presenter"}
 
 
 @router.get("/api/prompts")

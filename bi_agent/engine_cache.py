@@ -8,6 +8,7 @@ from sqlalchemy import text as _sa_text
 import config as cfg
 import persistence
 import db_connector
+from logging_setup import logger
 
 _UPLOADS_DB = Path(__file__).parent / "data" / "uploads.db"
 _upload_engine = db_connector.create_sqlite_engine(str(_UPLOADS_DB))
@@ -157,8 +158,25 @@ def get_user_engine(user: dict):
                     )
                     ok, reason = db_connector.test_connection(eng)
                     if not ok:
-                        print(f"[engine_cache] WARN user_id={uid} group {gkey} test failed: {reason}")
+                        logger.warning(f"engine_cache user_id={uid} group {gkey} test failed: {reason}")
                         continue
+                    # 只读权限探测（best-effort，不阻断）
+                    try:
+                        ro_status, ro_detail = db_connector.check_readonly_grants(eng)
+                        if ro_status == "writable":
+                            logger.warning(
+                                f"engine_cache user_id={uid} group {gkey} 账号疑似有写权限！"
+                                f"强烈建议改用只读账号。grants={str(ro_detail)[:200]}"
+                            )
+                            if getattr(cfg, "STRICT_READONLY_GRANTS", False):
+                                logger.warning("STRICT_READONLY_GRANTS=1，拒绝构建该组 engine")
+                                continue
+                        elif ro_status == "unknown":
+                            logger.info(
+                                f"engine_cache user_id={uid} group {gkey} 无法探测 grants；依赖 SQL 解析层 guardrail。"
+                            )
+                    except Exception as _e:
+                        logger.debug(f"engine_cache grants probe error (ignored): {_e}")
                     g_schema = db_connector.get_schema(
                         eng, databases=databases,
                         max_tables=(cfg.SCHEMA_FILTER_MAX_TABLES if len(groups) == 1 else per_group_quota),
@@ -183,7 +201,7 @@ def get_user_engine(user: dict):
                     }
                     return engine, schema
             except Exception as e:
-                print(f"[engine_cache] WARN user_id={uid} multi-source build failed: {e}")
+                logger.warning(f"engine_cache user_id={uid} multi-source build failed: {e}")
 
     # Fallback: legacy doris_* fields on users 表
     if user.get("doris_user") and user.get("doris_password"):

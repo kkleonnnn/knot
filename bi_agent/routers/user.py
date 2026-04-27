@@ -15,7 +15,6 @@ async def get_user_agent_models(user=Depends(get_current_user)):
     return {
         "clarifier":   config.get("clarifier")   or global_cfg.get("clarifier", ""),
         "sql_planner": config.get("sql_planner") or global_cfg.get("sql_planner", ""),
-        "validator":   config.get("validator")   or global_cfg.get("validator", ""),
         "presenter":   config.get("presenter")   or global_cfg.get("presenter", ""),
     }
 
@@ -25,7 +24,6 @@ async def set_user_agent_models(req: AgentModelConfigRequest, user=Depends(get_c
     persistence.set_user_agent_model_config(user["id"], {
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,
-        "validator":   req.validator,
         "presenter":   req.presenter,
     })
     return {"ok": True}

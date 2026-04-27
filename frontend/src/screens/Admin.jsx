@@ -17,12 +17,12 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   // 批次 2 新增
   const [apiKeys, setApiKeys] = useState({ openrouter_api_key: '', embedding_api_key: '' });
   const [apiKeysSaving, setApiKeysSaving] = useState(false);
-  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', validator: '', presenter: '' });
+  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '' });
   const [agentSaving, setAgentSaving] = useState(false);
   const [fewShots, setFewShots] = useState([]);
   const [fsUploading, setFsUploading] = useState(false);
   const fsFileRef = useRef(null);
-  const [prompts, setPrompts] = useState({ clarifier: '', sql_planner: '', validator: '', presenter: '' });
+  const [prompts, setPrompts] = useState({ clarifier: '', sql_planner: '', presenter: '' });
   const [promptsSaving, setPromptsSaving] = useState({});
   const [pmUploading, setPmUploading] = useState(false);
   const pmFileRef = useRef(null);
@@ -42,12 +42,12 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         ]);
         setModels(d);
         setApiKeys({ openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' });
-        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', validator: ac.validator || '', presenter: ac.presenter || '' });
+        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '' });
       }
       if (tab === 'knowledge') { const d = await api.get('/api/knowledge'); setKnowledgeDocs(d); }
       if (tab === 'fewshots') { const d = await api.get('/api/few-shots').catch(() => []); setFewShots(d || []); }
       if (tab === 'prompts') {
-        const ps = { clarifier: '', sql_planner: '', validator: '', presenter: '' };
+        const ps = { clarifier: '', sql_planner: '', presenter: '' };
         const all = await Promise.all(Object.keys(ps).map(k =>
           api.get(`/api/prompts/${k}`).then(r => [k, r.content || '']).catch(() => [k, ''])
         ));
@@ -294,13 +294,12 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
 
             {/* 4-Agent Model Assignment */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, marginBottom: 2 }}>4 个 Agent 模型分配</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, marginBottom: 2 }}>3 个 Agent 模型分配</div>
               <div style={{ fontSize: 11, color: T.muted, marginBottom: 14 }}>为每个 agent 指定模型，留空则跟随系统默认（DEFAULT_MODEL）</div>
               {[
                 { key: 'clarifier',   label: '理解问题',   hint: '推荐轻量' },
                 { key: 'sql_planner', label: '生成 SQL',   hint: '推荐最强' },
-                { key: 'validator',   label: '验证结果',   hint: '推荐轻量' },
-                { key: 'presenter',   label: '整理洞察',   hint: '推荐中等' },
+                { key: 'presenter',   label: '整理洞察 + 质量检查', hint: '推荐中等' },
               ].map(({ key, label, hint }) => (
                 <div key={key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px', gap: 10, alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, color: T.text, fontWeight: 500 }}>{label}</span>
@@ -411,13 +410,12 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         {tab === 'prompts' && (
           <div>
             <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.6 }}>
-              覆盖 4 个 Agent 的 system prompt。留空则使用内置默认（不影响现有行为）。可使用占位符：clarifier 支持 {'{tables}'} {'{history}'}；sql_planner 支持 {'{max_steps}'} {'{db_env}'} {'{schema}'} {'{business_ctx}'}；validator / presenter 无占位符。
+              覆盖 3 个 Agent 的 system prompt。留空则使用内置默认（不影响现有行为）。可使用占位符：clarifier 支持 {'{tables}'} {'{history}'}；sql_planner 支持 {'{max_steps}'} {'{db_env}'} {'{schema}'} {'{business_ctx}'}；presenter 支持 {'{today}'}。
             </div>
             {[
               { key: 'clarifier',   label: 'Clarifier · 理解问题' },
               { key: 'sql_planner', label: 'SQL Planner · 生成 SQL' },
-              { key: 'validator',   label: 'Validator · 验证结果' },
-              { key: 'presenter',   label: 'Presenter · 整理洞察' },
+              { key: 'presenter',   label: 'Presenter · 整理洞察 + 质量检查' },
             ].map(({ key, label }) => (
               <div key={key} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

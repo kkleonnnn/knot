@@ -12,6 +12,7 @@ import doc_rag
 import sql_agent as agent_module
 import multi_agent as multi_agent_module
 import llm_client
+from logging_setup import logger
 from ..dependencies import get_current_user
 from ..engine_cache import get_user_engine, _upload_engine
 from ..schemas import QueryRequest
@@ -216,6 +217,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
     t0 = time.time()
 
+    logger.info(f"query-stream conv={conv_id} user={user['id']} model={model_key} q={req.question[:80]!r}")
+
     async def generate():
         loop = asyncio.get_running_loop()
         total_input = total_output = 0
@@ -264,6 +267,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             "output_tokens": total_output, "cost_usd": total_cost})
                 return
 
+            logger.info(f"clarifier done refined={clarifier_result['refined_question'][:80]!r}")
             yield emit({"type": "agent_done", "agent": "clarifier",
                         "output": {"refined_question": clarifier_result["refined_question"],
                                    "approach": clarifier_result["analysis_approach"]}})
@@ -285,64 +289,28 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
                             "action": s.action, "observation": s.observation})
 
+            logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} sql={sql_result.sql[:120]!r}")
             yield emit({"type": "agent_done", "agent": "sql_planner",
                         "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
 
-            yield emit({"type": "agent_start", "agent": "validator", "label": "验证结果"})
-            validator_key = _agent_key("validator")
+            # v0.2.2: Validator removed; Presenter does inline anomaly check
             retry_count = 0
-
-            validator_result = await loop.run_in_executor(
-                None, multi_agent_module.run_validator,
-                req.question, sql_result.sql, sql_result.rows,
-                validator_key, api_key, openrouter_api_key,
-            )
-            total_input += validator_result["input_tokens"]
-            total_output += validator_result["output_tokens"]
-            total_cost += validator_result["cost_usd"]
-
-            for _attempt in range(2):
-                if validator_result["confidence"] != "low" or not sql_result.sql:
-                    break
-                issues_text = "; ".join(validator_result["issues"]) or "结果异常"
-                retry_q = f"{refined_q}\n[注意：上次查询发现问题：{issues_text}，请修正 SQL]"
-                yield emit({"type": "sql_step", "step": 0,
-                            "thought": f"验证发现问题：{issues_text}，触发重试",
-                            "action": "retry_sql", "observation": ""})
-                sql_result = await loop.run_in_executor(
-                    None, agent_module.run_sql_agent,
-                    retry_q, schema_text, engine,
-                    sql_planner_key, api_key, semantic, cfg.AGENT_MAX_STEPS, openrouter_api_key,
-                )
-                total_input += sql_result.total_input_tokens
-                total_output += sql_result.total_output_tokens
-                total_cost += sql_result.total_cost_usd
-                retry_count += 1
-                validator_result = await loop.run_in_executor(
-                    None, multi_agent_module.run_validator,
-                    req.question, sql_result.sql, sql_result.rows,
-                    validator_key, api_key, openrouter_api_key,
-                )
-                total_input += validator_result["input_tokens"]
-                total_output += validator_result["output_tokens"]
-                total_cost += validator_result["cost_usd"]
-
-            yield emit({"type": "agent_done", "agent": "validator",
-                        "output": {"confidence": validator_result["confidence"],
-                                   "notes": validator_result["notes"]}})
 
             yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
             presenter_result = await loop.run_in_executor(
                 None, multi_agent_module.run_presenter,
-                req.question, sql_result.sql, sql_result.rows, validator_result["notes"],
+                req.question, sql_result.sql, sql_result.rows,
                 _agent_key("presenter"), api_key, openrouter_api_key,
             )
             total_input += presenter_result["input_tokens"]
             total_output += presenter_result["output_tokens"]
             total_cost += presenter_result["cost_usd"]
+            confidence = presenter_result.get("confidence", "high")
 
+            logger.info(f"presenter done confidence={confidence} cost_usd={total_cost:.4f}")
             yield emit({"type": "agent_done", "agent": "presenter",
-                        "output": {"insight": presenter_result["insight"]}})
+                        "output": {"insight": presenter_result["insight"],
+                                   "confidence": confidence}})
 
             final_rows = (sql_result.rows or [])[:cfg.MAX_RESULT_ROWS]
             query_time_ms = int((time.time() - t0) * 1000)
@@ -350,7 +318,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 conv_id=conv_id, question=req.question,
                 sql=sql_result.sql,
                 explanation=clarifier_result["analysis_approach"] or sql_result.explanation,
-                confidence=validator_result["confidence"],
+                confidence=confidence,
                 rows=final_rows, db_error=sql_result.error or "",
                 cost_usd=total_cost, input_tokens=total_input,
                 output_tokens=total_output, retry_count=retry_count,
@@ -365,7 +333,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "type": "final", "message_id": mid,
                 "sql": sql_result.sql, "rows": final_rows,
                 "explanation": clarifier_result["analysis_approach"] or sql_result.explanation,
-                "confidence": validator_result["confidence"],
+                "confidence": confidence,
                 "error": sql_result.error or "",
                 "insight": presenter_result["insight"],
                 "suggested_followups": presenter_result["suggested_followups"],
@@ -373,6 +341,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "cost_usd": total_cost, "query_time_ms": query_time_ms,
             })
         except Exception as _exc:
+            logger.exception(f"query-stream pipeline failed: {_exc}")
             yield emit({"type": "error", "message": str(_exc)})
 
     return StreamingResponse(

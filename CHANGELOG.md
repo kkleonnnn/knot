@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2.202604271400] - 2026-04-27 v0.2.2
+
+### Added
+- **SQL 只读 guardrail**（双层）
+  - Layer 1: sqlglot AST 解析替换原正则黑名单；单语句 + 只读根节点 + AST 内零写/DDL/Command 节点；stacked query 拒绝。18 条 smoke test 全 pass
+  - Layer 2: engine 构建后探测 SHOW GRANTS，writable 默认 warn-only；`STRICT_READONLY_GRANTS=1` 改为强制拒绝
+- **结构化日志**（loguru + request_id）
+  - `bi_agent/core/logging_setup.py`：stderr 彩色 + 文件 rotate（每天 0 点切，保留 7 天，写到 `data/logs/`）
+  - HTTP middleware 给每个请求分配 12 位 request_id；`X-Request-ID` 透传 + 回写
+  - clarifier / sql_planner / presenter 链路各打 1 行；grep request_id 即可串起完整 agent 链
+- **Eval runner 框架**
+  - `tests/eval/cases.yaml`：5 条覆盖 metric/trend/compare/rank/distribution
+  - `tests/eval/test_eval.py`：parametrize 跑 generate_sql，断言 must_tables / must_keywords / forbid_keywords
+  - 无 `OPENROUTER_API_KEY` 时整组 skip；额外保留结构校验
+- **scripts/profile_pyspy.sh**：attach 运行中进程跑 top / 抓 60s 火焰图 / dump 栈
+
+### Changed
+- **3-Agent 流式管线**（砍 Validator）：Presenter 内联异常检查，输出 `confidence: high|medium|low` 字段；前端 medium 黄底、low 红底徽标；retry-on-low-confidence 逻辑随 Validator 一起删除
+- **并发能力**：startup 把 anyio 默认线程池从 40 提到 64（`ANYIO_TOKENS` 可调），缓解 LLM 同步 SDK 阻塞
+- CLAUDE.md 技术债表更新：标注真正的 async LLM 留到下个 MINOR；结构化日志已落地
+
+### Removed
+- `validator` agent 全链路代码（multi_agent / query router / schemas / admin&user 路由 / prompts router / 模板 / seed / 前端 Admin&Chat）
+
+### Dependencies
+- `sqlglot>=25.0.0`、`loguru>=0.7.2`
+
+### Verified
+- `pytest tests/eval -v` 1 passed / 5 skipped（结构 check 通过，LLM live skip 因无 key）
+- `_is_safe_sql` 18 条 smoke 用例全 pass：DROP/INSERT/UPDATE/DELETE/TRUNCATE/GRANT/CALL/CREATE/SET/USE/stacked query 全拒，SELECT/CTE/SHOW/DESCRIBE 全过
+- TestClient GET /healthz 200, /api/auth/me 401，request_id 中间件日志正常输出
+
 ## [0.2.1.202604270250] - 2026-04-27 查询页瘦身
 
 ### Removed

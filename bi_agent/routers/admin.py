@@ -183,7 +183,6 @@ async def get_agent_model_config(admin=Depends(require_admin)):
     return {
         "clarifier":   config.get("clarifier", ""),
         "sql_planner": config.get("sql_planner", ""),
-        "validator":   config.get("validator", ""),
         "presenter":   config.get("presenter", ""),
     }
 
@@ -193,7 +192,6 @@ async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(req
     persistence.set_agent_model_config({
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,
-        "validator":   req.validator,
         "presenter":   req.presenter,
     })
     return {"ok": True}

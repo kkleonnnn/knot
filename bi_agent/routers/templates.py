@@ -45,7 +45,6 @@ async def download_template(kind: str, admin=Depends(require_admin)):
             [
                 ["clarifier", "你是数据分析助手的「问题理解专家」……（在此填入完整 system prompt，可使用 {tables} {history} 占位符）"],
                 ["sql_planner", "你是 SQL Agent……（可使用 {max_steps} {db_env} {schema} {business_ctx} 占位符）"],
-                ["validator", "你是数据质量验证专家……"],
                 ["presenter", "你是数据洞察专家……"],
             ],
         )
