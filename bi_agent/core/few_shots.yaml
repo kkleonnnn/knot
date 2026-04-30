@@ -1,135 +1,276 @@
-# few_shots.yaml — Few-Shot 示例库
+# few_shots.yaml — Few-Shot 示例库（v0.2.3 起改为 OHX 真实 schema，30 条）
 #
-# 用途: 替代 llm_client.py 中的硬编码示例，支持按问题类型动态加载
-# 新增示例: 直接在此文件追加，无需改代码
+# 业务约定（与 ohx_catalog.BUSINESS_RULES 对齐）：
+#   - 时区：默认北京时间 sta_time_bjt
+#   - 业务日 14:00 切日：当日 = [今日 14:00, 明日 14:00) UTC+8
+#   - 真实用户：user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103
+#   - 默认资产 USDT
+#   - 单聚合指标 → ads_operation_report_*；用户名细 → dwd_user_*；余额 → ads_platform_balance
 #
-# type 标签对应 type_keywords 中的分类键
-# question / sql / explanation / confidence 与原有格式一致
+# type 标签对应 type_keywords 中的分类键。新增示例直接在此文件追加，无需改代码。
 
 examples:
-  # ── 元数据查询 ────────────────────────────────
-  - id: fs_001
+  # ── 元数据 ────────────────────────────────────────────────
+  - id: fs_meta_01
     type: metadata
-    question: "查看有哪些表"
+    question: "数据库里有哪些表"
     sql: "SHOW TABLES"
-    explanation: "列出当前数据库所有表名"
+    explanation: "列出当前数据库的所有表名"
     confidence: high
 
-  - id: fs_002
+  - id: fs_meta_02
     type: metadata
-    question: "每张表大概有多少条数据"
-    sql: "SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_rows DESC"
-    explanation: "从系统表获取各表估计行数，按行数降序"
+    question: "ads_operation_report_daily 有哪些字段"
+    sql: "DESCRIBE ohx_ads.ads_operation_report_daily"
+    explanation: "查看运营日报表结构"
     confidence: high
 
-  # ── 日期过滤 ──────────────────────────────────
-  - id: fs_003
-    type: date_filter
-    question: "昨天的订单总金额是多少"
-    sql: "SELECT SUM(pay_amount) AS gmv FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
-    explanation: "过滤昨天日期，对支付金额求和"
-    confidence: medium
-
-  - id: fs_004
-    type: date_filter
-    question: "查询本月每天的新增用户数"
-    sql: "SELECT DATE(created_at) AS dt, COUNT(*) AS new_users FROM users WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') GROUP BY dt ORDER BY dt"
-    explanation: "按天分组统计本月每天新增用户数"
-    confidence: medium
-
-  - id: fs_005
-    type: date_filter
-    question: "查看上周的订单数据"
-    sql: "SELECT * FROM orders WHERE YEARWEEK(created_at, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) LIMIT 100"
-    explanation: "使用 YEARWEEK 函数过滤上周数据"
-    confidence: medium
-
-  # ── 聚合统计 ──────────────────────────────────
-  - id: fs_006
+  # ── 运营日报：单聚合指标 ──────────────────────────────────
+  - id: fs_daily_signup
     type: aggregation
-    question: "最近7天各渠道的 GMV，按金额降序排列"
-    sql: "SELECT channel, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY channel ORDER BY gmv DESC"
-    explanation: "近7天按渠道分组求 GMV，降序排列"
-    confidence: medium
+    question: "昨天注册了多少新用户"
+    sql: "SELECT reg_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "走运营日报日聚合表，直接读取 reg_user_num 字段"
+    confidence: high
 
-  - id: fs_007
+  - id: fs_daily_active
     type: aggregation
-    question: "按月统计近半年的 GMV 趋势"
-    sql: "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY month ORDER BY month"
-    explanation: "按月分组统计近6个月 GMV 趋势"
-    confidence: medium
+    question: "昨天活跃用户数"
+    sql: "SELECT active_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "DAU 走日报聚合表"
+    confidence: high
 
-  - id: fs_008
+  - id: fs_daily_first_deposit
     type: aggregation
-    question: "计算各渠道的人均下单数"
-    sql: "SELECT channel, COUNT(DISTINCT user_id) AS users, COUNT(*) AS orders, ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT user_id), 2) AS orders_per_user FROM orders GROUP BY channel ORDER BY orders_per_user DESC"
-    explanation: "按渠道统计用户数和订单数，计算人均下单数"
+    question: "昨天首充用户数"
+    sql: "SELECT first_deposit_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "首充人数直接取 first_deposit_user_num"
+    confidence: high
+
+  - id: fs_daily_net_deposit
+    type: aggregation
+    question: "昨天的净充值是多少"
+    sql: "SELECT net_deposit FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "净充值字段直接读取"
+    confidence: high
+
+  - id: fs_daily_future_volume
+    type: aggregation
+    question: "昨天合约交易量"
+    sql: "SELECT future_match_amt FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "合约交易量字段 future_match_amt"
+    confidence: high
+
+  - id: fs_daily_spot_volume
+    type: aggregation
+    question: "昨天现货交易量"
+    sql: "SELECT spot_match_amt FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "现货交易量字段 spot_match_amt"
+    confidence: high
+
+  - id: fs_daily_platform_pnl
+    type: aggregation
+    question: "昨天平台总盈亏"
+    sql: "SELECT platform_pnl FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "平台总盈亏直接取 platform_pnl"
+    confidence: high
+
+  - id: fs_daily_agent_share
+    type: aggregation
+    question: "昨天代理渠道注册占比"
+    sql: "SELECT reg_user_num_agent, reg_user_num, ROUND(reg_user_num_agent * 100.0 / NULLIF(reg_user_num, 0), 2) AS agent_pct FROM ohx_ads.ads_operation_report_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "代理渠道注册数除以总注册数得占比"
+    confidence: high
+
+  # ── 趋势 / 时间窗口 ───────────────────────────────────────
+  - id: fs_trend_signup_7d
+    type: date_filter
+    question: "最近 7 天每日注册用户数"
+    sql: "SELECT sta_date, reg_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) ORDER BY sta_date"
+    explanation: "近 7 日趋势直接走日报表"
+    confidence: high
+
+  - id: fs_trend_deposit_30d
+    type: date_filter
+    question: "最近 30 天每日充值金额走势"
+    sql: "SELECT sta_date, deposit FROM ohx_ads.ads_operation_report_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY sta_date"
+    explanation: "充值金额按日趋势"
+    confidence: high
+
+  - id: fs_trend_dau_7d
+    type: date_filter
+    question: "最近 7 天 DAU 趋势"
+    sql: "SELECT sta_date, active_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) ORDER BY sta_date"
+    explanation: "DAU 趋势"
+    confidence: high
+
+  # ── 周报 / 月报 ───────────────────────────────────────────
+  - id: fs_weekly_signup
+    type: aggregation
+    question: "本周新增用户数（看周报）"
+    sql: "SELECT sta_date, reg_user_num FROM ohx_ads.ads_operation_report_weekly WHERE sta_date = DATE_FORMAT(CURDATE(), '%x-W%v')"
+    explanation: "周报 sta_date 形如 '2026-W17'，DATE_FORMAT %x-W%v 拼装当周编号"
     confidence: medium
 
-  # ── HAVING 过滤 ────────────────────────────────
-  - id: fs_009
-    type: having
-    question: "统计每个用户的订单数量，只看下了3单以上的"
-    sql: "SELECT user_id, COUNT(*) AS order_cnt FROM orders GROUP BY user_id HAVING order_cnt > 3 ORDER BY order_cnt DESC"
-    explanation: "按用户分组计数，HAVING 过滤3单以上"
+  - id: fs_monthly_future_fee
+    type: aggregation
+    question: "上月合约手续费总额（看月报）"
+    sql: "SELECT future_fee FROM ohx_ads.ads_operation_report_monthly WHERE sta_date = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')"
+    explanation: "月报 sta_date 形如 '2026-04'"
     confidence: medium
 
-  - id: fs_010
-    type: having
-    question: "查询 GMV 超过平均值的渠道"
-    sql: "WITH channel_gmv AS (SELECT channel, SUM(pay_amount) AS gmv FROM orders GROUP BY channel) SELECT channel, gmv FROM channel_gmv WHERE gmv > (SELECT AVG(gmv) FROM channel_gmv) ORDER BY gmv DESC"
-    explanation: "CTE 计算渠道 GMV，过滤超过均值的渠道"
-    confidence: medium
+  # ── 用户名细：dwd_user_* ──────────────────────────────────
+  - id: fs_detail_signups_window
+    type: detail
+    question: "列出 2026-04-27 业务日（14:00 切日）注册的用户 ID"
+    sql: "SELECT user_id, sta_time_bjt FROM ohx_dwd.dwd_user_reg WHERE sta_time_bjt >= '2026-04-27 14:00:00' AND sta_time_bjt < '2026-04-28 14:00:00' AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103 ORDER BY sta_time_bjt"
+    explanation: "用 sta_time_bjt 业务日窗口 + 真实用户范围过滤"
+    confidence: high
 
-  # ── JOIN 关联 ─────────────────────────────────
-  - id: fs_011
-    type: join
-    question: "查询每个用户的姓名和订单总金额"
-    sql: "SELECT u.name, SUM(o.pay_amount) AS total_gmv FROM users u JOIN orders o ON u.id = o.user_id GROUP BY u.id, u.name ORDER BY total_gmv DESC"
-    explanation: "JOIN users 和 orders，按用户分组求总金额"
-    confidence: medium
+  - id: fs_detail_real_user_signups
+    type: detail
+    question: "排除测试号后，昨天真实用户注册数"
+    sql: "SELECT COUNT(*) AS real_signups FROM ohx_dwd.dwd_user_reg WHERE sta_time_bjt >= CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 14:00:00') AND sta_time_bjt < CONCAT(CURDATE(), ' 14:00:00') AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103"
+    explanation: "真实用户范围 + 业务日 14:00 切日"
+    confidence: high
 
-  - id: fs_012
-    type: join
-    question: "查询从未下单的用户列表"
-    sql: "SELECT u.id, u.name, u.created_at FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE o.id IS NULL ORDER BY u.created_at DESC"
-    explanation: "LEFT JOIN 后过滤 orders.id 为 NULL，找出没有订单的用户"
-    confidence: medium
-
-  # ── 窗口函数 ──────────────────────────────────
-  - id: fs_013
-    type: window
-    question: "查询近30天每天的 GMV 和7日移动平均"
-    sql: "SELECT dt, gmv, AVG(gmv) OVER (ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS gmv_7d_ma FROM (SELECT DATE(created_at) AS dt, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY dt) t ORDER BY dt"
-    explanation: "子查询按天聚合 GMV，外层用窗口函数计算7日移动平均"
-    confidence: medium
-
-  - id: fs_014
-    type: window
-    question: "查询每个渠道的订单数占总订单数的百分比"
-    sql: "SELECT channel, COUNT(*) AS cnt, ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS pct FROM orders GROUP BY channel ORDER BY cnt DESC"
-    explanation: "窗口函数 SUM() OVER() 计算总量，用于求占比"
-    confidence: medium
-
-  # ── 排名 RANK ─────────────────────────────────
-  - id: fs_015
+  - id: fs_rank_top_depositors
     type: rank
-    question: "查询销售额排名前10的商品"
-    sql: "SELECT product_id, product_name, SUM(pay_amount) AS revenue, RANK() OVER (ORDER BY SUM(pay_amount) DESC) AS rnk FROM order_items GROUP BY product_id, product_name ORDER BY revenue DESC LIMIT 10"
-    explanation: "按商品分组求销售额，用 RANK() 排名，取前10"
+    question: "昨天充值金额 Top 10 用户"
+    sql: "SELECT user_id, SUM(deposit) AS total_deposit FROM ohx_dwd.dwd_user_deposit WHERE sta_time_bjt >= CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 14:00:00') AND sta_time_bjt < CONCAT(CURDATE(), ' 14:00:00') AND asset = 'USDT' AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103 GROUP BY user_id ORDER BY total_deposit DESC LIMIT 10"
+    explanation: "Top 充值用户必须走 dwd_user_deposit 明细表，默认 USDT"
+    confidence: high
+
+  - id: fs_rank_top_future_traders
+    type: rank
+    question: "昨天合约交易量 Top 20 用户"
+    sql: "SELECT user_id, SUM(future_match_amt) AS total_future FROM ohx_dwd.dwd_user_deal WHERE sta_time_bjt >= CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 14:00:00') AND sta_time_bjt < CONCAT(CURDATE(), ' 14:00:00') AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103 GROUP BY user_id ORDER BY total_future DESC LIMIT 20"
+    explanation: "用户级合约交易量 Top N 走 dwd_user_deal"
+    confidence: high
+
+  # ── 活动场景：业务日窗口 ─────────────────────────────────
+  - id: fs_activity_first_deposit_award
+    type: detail
+    question: "2026-04-27 14:00 到 2026-04-28 14:00 期间首次充值满 100 USDT 的用户"
+    sql: |
+      SELECT t.user_id, t.first_amt, t.first_time
+      FROM (
+        SELECT user_id,
+               MIN(sta_time_bjt) AS first_time,
+               SUM(deposit)      AS first_amt
+        FROM ohx_dwd.dwd_user_deposit
+        WHERE sta_time_bjt >= '2026-04-27 14:00:00'
+          AND sta_time_bjt <  '2026-04-28 14:00:00'
+          AND asset = 'USDT'
+          AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103
+        GROUP BY user_id
+      ) t
+      WHERE t.first_amt >= 100
+      ORDER BY t.first_time
+    explanation: "活动窗口 + 首笔充值聚合 + 100 USDT 阈值；真实用户 + USDT 默认"
+    confidence: high
+
+  - id: fs_activity_top_invitees
+    type: rank
+    question: "2026-04-27 14:00 到 2026-04-28 14:00 期间邀请人数排名前 10 的代理"
+    sql: |
+      SELECT invitees_id, COUNT(*) AS invited_cnt
+      FROM ohx_dwd.dwd_user_reg
+      WHERE sta_time_bjt >= '2026-04-27 14:00:00'
+        AND sta_time_bjt <  '2026-04-28 14:00:00'
+        AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103
+        AND invitees_id IS NOT NULL
+      GROUP BY invitees_id
+      ORDER BY invited_cnt DESC
+      LIMIT 10
+    explanation: "代理排行用 invitees_id 分组（邀请人 user_id），活动窗口 + 真实用户范围"
+    confidence: high
+
+  - id: fs_invitees_per_agent
+    type: aggregation
+    question: "昨天每个代理拉来了多少新用户"
+    sql: |
+      SELECT invitees_id, COUNT(*) AS invited_cnt
+      FROM ohx_dwd.dwd_user_reg
+      WHERE sta_time_bjt >= CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 14:00:00')
+        AND sta_time_bjt <  CONCAT(CURDATE(), ' 14:00:00')
+        AND user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103
+        AND invitees_id IS NOT NULL
+      GROUP BY invitees_id
+      ORDER BY invited_cnt DESC
+    explanation: "按代理（invitees_id）分组统计昨日邀请数"
+    confidence: high
+
+  # ── 平台余额 / 资金 ───────────────────────────────────────
+  - id: fs_balance_latest_total_usdt
+    type: aggregation
+    question: "最新平台总余额（折合 USDT）"
+    sql: "SELECT sta_date, SUM(total_balance_usdt) AS total_usdt FROM ohx_ads.ads_platform_balance WHERE sta_date = (SELECT MAX(sta_date) FROM ohx_ads.ads_platform_balance) GROUP BY sta_date"
+    explanation: "取最新一天，对所有 asset 的 total_balance_usdt 求和"
+    confidence: high
+
+  - id: fs_balance_usdt_30d
+    type: date_filter
+    question: "最近 30 天 USDT 资产余额走势"
+    sql: "SELECT sta_date, total_balance, total_balance_usdt FROM ohx_ads.ads_platform_balance WHERE asset = 'USDT' AND sta_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY sta_date"
+    explanation: "USDT 单一资产的余额时序"
+    confidence: high
+
+  # ── 套利 / 折扣购 / 金鹰宝 / 结构化 ──────────────────────
+  - id: fs_arbitrage_orders_7d
+    type: date_filter
+    question: "套利工具最近 7 天的订单数"
+    sql: "SELECT sta_date, SUM(order_num) AS order_num FROM ohx_ads.ads_arbitrage_tool_record_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY sta_date ORDER BY sta_date"
+    explanation: "套利工具走 ads_arbitrage_tool_record_daily，多 token 合并求和"
+    confidence: high
+
+  - id: fs_discount_buy_profit
+    type: aggregation
+    question: "折扣购昨天用户总收益"
+    sql: "SELECT SUM(user_profit) AS user_profit FROM ohx_ads.ads_discount_buy_record_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "折扣购日报表 user_profit 求和"
+    confidence: high
+
+  - id: fs_genyingbao_interest
+    type: aggregation
+    question: "金鹰宝昨天结算利息"
+    sql: "SELECT SUM(obtained_interest) AS interest FROM ohx_ads.ads_gen_ying_bao_detail_record_daily WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "金鹰宝（理财产品）日报 obtained_interest 字段"
+    confidence: high
+
+  - id: fs_struct_arbitrage_7d
+    type: aggregation
+    question: "结构化套利最近 7 天总收益"
+    sql: "SELECT SUM(total_profit) AS total_profit FROM ohx_ads.ads_struct_arbitrage_record_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+    explanation: "结构化套利 total_profit 7 天合计"
+    confidence: high
+
+  # ── 做市 ─────────────────────────────────────────────────
+  - id: fs_future_market_change
+    type: aggregation
+    question: "昨天合约做市账号 USDT 变化"
+    sql: "SELECT user_id, asset_usdt, usdt_change FROM ohx_ads.ads_future_market WHERE sta_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) ORDER BY usdt_change DESC"
+    explanation: "合约做市账号每日 USDT 变化按降序"
+    confidence: high
+
+  # ── 价格 ─────────────────────────────────────────────────
+  - id: fs_price_btc_30d
+    type: date_filter
+    question: "BTC 最近 30 天的标记价格"
+    sql: "SELECT sta_date, price FROM ohx_dwd.dwd_sign_price_history WHERE asset = 'BTC' AND sta_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY sta_date"
+    explanation: "参照合约日均价表按 asset 过滤"
+    confidence: high
+
+  # ── 安全：破坏性措辞下保持只读 ────────────────────────────
+  - id: fs_safety_destructive_phrasing
+    type: aggregation
+    question: "帮我看看哪些用户应该被删除（长期无活跃）"
+    sql: "SELECT sta_date, active_user_num FROM ohx_ads.ads_operation_report_daily WHERE sta_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY sta_date"
+    explanation: "用户措辞含『删除』，但 BI 只读：改为查近 30 天活跃趋势作参考，绝不输出 DELETE"
     confidence: medium
 
-  # ── CTE 复杂查询 ──────────────────────────────
-  - id: fs_016
-    type: cte
-    question: "用 CTE 分步计算用户留存率"
-    sql: "WITH day0 AS (SELECT DISTINCT user_id FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 7 DAY)), day1 AS (SELECT DISTINCT user_id FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 6 DAY)) SELECT COUNT(d1.user_id) AS retained, COUNT(d0.user_id) AS total, ROUND(COUNT(d1.user_id) * 100.0 / NULLIF(COUNT(d0.user_id), 0), 2) AS retention_rate FROM day0 LEFT JOIN day1 d1 ON d0.user_id = d1.user_id"
-    explanation: "CTE 分别取两天的用户集合，计算次日留存率"
-    confidence: medium
 
-
-# ── 类型关键词映射（用于自动分类问题类型）──────────────────
-# 新增类型时，在这里加对应关键词
+# ── 类型关键词映射（自动分类问题类型）──────────────────────
 type_keywords:
   metadata:
     - "有哪些表"
@@ -139,7 +280,7 @@ type_keywords:
     - "多少张表"
     - "information_schema"
     - "表名"
-    - "查看表"
+    - "DESCRIBE"
 
   date_filter:
     - "昨天"
@@ -148,20 +289,16 @@ type_keywords:
     - "上周"
     - "上月"
     - "最近"
-    - "近7天"
-    - "近30天"
+    - "近 7 天"
+    - "近 30 天"
     - "近一个月"
-    - "日期"
-    - "时间"
-    - "当天"
-    - "当月"
-    - "去年"
-    - "今年"
-    - "本季度"
-    - "上季度"
+    - "趋势"
+    - "走势"
+    - "每日"
     - "每天"
     - "每月"
-    - "趋势"
+    - "本周"
+    - "上周"
 
   aggregation:
     - "总计"
@@ -170,67 +307,31 @@ type_keywords:
     - "总数"
     - "平均"
     - "统计"
-    - "GMV"
     - "汇总"
-    - "按渠道"
-    - "分组"
     - "求和"
-    - "计数"
     - "多少"
-
-  having:
-    - "超过"
-    - "大于"
-    - "多于"
-    - "以上"
-    - "3单以上"
-    - "筛选"
-    - "过滤"
-    - "只看"
-    - "条件"
-    - "超出"
-    - "高于均值"
-
-  join:
-    - "关联"
-    - "对应"
-    - "每个用户"
-    - "用户的订单"
-    - "商品的销售"
-    - "相关联"
-    - "匹配"
-    - "联合"
-    - "未下单"
-    - "没有"
-
-  window:
-    - "移动平均"
-    - "环比"
-    - "同比"
-    - "累计"
-    - "增长率"
+    - "净充值"
+    - "活跃"
+    - "首充"
+    - "盈亏"
     - "占比"
-    - "百分比"
-    - "窗口"
-    - "7日"
-    - "30日"
+
+  detail:
+    - "列出"
+    - "明细"
+    - "user_id"
+    - "用户 ID"
+    - "哪些用户"
+    - "用户列表"
 
   rank:
     - "排名"
     - "TOP"
+    - "Top"
+    - "前 10"
     - "前10"
-    - "前N"
-    - "第一"
-    - "最多"
-    - "最少"
-    - "最高"
-    - "最低"
+    - "前 20"
+    - "前20"
     - "排行"
-    - "名次"
-
-  cte:
-    - "分步"
-    - "留存"
-    - "复杂"
-    - "中间结果"
-    - "子查询"
+    - "最多"
+    - "最高"

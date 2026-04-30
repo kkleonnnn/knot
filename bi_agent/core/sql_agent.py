@@ -6,12 +6,17 @@ Think → Act → Observe → ... → Final Answer
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import date as _date
 from typing import List, Tuple
 
 import db_connector
 import llm_client
 import prompts as _prompts_mod
+import date_context
+
+try:
+    from ohx_catalog import BUSINESS_RULES as _OHX_RULES
+except Exception:
+    _OHX_RULES = ""
 from config import (
     DEFAULT_MODEL, MAX_TOKENS_PER_QUERY,
     MODELS, PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -44,7 +49,9 @@ class AgentResult:
 
 _AGENT_SYSTEM_TEMPLATE = """你是一个 SQL Agent，通过 ReAct（推理-行动）模式帮用户回答数据仓库问题。
 
-今日：{today}（系统时间，权威。SQL 中的 CURDATE() / NOW() 都以此为基准；用户提问中 ≤ 今日的日期都视为历史日期）
+{date_block}
+
+{business_rules}
 
 每一步必须按以下格式输出（严格遵守格式，不输出其他任何内容）:
 Thought: [分析当前状况，决定下一步]
@@ -64,6 +71,7 @@ Action Input: [工具的输入]
 - 优先直接 execute_sql；遇到「表不存在」先 list_tables 确认；遇到「字段不存在」先 describe_table
 - 只生成 SELECT，禁止 INSERT/UPDATE/DELETE/DROP/ALTER
 - 最多推理 {max_steps} 步；超过后直接输出当前最佳 SQL
+- 严格遵守上方业务规则（时区/业务日 14:00 切日 / 真实用户范围 / 默认 USDT / 表分层）
 
 ## 数据库环境
 {db_env}
@@ -72,6 +80,15 @@ Action Input: [工具的输入]
 {schema}
 
 {business_ctx}"""
+
+
+def _strip_sql(s: str) -> str:
+    """剥掉 LLM 常见的 markdown 围栏：```sql ... ``` / ``` ... ``` / 单反引号。"""
+    s = s.strip()
+    m = re.match(r"^```(?:sql)?\s*([\s\S]*?)\s*```$", s, re.IGNORECASE)
+    if m:
+        s = m.group(1)
+    return s.strip().strip("`").strip()
 
 
 def _parse_agent_output(text: str) -> Tuple[str, str, str]:
@@ -94,7 +111,7 @@ def _parse_agent_output(text: str) -> Tuple[str, str, str]:
 
 def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
     if action == "execute_sql":
-        sql = action_input.strip().strip("`").strip()
+        sql = _strip_sql(action_input)
         rows, error = db_connector.execute_query(engine, sql)
         if error:
             return f"执行失败: {error}"
@@ -229,7 +246,9 @@ def run_sql_agent(
             "db_env": "Apache Doris（兼容 MySQL 5.7 语法）",
             "schema": schema_text,
             "business_ctx": business_section,
-            "today": _date.today().isoformat(),
+            "today": date_context.today_iso(),
+            "date_block": date_context.date_context_block(),
+            "business_rules": _OHX_RULES,
         },
     )
 
@@ -260,7 +279,7 @@ def run_sql_agent(
         ))
 
         if observation.startswith("__FINAL__:"):
-            final_sql = observation[len("__FINAL__:"):].strip()
+            final_sql = _strip_sql(observation[len("__FINAL__:"):])
             if final_sql.upper().startswith("SELECT"):
                 final_rows, exec_err = db_connector.execute_query(engine, final_sql)
                 if exec_err:
@@ -268,7 +287,7 @@ def run_sql_agent(
             break
 
         if action == "execute_sql" and not observation.startswith("执行失败"):
-            final_sql = action_input.strip().strip("`").strip()
+            final_sql = _strip_sql(action_input)
             final_rows, exec_err = db_connector.execute_query(engine, final_sql)
             if not exec_err:
                 break

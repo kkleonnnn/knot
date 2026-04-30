@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.2.202604271400] - 2026-04-27 v0.2.2
+### Added — OHX 真实 schema 接入（4 任务批次）
+- **`bi_agent/core/ohx_catalog.py`**：18 张 OHX 表（ohx_dwd × 8 + ohx_ads × 10）目录 + LEXICON 业务词典 + BUSINESS_RULES 规则常量
+  - 时区/业务日 14:00 切日 / 真实用户范围 / 默认 USDT / 表分层（聚合 vs 明细 vs 余额）一站式锚定
+- **schema_filter v2**：从单纯 BM25 升级为「BM25 + 词典命中加分（+12/+8/+5）+ 主题重合（+3）+ 高优先级强制纳入」，`SCHEMA_FILTER_MAX_TABLES` 25，单次 prompt 上限 12 表
+  - 修复回归：「昨天充值 Top 10 用户」类问题不再把 `dwd_user_deposit` 过滤掉
+- **eval cases 扩到 31 条**（16 → 31）：分组覆盖 运营日报指标 / 趋势 / 周月报 / 用户名细 / 活动场景（业务日 14:00 + 真实用户范围）/ 邀请代理 / 平台余额 / 套利·折扣购·金鹰宝·结构化 / 做市账号 / 价格 / 安全回归 / 多轮代词
+- **few_shots.yaml 重写为 30 条 OHX 真实示例**：替换原通用 orders/users 例子；每条都符合「业务日窗口 + 真实用户 + USDT 默认」三要素
+- **`tests/eval/conftest.py`**：fake_schema 改用 OHX 18 表 markdown，与 prompt/词典/few-shot 完全对齐
+
+### Changed — 3 Agent prompt 注入 OHX 业务规则
+- Clarifier / SQL Planner / Presenter 三处 system prompt 通过 `{business_rules}` 占位符引入 `ohx_catalog.BUSINESS_RULES`
+- Clarifier 加业务规则消歧段：业务日定义 / 测试号排除 / USDT 默认 / 周月报关键词保留
+- SQL Planner 规则增加"严格遵守上方业务规则"显式约束
+
+### Verified
+- `pytest tests/eval -v`：1 passed / 31 skipped（结构 check 通过；live LLM 待跑）
+- schema_filter smoke：「昨天充值 Top 10 用户」选表包含 `dwd_user_deposit` ✅
+- multi_agent / sql_agent 模块导入 OHX_RULES 正常
+
+## [0.2.3.202604301140] - 2026-04-30 v0.2.3 回答质量与命中率
+
+### Added
+- **`bi_agent/core/date_context.py`**：统一日期口径上下文
+  - `today_iso()` / `date_context_block()`，时区显式 `Asia/Shanghai`（fallback `date.today()`）
+  - 枚举 今天 / 昨天 / 前天 / 最近7天 / 最近30天 / 本周 / 上周 / 本月 / 上月 → 绝对日期，避免 LLM 把"昨天"映射到训练截止时间
+- **跨连接组 SQL 检测**：`MultiSourceEngine.cross_group_dbs()` 解析 SQL 中所有 `db.tbl` 引用，跨组时 `_MultiConn.execute` 抛出明确 `RuntimeError`（"跨连接组查询不支持：本次路由到组 X，但 SQL 还引用了 Y"），不再让 MySQL 回 "Access denied" 误导 LLM 报权限错
+- **多组 schema 顶部说明**：列出"组 → 库归属"映射 + "每条 SQL 只能引用同一组内的库"约束
+- **eval cases 扩到 16 条**（5 → 16）：覆盖
+  - 日期口径：today / last_7days / this_week / last_month
+  - 聚合：avg_order_value / paid_user_count / refund_rate
+  - 状态过滤：unpaid_pending_orders
+  - 趋势：dau_7d_trend
+  - 写操作幻觉回归：用户措辞含"删除"时 SQL 仍只读（`readonly_under_destructive_phrasing`）
+
+### Changed
+- **Clarifier / SQL Agent / Presenter / build_system_prompt 四处 prompt** 全部从单行 `今日：YYYY-MM-DD` 升级为 `date_context_block()` 完整枚举块
+- **Presenter prompt 加幻觉禁令**：
+  - 禁止臆造权限错误（输入无"执行失败/Access denied/permission denied"字样时不准说"没有权限"）
+  - 空结果集只能解释为数据为零 / 时间窗口外 / 口径过严，不归因到权限
+  - 不引用未在结果中出现的数字与字段
+  - 不替用户切换日期口径
+
+### Verified
+- `pytest tests/eval -v`：1 passed / 15 skipped（结构 check 通过；live LLM 因无 key 跳过）
+- SQL guardrail 11 条 smoke 全 pass（SELECT/SHOW pass；DROP/DELETE/UPDATE/INSERT/TRUNCATE/GRANT/CREATE/stacked 全拒）
+- MultiSourceEngine 跨组检测 5 条单测全 pass（无 db.tbl / 单组 / 同组多库 / 跨组 / 未知 db）
+- TestClient 启动冒烟：`/healthz` 200，`/api/auth/me` 401
+
+
 
 ### Added
 - **SQL 只读 guardrail**（双层）

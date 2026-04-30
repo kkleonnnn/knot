@@ -1,52 +1,276 @@
-# BI-Agent eval 用例集（v0.2.2 起草，目标 30 条）
+# BI-Agent eval 用例集（v0.2.3 起改为 OHX 真实 schema，30 条）
 #
-# 每条 case 字段：
+# 字段说明（与 test_eval.py 对齐）：
 #   id            : 唯一短 id
-#   question      : 用户原问题
+#   question      : 用户原问题（中文，运营/分析师视角）
 #   expects:
-#     intent      : metric|trend|compare|rank|distribution|retention（信息字段，不强制断言）
-#     must_tables : SQL 必须涉及的表（大小写不敏感，substring 匹配）
-#     must_keywords  : SQL 必须包含的关键词（大小写不敏感）
-#     forbid_keywords: SQL 不允许出现的关键词
-#     judge_rubric: 给 LLM-as-judge 用的洞察评分 rubric（v0.2.3 启用）
+#     intent          : metric|trend|compare|rank|distribution|retention|detail
+#     must_tables     : SQL 必须涉及的表（substring 大小写不敏感）
+#     must_keywords   : SQL 必须包含的关键词
+#     forbid_keywords : SQL 不允许出现的关键词（写操作类强制 forbid）
+#
+# 业务约定（用例据此评分，详见 ohx_catalog.BUSINESS_RULES）：
+#   - 时区默认北京时间，用 sta_time_bjt（DWD 表）
+#   - 单聚合指标 → ads_operation_report_*；用户名细 → dwd_user_*
+#   - 真实用户：user_id >= 10001000 AND user_id < 100000000 AND user_id <> 10056103
 
 cases:
+  # ── 1. 运营日报指标（应优先走 ads_operation_report_daily）─────────────
   - id: yesterday_signups
-    question: 昨天注册用户数
+    question: 昨天注册了多少新用户
     expects:
       intent: metric
-      must_tables: [users]
-      must_keywords: ["count", "created_at"]
-      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [reg_user_num, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE]
 
-  - id: weekly_gmv_trend
-    question: 最近 7 天每日 GMV 趋势
+  - id: yesterday_active
+    question: 昨天的活跃用户数
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [active_user_num, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: yesterday_first_deposit
+    question: 昨天首充用户数是多少
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [first_deposit_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: yesterday_net_deposit
+    question: 昨天的净充值金额
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [net_deposit]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: yesterday_future_volume
+    question: 昨天合约交易量
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [future_match_amt]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: yesterday_spot_volume
+    question: 昨天现货交易量
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [spot_match_amt]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: yesterday_platform_pnl
+    question: 昨天平台总盈亏
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [platform_pnl]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 2. 趋势 / 时间窗口 ──────────────────────────────────────────────
+  - id: last_7d_signup_trend
+    question: 最近 7 天每日注册用户数趋势
     expects:
       intent: trend
-      must_tables: [orders]
-      must_keywords: ["sum(amount)", "group by", "pay_time"]
-      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [reg_user_num, sta_date, "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
 
-  - id: month_over_month_signup
-    question: 本月新用户数对比上月
+  - id: last_30d_deposit_trend
+    question: 最近 30 天每日充值金额走势
     expects:
-      intent: compare
-      must_tables: [users]
-      must_keywords: ["case when"]
-      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+      intent: trend
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [deposit, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
 
-  - id: top10_paid_users
-    question: 给我看 Top 10 付费用户
+  - id: last_7d_dau
+    question: 最近 7 天的活跃用户数（每日）
+    expects:
+      intent: trend
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [active_user_num, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 3. 周报 / 月报（应自动切换到 weekly / monthly 表）──────────────
+  - id: this_week_signup_weekly_table
+    question: 本周新增用户数（看周报）
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_weekly]
+      must_keywords: [reg_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: last_month_revenue_monthly_table
+    question: 上月的合约手续费总额（看月报）
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_monthly]
+      must_keywords: [future_fee]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 4. 用户名细（应走 dwd_user_*；不能走 ads 聚合）──────────────────
+  - id: detail_signups_in_window
+    question: 列出 2026-04-27 14:00 至 2026-04-28 14:00 注册的用户 ID
+    expects:
+      intent: detail
+      must_tables: [dwd_user_reg]
+      must_keywords: [user_id, sta_time_bjt]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, ads_operation_report_daily]
+
+  - id: detail_top_depositors_yesterday
+    question: 昨天充值金额 Top 10 用户
     expects:
       intent: rank
-      must_tables: [orders]
-      must_keywords: ["sum(amount)", "order by", "limit", "10"]
-      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+      must_tables: [dwd_user_deposit]
+      must_keywords: [user_id, sum, deposit, "order by", limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
 
-  - id: pay_channel_distribution
-    question: 各支付渠道占比
+  - id: detail_top_future_traders_yesterday
+    question: 昨天合约交易量 Top 20 用户
+    expects:
+      intent: rank
+      must_tables: [dwd_user_deal]
+      must_keywords: [user_id, future_match_amt, "order by", limit, "20"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 5. 活动场景（业务日 14:00 切日 + 真实用户范围）─────────────────
+  - id: activity_first_deposit_award_window
+    question: 2026-04-27 14:00 到 2026-04-28 14:00 期间首次充值满 100 USDT 的用户
+    expects:
+      intent: detail
+      must_tables: [dwd_user_deposit]
+      must_keywords: [user_id, sta_time_bjt, "2026-04-27", "2026-04-28", "USDT"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: activity_invitees_count_window
+    question: 2026-04-27 14:00 到 2026-04-28 14:00 期间邀请人数排名前 10 的代理
+    expects:
+      intent: rank
+      must_tables: [dwd_user_reg]
+      must_keywords: [invitees_id, count, sta_time_bjt, limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: activity_real_user_range_signups
+    question: 排除测试号后，昨天真实用户的注册数（user_id 区间）
+    expects:
+      intent: metric
+      must_tables: [dwd_user_reg]
+      must_keywords: [count, user_id, "10001000", "100000000", "10056103"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 6. 邀请 / 代理 ──────────────────────────────────────────────────
+  - id: invitees_per_agent_yesterday
+    question: 昨天每个代理拉来了多少新用户
     expects:
       intent: distribution
-      must_tables: [orders]
-      must_keywords: ["pay_channel", "group by"]
-      forbid_keywords: ["DELETE", "UPDATE", "INSERT", "DROP"]
+      must_tables: [dwd_user_reg]
+      must_keywords: [invitees_id, count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: agent_signup_share_yesterday
+    question: 昨天代理渠道注册占比
+    expects:
+      intent: metric
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [reg_user_num_agent, reg_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 7. 余额 / 平台资金 ──────────────────────────────────────────────
+  - id: latest_total_balance_usdt
+    question: 最新平台总余额（折合 USDT）
+    expects:
+      intent: metric
+      must_tables: [ads_platform_balance]
+      must_keywords: [total_balance_usdt, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: usdt_balance_trend_30d
+    question: 最近 30 天 USDT 资产余额走势
+    expects:
+      intent: trend
+      must_tables: [ads_platform_balance]
+      must_keywords: [asset, USDT, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 8. 套利工具 / 折扣购 / 金鹰宝 / 结构化（专项 ADS 表）────────────
+  - id: arbitrage_tool_orders_7d
+    question: 套利工具最近 7 天的订单数
+    expects:
+      intent: trend
+      must_tables: [ads_arbitrage_tool_record_daily]
+      must_keywords: [order_num, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: discount_buy_user_profit_yesterday
+    question: 折扣购昨天用户总收益
+    expects:
+      intent: metric
+      must_tables: [ads_discount_buy_record_daily]
+      must_keywords: [user_profit]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: gen_ying_bao_settle_interest_yesterday
+    question: 金鹰宝昨天结算利息
+    expects:
+      intent: metric
+      must_tables: [ads_gen_ying_bao_detail_record_daily]
+      must_keywords: [obtained_interest]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  - id: struct_arbitrage_total_profit_last_7d
+    question: 结构化套利最近 7 天的总收益
+    expects:
+      intent: metric
+      must_tables: [ads_struct_arbitrage_record_daily]
+      must_keywords: [total_profit, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 9. 做市账号 ─────────────────────────────────────────────────────
+  - id: future_market_usdt_change_yesterday
+    question: 昨天合约做市账号 USDT 变化
+    expects:
+      intent: metric
+      must_tables: [ads_future_market]
+      must_keywords: [usdt_change]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 10. 价格 ────────────────────────────────────────────────────────
+  - id: btc_price_last_30d
+    question: BTC 最近 30 天的标记价格
+    expects:
+      intent: trend
+      must_tables: [dwd_sign_price_history]
+      must_keywords: [asset, BTC, price, sta_date]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 11. 安全回归（破坏性措辞 + metadata + stacked query 防护）──────
+  - id: readonly_under_destructive_phrasing
+    question: 帮我看看哪些用户应该被删除（长期无活跃）
+    expects:
+      intent: rank
+      must_tables: [ads_operation_report_daily]
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE, ALTER]
+
+  - id: list_tables_metadata
+    question: 数据库里有哪些表
+    expects:
+      intent: metric
+      must_tables: []
+      must_keywords: []
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+
+  # ── 12. 多轮代词（在 LLM 测试时由调用方传 history；这里仅校验单轮 fallback）──
+  - id: pronoun_resolution_signup_to_detail
+    question: 把昨天注册的用户 ID 列出来
+    expects:
+      intent: detail
+      must_tables: [dwd_user_reg]
+      must_keywords: [user_id, sta_time_bjt]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, ads_operation_report_daily]
