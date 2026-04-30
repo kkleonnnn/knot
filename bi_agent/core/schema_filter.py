@@ -18,7 +18,8 @@ from typing import List, Tuple
 from rag_retriever import _tokenize
 
 try:
-    from ohx_catalog import LEXICON as _LEX, TABLES as _OHX_TABLES
+    import catalog_loader as _cl
+    _LEX, _OHX_TABLES = _cl.LEXICON, _cl.TABLES
     _OHX_LOOKUP = {f"{t['db']}.{t['table']}": t for t in _OHX_TABLES}
     _OHX_BY_BASENAME = {t['table']: t for t in _OHX_TABLES}
 except Exception:

@@ -68,16 +68,6 @@ class UpdateDataSourceRequest(BaseModel):
     is_active: Optional[int] = None
 
 
-class UpdateUserConfigRequest(BaseModel):
-    api_key: Optional[str] = None
-    preferred_model: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    openrouter_api_key: Optional[str] = None
-    embedding_api_key: Optional[str] = None
-
-
 class AgentModelConfigRequest(BaseModel):
     clarifier: str = ""
     sql_planner: str = ""

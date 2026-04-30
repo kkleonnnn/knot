@@ -14,7 +14,8 @@ import prompts as _prompts_mod
 import date_context
 
 try:
-    from ohx_catalog import BUSINESS_RULES as _OHX_RULES
+    import catalog_loader as _cl
+    _OHX_RULES = _cl.BUSINESS_RULES
 except Exception:
     _OHX_RULES = ""
 from config import (
