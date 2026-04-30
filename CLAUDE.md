@@ -4,7 +4,7 @@
 
 AI 驱动的 BI 助手：自然语言 → SQL → 图表。
 - v0.1.1：Python 3 / FastAPI + React（浏览器端 Babel）
-- v0.2.0（当前）：FastAPI + React/Vite 构建版前端
+- v0.2.x（当前 v0.2.3）：FastAPI + React/Vite 构建版前端
 - v0.x.x（规划）：Go 后端重写
 
 ## 协作规则
