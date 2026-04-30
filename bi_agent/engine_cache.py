@@ -10,8 +10,10 @@ import persistence
 import db_connector
 from logging_setup import logger
 
-_UPLOADS_DB = Path(__file__).parent / "data" / "uploads.db"
-_upload_engine = db_connector.create_sqlite_engine(str(_UPLOADS_DB))
+# v0.2.4: uploads.db 已合并入 bi_agent.db；上传表与业务表共用一个 SQLite 文件。
+# 老 uploads.db 的迁移在 persistence.init_db() 一次性完成（幂等）。
+_BIAGENT_DB = Path(__file__).parent / "data" / "bi_agent.db"
+_upload_engine = db_connector.create_sqlite_engine(str(_BIAGENT_DB))
 
 
 # ── 跨连接组多源派发引擎 ──────────────────────────────────────────────────────
@@ -48,6 +50,40 @@ class MultiSourceEngine:
             return self._db2engine.get(db, self.default_engine)
         return self.default_engine
 
+    def _referenced_dbs(self, sql: str) -> list:
+        """SQL 中所有 db.tbl 引用的 db 名（小写，去重保序）。"""
+        if not sql:
+            return []
+        out, seen = [], set()
+        for m in self._DB_TBL_RE.finditer(sql):
+            db = m.group(1).lower()
+            if db not in seen:
+                seen.add(db)
+                out.append(db)
+        return out
+
+    def cross_group_dbs(self, sql: str):
+        """若 SQL 引用的 dbs 跨多个组，返回 (route_group_key, foreign_dbs)；否则 None。
+        foreign_dbs 是已在 _db2engine 中但属于其他组的 db 列表。
+        未注册的 db（不在任何组）不视作跨组。
+        """
+        dbs = self._referenced_dbs(sql)
+        if len(dbs) <= 1:
+            return None
+        route_eng = self._db2engine.get(dbs[0])
+        if route_eng is None:
+            return None
+        foreign = []
+        for db in dbs[1:]:
+            eng = self._db2engine.get(db)
+            if eng is not None and eng is not route_eng:
+                foreign.append(db)
+        if not foreign:
+            return None
+        # 找 route_eng 对应的 group key
+        route_key = next((g["key"] for g in self.groups if g["engine"] is route_eng), "?")
+        return route_key, foreign
+
     def connect(self):
         return _MultiConn(self)
 
@@ -74,6 +110,14 @@ class _MultiConn:
     def execute(self, stmt, params=None):
         # stmt 可能是 sqlalchemy.text() 或字符串
         sql_str = getattr(stmt, "text", None) or (stmt if isinstance(stmt, str) else str(stmt))
+        # 跨连接组检测：若 SQL 引用了多个不同组的 db，给出明确错误（不是"无权限"）
+        cross = self._multi.cross_group_dbs(sql_str)
+        if cross is not None:
+            route_key, foreign = cross
+            raise RuntimeError(
+                f"跨连接组查询不支持：本次路由到组 {route_key}，但 SQL 还引用了其他组的库 "
+                f"{foreign}。请改写为单组查询，或先在各组分别查再在应用层合并。"
+            )
         conn = self._open(sql_str)
         return conn.execute(stmt if not isinstance(stmt, str) else _sa_text(stmt), params or {})
 
@@ -183,7 +227,9 @@ def get_user_engine(user: dict):
                     )
                     built.append({"key": gkey, "engine": eng, "databases": databases})
                     if len(groups) > 1:
-                        schema_blocks.append(f"## 连接组 {gkey}\n{g_schema}")
+                        schema_blocks.append(
+                            f"## 连接组 {gkey}（包含库：{', '.join(databases)}）\n{g_schema}"
+                        )
                     else:
                         schema_blocks.append(g_schema)
 
@@ -191,10 +237,22 @@ def get_user_engine(user: dict):
                     if len(built) == 1:
                         engine = built[0]["engine"]
                         databases = built[0]["databases"]
+                        schema = "\n\n".join(schema_blocks)
                     else:
                         engine = MultiSourceEngine(built)
                         databases = [db for g in built for db in g["databases"]]
-                    schema = "\n\n".join(schema_blocks)
+                        # 多组场景顶部加一段路由约束说明，避免 LLM 跨组 JOIN
+                        group_summary = "\n".join(
+                            f"  - 组 {g['key']}：{', '.join(g['databases'])}" for g in built
+                        )
+                        header = (
+                            "# 多连接组提示（重要）\n"
+                            "本数据源跨多个连接组，每组使用独立账号；不同组的库不能在同一条 SQL 里 JOIN。\n"
+                            "组 → 库归属：\n"
+                            f"{group_summary}\n"
+                            "约束：每条 SQL 只能引用同一组内的库。\n"
+                        )
+                        schema = header + "\n" + "\n\n".join(schema_blocks)
                     _engine_cache[cache_key] = {
                         "engine": engine, "schema": schema,
                         "databases": databases, "ts": now,

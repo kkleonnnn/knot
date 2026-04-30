@@ -1,4 +1,11 @@
-"""tests/eval/conftest.py — pytest fixtures: 加载 cases.yaml 并把 bi_agent/core 加进 sys.path。"""
+"""tests/eval/conftest.py — pytest fixtures: 加载用例与 fake_schema，并把 bi_agent/core 加进 sys.path。
+
+v0.2.4 隐私分层：
+  - cases.yaml / fake_schema.txt           : 真实业务（.gitignore，本地填）
+  - cases.example.yaml / fake_schema.example.txt: 通用模板（仓库内提交）
+
+加载顺序：先尝试真实文件；缺失则回退 .example。
+"""
 import sys
 from pathlib import Path
 
@@ -8,25 +15,29 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "bi_agent" / "core"))
 
-CASES_FILE = Path(__file__).parent / "cases.yaml"
+HERE = Path(__file__).parent
+
+
+def _pick(real: str, example: str) -> Path:
+    for name in (real, example):
+        p = HERE / name
+        if p.exists():
+            return p
+    return HERE / example  # 最后兜底，用 example 路径让上层报清晰错误
 
 
 def load_cases():
-    with open(CASES_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    p = _pick("cases.yaml", "cases.example.yaml")
+    with open(p, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
     return data.get("cases", [])
+
+
+def _load_schema() -> str:
+    p = _pick("fake_schema.txt", "fake_schema.example.txt")
+    return p.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="session")
 def fake_schema():
-    """给 LLM 看的 schema，覆盖 cases.yaml 涉及的表。"""
-    return (
-        "## Table users\n"
-        "- id (BIGINT)\n- created_at (DATETIME) 注册时间\n- email (VARCHAR)\n\n"
-        "## Table orders\n"
-        "- id (BIGINT)\n- user_id (BIGINT)\n- amount (DECIMAL) 金额，单位元\n"
-        "- status (VARCHAR) paid|unpaid|refunded\n- pay_channel (VARCHAR) wechat|alipay|card\n"
-        "- pay_time (DATETIME) 支付时间\n- created_at (DATETIME) 下单时间\n\n"
-        "## Table user_logins\n"
-        "- user_id (BIGINT)\n- login_time (DATETIME)\n"
-    )
+    return _load_schema()

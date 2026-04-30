@@ -16,6 +16,13 @@ env/
 **/data/*.db-wal
 **/data/logs/
 
+# 业务隐私（v0.2.4 起）：真实业务目录 / few-shot / eval / schema fixture 不进 git
+# 仓库只保留 *.example 模板；首次部署 cp 去掉 .example 后填真实业务数据
+bi_agent/core/ohx_catalog.py
+bi_agent/core/few_shots.yaml
+tests/eval/cases.yaml
+tests/eval/fake_schema.txt
+
 # IDE
 .idea/
 .vscode/

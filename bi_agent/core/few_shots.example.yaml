@@ -1,0 +1,102 @@
+# few_shots.example.yaml — Few-Shot 示例模板（仓库内提交版本，**不含真实业务数据**）
+#
+# 【部署】cp few_shots.example.yaml few_shots.yaml，再按实际业务编辑
+# few_shots.yaml 已加入 .gitignore；admin 也可在后台「Few-shot 示例」页直接增删改。
+#
+# llm_client._load_few_shots 优先读 DB 中 admin 维护的 few-shots，DB 为空时回退 yaml。
+
+examples:
+  # ── 元数据 ────────────────────────────────────────────────
+  - id: fs_meta_01
+    type: metadata
+    question: "数据库里有哪些表"
+    sql: "SHOW TABLES"
+    explanation: "列出所有表名"
+    confidence: high
+
+  - id: fs_meta_02
+    type: metadata
+    question: "users 表有哪些字段"
+    sql: "DESCRIBE users"
+    explanation: "查看表结构"
+    confidence: high
+
+  # ── 单聚合指标 ────────────────────────────────────────────
+  - id: fs_daily_signup
+    type: aggregation
+    question: "昨天注册了多少新用户"
+    sql: "SELECT COUNT(*) AS new_users FROM users WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "按 created_at 过滤昨天，COUNT 求注册数"
+    confidence: high
+
+  - id: fs_daily_gmv
+    type: aggregation
+    question: "昨天的 GMV 是多少"
+    sql: "SELECT SUM(pay_amount) AS gmv FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    explanation: "支付金额求和"
+    confidence: high
+
+  # ── 趋势 ─────────────────────────────────────────────────
+  - id: fs_trend_signup_7d
+    type: date_filter
+    question: "最近 7 天每日注册用户数"
+    sql: "SELECT DATE(created_at) AS dt, COUNT(*) AS new_users FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY dt ORDER BY dt"
+    explanation: "按天分组统计趋势"
+    confidence: high
+
+  - id: fs_trend_gmv_30d
+    type: date_filter
+    question: "最近 30 天每日 GMV 走势"
+    sql: "SELECT DATE(created_at) AS dt, SUM(pay_amount) AS gmv FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY dt ORDER BY dt"
+    explanation: "30 天 GMV 趋势"
+    confidence: high
+
+  # ── 排名 ─────────────────────────────────────────────────
+  - id: fs_rank_top_users
+    type: rank
+    question: "昨天消费金额 Top 10 用户"
+    sql: "SELECT user_id, SUM(pay_amount) AS amt FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) GROUP BY user_id ORDER BY amt DESC LIMIT 10"
+    explanation: "按用户分组求和，倒序取 10"
+    confidence: high
+
+  # ── 安全：破坏性措辞下保持只读 ────────────────────────────
+  - id: fs_safety_destructive_phrasing
+    type: aggregation
+    question: "帮我看看哪些用户应该被删除（长期无活跃）"
+    sql: "SELECT user_id, MAX(created_at) AS last_active FROM orders GROUP BY user_id ORDER BY last_active ASC LIMIT 100"
+    explanation: "BI 只读：用户措辞含『删除』时，转写为查询长期未活跃用户，绝不输出 DELETE"
+    confidence: medium
+
+
+# ── 类型关键词映射 ────────────────────────────────────────
+type_keywords:
+  metadata:
+    - "有哪些表"
+    - "表结构"
+    - "字段"
+    - "SHOW TABLES"
+    - "DESCRIBE"
+
+  date_filter:
+    - "昨天"
+    - "今天"
+    - "最近"
+    - "趋势"
+    - "走势"
+    - "每日"
+
+  aggregation:
+    - "总计"
+    - "合计"
+    - "总数"
+    - "求和"
+    - "多少"
+    - "活跃"
+
+  rank:
+    - "TOP"
+    - "Top"
+    - "前 10"
+    - "前10"
+    - "排名"
+    - "最多"

@@ -6,14 +6,24 @@ v0.2.2: Validator agent removed; Presenter prompt now does light anomaly check i
 
 import json
 import re
-from datetime import date as _date
 
 import llm_client
 import prompts as _prompts_mod
+import date_context
+
+try:
+    import catalog_loader as _cl
+    _OHX_RULES = _cl.BUSINESS_RULES
+except Exception:
+    _OHX_RULES = ""
 
 
 def _today() -> str:
-    return _date.today().isoformat()
+    return date_context.today_iso()
+
+
+def _date_block() -> str:
+    return date_context.date_context_block()
 from config import (
     MODELS, DEFAULT_MODEL,
     PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -109,7 +119,15 @@ def _parse_json(text: str) -> dict:
 _CLARIFIER_SYS = """你是数据分析助手的「问题理解专家」。
 判断用户问题是否明确可执行，并给出精确化的查询描述。
 
-今日：{today}（系统时间，权威。用户问题中出现的此日期之前的任何日期都视为历史日期，不要因模型训练截止时间而判断为"未来"）
+{date_block}
+
+{business_rules}
+
+业务规则消歧（重要）：
+- "昨天/今天" 指业务日（UTC+8 14:00 切日），不是自然日 [00:00, 24:00)
+- "用户/真实用户" 默认排除测试号；上方业务规则有完整 user_id 范围
+- "充值/提现金额" 未指明币种 → 默认 USDT
+- 用户提到"周报/月报/本周/上月"时，refined_question 中必须保留这些词，提示 sql_planner 切换聚合表
 
 输出严格 JSON（禁止任何其他内容）：
 {
@@ -171,7 +189,11 @@ def run_clarifier(
         history_text = "无"
     system = _prompts_mod.get_prompt(
         "clarifier", _CLARIFIER_SYS,
-        {"schema": schema_slice, "history": history_text, "today": _today()},
+        {
+            "schema": schema_slice, "history": history_text,
+            "today": _today(), "date_block": _date_block(),
+            "business_rules": _OHX_RULES,
+        },
     )
 
     model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
@@ -201,7 +223,9 @@ def run_clarifier(
 _PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果，给出简洁的分析洞察，并推荐高价值的追问方向。
 同时承担轻量结果质量检查：发现数据可能存在异常时，在 insight 开头加 ⚠️ 并简述疑点，但仍要给出洞察、不要拒绝输出。
 
-今日：{today}（系统时间，权威。≤ 今日的任何日期都是历史日期）
+{date_block}
+
+{business_rules}
 
 输出严格 JSON：
 {
@@ -221,7 +245,13 @@ confidence 含义：
 - ≤ 今日的日期是历史日期，不要判定为"未来"
 - 单聚合标量结果（COUNT/SUM）非 0 即 high
 
-结果为空时，insight 说明可能原因并给出排查建议。
+幻觉禁令（必须严格遵守）：
+- 禁止臆造权限错误：你拿到的 SQL 已经成功执行；输入里如果没有"执行失败/Access denied/permission denied"等字样，就**不准**说"没有权限""无访问权限""权限不足"。
+- 空结果集只能解释为"该口径下数据为 0 / 表里没有满足条件的数据 / 时间范围内无业务发生"，不要归因到权限。
+- 不要在 insight 里编造未在结果中出现的字段值或表名；引用数字必须来自查询结果。
+- 不要替用户切换日期口径：如果用户问"昨天"，不要在 insight 里说"实际查询了去年同日"。
+
+结果为空时，insight 说明可能原因（数据真的为零 / 时间窗口外 / 口径过严）并给出排查建议。
 suggested_followups 给出 2 个最有价值的下一步分析方向（简洁，不超过 15 字）。
 洞察用动词开头（或 ⚠️ 开头），不超过 3 句。"""
 
@@ -245,7 +275,13 @@ def run_presenter(
     it = ot = 0
     cost = 0.0
     result = {}
-    sys_prompt = _prompts_mod.get_prompt("presenter", _PRESENTER_SYS, {"today": _today()})
+    sys_prompt = _prompts_mod.get_prompt(
+        "presenter", _PRESENTER_SYS,
+        {
+            "today": _today(), "date_block": _date_block(),
+            "business_rules": _OHX_RULES,
+        },
+    )
     try:
         text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=512)

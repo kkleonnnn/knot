@@ -195,7 +195,7 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(_project_root / "data" / "bi_ag
 
 # ── v4 feature flags ───────────────────────────────────────────────────
 AGENT_MAX_STEPS          = int(os.getenv("AGENT_MAX_STEPS",          "5"))
-SCHEMA_FILTER_MAX_TABLES = int(os.getenv("SCHEMA_FILTER_MAX_TABLES", "10"))
+SCHEMA_FILTER_MAX_TABLES = int(os.getenv("SCHEMA_FILTER_MAX_TABLES", "25"))
 RAG_TOP_K                = int(os.getenv("RAG_TOP_K",                "5"))
 FEW_SHOT_MAX_EXAMPLES    = int(os.getenv("FEW_SHOT_MAX_EXAMPLES",    "4"))
 
