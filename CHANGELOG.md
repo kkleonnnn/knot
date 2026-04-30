@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.4.202604301802] - 2026-04-30 v0.2.4 待办收尾 + 隐私脱敏
+
+### Added — v0.2.4 待办收尾 + 隐私脱敏
+
+**待办收尾（CLAUDE.md 技术债表低优项）：**
+- **uploads.db → bi_agent.db 合并**：`engine_cache._upload_engine` 改指向主库；`persistence._migrate_uploads_db_once()` 一次性把老 `uploads.db` 的所有用户上传表 ATTACH 进主库（同名表跳过保留主库现有数据），完成后老文件改名 `.db.merged` 保证幂等
+- **删除 `bi_agent/routers/user.py`**：`/api/user/config` + `/api/user/agent-models` 自 v0.2.1 起已无前端调用，本版彻底清掉；连带删除 `schemas.py::UpdateUserConfigRequest`
+- **清理 v0.2.1 批次2 一次性迁移标记**：`_v021b2_user_keys_cleared` 已对所有部署完成迁移，移除 `init_db()` 中的兜底块
+- **`UPLOADS_DB` 常量**：从 `dependencies.py` / `main.py` 移除（合并后无独立文件）
+
+**隐私脱敏（参考 .env / .env.example 模式）：**
+- **`bi_agent/core/ohx_catalog.py`**：移入 .gitignore，仓库提交 `.example.py` 通用电商模板（demo_dwd / demo_ads）
+- **`bi_agent/core/few_shots.yaml`**：移入 .gitignore，仓库提交 `.example.yaml`
+- **`tests/eval/cases.yaml`** + **`tests/eval/fake_schema.txt`**：同上，提交 `.example` 版本
+- **`bi_agent/core/catalog_loader.py`**（新增）：优先加载真实 `ohx_catalog`，缺失时通过 `importlib.util` 回退 `.example`；`schema_filter` / `multi_agent` / `sql_agent` 改走 catalog_loader
+- **`llm_client._load_few_shots()`** 与 **`tests/eval/conftest.py`**：扩展为「real → example」双路径回退
 
 ### Added — OHX 真实 schema 接入（4 任务批次）
 - **`bi_agent/core/ohx_catalog.py`**：18 张 OHX 表（ohx_dwd × 8 + ohx_ads × 10）目录 + LEXICON 业务词典 + BUSINESS_RULES 规则常量

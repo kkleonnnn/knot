@@ -20,16 +20,20 @@ from config import (
 # ── Few-Shot library ───────────────────────────────────────────────────
 
 def _load_few_shots() -> dict:
-    """优先从 DB 读取（admin 维护）；DB 为空时回退 few_shots.yaml。"""
+    """优先从 DB 读取（admin 维护）；DB 为空时回退本地 few_shots.yaml；
+    再缺失时回退仓库自带的 few_shots.example.yaml（v0.2.4 隐私分层）。"""
     yaml_data = {"examples": [], "type_keywords": {}}
-    yaml_path = os.path.join(os.path.dirname(__file__), "few_shots.yaml")
-    if os.path.exists(yaml_path):
-        try:
-            import yaml
-            with open(yaml_path, "r", encoding="utf-8") as f:
-                yaml_data = yaml.safe_load(f) or yaml_data
-        except Exception:
-            pass
+    here = os.path.dirname(__file__)
+    for fname in ("few_shots.yaml", "few_shots.example.yaml"):
+        yaml_path = os.path.join(here, fname)
+        if os.path.exists(yaml_path):
+            try:
+                import yaml
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    yaml_data = yaml.safe_load(f) or yaml_data
+                break
+            except Exception:
+                pass
 
     try:
         import persistence

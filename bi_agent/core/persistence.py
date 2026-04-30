@@ -173,13 +173,6 @@ def init_db():
     # v0.2.1: 角色精简——viewer 合并入 analyst（保留 admin / analyst 二元）
     conn.execute("UPDATE users SET role='analyst' WHERE role='viewer'")
 
-    # v0.2.1 批次2：API key / agent 模型配置归口管理员；清掉用户级旧值（仅执行一次）
-    if not conn.execute("SELECT 1 FROM app_settings WHERE key='_v021b2_user_keys_cleared'").fetchone():
-        conn.execute("UPDATE users SET openrouter_api_key='', embedding_api_key='', agent_model_config=NULL")
-        conn.execute(
-            "INSERT INTO app_settings (key, value) VALUES ('_v021b2_user_keys_cleared', '1')"
-        )
-
     # Seed admin account
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
         from auth_utils import hash_password
@@ -191,8 +184,56 @@ def init_db():
         )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")
 
+    # v0.2.4: 一次性迁移 uploads.db → bi_agent.db（幂等：完成后重命名为 .merged）
+    _migrate_uploads_db_once(conn)
+
     conn.commit()
     conn.close()
+
+
+def _migrate_uploads_db_once(conn):
+    """把老 uploads.db 里的所有用户上传表搬到主库；完成后把老文件改名为 .merged 以避免再次执行。
+
+    幂等保障：① 老文件不存在就跳过；② 同名表已存在则跳过该表（保留主库现有数据，避免覆盖）；
+    ③ 处理结束统一改名 → 下次启动直接命中"老文件不存在"。
+    """
+    import os
+    from pathlib import Path
+
+    old = Path(SQLITE_DB_PATH).parent / "uploads.db"
+    if not old.exists():
+        return
+
+    try:
+        conn.execute(f"ATTACH DATABASE '{old.as_posix()}' AS up")
+        rows = conn.execute(
+            "SELECT name FROM up.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        moved, skipped = 0, 0
+        for r in rows:
+            tbl = r[0]
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (tbl,)
+            ).fetchone()
+            if exists:
+                skipped += 1
+                continue
+            conn.execute(f'CREATE TABLE "{tbl}" AS SELECT * FROM up."{tbl}"')
+            moved += 1
+        conn.execute("DETACH DATABASE up")
+        conn.commit()
+        try:
+            os.rename(old, old.with_suffix(".db.merged"))
+        except OSError:
+            pass
+        if moved or skipped:
+            print(f"[migration] uploads.db → bi_agent.db: moved={moved}, skipped={skipped}")
+    except Exception as e:
+        try:
+            conn.execute("DETACH DATABASE up")
+        except Exception:
+            pass
+        print(f"[migration] uploads.db merge skipped due to error: {e}")
 
 
 # ── Users ──────────────────────────────────────────────────────────────

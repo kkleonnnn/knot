@@ -4,8 +4,6 @@ from datetime import datetime, timedelta
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pathlib import Path
-
 import persistence
 
 JWT_SECRET = os.getenv("JWT_SECRET", "bi-agent-secret-change-in-production")
@@ -13,9 +11,6 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 security = HTTPBearer()
-
-BASE_DIR = Path(__file__).parent
-UPLOADS_DB = BASE_DIR / "data" / "uploads.db"
 
 
 def create_token(user_id: int) -> str:

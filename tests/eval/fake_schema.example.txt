@@ -1,0 +1,24 @@
+## demo_dwd.dwd_user_reg
+- created_at (DATETIME) 注册时间
+- user_id (BIGINT)
+- channel (VARCHAR)
+
+## demo_dwd.dwd_order
+- created_at (DATETIME)
+- user_id (BIGINT)
+- product_id (BIGINT)
+- pay_amount (DECIMAL)
+- channel (VARCHAR)
+
+## demo_ads.ads_daily_report
+- sta_date (DATE)
+- new_user_num (BIGINT) 新增用户数
+- active_user_num (BIGINT) 活跃用户数
+- paid_user_num (BIGINT) 付费用户数
+- gmv (DECIMAL) 当日 GMV
+
+## demo_ads.ads_daily_report_by_channel
+- sta_date (DATE)
+- channel (VARCHAR)
+- new_user_num (BIGINT)
+- gmv (DECIMAL)

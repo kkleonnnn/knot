@@ -4,7 +4,7 @@
 
 AI 驱动的 BI 助手：自然语言 → SQL → 图表。
 - v0.1.1：Python 3 / FastAPI + React（浏览器端 Babel）
-- v0.2.x（当前 v0.2.3）：FastAPI + React/Vite 构建版前端
+- v0.2.x（当前 v0.2.4）：FastAPI + React/Vite 构建版前端
 - v0.x.x（规划）：Go 后端重写
 
 ## 协作规则
@@ -46,8 +46,7 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 
 ## 数据库
 
-- `bi_agent/data/bi_agent.db` — 用户 / 会话 / 消息 / 知识库（persistence.py）
-- `bi_agent/data/uploads.db` — 用户上传的 CSV / Excel 数据
+- `bi_agent/data/bi_agent.db` — 用户 / 会话 / 消息 / 知识库 / 用户上传 CSV/Excel（v0.2.4 合并 uploads.db）
 - Apache Doris / MySQL — 业务查询目标（通过 .env 配置）
 
 ## 版本管理
@@ -78,8 +77,8 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 | 高 | LLM 调用走 run_in_executor + 同步 SDK；v0.2.2 把 anyio 池开到 64，但仍非真异步。下个 MINOR 切 httpx.AsyncClient / AsyncOpenAI / AsyncAnthropic | feat/async-llm |
 | 中 | 路由中 sync SQLAlchemy；DB 端短查询为主，暂不切 async，跟着上一项一起做 | feat/async-db |
 | ~~中~~ ✅ v0.2.2 已用 loguru | 结构化日志 | — |
-| 低 | uploads.db 与 bi_agent.db 可合并 | — |
-| 低 | `bi_agent/routers/user.py` 的 `/api/user/config` `/api/user/agent-models` 已无前端调用，留作向后兼容；下个 MINOR 可一并删 | chore/cleanup |
+| ~~低~~ ✅ v0.2.4 已合并 | uploads.db → bi_agent.db | — |
+| ~~低~~ ✅ v0.2.4 已删 | `bi_agent/routers/user.py` 的 `/api/user/config` `/api/user/agent-models` | — |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
