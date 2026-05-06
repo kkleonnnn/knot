@@ -1,6 +1,6 @@
+"""knowledge_repo — knowledge_docs + doc_chunks。"""
 from __future__ import annotations
 
-"""knowledge_repo — knowledge_docs + doc_chunks。"""
 from bi_agent.repositories.base import get_conn
 
 

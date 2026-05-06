@@ -19,14 +19,12 @@ rag_retriever.py — 语义层 RAG 检索器（BM25）
 
 import math
 import re
-from typing import List, Tuple
-
 
 # ─────────────────────────────────────────────
 # 基础工具
 # ─────────────────────────────────────────────
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     """
     轻量分词：中文按字拆，英文/数字/下划线按词拆，全部小写。
     特意不引入 jieba —— SQL 场景中，「orders」「user_id」「GMV」本身就是完整词，
@@ -35,7 +33,7 @@ def _tokenize(text: str) -> List[str]:
     return re.findall(r'[\u4e00-\u9fff]|[a-zA-Z_][a-zA-Z0-9_]*|\d+', text.lower())
 
 
-def _split_into_chunks(text: str, lines_per_chunk: int = 5) -> List[str]:
+def _split_into_chunks(text: str, lines_per_chunk: int = 5) -> list[str]:
     """
     把语义层文本按段落切分，每段约 lines_per_chunk 行。
     策略:
@@ -43,12 +41,12 @@ def _split_into_chunks(text: str, lines_per_chunk: int = 5) -> List[str]:
       - 以 # 开头的标题行 = 新段落开始
       - 超过 lines_per_chunk 行强制切断
     """
-    non_empty_lines = [l.strip() for l in text.split('\n') if l.strip()]
+    non_empty_lines = [ln.strip() for ln in text.split('\n') if ln.strip()]
     if not non_empty_lines:
         return []
 
-    chunks: List[str] = []
-    current: List[str] = []
+    chunks: list[str] = []
+    current: list[str] = []
 
     for line in non_empty_lines:
         # 遇到标题行：把已有内容先输出，再开新段
@@ -79,12 +77,12 @@ class BM25Retriever:
     def __init__(self, k1: float = 1.5, b: float = 0.75):
         self.k1 = k1
         self.b = b
-        self.corpus: List[str] = []
-        self.tokenized: List[List[str]] = []
+        self.corpus: list[str] = []
+        self.tokenized: list[list[str]] = []
         self.idf: dict = {}
         self.avgdl: float = 0.0
 
-    def fit(self, corpus: List[str]) -> None:
+    def fit(self, corpus: list[str]) -> None:
         """建立索引。corpus 是文本列表（每个元素对应一个「文档」）。"""
         self.corpus = corpus
         self.tokenized = [_tokenize(doc) for doc in corpus]
@@ -101,7 +99,7 @@ class BM25Retriever:
             for tok, freq in df.items()
         }
 
-    def search(self, query: str, top_k: int = 3) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 3) -> list[tuple[str, float]]:
         """
         检索最相关的 top_k 个文档。
         返回 [(doc_text, bm25_score), ...]，按 score 降序，只返回 score > 0 的结果。
@@ -110,7 +108,7 @@ class BM25Retriever:
             return []
 
         query_tokens = _tokenize(query)
-        scored: List[Tuple[int, float]] = []
+        scored: list[tuple[int, float]] = []
 
         for i, doc_tokens in enumerate(self.tokenized):
             doc_len = len(doc_tokens)

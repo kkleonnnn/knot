@@ -6,16 +6,18 @@ llm_client.py — LLM 层（多模型路由 + Text-to-SQL）
 import json
 import os
 import re
+
 import anthropic
 import openai
 
 from bi_agent.config import (
-    MODELS, DEFAULT_MODEL,
-    PROVIDER_BASE_URLS, PROVIDER_API_KEYS,
-    MAX_TOKENS_PER_QUERY, SQL_TEMPERATURE,
-    MAX_RETRY_COUNT,
+    DEFAULT_MODEL,
+    MAX_TOKENS_PER_QUERY,
+    MODELS,
+    PROVIDER_API_KEYS,
+    PROVIDER_BASE_URLS,
+    SQL_TEMPERATURE,
 )
-
 
 # ── Few-Shot library ───────────────────────────────────────────────────
 
@@ -29,7 +31,7 @@ def _load_few_shots() -> dict:
         if os.path.exists(yaml_path):
             try:
                 import yaml
-                with open(yaml_path, "r", encoding="utf-8") as f:
+                with open(yaml_path, encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f) or yaml_data
                 break
             except Exception:

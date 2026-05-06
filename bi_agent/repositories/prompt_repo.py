@@ -1,6 +1,6 @@
+"""prompt_repo — prompt_templates 表（per-agent system prompt 覆盖）。"""
 from __future__ import annotations
 
-"""prompt_repo — prompt_templates 表（per-agent system prompt 覆盖）。"""
 from bi_agent.repositories.base import get_conn
 
 

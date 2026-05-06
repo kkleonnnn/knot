@@ -3,7 +3,7 @@
 Go 重写时这些 dataclass 1:1 对应 internal/domain/agent.go 的 struct。
 """
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 
 @dataclass

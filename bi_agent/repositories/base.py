@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """bi_agent.repositories.base — connection helper + init_db。
 
 WAL mode、Row factory、check_same_thread=False 与原 persistence 等价。
 init_db() 集中执行 schema + 历史 ALTER TABLE 兼容迁移。
 """
+from __future__ import annotations
+
 import os
 import sqlite3
 from pathlib import Path
@@ -60,6 +60,7 @@ def init_db():
     # Seed admin（v0.3.1：通过 bcrypt 直接哈希避免 repos→services 反向依赖）
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
         import bcrypt
+
         from bi_agent.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
         seed_pwd = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
         conn.execute(

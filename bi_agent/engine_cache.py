@@ -6,9 +6,9 @@ from pathlib import Path
 from sqlalchemy import text as _sa_text
 
 from bi_agent import config as cfg
-from bi_agent.repositories import data_source_repo, user_repo
 from bi_agent.core import db_connector
 from bi_agent.core.logging_setup import logger
+from bi_agent.repositories import data_source_repo
 
 # v0.2.4: uploads.db 已合并入 bi_agent.db；上传表与业务表共用一个 SQLite 文件。
 # 老 uploads.db 的迁移在 base.init_db() 一次性完成（幂等）。

@@ -6,26 +6,26 @@
 
 为兼容旧 `from config import X` 调用方，本子包同时把所有常量 re-export 到包级。
 """
-from bi_agent.config.settings import settings  # noqa: F401
 from bi_agent.config.settings import (  # noqa: F401
-    MODELS,
-    DEFAULT_MODEL,
-    PROVIDER_BASE_URLS,
-    PROVIDER_API_KEYS,
+    AGENT_MAX_STEPS,
+    DEFAULT_DB_DATABASE,
     DEFAULT_DB_HOST,
+    DEFAULT_DB_PASSWORD,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
-    DEFAULT_DB_PASSWORD,
-    DEFAULT_DB_DATABASE,
+    DEFAULT_MODEL,
+    FEW_SHOT_MAX_EXAMPLES,
     MAX_RESULT_ROWS,
+    MAX_RETRY_COUNT,
     MAX_TABLES_IN_SCHEMA,
     MAX_TOKENS_PER_QUERY,
-    SQL_TEMPERATURE,
-    MAX_RETRY_COUNT,
-    SQLITE_DB_PATH,
-    AGENT_MAX_STEPS,
-    SCHEMA_FILTER_MAX_TABLES,
+    MODELS,
+    PROVIDER_API_KEYS,
+    PROVIDER_BASE_URLS,
     RAG_TOP_K,
-    FEW_SHOT_MAX_EXAMPLES,
+    SCHEMA_FILTER_MAX_TABLES,
+    SQL_TEMPERATURE,
+    SQLITE_DB_PATH,
     STRICT_READONLY_GRANTS,
+    settings,  # noqa: F401
 )

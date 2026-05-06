@@ -1,10 +1,9 @@
+"""settings_repo — app_settings KV + model_settings + agent model config。"""
 from __future__ import annotations
 
-"""settings_repo — app_settings KV + model_settings + agent model config。"""
 import json
 
 from bi_agent.repositories.base import get_conn
-
 
 # ── 通用 KV ────────────────────────────────────────────────────────────
 

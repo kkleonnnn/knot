@@ -2,11 +2,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from bi_agent.repositories import knowledge_repo, settings_repo
 from bi_agent.services import rag_service as doc_rag
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from ..dependencies import require_admin
-from bi_agent.repositories import knowledge_repo
-from bi_agent.repositories import settings_repo
 
 router = APIRouter()
 

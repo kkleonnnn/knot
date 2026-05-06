@@ -1,6 +1,6 @@
+"""upload_repo — file_uploads 表（用户上传 CSV/Excel 元数据）。"""
 from __future__ import annotations
 
-"""upload_repo — file_uploads 表（用户上传 CSV/Excel 元数据）。"""
 import json
 
 from bi_agent.repositories.base import get_conn

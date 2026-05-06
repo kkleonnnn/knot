@@ -3,9 +3,10 @@ few_shots.py — admin 维护 few-shot 示例（DB 存储）
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
+from bi_agent.repositories import few_shot_repo
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from ..dependencies import require_admin
-from bi_agent.repositories import few_shot_repo
 
 router = APIRouter()
 
@@ -45,8 +46,9 @@ async def upload_few_shots(file: UploadFile = File(...), admin=Depends(require_a
     if not fname.endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
     try:
-        from openpyxl import load_workbook
         from io import BytesIO
+
+        from openpyxl import load_workbook
         data = await file.read()
         wb = load_workbook(filename=BytesIO(data), data_only=True)
         ws = wb.active

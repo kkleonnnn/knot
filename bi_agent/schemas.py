@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -42,7 +43,7 @@ class UpdateUserRequest(BaseModel):
     doris_database: Optional[str] = None
     default_source_id: Optional[int] = None
     is_active: Optional[int] = None
-    source_ids: Optional[List[int]] = None
+    source_ids: Optional[list[int]] = None
 
 
 class DataSourceRequest(BaseModel):

@@ -26,7 +26,20 @@ extend-exclude = ["bi_agent/static", "frontend"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "PL"]
-ignore = ["E501", "PLR0913", "PLR2004", "B008"]
+ignore = [
+    "E501",      # line too long
+    "B008",      # FastAPI Depends() in default
+    "B904",      # 历史代码无 raise from err，legacy 不强制
+    # ── pylint 度量类（在 v0.3.x 重构期不强制；后续 PATCH 可单独清理）
+    "PLR0913",   # too many args
+    "PLR0911",   # too many returns
+    "PLR0912",   # too many branches
+    "PLR0915",   # too many statements
+    "PLR2004",   # magic numbers
+    "PLW0603",   # global statement（catalog reload 等场景合法使用）
+    "PLW2901",   # for-loop var overwrite（常见 .strip() 模式）
+    "PLC0415",   # import outside top-level（v0.3.x 大量 deferred imports 是工程化设计）
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR2004", "F401"]

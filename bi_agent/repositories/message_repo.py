@@ -1,6 +1,6 @@
+"""message_repo — messages 表 + semantic_layer。"""
 from __future__ import annotations
 
-"""message_repo — messages 表 + semantic_layer。"""
 import json
 
 from bi_agent.repositories.base import get_conn

@@ -6,12 +6,10 @@ Think → Act → Observe → ... → Final Answer
 import re
 import time
 from dataclasses import dataclass, field
-from typing import List, Tuple
 
-from bi_agent.core import db_connector
+from bi_agent.core import date_context, db_connector
 from bi_agent.services import llm_client
 from bi_agent.services import prompt_service as _prompts_mod
-from bi_agent.core import date_context
 
 try:
     from bi_agent.services.knot import catalog as _cl
@@ -21,9 +19,14 @@ except Exception:
 
 def _business_rules() -> str:
     return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
-from bi_agent.config import (
-    DEFAULT_MODEL, MAX_TOKENS_PER_QUERY,
-    MODELS, PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
+
+
+from bi_agent.config import (  # noqa: E402  legacy import order；v0.3.x 不强制重排
+    DEFAULT_MODEL,
+    MAX_TOKENS_PER_QUERY,
+    MODELS,
+    PROVIDER_API_KEYS,
+    PROVIDER_BASE_URLS,
 )
 
 
@@ -45,7 +48,7 @@ class AgentResult:
     explanation: str
     confidence: str
     error: str
-    steps: List[AgentStep]
+    steps: list[AgentStep]
     total_cost_usd: float
     total_input_tokens: int
     total_output_tokens: int
@@ -95,7 +98,7 @@ def _strip_sql(s: str) -> str:
     return s.strip().strip("`").strip()
 
 
-def _parse_agent_output(text: str) -> Tuple[str, str, str]:
+def _parse_agent_output(text: str) -> tuple[str, str, str]:
     thought = action = action_input = ""
 
     m = re.search(r'Thought:\s*(.*?)(?=\nAction:|\Z)', text, re.DOTALL)
@@ -172,7 +175,7 @@ def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
         return f"未知工具 '{action}'，请使用 execute_sql/describe_table/list_tables/search_schema/final_answer"
 
 
-def _call_llm(model_key, api_key, model_cfg, system_prompt, messages) -> Tuple[str, int, int]:
+def _call_llm(model_key, api_key, model_cfg, system_prompt, messages) -> tuple[str, int, int]:
     provider = model_cfg["provider"]
 
     if provider == "anthropic":
@@ -214,11 +217,12 @@ def run_sql_agent(
     max_steps: int = 5,
     openrouter_api_key: str = "",
 ) -> AgentResult:
-    _err = lambda msg: AgentResult(
-        success=False, sql="", rows=[], explanation="",
-        confidence="low", error=msg,
-        steps=[], total_cost_usd=0, total_input_tokens=0, total_output_tokens=0,
-    )
+    def _err(msg):
+        return AgentResult(
+            success=False, sql="", rows=[], explanation="",
+            confidence="low", error=msg,
+            steps=[], total_cost_usd=0, total_input_tokens=0, total_output_tokens=0,
+        )
 
     _registered = MODELS.get(model_key)
     _is_or = (_registered and _registered.get("provider") == "openrouter") or \
@@ -257,7 +261,7 @@ def run_sql_agent(
     )
 
     messages = [{"role": "user", "content": f"用户问题: {question}"}]
-    steps: List[AgentStep] = []
+    steps: list[AgentStep] = []
     total_cost = 0.0
     total_it = total_ot = 0
     final_sql = final_error = ""

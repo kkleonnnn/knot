@@ -5,9 +5,10 @@ v0.2.2: validator 已移除；仍存在的 validator 模板会被忽略（保留
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
+from bi_agent.repositories import prompt_repo
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from ..dependencies import require_admin
-from bi_agent.repositories import prompt_repo
 
 router = APIRouter()
 
@@ -51,8 +52,9 @@ async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_adm
     if not fname.endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
     try:
-        from openpyxl import load_workbook
         from io import BytesIO
+
+        from openpyxl import load_workbook
         data = await file.read()
         wb = load_workbook(filename=BytesIO(data), data_only=True)
         ws = wb.active

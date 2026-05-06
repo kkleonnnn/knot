@@ -6,21 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from bi_agent import config as cfg
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from bi_agent.core import db_connector
-from bi_agent.services import rag_service as doc_rag
-from bi_agent.services.knot import sql_planner as agent_module
-from bi_agent.services.knot import orchestrator as multi_agent_module
-from bi_agent.services import llm_client
 from bi_agent.core.logging_setup import logger
+from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
+from bi_agent.services import llm_client
+from bi_agent.services import rag_service as doc_rag
+from bi_agent.services.knot import orchestrator as multi_agent_module
+from bi_agent.services.knot import sql_planner as agent_module
+
 from ..dependencies import get_current_user
-from ..engine_cache import get_user_engine, _upload_engine
+from ..engine_cache import _upload_engine, get_user_engine
 from ..schemas import QueryRequest
-from bi_agent.repositories import conversation_repo
-from bi_agent.repositories import message_repo
-from bi_agent.repositories import settings_repo
-from bi_agent.repositories import upload_repo
-from bi_agent.repositories import user_repo
 
 router = APIRouter()
 
