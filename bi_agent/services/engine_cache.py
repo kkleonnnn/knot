@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy import text as _sa_text
 
 from bi_agent import config as cfg
-from bi_agent.core import db_connector
+from bi_agent.adapters.db import doris as db_connector
 from bi_agent.core.logging_setup import logger
 from bi_agent.repositories import data_source_repo
 

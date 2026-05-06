@@ -1,5 +1,14 @@
-"""bi_agent.adapters — 外部依赖适配层（占位 · v0.3.2 落地）
+"""bi_agent.adapters — 外部依赖适配层（v0.3.2 落地）
 
-v0.3.0：本包当前为空骨架，import-linter 4 层 contract 需要它存在。
-v0.3.2：填充 llm/ + db/ + notification/，定义 Protocol 契约。
+设计契约（import-linter 强制）：
+  - 实现各 Protocol 接口（adapters/X/base.py 定义）
+  - 不得 import services / api / repositories
+  - 可 import models / config / core
+
+子包：
+  - llm/          : LLMAdapter Protocol + Anthropic / OpenAI / OpenRouter / 私有部署
+  - db/           : BusinessDBAdapter Protocol + Doris (v0.3.2 当前实现) + engine_cache
+  - notification/ : NotificationAdapter Protocol + Lark stub（v0.4.x 落 impl）
+
+Go 重写映射：本包 → internal/adapter/{llm,db,notification}/。
 """

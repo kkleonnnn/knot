@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.3.2 工程化重构（第 3 刀 / 4） — adapters/ 落地（协议驱动）
+
+> 行为契约（Protocol）与实现分家；引入第 5 条 import-linter contract。
+> KNOT 真正拥有"跨库分析"的灵魂 + 多 LLM provider 的统一抽象。
+
+### Added — `bi_agent/adapters/` 三大子包
+**adapters/llm/** — LLM 适配层（Protocol 驱动）
+- `base.py` — `LLMAdapter(Protocol)` + `LLMRequest` / `LLMResponse` dataclass + `calculate_cost`
+- `anthropic_native.py` — 直连 Anthropic SDK（messages API + ephemeral cache_control）
+- `openai_compat.py` — OpenAI-compatible HTTP（覆盖 GPT / Gemini / DeepSeek / Ollama / vLLM 等私有部署）
+- `openrouter.py` — OpenRouter 统一路由（OR-specific 行为预留点）
+- `factory.py` — `get_adapter(provider) -> LLMAdapter`，case-insensitive；未知 provider fallback openai-compat
+
+**adapters/db/** — 业务库适配层
+- `base.py` — `BusinessDBAdapter(Protocol)` + `is_safe_sql()` 共享 SQL guardrail（sqlglot AST，与方言无关）
+- `doris.py` — Doris/MySQL 实现（v0.3.1 之前的 `core/db_connector.py` git mv 而来）
+
+**adapters/notification/** — 通知适配层（v0.3.2 锁形状，v0.4.x 落 impl）
+- `base.py` — `NotificationAdapter(Protocol)` + `Notification` dataclass（title/body/level/target/metadata）
+- `lark.py` — `LarkAdapter` stub，`send()` 抛 `NotImplementedError`（业务接入飞书时按 Protocol 实现 send）
+
+### Changed — `services/llm_client.py` 瘦身（删 anthropic / openai SDK 直连）
+原 `_invoke_anthropic` + `_invoke_openai_compatible` 两个 67 行函数 → 23 行 `_invoke_via_adapter`：
+```python
+from bi_agent.adapters.llm import LLMRequest, get_adapter
+resp = get_adapter(provider).complete(LLMRequest(...))
+```
+service 层不再 import LLM SDK，全部下沉到 adapters/llm/*。
+
+### Moved — engine_cache 归位
+- `bi_agent/engine_cache.py` → `bi_agent/services/engine_cache.py`（**不是 adapters/db**）
+  - 原因：engine_cache 需要 `repositories.data_source_repo` 取业务数据源；adapter 是叶子节点不得依赖 repos
+  - engine_cache 本质是 service-level 编排（按 user 选择 doris adapter 实例 + TTL 缓存）
+  - `from .engine_cache` → `from bi_agent.services.engine_cache`（路由中已重写）
+
+### Changed — `.importlinter` 第 5 条 contract（FIXME-v0.3.2 偿还）
+```ini
+[importlinter:contract:repos-no-business]
+forbidden_modules = bi_agent.routers, bi_agent.services, bi_agent.adapters  # ← 加上 adapters
+
+[importlinter:contract:adapters-no-business]   # ← 第 5 条新增
+forbidden_modules = bi_agent.services, bi_agent.routers, bi_agent.repositories
+```
+
+### Added — `tests/adapters/` 21 条 happy-path
+- `test_llm_factory.py`（9 条）— 4 provider 路由 + case-insensitive + cost 计算 + Protocol runtime check
+- `test_db_base.py`（9 条）— is_safe_sql 7 类 SQL（SELECT/SHOW 通过 / DROP/DELETE/INSERT/UPDATE/stacked 拒绝）+ Protocol verify
+- `test_notification.py`（3 条）— Lark stub + Protocol fit + Notification dataclass
+
+### Verified
+- `pytest tests/ -v`：**82 passed / 6 skipped**（v0.3.1 61 → v0.3.2 82，新增 21 条 adapter 单测）
+- `lint-imports`：**5 contracts KEPT, 0 broken**（v0.3.1 4 → v0.3.2 5）
+- `ruff check bi_agent/`：All checks passed
+- 54 routes 启动正常
+
+### BREAKING（仅影响部署方/合作伙伴本地脚本）
+1. `bi_agent.core.db_connector` → `bi_agent.adapters.db.doris`
+2. `bi_agent.engine_cache` → `bi_agent.services.engine_cache`（注意：不是 adapters）
+3. 调用 LLM 的代码若直接 import anthropic/openai SDK → 改用 `from bi_agent.adapters.llm import LLMRequest, get_adapter`
+
+### 资深寄语对齐
+> "本 PATCH 的三个首要任务" 全部完成：
+> ✅ 定义基类（adapters/db/base.py + adapters/llm/base.py + adapters/notification/base.py）
+> ✅ 重构 LLMClient（anthropic_native + openai_compat + openrouter + factory）
+> ✅ 重构 DBConnector（doris.py + Protocol 锁定 BusinessDBAdapter 行为）
+
+## [0.3.1.202605062126] - 2026-05-06 v0.3.1 services/ 落地
+
 ## [Unreleased] - v0.3.1 工程化重构（第 2 刀 / 4） — services/ 落地
 
 > 协议驱动重构 · "core 完全无业务化" 第一步 · 删 v0.3.0 facade shim 偿还技术债。

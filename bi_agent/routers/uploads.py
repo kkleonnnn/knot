@@ -5,12 +5,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from bi_agent.core import db_connector
+from bi_agent.adapters.db import doris as db_connector
 from bi_agent.repositories import upload_repo
+from bi_agent.services.engine_cache import _upload_engine
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from ..dependencies import get_current_user
-from ..engine_cache import _upload_engine
 
 router = APIRouter()
 

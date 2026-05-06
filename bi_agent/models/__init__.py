@@ -10,7 +10,7 @@ Go 重写映射：本包 1:1 对应 Go 的 internal/domain/*.go。
 在此显式导出，IDE 补全 + 静态分析友好。
 """
 
-# ── 用户与认证 ─────────────────────────────────────────────────────────
+# ── 异常树（v0.3.2 R-7） ───────────────────────────────────────────────
 # ── 3-Agent 流转契约 ───────────────────────────────────────────────────
 from bi_agent.models.agent import (
     AgentResult,
@@ -27,6 +27,15 @@ from bi_agent.models.conversation import Conversation, Message
 
 # ── 业务库数据源 ───────────────────────────────────────────────────────
 from bi_agent.models.data_source import DataSource
+from bi_agent.models.errors import (
+    BIAgentError,
+    BusinessDBError,
+    CrossGroupSQLError,
+    LLMAuthError,
+    LLMRateLimitError,
+    ProviderNotImplementedError,
+    UnsafeSQLError,
+)
 
 # ── Few-shot / Prompt / 知识库 / 设置 ──────────────────────────────────
 from bi_agent.models.few_shot import FewShotExample
@@ -45,6 +54,14 @@ from bi_agent.models.setting import AppSetting, FileUpload
 from bi_agent.models.user import AuthClaim, User
 
 __all__ = [
+    # errors.py (v0.3.2 R-7)
+    "BIAgentError",
+    "ProviderNotImplementedError",
+    "LLMAuthError",
+    "LLMRateLimitError",
+    "BusinessDBError",
+    "UnsafeSQLError",
+    "CrossGroupSQLError",
     # user.py
     "User", "AuthClaim",
     # conversation.py
