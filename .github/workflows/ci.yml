@@ -16,13 +16,18 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install
+      # ⚠️ editable 安装必须在所有静态/动态分析步骤之前完成 ——
+      # import-linter / pytest / boot-smoke 都依赖 site-packages 中已注册的 bi_agent
+      - name: Install (editable)
         run: |
+          python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          python -c "import bi_agent; print('bi_agent installed at', bi_agent.__file__)"
 
       - name: Ruff lint
         run: ruff check bi_agent/
 
+      # 依赖 Install 步骤完成；4 层 contract 不绕过即合入
       - name: Import-linter (4-layer architecture)
         run: lint-imports
 

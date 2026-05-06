@@ -80,6 +80,29 @@ docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agen
 | ~~低~~ ✅ v0.2.4 已合并 | uploads.db → bi_agent.db | — |
 | ~~低~~ ✅ v0.2.4 已删 | `bi_agent/routers/user.py` 的 `/api/user/config` `/api/user/agent-models` | — |
 
+## v0.3.x 工程化重构 — Contract 升级路线图
+
+v0.3.0（已合入）建立 4 层架构 `routers → services → repositories | adapters → models`，
+当前 import-linter contract **4 条 KEPT** 但部分采用渐进式 FIXME 锁定（资深架构师 + Codex 评审组 APPROVED）。
+后续 PATCH 必须按下表升级 `.importlinter`，**不得跳过**：
+
+| FIXME 标签 | 当前状态 | 升级动作 | 落地版本 |
+|-----------|---------|---------|---------|
+| `FIXME-v0.3.1` | `repositories` 仅禁 `routers` | 加上 `bi_agent.services` 到 `forbidden_modules` | v0.3.1 services 落地后 |
+| `FIXME-v0.3.2` | `repositories` 仅禁 `routers / services` | 再加 `bi_agent.adapters` | v0.3.2 adapters 落地后 |
+| `FIXME-v0.3.3` | `core-no-models` 仅禁 `models / routers` | 完整 `forbidden_modules`：`models, routers, api, services, repositories, adapters` | v0.3.3 core 完全瘦身后 |
+
+资深寄语：v0.3.3 结束前 `core` 的 `forbidden_modules` 必须锁死至最高级别。
+
+辅助 v0.3.x 计划：
+
+| PATCH | 主题 | 关键交付 |
+|-------|------|---------|
+| ✅ v0.3.0 | repos 拆分 + models 顶级包 + 工程化基线 | `pyproject.toml` / `.importlinter` / `pip install -e .` |
+| 🔜 v0.3.1 | services/ 落地（含 knot/）+ 删 repos facade re-export | `services/knot/{orchestrator,clarifier,sql_planner,presenter,catalog}` |
+| ⏳ v0.3.2 | adapters/ 落地（llm/db/notification 协议） | `adapters/llm/openrouter.py` / `adapters/db/doris.py` / `adapters/notification/lark.py` (stub) |
+| ⏳ v0.3.3 | routers→api 改名 + core 完全瘦身 + contract 全锁 | 删除 3 处 FIXME |
+
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
 - HTTP：`gin-gonic/gin` 或 `gofiber/fiber`
