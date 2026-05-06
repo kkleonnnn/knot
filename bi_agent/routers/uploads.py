@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from bi_agent.core import db_connector
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import get_current_user
 from ..engine_cache import _upload_engine
+from bi_agent.repositories import upload_repo
 
 router = APIRouter()
 
@@ -66,7 +66,7 @@ async def upload_file(file: UploadFile = File(...), user=Depends(get_current_use
     if not ok:
         raise HTTPException(status_code=500, detail=f"写入失败: {err}")
 
-    upload_id = persistence.create_file_upload(
+    upload_id = upload_repo.create_file_upload(
         user_id=user["id"], filename=fname,
         table_name=table_name, row_count=len(rows), columns=headers,
     )
@@ -76,13 +76,13 @@ async def upload_file(file: UploadFile = File(...), user=Depends(get_current_use
 
 @router.get("/api/uploads")
 async def list_uploads(user=Depends(get_current_user)):
-    return persistence.list_file_uploads(user["id"])
+    return upload_repo.list_file_uploads(user["id"])
 
 
 @router.delete("/api/uploads/{upload_id}")
 async def delete_upload(upload_id: int, user=Depends(get_current_user)):
-    rec = persistence.get_file_upload(upload_id)
+    rec = upload_repo.get_file_upload(upload_id)
     if not rec or rec["user_id"] != user["id"]:
         raise HTTPException(status_code=404)
-    persistence.delete_file_upload(upload_id)
+    upload_repo.delete_file_upload(upload_id)
     return {"ok": True}

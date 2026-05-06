@@ -4,15 +4,15 @@ few_shots.py — admin 维护 few-shot 示例（DB 存储）
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import require_admin
+from bi_agent.repositories import few_shot_repo
 
 router = APIRouter()
 
 
 @router.get("/api/few-shots")
 async def list_few_shots(admin=Depends(require_admin)):
-    return persistence.list_few_shots()
+    return few_shot_repo.list_few_shots()
 
 
 @router.post("/api/few-shots")
@@ -22,19 +22,19 @@ async def create_few_shot(payload: dict = Body(...), admin=Depends(require_admin
     t = (payload.get("type") or "").strip()
     if not q or not s:
         raise HTTPException(status_code=400, detail="question / sql 不能为空")
-    fid = persistence.create_few_shot(q, s, t, 1 if payload.get("is_active", 1) else 0)
+    fid = few_shot_repo.create_few_shot(q, s, t, 1 if payload.get("is_active", 1) else 0)
     return {"id": fid}
 
 
 @router.put("/api/few-shots/{fid}")
 async def update_few_shot(fid: int, payload: dict = Body(...), admin=Depends(require_admin)):
-    persistence.update_few_shot(fid, **{k: v for k, v in payload.items() if k in {"question", "sql", "type", "is_active"}})
+    few_shot_repo.update_few_shot(fid, **{k: v for k, v in payload.items() if k in {"question", "sql", "type", "is_active"}})
     return {"ok": True}
 
 
 @router.delete("/api/few-shots/{fid}")
 async def delete_few_shot(fid: int, admin=Depends(require_admin)):
-    persistence.delete_few_shot(fid)
+    few_shot_repo.delete_few_shot(fid)
     return {"ok": True}
 
 
@@ -71,5 +71,5 @@ async def upload_few_shots(file: UploadFile = File(...), admin=Depends(require_a
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"解析失败: {str(e)[:200]}")
 
-    n = persistence.bulk_insert_few_shots(items)
+    n = few_shot_repo.bulk_insert_few_shots(items)
     return {"inserted": n}

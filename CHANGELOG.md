@@ -5,7 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.3.0 工程化重构（第 1 刀 / 4）
+## [Unreleased] - v0.3.1 工程化重构（第 2 刀 / 4） — services/ 落地
+
+> 协议驱动重构 · "core 完全无业务化" 第一步 · 删 v0.3.0 facade shim 偿还技术债。
+
+### Changed — 9 个文件领域重组（git mv 保留 blame 历史）
+- `bi_agent/core/auth_utils.py`        → `bi_agent/services/auth_service.py`
+- `bi_agent/core/llm_client.py`        → `bi_agent/services/llm_client.py`
+- `bi_agent/core/prompts.py`           → `bi_agent/services/prompt_service.py`
+- `bi_agent/core/schema_filter.py`     → `bi_agent/services/schema_filter.py`
+- `bi_agent/core/rag_retriever.py`     → `bi_agent/services/rag_retriever.py`
+- `bi_agent/core/doc_rag.py`           → `bi_agent/services/rag_service.py`
+- `bi_agent/core/multi_agent.py`       → `bi_agent/services/knot/orchestrator.py`
+- `bi_agent/core/sql_agent.py`         → `bi_agent/services/knot/sql_planner.py`
+- `bi_agent/core/catalog_loader.py`    → `bi_agent/services/knot/catalog.py`
+- 数据文件同步迁移：`few_shots.example.yaml` → `services/`，`ohx_catalog.example.py` → `services/knot/`
+
+### Changed — `core/` 真正无业务化
+v0.3.1 后 `bi_agent/core/` 仅剩横切工具：`date_context.py` + `logging_setup.py`。
+所有依赖 `bi_agent.repositories` 的代码已搬到 `services/`，`core` 不再触碰业务层。
+
+### Removed — facade re-export（FIXME-v0.3.1 偿还）
+- `bi_agent/repositories/__init__.py` 删除 30+ 函数的 re-export 块；现仅暴露 `init_db / get_conn`
+- 所有 `from bi_agent import repositories as persistence` 别名已清除
+- routers 改为模块化访问：`from bi_agent.repositories.user_repo import get_user_by_id` 等
+- `repositories/base.py` seed admin 用 bcrypt 直接哈希，避免 repos→services 反向依赖
+
+### Changed — `.importlinter` 升级（FIXME-v0.3.1 收紧）
+```
+[importlinter:contract:repos-no-business]
+forbidden_modules = bi_agent.routers, bi_agent.services    # ← v0.3.1 加上 services
+# FIXME-v0.3.2: 加上 bi_agent.adapters
+```
+
+### Added — services tests
+- `tests/services/test_auth_service.py` — 哈希 / 校验 / Unicode 密码
+- `tests/services/test_knot_catalog.py` — DB → real → example fallback chain
+- `tests/services/test_schema_filter.py` — parse_schema_tables / 元数据问题 / 基本过滤
+
+### BREAKING（仅影响部署方 / 合作伙伴的本地脚本）
+1. `bi_agent.core.{auth_utils, llm_client, prompts, schema_filter, rag_retriever, doc_rag, multi_agent, sql_agent, catalog_loader}` 全部不可用 → 改 `bi_agent.services.X` / `bi_agent.services.knot.X`
+2. **业务私有文件路径变更**（资深评审组已 APPROVED）：
+   - `bi_agent/core/ohx_catalog.py`     → `bi_agent/services/knot/ohx_catalog.py`
+   - `bi_agent/core/few_shots.yaml`     → `bi_agent/services/few_shots.yaml`
+   - 已在 `.gitignore` 同步
+3. `from bi_agent import repositories as persistence` 别名删除 → 改 `from bi_agent.repositories.X_repo import ...`
+
+### Verified
+- `pytest tests/ -v`：**61 passed / 6 skipped**（v0.3.0 48 → v0.3.1 61，新增 13 条 services 单测）
+- `lint-imports`：4 contracts KEPT, 0 broken（含 v0.3.1 升级的 repos-no-business 收紧 contract）
+- `python -c "from bi_agent.main import app"`：54 routes 启动正常
+
+## [0.3.0.202605061643] - 2026-05-06 v0.3.0 工程化重构第 1 刀
 
 > 协议驱动重构 · "数据形状 vs 逻辑行为" 物理隔离 · 为 v1.0 Go 重写铺路。
 > 本 PATCH = 4-PATCH 渐进式重构计划的第 1 刀。

@@ -11,7 +11,7 @@ from bi_agent.core import db_connector
 from bi_agent.core.logging_setup import logger
 
 # v0.2.4: uploads.db 已合并入 bi_agent.db；上传表与业务表共用一个 SQLite 文件。
-# 老 uploads.db 的迁移在 persistence.init_db() 一次性完成（幂等）。
+# 老 uploads.db 的迁移在 base.init_db() 一次性完成（幂等）。
 _BIAGENT_DB = Path(__file__).parent / "data" / "bi_agent.db"
 _upload_engine = db_connector.create_sqlite_engine(str(_BIAGENT_DB))
 

@@ -2,10 +2,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from bi_agent.core import doc_rag
+from bi_agent.services import rag_service as doc_rag
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import require_admin
+from bi_agent.repositories import knowledge_repo
+from bi_agent.repositories import settings_repo
 
 router = APIRouter()
 
@@ -30,8 +31,8 @@ async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_a
     if not chunks:
         raise HTTPException(status_code=400, detail="文件内容为空")
 
-    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or admin.get("embedding_api_key") or ""
-    or_key = persistence.get_app_setting("openrouter_api_key", "") or admin.get("openrouter_api_key") or ""
+    embedding_api_key = settings_repo.get_app_setting("embedding_api_key", "") or admin.get("embedding_api_key") or ""
+    or_key = settings_repo.get_app_setting("openrouter_api_key", "") or admin.get("openrouter_api_key") or ""
 
     embeddings = []
     for chunk in chunks:
@@ -40,8 +41,8 @@ async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_a
         embeddings.append(blob)
 
     doc_name = Path(fname).stem
-    doc_id = persistence.create_knowledge_doc(doc_name, fname, len(chunks))
-    persistence.save_doc_chunks(doc_id, chunks, embeddings)
+    doc_id = knowledge_repo.create_knowledge_doc(doc_name, fname, len(chunks))
+    knowledge_repo.save_doc_chunks(doc_id, chunks, embeddings)
 
     embedded = sum(1 for e in embeddings if e)
     return {"id": doc_id, "name": doc_name, "filename": fname,
@@ -50,10 +51,10 @@ async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_a
 
 @router.get("/api/knowledge")
 async def knowledge_list(admin=Depends(require_admin)):
-    return persistence.list_knowledge_docs()
+    return knowledge_repo.list_knowledge_docs()
 
 
 @router.delete("/api/knowledge/{doc_id}")
 async def knowledge_delete(doc_id: int, admin=Depends(require_admin)):
-    persistence.delete_knowledge_doc(doc_id)
+    knowledge_repo.delete_knowledge_doc(doc_id)
     return {"ok": True}

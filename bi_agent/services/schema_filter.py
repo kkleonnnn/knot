@@ -15,10 +15,10 @@ catalog 命中只是"加分项"，不是"白名单"。
 import re
 from typing import List, Tuple
 
-from bi_agent.core.rag_retriever import _tokenize
+from bi_agent.services.rag_retriever import _tokenize
 
 try:
-    from bi_agent.core import catalog_loader as _cl
+    from bi_agent.services.knot import catalog as _cl
 except Exception:
     _cl = None
 

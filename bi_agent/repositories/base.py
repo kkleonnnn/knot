@@ -57,14 +57,15 @@ def init_db():
     # v0.2.1: 角色精简 viewer → analyst
     conn.execute("UPDATE users SET role='analyst' WHERE role='viewer'")
 
-    # Seed admin
+    # Seed admin（v0.3.1：通过 bcrypt 直接哈希避免 repos→services 反向依赖）
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-        from bi_agent.core.auth_utils import hash_password
+        import bcrypt
         from bi_agent.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
+        seed_pwd = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
         conn.execute(
             "INSERT INTO users (username, password_hash, display_name, role, doris_host, doris_port) "
             "VALUES (?, ?, '管理员', 'admin', ?, ?)",
-            ("admin", hash_password("admin123"), DEFAULT_DB_HOST, DEFAULT_DB_PORT),
+            ("admin", seed_pwd, DEFAULT_DB_HOST, DEFAULT_DB_PORT),
         )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")
 

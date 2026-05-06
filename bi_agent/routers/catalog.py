@@ -14,15 +14,15 @@ import json
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
-from bi_agent.core import catalog_loader
+from bi_agent.services.knot import catalog as catalog_loader
 from ..dependencies import require_admin
+from bi_agent.repositories import settings_repo
 
 router = APIRouter()
 
 
 def _has_setting(key: str) -> bool:
-    v = persistence.get_app_setting(key) or ""
+    v = settings_repo.get_app_setting(key) or ""
     return bool(v.strip())
 
 
@@ -55,26 +55,26 @@ async def put_catalog(payload: dict = Body(...), admin=Depends(require_admin)):
     if "tables" in payload:
         v = payload["tables"]
         if v in (None, "", [], {}):
-            persistence.set_app_setting("catalog.tables", "")
+            settings_repo.set_app_setting("catalog.tables", "")
         else:
             if not isinstance(v, list):
                 raise HTTPException(status_code=400, detail="tables 必须是数组")
-            persistence.set_app_setting("catalog.tables", json.dumps(v, ensure_ascii=False))
+            settings_repo.set_app_setting("catalog.tables", json.dumps(v, ensure_ascii=False))
         out["saved"].append("tables")
 
     if "lexicon" in payload:
         v = payload["lexicon"]
         if v in (None, "", [], {}):
-            persistence.set_app_setting("catalog.lexicon", "")
+            settings_repo.set_app_setting("catalog.lexicon", "")
         else:
             if not isinstance(v, dict):
                 raise HTTPException(status_code=400, detail="lexicon 必须是对象")
-            persistence.set_app_setting("catalog.lexicon", json.dumps(v, ensure_ascii=False))
+            settings_repo.set_app_setting("catalog.lexicon", json.dumps(v, ensure_ascii=False))
         out["saved"].append("lexicon")
 
     if "business_rules" in payload:
         v = payload["business_rules"]
-        persistence.set_app_setting("catalog.business_rules", str(v or ""))
+        settings_repo.set_app_setting("catalog.business_rules", str(v or ""))
         out["saved"].append("business_rules")
 
     catalog_loader.reload()
@@ -92,7 +92,7 @@ async def reset_catalog(payload: dict = Body(default={}), admin=Depends(require_
     for f in fields:
         if f not in valid:
             continue
-        persistence.set_app_setting(f"catalog.{f}", "")
+        settings_repo.set_app_setting(f"catalog.{f}", "")
         cleared.append(f)
     catalog_loader.reload()
     return {"cleared": cleared, "source": catalog_loader._SOURCE}

@@ -7,12 +7,12 @@ v0.2.2: Validator agent removed; Presenter prompt now does light anomaly check i
 import json
 import re
 
-from bi_agent.core import llm_client
-from bi_agent.core import prompts as _prompts_mod
+from bi_agent.services import llm_client
+from bi_agent.services import prompt_service as _prompts_mod
 from bi_agent.core import date_context
 
 try:
-    from bi_agent.core import catalog_loader as _cl
+    from bi_agent.services.knot import catalog as _cl
 except Exception:
     _cl = None
 
