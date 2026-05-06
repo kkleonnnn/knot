@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 
-from bi_agent.core import db_connector
+from bi_agent.adapters.db import doris as db_connector
+from bi_agent.services.engine_cache import get_user_databases, get_user_engine
 
 from ..dependencies import get_current_user
-from ..engine_cache import get_user_databases, get_user_engine
 from ..schemas import DataSourceRequest
 
 router = APIRouter()

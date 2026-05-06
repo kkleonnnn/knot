@@ -7,7 +7,8 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from bi_agent.core import date_context, db_connector
+from bi_agent.adapters.db import doris as db_connector
+from bi_agent.core import date_context
 from bi_agent.services import llm_client
 from bi_agent.services import prompt_service as _prompts_mod
 

@@ -1,15 +1,21 @@
 """
-llm_client.py — LLM 层（多模型路由 + Text-to-SQL）
-支持 Anthropic Prompt Cache，多 provider 统一接口。
+llm_client.py — Service 层 LLM 封装（v0.3.2 瘦身后）
+
+v0.3.2 重构：
+  - LLM 实际调用全部通过 adapters/llm/factory.get_adapter() 路由
+  - 本文件仅保留 service-level 业务（few-shot 装配 / Text-to-SQL prompt 装配 / 重试）
+  - cost 计算改用 adapters.llm.calculate_cost（与 provider 解耦）
+  - 不再 import anthropic / openai SDK；这是 adapters/llm/* 的责任
 """
 
 import json
 import os
 import re
 
-import anthropic
-import openai
+from bi_agent.adapters.llm import LLMRequest, get_adapter
 
+# Note: calculate_cost 定义在本模块下方（与 adapters.llm.calculate_cost 同语义；
+# 保留本地以兼容已有 `from bi_agent.services.llm_client import calculate_cost` 调用方）
 from bi_agent.config import (
     DEFAULT_MODEL,
     MAX_TOKENS_PER_QUERY,
@@ -217,14 +223,14 @@ def generate_sql(
             return _error_result(f"未设置 {provider} 的 API Key")
 
     try:
-        from schema_filter import filter_schema_for_question
+        from bi_agent.services.schema_filter import filter_schema_for_question
         filtered_schema = filter_schema_for_question(schema_text, question, max_tables=12)
     except Exception:
         filtered_schema = schema_text
 
     if business_context.strip():
         try:
-            from rag_retriever import retrieve_semantic_context
+            from bi_agent.services.rag_retriever import retrieve_semantic_context
             relevant_ctx = retrieve_semantic_context(question, business_context, top_k=5)
         except Exception:
             relevant_ctx = business_context
@@ -234,10 +240,7 @@ def generate_sql(
     system_prompt = build_system_prompt(filtered_schema, relevant_ctx, question)
     user_message = _build_user_message(question, history or [])
 
-    if provider == "anthropic":
-        return _invoke_anthropic(system_prompt, user_message, model_key, key, model_cfg)
-    else:
-        return _invoke_openai_compatible(system_prompt, user_message, model_key, key, model_cfg, provider)
+    return _invoke_via_adapter(system_prompt, user_message, model_key, key, model_cfg, provider)
 
 
 def _build_user_message(question: str, history: list) -> str:
@@ -267,76 +270,33 @@ def _build_user_message(question: str, history: list) -> str:
 
 # ── Provider calls ─────────────────────────────────────────────────────
 
-def _invoke_anthropic(system_prompt, user_message, model_key, api_key, model_cfg) -> dict:
-    base_url = PROVIDER_BASE_URLS.get("anthropic", "")
-    client_kwargs = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
-    client = anthropic.Anthropic(**client_kwargs, timeout=90.0)
-
-    try:
-        response = client.messages.create(
-            model=model_key,
-            max_tokens=MAX_TOKENS_PER_QUERY,
-            temperature=SQL_TEMPERATURE,
-            system=[{
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=[{"role": "user", "content": user_message}],
-        )
-        raw_text = response.content[0].text
-        parsed = _parse_llm_response(raw_text)
-        usage = response.usage
-        parsed["input_tokens"]  = usage.input_tokens
-        parsed["output_tokens"] = usage.output_tokens
-        parsed["cost_usd"] = calculate_cost(
-            usage.input_tokens, usage.output_tokens,
-            model_cfg["input_price"], model_cfg["output_price"],
-        )
-        return parsed
-    except anthropic.AuthenticationError:
-        return _error_result("Anthropic API Key 无效或已过期")
-    except anthropic.RateLimitError:
-        return _error_result("Anthropic API 调用频率超限，请稍后再试")
-    except Exception as e:
-        return _error_result(f"Anthropic 调用失败: {str(e)[:200]}")
-
-
-def _invoke_openai_compatible(system_prompt, user_message, model_key, api_key, model_cfg, provider) -> dict:
+def _invoke_via_adapter(system_prompt: str, user_message: str,
+                        model_key: str, api_key: str, model_cfg: dict, provider: str) -> dict:
+    """统一走 adapters/llm/factory；provider 路由 + 错误友好转换 + cost 计算。"""
     base_url = PROVIDER_BASE_URLS.get(provider, "")
-    client = openai.OpenAI(api_key=api_key, base_url=base_url, timeout=90.0)
-
+    req = LLMRequest(
+        model_key=model_key,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+        api_key=api_key,
+        base_url=base_url,
+        max_tokens=MAX_TOKENS_PER_QUERY,
+        temperature=SQL_TEMPERATURE,
+        enable_prompt_cache=(provider == "anthropic"),
+    )
     try:
-        response = client.chat.completions.create(
-            model=model_key,
-            max_tokens=MAX_TOKENS_PER_QUERY,
-            temperature=SQL_TEMPERATURE,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": user_message},
-            ],
-        )
-        raw_text = response.choices[0].message.content or ""
-        parsed = _parse_llm_response(raw_text)
-        input_tokens  = response.usage.prompt_tokens     if response.usage else 0
-        output_tokens = response.usage.completion_tokens if response.usage else 0
-        parsed["input_tokens"]  = input_tokens
-        parsed["output_tokens"] = output_tokens
-        parsed["cost_usd"] = calculate_cost(
-            input_tokens, output_tokens,
-            model_cfg["input_price"], model_cfg["output_price"],
-        )
-        return parsed
-    except openai.AuthenticationError:
-        return _error_result(f"{provider} API Key 无效")
-    except openai.RateLimitError:
-        return _error_result(f"{provider} 调用频率超限")
-    except openai.APIConnectionError:
-        return _error_result(f"无法连接到 {provider} API")
-    except Exception as e:
-        return _error_result(f"{provider} 调用失败: {str(e)[:200]}")
+        resp = get_adapter(provider).complete(req)
+    except RuntimeError as e:
+        return _error_result(str(e))
+
+    parsed = _parse_llm_response(resp.text)
+    parsed["input_tokens"] = resp.input_tokens
+    parsed["output_tokens"] = resp.output_tokens
+    parsed["cost_usd"] = calculate_cost(
+        resp.input_tokens, resp.output_tokens,
+        model_cfg["input_price"], model_cfg["output_price"],
+    )
+    return parsed
 
 
 # ── JSON parsing ───────────────────────────────────────────────────────
@@ -421,7 +381,4 @@ def fix_sql(question, schema_text, failed_sql, error_message,
         '格式: {"sql": "...", "explanation": "修正说明", "confidence": "high/medium/low", "error": ""}'
     )
 
-    if provider == "anthropic":
-        return _invoke_anthropic(system_prompt, fix_message, model_key, key, model_cfg)
-    else:
-        return _invoke_openai_compatible(system_prompt, fix_message, model_key, key, model_cfg, provider)
+    return _invoke_via_adapter(system_prompt, fix_message, model_key, key, model_cfg, provider)

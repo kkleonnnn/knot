@@ -4,12 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from bi_agent import config as cfg
-from bi_agent.core import db_connector
+from bi_agent.adapters.db import doris as db_connector
 from bi_agent.repositories import data_source_repo, settings_repo, user_repo
 from bi_agent.services import auth_service
+from bi_agent.services.engine_cache import invalidate_engine_cache
 
 from ..dependencies import require_admin
-from ..engine_cache import invalidate_engine_cache
 from ..schemas import (
     AgentModelConfigRequest,
     CreateUserRequest,

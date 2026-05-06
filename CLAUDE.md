@@ -89,6 +89,7 @@ v0.3.0（已合入）建立 4 层架构 `routers → services → repositories |
 | FIXME 标签 | 当前状态 | 升级动作 | 落地版本 |
 |-----------|---------|---------|---------|
 | ~~`FIXME-v0.3.1`~~ ✅ v0.3.1 已偿还 | `repositories` 仅禁 `routers` | 加上 `bi_agent.services` 到 `forbidden_modules` | v0.3.1 services 落地后 |
+| ~~`FIXME-v0.3.2`~~ ✅ v0.3.2 已偿还 | `repositories` 仅禁 `routers + services` | 加上 `bi_agent.adapters` + 新增 contract `adapters-no-business` | v0.3.2 adapters 落地后 |
 | `FIXME-v0.3.2` | `repositories` 仅禁 `routers / services` | 再加 `bi_agent.adapters` | v0.3.2 adapters 落地后 |
 | `FIXME-v0.3.3` | `core-no-models` 仅禁 `models / routers` | 完整 `forbidden_modules`：`models, routers, api, services, repositories, adapters` | v0.3.3 core 完全瘦身后 |
 
@@ -100,6 +101,7 @@ v0.3.0（已合入）建立 4 层架构 `routers → services → repositories |
 |-------|------|---------|
 | ✅ v0.3.0 | repos 拆分 + models 顶级包 + 工程化基线 | `pyproject.toml` / `.importlinter` / `pip install -e .` |
 | ✅ v0.3.1 | services/ 落地（含 knot/）+ 删 repos facade re-export + core 无业务化 | 9 个文件 git mv → services/[knot/]，repos 仅暴露 `init_db / get_conn` |
+| ✅ v0.3.2 | adapters/ 落地（llm/db/notification 协议驱动）+ services/llm_client 瘦身 | adapters/{llm,db,notification}/{base,...}.py，5 contracts KEPT |
 | ⏳ v0.3.2 | adapters/ 落地（llm/db/notification 协议） | `adapters/llm/openrouter.py` / `adapters/db/doris.py` / `adapters/notification/lark.py` (stub) |
 | ⏳ v0.3.3 | routers→api 改名 + core 完全瘦身 + contract 全锁 | 删除 3 处 FIXME |
 
