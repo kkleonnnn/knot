@@ -15,9 +15,12 @@ import date_context
 
 try:
     import catalog_loader as _cl
-    _OHX_RULES = _cl.BUSINESS_RULES
 except Exception:
-    _OHX_RULES = ""
+    _cl = None
+
+
+def _business_rules() -> str:
+    return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
 from config import (
     DEFAULT_MODEL, MAX_TOKENS_PER_QUERY,
     MODELS, PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
@@ -249,7 +252,7 @@ def run_sql_agent(
             "business_ctx": business_section,
             "today": date_context.today_iso(),
             "date_block": date_context.date_context_block(),
-            "business_rules": _OHX_RULES,
+            "business_rules": _business_rules(),
         },
     )
 

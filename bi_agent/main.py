@@ -22,6 +22,7 @@ from .routers import auth, conversations, query, database, uploads, knowledge, a
 from .routers import few_shots as few_shots_router
 from .routers import prompts as prompts_router
 from .routers import templates as templates_router
+from .routers import catalog as catalog_router
 
 app = FastAPI(title="BI-Agent", version="0.2.1")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -60,7 +61,8 @@ async def request_id_middleware(request: Request, call_next):
 
 for _router in [auth.router, conversations.router, query.router, database.router,
                 uploads.router, knowledge.router, admin.router,
-                few_shots_router.router, prompts_router.router, templates_router.router]:
+                few_shots_router.router, prompts_router.router, templates_router.router,
+                catalog_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

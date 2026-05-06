@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.2.5 业务目录可视化编辑
+
+### Added
+- **`/api/admin/catalog` 三件套**（GET/PUT/POST reset）：admin 后台维护表目录 / 业务词典 / 业务规则
+  - 存储：`app_settings` 三键 `catalog.tables` / `catalog.lexicon` / `catalog.business_rules`
+  - 粒度：每键独立覆盖；某键 DB 为空 → 该键继续走文件 fallback；点"恢复默认"清空 DB 覆盖
+- **前端「业务目录」tab**（侧边栏第 7 项）：3 块独立 textarea + 各自保存按钮 + DB 覆盖标记 + 恢复默认；JSON 校验前端兜底
+- **`catalog_loader.reload()`**：管理面保存后即时热更，无需重启进程；调用方（schema_filter / sql_agent / multi_agent）改为动态 `_cl.X` 读取，admin 改完下一次查询立刻生效
+- **加载优先级链**（DB → 真实 `ohx_catalog.py` → `ohx_catalog.example.py`）正式形成；非默认朋友测试无需改 .py，只在 admin 编辑即可
+
+### Changed
+- `schema_filter._LEX/_OHX_TABLES` 等模块级快照 → 函数 `_lex()/_ohx_tables()/_ohx_lookup()/_ohx_by_basename()`
+- `sql_agent._OHX_RULES` / `multi_agent._OHX_RULES` → `_business_rules()` 函数
+- `bi_agent/main.py` 注册 `catalog_router`
+
+### Verified
+- `pytest tests/eval -v`：1 passed / 6 skipped（example fallback 路径）
+- 热更冒烟：example → DB override → reload → reset → example，三态切换正确
+- `npm run build` 通过；新 tab 在管理员侧边栏正确出现
+
 ## [0.2.4.202604301802] - 2026-04-30 v0.2.4 待办收尾 + 隐私脱敏
 
 ### Added — v0.2.4 待办收尾 + 隐私脱敏
