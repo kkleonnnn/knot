@@ -1,14 +1,13 @@
 """
 main.py — BI-Agent FastAPI app factory
 Run: uvicorn bi_agent.main:app --reload --port 8000
+
+v0.3.0：sys.path hack 已干掉；本包通过 `pip install -e .` 由解释器原生识别。
 """
 
-import sys
 import mimetypes
 from pathlib import Path
 
-# Must happen before any core/ imports
-sys.path.insert(0, str(Path(__file__).parent / "core"))
 mimetypes.add_type("application/javascript", ".jsx")
 
 from fastapi import FastAPI, Request
@@ -16,19 +15,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-import persistence
-from logging_setup import logger, set_request_id, new_request_id
-from .routers import auth, conversations, query, database, uploads, knowledge, admin
-from .routers import few_shots as few_shots_router
-from .routers import prompts as prompts_router
-from .routers import templates as templates_router
-from .routers import catalog as catalog_router
+from bi_agent.repositories import init_db
+from bi_agent.core.logging_setup import logger, set_request_id, new_request_id
+from bi_agent.routers import auth, conversations, query, database, uploads, knowledge, admin
+from bi_agent.routers import few_shots as few_shots_router
+from bi_agent.routers import prompts as prompts_router
+from bi_agent.routers import templates as templates_router
+from bi_agent.routers import catalog as catalog_router
 
-app = FastAPI(title="BI-Agent", version="0.2.1")
+app = FastAPI(title="BI-Agent", version="0.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)
-persistence.init_db()
+init_db()
 
 
 @app.on_event("startup")

@@ -8,20 +8,20 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-import db_connector
-import llm_client
-import prompts as _prompts_mod
-import date_context
+from bi_agent.core import db_connector
+from bi_agent.core import llm_client
+from bi_agent.core import prompts as _prompts_mod
+from bi_agent.core import date_context
 
 try:
-    import catalog_loader as _cl
+    from bi_agent.core import catalog_loader as _cl
 except Exception:
     _cl = None
 
 
 def _business_rules() -> str:
     return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
-from config import (
+from bi_agent.config import (
     DEFAULT_MODEL, MAX_TOKENS_PER_QUERY,
     MODELS, PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
 )
@@ -226,8 +226,8 @@ def run_sql_agent(
     if _is_or:
         _app_key = ""
         try:
-            import persistence
-            _app_key = persistence.get_app_setting("openrouter_api_key", "") or ""
+            from bi_agent.repositories.settings_repo import get_app_setting
+            _app_key = get_app_setting("openrouter_api_key", "") or ""
         except Exception:
             pass
         key = openrouter_api_key or _app_key or PROVIDER_API_KEYS.get("openrouter", "")

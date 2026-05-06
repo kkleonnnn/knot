@@ -25,8 +25,8 @@ def get_prompt(agent_name: str, default: str, mapping: dict = None) -> str:
     """
     content = ""
     try:
-        import persistence
-        content = persistence.get_prompt_template(agent_name) or ""
+        from bi_agent.repositories.prompt_repo import get_prompt_template
+        content = get_prompt_template(agent_name) or ""
     except Exception:
         content = ""
     if content.strip():

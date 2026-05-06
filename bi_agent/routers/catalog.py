@@ -13,8 +13,9 @@ import json
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-import persistence
-import catalog_loader
+# v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
+from bi_agent.core import catalog_loader
 from ..dependencies import require_admin
 
 router = APIRouter()

@@ -9,7 +9,7 @@ import re
 import anthropic
 import openai
 
-from config import (
+from bi_agent.config import (
     MODELS, DEFAULT_MODEL,
     PROVIDER_BASE_URLS, PROVIDER_API_KEYS,
     MAX_TOKENS_PER_QUERY, SQL_TEMPERATURE,
@@ -36,8 +36,8 @@ def _load_few_shots() -> dict:
                 pass
 
     try:
-        import persistence
-        rows = persistence.list_few_shots(only_active=True)
+        from bi_agent.repositories.few_shot_repo import list_few_shots
+        rows = list_few_shots(only_active=True)
         if rows:
             return {
                 "examples": [
@@ -119,7 +119,7 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 你的唯一任务是把用户的自然语言问题转换成可执行的 SQL 查询语句。
 不要解释你自己，不要打招呼，只输出要求格式的 JSON。"""
 
-    import date_context
+    from bi_agent.core import date_context
     section_db = f"""## 数据库环境
 {date_context.date_context_block()}
 - 数据库类型: Apache Doris（完全兼容 MySQL 5.7 语法）
@@ -175,8 +175,8 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 
 def _app_or_key() -> str:
     try:
-        import persistence
-        return persistence.get_app_setting("openrouter_api_key", "") or ""
+        from bi_agent.repositories.settings_repo import get_app_setting
+        return get_app_setting("openrouter_api_key", "") or ""
     except Exception:
         return ""
 

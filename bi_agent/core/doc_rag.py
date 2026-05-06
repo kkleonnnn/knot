@@ -9,7 +9,7 @@ import json
 import re
 import openai
 
-from config import PROVIDER_BASE_URLS, PROVIDER_API_KEYS
+from bi_agent.config import PROVIDER_BASE_URLS, PROVIDER_API_KEYS
 
 EMBED_MODEL   = "text-embedding-3-small"
 CHUNK_SIZE    = 400   # chars
@@ -136,7 +136,7 @@ def search_docs(
     检索知识库，返回最相关的 top_k 段文本。
     有 embedding key → 向量检索；无 key → 关键词降级。
     """
-    from persistence import list_doc_chunks
+    from bi_agent.repositories.knowledge_repo import list_doc_chunks
 
     chunks = list_doc_chunks()
     if not chunks:
