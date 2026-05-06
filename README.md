@@ -20,7 +20,8 @@ Clarifier → SQL Planner → Presenter
 - **日期口径**（v0.2.3）：Asia/Shanghai 时区 + 完整日期枚举块（今天/昨天/最近7天/本周/上月 → 绝对日期），避免 LLM 把"昨天"映射到训练截止时间
 - **多源跨组检测**（v0.2.3）：跨连接组 SQL 直接报错，不再让 MySQL 回 Access denied 误导 LLM 报权限错
 - **Schema 检索 v2**（v0.2.3）：BM25 + 业务词典命中加分 + 主题重合 + 高优先表强制纳入，单次 prompt 上限 25 表 → 选 12 表
-- **隐私脱敏**（v0.2.4）：业务 catalog / few-shots / eval cases / fake schema 采用 `.example` 模板模式，真实文件 `.gitignore`，部署方按需复制为非 example 即可生效；缺失时自动回退 `.example` 默认
+- **隐私脱敏**（v0.2.4）：业务 catalog / few-shots / eval cases / fake schema 采用 `.example` 模板模式，真实文件 `.gitignore`；缺失时自动回退 `.example`
+- **业务目录可视化编辑**（v0.2.5）：admin 后台「业务目录」tab 直接编辑表目录 / 业务词典 / 业务规则，DB 覆盖文件默认；不编辑则用仓库默认（`ohx_catalog.example.py`）
 
 ## 快速开始
 
@@ -42,16 +43,22 @@ docker run -d -p 8000:8000 --env-file .env bi-agent
 
 ## 部署私有数据（可选）
 
-仓库默认带通用电商模板（`*.example.*`），可直接跑通。要接入自己的业务，复制并改名（这些路径已 gitignored，不会被 push 上去）：
+仓库默认带通用电商模板（`*.example.*`），可直接跑通。要接入业务，**有两种方式**：
+
+**A. admin 后台编辑（推荐 · v0.2.5）**：登录 → 侧边栏「业务目录」直接改表目录 / 词典 / 规则；保存即生效。
+
+**B. 文件部署**（持久 / git 管理）：复制 `.example` → 真实文件（已 `.gitignore`）：
 
 ```bash
-cp bi_agent/core/ohx_catalog.example.py  bi_agent/core/ohx_catalog.py     # 表目录 + 业务词典 + 业务规则
-cp bi_agent/core/few_shots.example.yaml  bi_agent/core/few_shots.yaml     # NL→SQL 示例
-cp tests/eval/cases.example.yaml         tests/eval/cases.yaml            # eval 用例
-cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt       # eval fake schema
+cp bi_agent/core/ohx_catalog.example.py  bi_agent/core/ohx_catalog.py
+cp bi_agent/core/few_shots.example.yaml  bi_agent/core/few_shots.yaml
+cp tests/eval/cases.example.yaml         tests/eval/cases.yaml
+cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 ```
 
-## 技术栈（v0.2.4）
+加载优先级：DB（A）> `ohx_catalog.py`（B）> `ohx_catalog.example.py`（仓库默认）。
+
+## 技术栈（v0.2.5）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru
 - **前端**：React 19 + Vite 8（构建产物输出至 `bi_agent/static/`）

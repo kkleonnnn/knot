@@ -19,11 +19,25 @@ from rag_retriever import _tokenize
 
 try:
     import catalog_loader as _cl
-    _LEX, _OHX_TABLES = _cl.LEXICON, _cl.TABLES
-    _OHX_LOOKUP = {f"{t['db']}.{t['table']}": t for t in _OHX_TABLES}
-    _OHX_BY_BASENAME = {t['table']: t for t in _OHX_TABLES}
 except Exception:
-    _LEX, _OHX_TABLES, _OHX_LOOKUP, _OHX_BY_BASENAME = {}, [], {}, {}
+    _cl = None
+
+
+def _lex():
+    return getattr(_cl, "LEXICON", {}) if _cl else {}
+
+
+def _ohx_tables():
+    return getattr(_cl, "TABLES", []) if _cl else []
+
+
+def _ohx_lookup():
+    """每次调用重建（轻量），admin 改后立即生效。"""
+    return {f"{t['db']}.{t['table']}": t for t in _ohx_tables()}
+
+
+def _ohx_by_basename():
+    return {t['table']: t for t in _ohx_tables()}
 
 
 def parse_schema_tables(schema_text: str) -> List[Tuple[str, str]]:
@@ -68,11 +82,12 @@ def _catalog_targets(question: str) -> dict:
     多个词命中累加。
     """
     targets: dict = {}
-    if not _LEX:
+    lex = _lex()
+    if not lex:
         return targets
     q = question
     q_lower = question.lower()
-    for term, table_list in _LEX.items():
+    for term, table_list in lex.items():
         if (re.search(r"[\u4e00-\u9fff]", term) and term in q) or term.lower() in q_lower:
             for i, full in enumerate(table_list):
                 bonus = 12 if i == 0 else (8 if i == 1 else 5)
@@ -82,7 +97,7 @@ def _catalog_targets(question: str) -> dict:
 
 def _topic_overlap(table_full_or_base: str, question: str) -> float:
     """表 catalog 中的 topics 与问题片段的重合 → 每命中 +3。"""
-    meta = _OHX_LOOKUP.get(table_full_or_base) or _OHX_BY_BASENAME.get(_basename(table_full_or_base))
+    meta = _ohx_lookup().get(table_full_or_base) or _ohx_by_basename().get(_basename(table_full_or_base))
     if not meta:
         return 0.0
     score = 0.0

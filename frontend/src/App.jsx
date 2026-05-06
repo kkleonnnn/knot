@@ -55,6 +55,7 @@ export default function App() {
   const adminTabMap = {
     'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
+    'admin-catalog': 'catalog',
   };
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;

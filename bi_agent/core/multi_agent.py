@@ -13,9 +13,12 @@ import date_context
 
 try:
     import catalog_loader as _cl
-    _OHX_RULES = _cl.BUSINESS_RULES
 except Exception:
-    _OHX_RULES = ""
+    _cl = None
+
+
+def _business_rules() -> str:
+    return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
 
 
 def _today() -> str:
@@ -192,7 +195,7 @@ def run_clarifier(
         {
             "schema": schema_slice, "history": history_text,
             "today": _today(), "date_block": _date_block(),
-            "business_rules": _OHX_RULES,
+            "business_rules": _business_rules(),
         },
     )
 
@@ -279,7 +282,7 @@ def run_presenter(
         "presenter", _PRESENTER_SYS,
         {
             "today": _today(), "date_block": _date_block(),
-            "business_rules": _OHX_RULES,
+            "business_rules": _business_rules(),
         },
     )
     try:

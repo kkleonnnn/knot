@@ -57,6 +57,8 @@ export function AppShell({
                             onClick={() => onNavigate('admin-fewshots')}/>
                 <SideNavRow T={T} icon={<I.pencil/>} label="Prompt 模板" active={active === 'admin-prompts'}
                             onClick={() => onNavigate('admin-prompts')}/>
+                <SideNavRow T={T} icon={<I.gear/>} label="业务目录" active={active === 'admin-catalog'}
+                            onClick={() => onNavigate('admin-catalog')}/>
               </>
             )}
             <div style={{ flex: 1 }}/>
