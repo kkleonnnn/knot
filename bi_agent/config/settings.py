@@ -6,7 +6,7 @@
   - 推荐写法：`from bi_agent.config import settings; settings.DEFAULT_MODEL`
 """
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv

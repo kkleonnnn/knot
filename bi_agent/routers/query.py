@@ -6,16 +6,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from bi_agent import config as cfg
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from bi_agent.core import db_connector
-from bi_agent.core import doc_rag
-from bi_agent.core import sql_agent as agent_module
-from bi_agent.core import multi_agent as multi_agent_module
-from bi_agent.core import llm_client
 from bi_agent.core.logging_setup import logger
+from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
+from bi_agent.services import llm_client
+from bi_agent.services import rag_service as doc_rag
+from bi_agent.services.knot import orchestrator as multi_agent_module
+from bi_agent.services.knot import sql_planner as agent_module
+
 from ..dependencies import get_current_user
-from ..engine_cache import get_user_engine, _upload_engine
+from ..engine_cache import _upload_engine, get_user_engine
 from ..schemas import QueryRequest
 
 router = APIRouter()
@@ -49,12 +51,12 @@ def _enrich_semantic(question: str, base_semantic: str, api_key: str, openrouter
 
 @router.post("/api/conversations/{conv_id}/query")
 async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user)):
-    convs = persistence.list_conversations(user["id"])
+    convs = conversation_repo.list_conversations(user["id"])
     if not any(c["id"] == conv_id for c in convs):
         raise HTTPException(status_code=404)
 
     if req.upload_id:
-        rec = persistence.get_file_upload(req.upload_id)
+        rec = upload_repo.get_file_upload(req.upload_id)
         if not rec or rec["user_id"] != user["id"]:
             raise HTTPException(status_code=404, detail="上传文件不存在")
         engine = _upload_engine
@@ -65,19 +67,19 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
             raise HTTPException(status_code=400, detail="数据库未配置或连接失败，请联系管理员")
 
     api_key = req.api_key or user.get("api_key") or ""
-    openrouter_api_key = persistence.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
-    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
+    openrouter_api_key = settings_repo.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
+    embedding_api_key = settings_repo.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
     model_key = _resolve_model(
         req.model_key or user.get("preferred_model") or cfg.DEFAULT_MODEL,
         user, api_key, openrouter_api_key,
     )
 
     semantic = _enrich_semantic(
-        req.question, persistence.get_semantic_layer(),
+        req.question, message_repo.get_semantic_layer(),
         api_key, openrouter_api_key, embedding_api_key,
     )
     history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10]}
-               for m in persistence.get_messages(conv_id)[-3:]]
+               for m in message_repo.get_messages(conv_id)[-3:]]
 
     t0 = time.time()
     retry_count = 0
@@ -148,7 +150,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
     query_time_ms = int((time.time() - t0) * 1000)
 
-    mid = persistence.save_message(
+    mid = message_repo.save_message(
         conv_id=conv_id, question=req.question, sql=sql,
         explanation=explanation, confidence=confidence,
         rows=rows[:cfg.MAX_RESULT_ROWS], db_error=error,
@@ -156,12 +158,12 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         output_tokens=output_tokens, retry_count=retry_count,
     )
 
-    all_msgs = persistence.get_messages(conv_id)
+    all_msgs = message_repo.get_messages(conv_id)
     if len(all_msgs) == 1:
         title = req.question[:30] + ("…" if len(req.question) > 30 else "")
-        persistence.update_conversation_title(conv_id, title)
+        conversation_repo.update_conversation_title(conv_id, title)
 
-    persistence.update_user_usage(user["id"], input_tokens, output_tokens, cost_usd, query_time_ms)
+    user_repo.update_user_usage(user["id"], input_tokens, output_tokens, cost_usd, query_time_ms)
 
     return {
         "id": mid, "question": req.question, "sql": sql,
@@ -175,12 +177,12 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
 @router.post("/api/conversations/{conv_id}/query-stream")
 async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current_user)):
-    convs = persistence.list_conversations(user["id"])
+    convs = conversation_repo.list_conversations(user["id"])
     if not any(c["id"] == conv_id for c in convs):
         raise HTTPException(status_code=404)
 
     if req.upload_id:
-        rec = persistence.get_file_upload(req.upload_id)
+        rec = upload_repo.get_file_upload(req.upload_id)
         if not rec or rec["user_id"] != user["id"]:
             raise HTTPException(status_code=404, detail="上传文件不存在")
         engine = _upload_engine
@@ -191,21 +193,21 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             raise HTTPException(status_code=400, detail="数据库未配置或连接失败，请联系管理员")
 
     api_key = req.api_key or user.get("api_key") or ""
-    openrouter_api_key = persistence.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
-    embedding_api_key = persistence.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
+    openrouter_api_key = settings_repo.get_app_setting("openrouter_api_key", "") or user.get("openrouter_api_key") or ""
+    embedding_api_key = settings_repo.get_app_setting("embedding_api_key", "") or user.get("embedding_api_key") or ""
     model_key = _resolve_model(
         req.model_key or user.get("preferred_model") or cfg.DEFAULT_MODEL,
         user, api_key, openrouter_api_key,
     )
 
     semantic = _enrich_semantic(
-        req.question, persistence.get_semantic_layer(),
+        req.question, message_repo.get_semantic_layer(),
         api_key, openrouter_api_key, embedding_api_key,
     )
     history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10]}
-               for m in persistence.get_messages(conv_id)[-3:]]
+               for m in message_repo.get_messages(conv_id)[-3:]]
 
-    user_agent_cfg = persistence.get_agent_model_config()
+    user_agent_cfg = settings_repo.get_agent_model_config()
 
     def _agent_key(role: str) -> str:
         m = user_agent_cfg.get(role) or model_key
@@ -252,17 +254,17 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
             if not clarifier_result["is_clear"]:
                 cq = clarifier_result["clarification_question"] or "请补充更多信息"
-                mid = persistence.save_message(
+                mid = message_repo.save_message(
                     conv_id=conv_id, question=req.question,
                     sql="", explanation=cq, confidence="low",
                     rows=[], db_error="",
                     cost_usd=total_cost, input_tokens=total_input,
                     output_tokens=total_output, retry_count=0,
                 )
-                all_msgs = persistence.get_messages(conv_id)
+                all_msgs = message_repo.get_messages(conv_id)
                 if len(all_msgs) == 1:
-                    persistence.update_conversation_title(conv_id, req.question[:30])
-                persistence.update_user_usage(user["id"], total_input, total_output, total_cost, 0)
+                    conversation_repo.update_conversation_title(conv_id, req.question[:30])
+                user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, 0)
                 yield emit({"type": "clarification_needed", "question": cq,
                             "message_id": mid, "input_tokens": total_input,
                             "output_tokens": total_output, "cost_usd": total_cost})
@@ -315,7 +317,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
             final_rows = (sql_result.rows or [])[:cfg.MAX_RESULT_ROWS]
             query_time_ms = int((time.time() - t0) * 1000)
-            mid = persistence.save_message(
+            mid = message_repo.save_message(
                 conv_id=conv_id, question=req.question,
                 sql=sql_result.sql,
                 explanation=clarifier_result["analysis_approach"] or sql_result.explanation,
@@ -324,11 +326,11 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 cost_usd=total_cost, input_tokens=total_input,
                 output_tokens=total_output, retry_count=retry_count,
             )
-            all_msgs = persistence.get_messages(conv_id)
+            all_msgs = message_repo.get_messages(conv_id)
             if len(all_msgs) == 1:
                 title = req.question[:30] + ("…" if len(req.question) > 30 else "")
-                persistence.update_conversation_title(conv_id, title)
-            persistence.update_user_usage(user["id"], total_input, total_output, total_cost, query_time_ms)
+                conversation_repo.update_conversation_title(conv_id, title)
+            user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, query_time_ms)
 
             yield emit({
                 "type": "final", "message_id": mid,

@@ -1,6 +1,5 @@
 """业务目录领域模型（KNOT 业务规则注入用）。"""
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass

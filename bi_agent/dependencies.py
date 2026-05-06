@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 
 import jwt
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from bi_agent.repositories.user_repo import get_user_by_id
 
 JWT_SECRET = os.getenv("JWT_SECRET", "bi-agent-secret-change-in-production")

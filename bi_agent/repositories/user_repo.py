@@ -1,6 +1,6 @@
+"""user_repo — users 表 CRUD + 用量统计。"""
 from __future__ import annotations
 
-"""user_repo — users 表 CRUD + 用量统计。"""
 import json
 import sqlite3
 

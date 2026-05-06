@@ -2,8 +2,8 @@
 
 LLMAdapter 协议（v0.3.2 落地）将以这些 dataclass 作为输入输出契约。
 """
-from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from dataclasses import dataclass
+from typing import Literal
 
 ProviderKind = Literal[
     "openrouter", "anthropic", "openai",

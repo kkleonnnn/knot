@@ -13,12 +13,11 @@ catalog 命中只是"加分项"，不是"白名单"。
 """
 
 import re
-from typing import List, Tuple
 
-from bi_agent.core.rag_retriever import _tokenize
+from bi_agent.services.rag_retriever import _tokenize
 
 try:
-    from bi_agent.core import catalog_loader as _cl
+    from bi_agent.services.knot import catalog as _cl
 except Exception:
     _cl = None
 
@@ -40,11 +39,11 @@ def _ohx_by_basename():
     return {t['table']: t for t in _ohx_tables()}
 
 
-def parse_schema_tables(schema_text: str) -> List[Tuple[str, str]]:
+def parse_schema_tables(schema_text: str) -> list[tuple[str, str]]:
     """切分 schema 文本为 [(table_name, table_md_block), ...]。
     table_name 可能带 db.tbl 前缀或纯表名（取决于 db_connector.get_schema 输出）。
     """
-    tables: List[Tuple[str, str]] = []
+    tables: list[tuple[str, str]] = []
     parts = re.split(r'\n(?=### )', schema_text)
     for part in parts:
         part = part.strip()

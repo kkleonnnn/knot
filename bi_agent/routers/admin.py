@@ -3,16 +3,19 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from bi_agent.core import auth_utils
 from bi_agent import config as cfg
 from bi_agent.core import db_connector
-# v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
+from bi_agent.repositories import data_source_repo, settings_repo, user_repo
+from bi_agent.services import auth_service
+
 from ..dependencies import require_admin
 from ..engine_cache import invalidate_engine_cache
 from ..schemas import (
-    AgentModelConfigRequest, CreateUserRequest, DataSourceRequest,
-    UpdateDataSourceRequest, UpdateUserRequest,
+    AgentModelConfigRequest,
+    CreateUserRequest,
+    DataSourceRequest,
+    UpdateDataSourceRequest,
+    UpdateUserRequest,
 )
 
 router = APIRouter()
@@ -22,8 +25,8 @@ router = APIRouter()
 
 @router.get("/api/admin/users")
 async def admin_list_users(admin=Depends(require_admin)):
-    users = persistence.list_users()
-    user_sources_map = persistence.get_all_user_source_ids()
+    users = user_repo.list_users()
+    user_sources_map = data_source_repo.get_all_user_source_ids()
     return [
         {
             "id": u["id"],
@@ -45,14 +48,14 @@ _VALID_ROLES = {"admin", "analyst"}
 async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)):
     if req.role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
-    ph = auth_utils.hash_password(req.password)
-    ok = persistence.create_user(
+    ph = auth_service.hash_password(req.password)
+    ok = user_repo.create_user(
         req.username, ph, req.display_name or req.username, req.role,
         req.doris_host, req.doris_port, req.doris_user, req.doris_password, req.doris_database,
     )
     if not ok:
         raise HTTPException(status_code=400, detail="用户名已存在")
-    user = persistence.get_user_by_username(req.username)
+    user = user_repo.get_user_by_username(req.username)
     return {"id": user["id"], "username": user["username"], "ok": True}
 
 
@@ -64,11 +67,11 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(
     if "default_source_id" in req.__fields_set__:
         kwargs["default_source_id"] = req.default_source_id
     if req.password:
-        kwargs["password_hash"] = auth_utils.hash_password(req.password)
+        kwargs["password_hash"] = auth_service.hash_password(req.password)
     if kwargs:
-        persistence.update_user(user_id, **kwargs)
+        user_repo.update_user(user_id, **kwargs)
     if "source_ids" in req.__fields_set__:
-        persistence.set_user_sources(user_id, req.source_ids or [])
+        data_source_repo.set_user_sources(user_id, req.source_ids or [])
     invalidate_engine_cache(user_id)
     return {"ok": True}
 
@@ -77,7 +80,7 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(
 async def admin_delete_user(user_id: int, admin=Depends(require_admin)):
     if user_id == admin["id"]:
         raise HTTPException(status_code=400, detail="无法删除自己的账号")
-    persistence.update_user(user_id, is_active=0)
+    user_repo.update_user(user_id, is_active=0)
     return {"ok": True}
 
 
@@ -85,7 +88,7 @@ async def admin_delete_user(user_id: int, admin=Depends(require_admin)):
 
 @router.get("/api/admin/datasources")
 async def admin_list_datasources(admin=Depends(require_admin)):
-    sources = persistence.list_datasources()
+    sources = data_source_repo.list_datasources()
 
     def _test_source(s):
         try:
@@ -119,7 +122,7 @@ async def admin_list_datasources(admin=Depends(require_admin)):
 
 @router.post("/api/admin/datasources")
 async def admin_create_datasource(req: DataSourceRequest, admin=Depends(require_admin)):
-    sid = persistence.create_datasource(
+    sid = data_source_repo.create_datasource(
         user_id=admin["id"], name=req.name, description=req.description,
         db_host=req.db_host, db_port=req.db_port, db_user=req.db_user,
         db_password=req.db_password, db_database=req.db_database, db_type=req.db_type,
@@ -131,13 +134,13 @@ async def admin_create_datasource(req: DataSourceRequest, admin=Depends(require_
 async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, admin=Depends(require_admin)):
     kwargs = {k: v for k, v in req.dict().items() if v is not None}
     if kwargs:
-        persistence.update_datasource(source_id, **kwargs)
+        data_source_repo.update_datasource(source_id, **kwargs)
     return {"ok": True}
 
 
 @router.delete("/api/admin/datasources/{source_id}")
 async def admin_delete_datasource(source_id: int, admin=Depends(require_admin)):
-    persistence.delete_datasource(source_id)
+    data_source_repo.delete_datasource(source_id)
     return {"ok": True}
 
 
@@ -145,7 +148,7 @@ async def admin_delete_datasource(source_id: int, admin=Depends(require_admin)):
 
 @router.get("/api/admin/models")
 async def admin_list_models(admin=Depends(require_admin)):
-    settings_map = {s["model_key"]: s for s in persistence.get_model_settings()}
+    settings_map = {s["model_key"]: s for s in settings_repo.get_model_settings()}
     return [
         {
             "id": key, "model_id": key,
@@ -162,7 +165,7 @@ async def admin_list_models(admin=Depends(require_admin)):
 async def admin_set_default_model(model_key: str, admin=Depends(require_admin)):
     if model_key not in cfg.MODELS:
         raise HTTPException(status_code=404, detail="模型不存在")
-    persistence.set_default_model(model_key)
+    settings_repo.set_default_model(model_key)
     return {"ok": True}
 
 
@@ -170,9 +173,9 @@ async def admin_set_default_model(model_key: str, admin=Depends(require_admin)):
 async def admin_toggle_model(model_key: str, admin=Depends(require_admin)):
     if model_key not in cfg.MODELS:
         raise HTTPException(status_code=404, detail="模型不存在")
-    settings_map = {s["model_key"]: s for s in persistence.get_model_settings()}
+    settings_map = {s["model_key"]: s for s in settings_repo.get_model_settings()}
     current_enabled = settings_map.get(model_key, {}).get("enabled", 1)
-    persistence.set_model_enabled(model_key, 0 if current_enabled else 1)
+    settings_repo.set_model_enabled(model_key, 0 if current_enabled else 1)
     return {"ok": True, "enabled": 0 if current_enabled else 1}
 
 
@@ -180,7 +183,7 @@ async def admin_toggle_model(model_key: str, admin=Depends(require_admin)):
 
 @router.get("/api/admin/agent-models")
 async def get_agent_model_config(admin=Depends(require_admin)):
-    config = persistence.get_agent_model_config()
+    config = settings_repo.get_agent_model_config()
     return {
         "clarifier":   config.get("clarifier", ""),
         "sql_planner": config.get("sql_planner", ""),
@@ -190,7 +193,7 @@ async def get_agent_model_config(admin=Depends(require_admin)):
 
 @router.put("/api/admin/agent-models")
 async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(require_admin)):
-    persistence.set_agent_model_config({
+    settings_repo.set_agent_model_config({
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,
         "presenter":   req.presenter,
@@ -203,17 +206,17 @@ async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(req
 @router.get("/api/admin/api-keys")
 async def get_api_keys(admin=Depends(require_admin)):
     return {
-        "openrouter_api_key": persistence.get_app_setting("openrouter_api_key", ""),
-        "embedding_api_key":  persistence.get_app_setting("embedding_api_key", ""),
+        "openrouter_api_key": settings_repo.get_app_setting("openrouter_api_key", ""),
+        "embedding_api_key":  settings_repo.get_app_setting("embedding_api_key", ""),
     }
 
 
 @router.put("/api/admin/api-keys")
 async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
     if "openrouter_api_key" in payload:
-        persistence.set_app_setting("openrouter_api_key", payload["openrouter_api_key"] or "")
+        settings_repo.set_app_setting("openrouter_api_key", payload["openrouter_api_key"] or "")
     if "embedding_api_key" in payload:
-        persistence.set_app_setting("embedding_api_key", payload["embedding_api_key"] or "")
+        settings_repo.set_app_setting("embedding_api_key", payload["embedding_api_key"] or "")
     return {"ok": True}
 
 
@@ -221,11 +224,11 @@ async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
 
 @router.get("/api/admin/stats")
 async def admin_stats(admin=Depends(require_admin)):
-    users = persistence.list_users()
-    sources = persistence.list_datasources()
+    users = user_repo.list_users()
+    sources = data_source_repo.list_datasources()
     return {
         "total_users":     len(users),
         "total_admins":    sum(1 for u in users if u["role"] == "admin"),
         "total_sources":   len(sources),
-        "monthly_cost_usd": persistence.get_monthly_cost(),
+        "monthly_cost_usd": user_repo.get_monthly_cost(),
     }

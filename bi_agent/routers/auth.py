@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from bi_agent.core import auth_utils
 from bi_agent import config as cfg
+from bi_agent.services import auth_service
+
 from ..dependencies import create_token, get_current_user
 from ..schemas import LoginRequest
 
@@ -10,7 +11,7 @@ router = APIRouter()
 
 @router.post("/api/auth/login")
 async def login(req: LoginRequest):
-    user = auth_utils.authenticate(req.username.strip(), req.password)
+    user = auth_service.authenticate(req.username.strip(), req.password)
     if not user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     return {

@@ -77,9 +77,9 @@ def _load_from_db() -> tuple:
             pass
     if raw_lex.strip():
         try:
-            l = json.loads(raw_lex)
-            if isinstance(l, dict):
-                lex = l
+            parsed = json.loads(raw_lex)
+            if isinstance(parsed, dict):
+                lex = parsed
         except Exception:
             pass
 

@@ -44,9 +44,8 @@ forbidden_modules =
 
 # ── Contract 4: repositories / adapters 之间不互相依赖 ──
 [importlinter:contract:repos-no-business]
-name = repositories 不得 import routers / 任何业务编排层
+name = repositories 不得 import routers / services / 任何业务编排层
 type = forbidden
 source_modules = bi_agent.repositories
-forbidden_modules = bi_agent.routers
-# FIXME-v0.3.1: 加上 bi_agent.services
+forbidden_modules = bi_agent.routers, bi_agent.services
 # FIXME-v0.3.2: 加上 bi_agent.adapters

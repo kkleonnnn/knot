@@ -5,8 +5,9 @@ v0.2.2: validator 已移除；仍存在的 validator 模板会被忽略（保留
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
+from bi_agent.repositories import prompt_repo
+
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import require_admin
 
 router = APIRouter()
@@ -16,7 +17,7 @@ VALID_AGENTS = {"clarifier", "sql_planner", "presenter"}
 
 @router.get("/api/prompts")
 async def list_prompts(admin=Depends(require_admin)):
-    rows = persistence.list_prompt_templates()
+    rows = prompt_repo.list_prompt_templates()
     return rows
 
 
@@ -24,7 +25,7 @@ async def list_prompts(admin=Depends(require_admin)):
 async def get_prompt(agent_name: str, admin=Depends(require_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
-    return {"agent_name": agent_name, "content": persistence.get_prompt_template(agent_name)}
+    return {"agent_name": agent_name, "content": prompt_repo.get_prompt_template(agent_name)}
 
 
 @router.put("/api/prompts/{agent_name}")
@@ -32,7 +33,7 @@ async def set_prompt(agent_name: str, payload: dict = Body(...), admin=Depends(r
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     content = payload.get("content", "")
-    persistence.set_prompt_template(agent_name, content, updated_by=admin["id"])
+    prompt_repo.set_prompt_template(agent_name, content, updated_by=admin["id"])
     return {"ok": True}
 
 
@@ -40,7 +41,7 @@ async def set_prompt(agent_name: str, payload: dict = Body(...), admin=Depends(r
 async def delete_prompt(agent_name: str, admin=Depends(require_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
-    persistence.delete_prompt_template(agent_name)
+    prompt_repo.delete_prompt_template(agent_name)
     return {"ok": True}
 
 
@@ -51,8 +52,9 @@ async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_adm
     if not fname.endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
     try:
-        from openpyxl import load_workbook
         from io import BytesIO
+
+        from openpyxl import load_workbook
         data = await file.read()
         wb = load_workbook(filename=BytesIO(data), data_only=True)
         ws = wb.active
@@ -67,7 +69,7 @@ async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_adm
             content = d.get("content") or ""
             content = str(content) if content is not None else ""
             if agent in VALID_AGENTS and content.strip():
-                persistence.set_prompt_template(agent, content, updated_by=admin["id"])
+                prompt_repo.set_prompt_template(agent, content, updated_by=admin["id"])
                 n += 1
     except HTTPException:
         raise

@@ -1,6 +1,6 @@
+"""conversation_repo — conversations 表 CRUD。"""
 from __future__ import annotations
 
-"""conversation_repo — conversations 表 CRUD。"""
 from bi_agent.repositories.base import get_conn
 
 

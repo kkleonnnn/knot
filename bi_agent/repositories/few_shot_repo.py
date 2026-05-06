@@ -1,6 +1,6 @@
+"""few_shot_repo — few_shots 表 CRUD。"""
 from __future__ import annotations
 
-"""few_shot_repo — few_shots 表 CRUD。"""
 from bi_agent.repositories.base import get_conn
 
 

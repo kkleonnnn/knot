@@ -7,9 +7,10 @@ embedding 使用 OpenAI text-embedding-3-small（兼容 OpenRouter）；
 
 import json
 import re
+
 import openai
 
-from bi_agent.config import PROVIDER_BASE_URLS, PROVIDER_API_KEYS
+from bi_agent.config import PROVIDER_API_KEYS, PROVIDER_BASE_URLS
 
 EMBED_MODEL   = "text-embedding-3-small"
 CHUNK_SIZE    = 400   # chars
@@ -63,8 +64,9 @@ def parse_document(file_bytes: bytes, filename: str) -> str:
     fname = filename.lower()
     if fname.endswith(".pdf"):
         try:
-            from pypdf import PdfReader
             import io
+
+            from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(file_bytes))
             pages  = [p.extract_text() or "" for p in reader.pages]
             text   = "\n\n".join(t for t in pages if t.strip())
