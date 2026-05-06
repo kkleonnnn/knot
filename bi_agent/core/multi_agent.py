@@ -7,12 +7,12 @@ v0.2.2: Validator agent removed; Presenter prompt now does light anomaly check i
 import json
 import re
 
-import llm_client
-import prompts as _prompts_mod
-import date_context
+from bi_agent.core import llm_client
+from bi_agent.core import prompts as _prompts_mod
+from bi_agent.core import date_context
 
 try:
-    import catalog_loader as _cl
+    from bi_agent.core import catalog_loader as _cl
 except Exception:
     _cl = None
 
@@ -27,7 +27,7 @@ def _today() -> str:
 
 def _date_block() -> str:
     return date_context.date_context_block()
-from config import (
+from bi_agent.config import (
     MODELS, DEFAULT_MODEL,
     PROVIDER_API_KEYS, PROVIDER_BASE_URLS,
 )
@@ -37,8 +37,8 @@ from config import (
 
 def _app_or_key() -> str:
     try:
-        import persistence
-        return persistence.get_app_setting("openrouter_api_key", "") or ""
+        from bi_agent.repositories.settings_repo import get_app_setting
+        return get_app_setting("openrouter_api_key", "") or ""
     except Exception:
         return ""
 

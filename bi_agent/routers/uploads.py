@@ -5,8 +5,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-import db_connector
-import persistence
+from bi_agent.core import db_connector
+# v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import get_current_user
 from ..engine_cache import _upload_engine
 

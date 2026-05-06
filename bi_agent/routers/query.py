@@ -5,14 +5,15 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-import config as cfg
-import persistence
-import db_connector
-import doc_rag
-import sql_agent as agent_module
-import multi_agent as multi_agent_module
-import llm_client
-from logging_setup import logger
+from bi_agent import config as cfg
+# v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
+from bi_agent.core import db_connector
+from bi_agent.core import doc_rag
+from bi_agent.core import sql_agent as agent_module
+from bi_agent.core import multi_agent as multi_agent_module
+from bi_agent.core import llm_client
+from bi_agent.core.logging_setup import logger
 from ..dependencies import get_current_user
 from ..engine_cache import get_user_engine, _upload_engine
 from ..schemas import QueryRequest

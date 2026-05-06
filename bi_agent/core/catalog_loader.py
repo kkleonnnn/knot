@@ -57,13 +57,13 @@ def _load_from_files() -> tuple:
 def _load_from_db() -> tuple:
     """返回 (lexicon, tables, business_rules, found_any)。"""
     try:
-        import persistence
+        from bi_agent.repositories.settings_repo import get_app_setting
     except Exception:
         return {}, [], "", False
     try:
-        raw_tables = persistence.get_app_setting("catalog.tables") or ""
-        raw_lex = persistence.get_app_setting("catalog.lexicon") or ""
-        rules = persistence.get_app_setting("catalog.business_rules") or ""
+        raw_tables = get_app_setting("catalog.tables") or ""
+        raw_lex = get_app_setting("catalog.lexicon") or ""
+        rules = get_app_setting("catalog.business_rules") or ""
     except Exception:
         return {}, [], "", False
 

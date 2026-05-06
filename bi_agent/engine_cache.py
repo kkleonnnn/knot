@@ -5,10 +5,10 @@ from pathlib import Path
 
 from sqlalchemy import text as _sa_text
 
-import config as cfg
-import persistence
-import db_connector
-from logging_setup import logger
+from bi_agent import config as cfg
+from bi_agent.repositories import data_source_repo, user_repo
+from bi_agent.core import db_connector
+from bi_agent.core.logging_setup import logger
 
 # v0.2.4: uploads.db 已合并入 bi_agent.db；上传表与业务表共用一个 SQLite 文件。
 # 老 uploads.db 的迁移在 persistence.init_db() 一次性完成（幂等）。
@@ -163,12 +163,12 @@ def get_user_engine(user: dict):
     uid = user["id"]
     now = time.time()
 
-    source_ids = persistence.get_user_source_ids(uid)
+    source_ids = data_source_repo.get_user_source_ids(uid)
     if not source_ids and user.get("default_source_id"):
         source_ids = [user["default_source_id"]]
 
     if source_ids:
-        sources = [s for sid in source_ids if (s := persistence.get_datasource(sid)) and s["is_active"]]
+        sources = [s for sid in source_ids if (s := data_source_repo.get_datasource(sid)) and s["is_active"]]
         if sources:
             # 按 (host, port, user) 分组
             groups: dict = defaultdict(list)

@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.3.0 工程化重构（第 1 刀 / 4）
+
+> 协议驱动重构 · "数据形状 vs 逻辑行为" 物理隔离 · 为 v1.0 Go 重写铺路。
+> 本 PATCH = 4-PATCH 渐进式重构计划的第 1 刀。
+
+### Added — 工程化基线（一次性）
+- **`pyproject.toml` + `setup.py`**：`pip install -e ".[dev]"` 让 `bi_agent` 成为标准 Python 包，**根治 sys.path hack**
+- **`.importlinter`**：4 层架构 contract（routers → services → repositories | adapters → models），CI 强制不可绕过
+  - 当前 4 条 contract 全部 KEPT：layered / models-is-leaf / core-no-models / repositories-no-business
+  - FIXME 标注 contract 升级点：v0.3.1（services 落地）/ v0.3.2（adapters 落地）/ v0.3.3（routers→api 改名 + core 完全瘦身）
+- **`.pre-commit-config.yaml`**：ruff + ruff-format + import-linter
+- **`.github/workflows/ci.yml`**：lint + import-linter + pytest + boot smoke 全跑
+- **`requirements-dev.txt`**：ruff / pytest / import-linter / pre-commit
+- **`scripts/refactor/v0.3.0_migration.sh` + `_rollback.sh`**：审计证据，永久仓库保留
+
+### Added — `bi_agent/models/` 顶级包（10 领域叶子文件）
+- **纯数据形状层**，仅 stdlib + dataclass：`user / conversation / data_source / agent / llm / catalog / few_shot / prompt / knowledge / setting`
+- 1:1 对应 Go 重写时的 `internal/domain/*.go` struct
+- import-linter 强制叶子：禁止 import bi_agent 内任何子包
+
+### Added — `bi_agent/config/` 子包
+- 集中加载 `.env`，导出 `settings: Settings` 单例 + 模块级常量（向后兼容 `from bi_agent.config import X`）
+- 业务代码不得直接 `os.getenv`
+
+### Added — `bi_agent/repositories/` 9 模块
+- 拆分原 `persistence.py` 758 行 → `user_repo / conversation_repo / message_repo / data_source_repo / settings_repo / few_shot_repo / prompt_repo / knowledge_repo / upload_repo`
+- `base.py` 提供 `get_conn() / init_db()`；`schema.sql` 集中所有 `CREATE TABLE`
+- 向后兼容 facade：`bi_agent/repositories/__init__.py` re-export 全部 30+ 函数（FIXME-v0.3.1 删除）
+
+### Changed — 全局裸名 import 重写（~30 文件）
+- `import persistence` → `from bi_agent.repositories.X_repo import ...`
+- `from config import X` → `from bi_agent.config import X`
+- `import auth_utils / llm_client / multi_agent / sql_agent / catalog_loader / db_connector / doc_rag / prompts / schema_filter / rag_retriever / date_context / logging_setup`
+  → `from bi_agent.core.X import ...`
+- `main.py` 删除 `sys.path.insert(0, .../core)`
+
+### Removed
+- `bi_agent/core/persistence.py`（拆完即删）
+- `bi_agent/core/config.py`（拆完即删，所有引用走 `bi_agent.config`）
+
+### BREAKING
+- 部署方 / 合作伙伴的外部脚本若 `import persistence`、`from config import X` 等裸名调用 → **必须改写**为 `from bi_agent.X.Y import Z` 绝对路径
+- `pip install -e ".[dev]"` 是新的安装入口（替代 `pip install -r requirements.txt`）
+- `bi_agent/core/persistence.py` 与 `config.py` 物理删除，老导入路径不可用
+
+### Verified
+- `pytest tests/repositories tests/models -v`：47 passed（新增 30+ 条 happy-path unit + models 叶子约束 verify）
+- `pytest tests/ -v`：48 passed / 6 skipped（含 v0.2.5 eval 结构 check）
+- `lint-imports`：4 contracts KEPT, 0 broken
+- `python -c "from bi_agent.main import app"`：54 routes，启动正常
+
+### 资深 review 重点
+1. `.importlinter` 中 3 处 `# FIXME-v0.3.X` 标注是否合理（服务/适配器 contract 分阶段升级）
+2. `bi_agent/repositories/__init__.py` 的 facade re-export 是否能在 v0.3.1 顺利删除
+3. `bi_agent/core/auth_utils.py` 当前 import `bi_agent.repositories.user_repo` —— v0.3.1 必须搬到 services/auth_service 才能闭合 contract
+
 ## [Unreleased] - v0.2.5 业务目录可视化编辑
 
 ### Added

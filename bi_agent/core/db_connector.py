@@ -6,7 +6,7 @@ import re
 import sqlalchemy
 from sqlalchemy import text
 
-from config import (
+from bi_agent.config import (
     DEFAULT_DB_HOST, DEFAULT_DB_PORT,
     DEFAULT_DB_USER, DEFAULT_DB_PASSWORD, DEFAULT_DB_DATABASE,
     MAX_RESULT_ROWS, MAX_TABLES_IN_SCHEMA,

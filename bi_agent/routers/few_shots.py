@@ -3,7 +3,8 @@ few_shots.py — admin 维护 few-shot 示例（DB 存储）
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
-import persistence
+# v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent import repositories as persistence  # noqa: 兼容老调用方; v0.3.1 全部 inline
 from ..dependencies import require_admin
 
 router = APIRouter()

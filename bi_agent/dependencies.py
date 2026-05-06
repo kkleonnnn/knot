@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import persistence
+from bi_agent.repositories.user_repo import get_user_by_id
 
 JWT_SECRET = os.getenv("JWT_SECRET", "bi-agent-secret-change-in-production")
 JWT_ALGORITHM = "HS256"
@@ -21,7 +21,7 @@ def create_token(user_id: int) -> str:
 def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user = persistence.get_user_by_id(int(payload["sub"]))
+        user = get_user_by_id(int(payload["sub"]))
         if not user or not user["is_active"]:
             raise HTTPException(status_code=401, detail="用户不存在或已停用")
         return user
