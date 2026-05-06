@@ -32,7 +32,14 @@ class BusinessDBAdapter(Protocol):
 
     def check_readonly_grants(self) -> tuple[bool, list[str]]:
         """探测当前账号是否仅有 SELECT 权限。
-        返回 (is_readonly, warnings) — STRICT_READONLY_GRANTS=1 时非 readonly 拒绝构建。"""
+        返回 (is_readonly, warnings) — STRICT_READONLY_GRANTS=1 时非 readonly 拒绝构建。
+
+        ⚠️ 方言差异（v0.3.2 R-8）：
+        Doris/MySQL 用 `SHOW GRANTS`，但 ClickHouse / BigQuery 没有等价语法。
+        若适配的数据库无法可靠探测 grants，实现方可直接返回 ``(True, [])`` 表示
+        "信任模式"，由 SQL guardrail（is_safe_sql）兜底拦截写操作；
+        STRICT_READONLY_GRANTS=1 时 admin 应改用专用只读账号绕开此探测。
+        """
         ...
 
     def test_connection(self) -> tuple[bool, str | None]:
