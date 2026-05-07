@@ -26,6 +26,16 @@ function inferIntentFromShape(rows, cols) {
   return 'rank';
 }
 
+// v0.4.1 R-S4 effectiveHint 三级优先级链：
+//   1. msg.display_hint  — saved_report 快照（v0.4.1 SavedReportView 注入）
+//   2. INTENT_TO_HINT[msg.intent] — v0.4.0 message + 当前 mapping
+//   3. INTENT_TO_HINT[inferIntentFromShape(...)] — v0.4.0 之前老消息启发式
+function resolveEffectiveHint(msg, rows, cols) {
+  if (msg.display_hint) return msg.display_hint;
+  if (msg.intent && INTENT_TO_HINT[msg.intent]) return INTENT_TO_HINT[msg.intent];
+  return INTENT_TO_HINT[inferIntentFromShape(rows, cols)] || 'detail_table';
+}
+
 export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [convs, setConvs] = useState([]);
   const [activeConvId, setActiveConvId] = usePersist('cb_conv', null);
@@ -175,6 +185,18 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
 
   const copyToClipboard = (text) => { navigator.clipboard?.writeText(text); toast('已复制'); };
 
+  // v0.4.1 ⭐ 收藏：POST /api/messages/{id}/pin；R-12 幂等：already_pinned=true 也算成功
+  const pinMessage = async (mid) => {
+    try {
+      const sr = await api.post(`/api/messages/${mid}/pin`, {});
+      toast(sr.already_pinned ? '该消息已收藏过' : '已收藏到报表');
+      return { ok: true, sr };
+    } catch (e) {
+      toast(`收藏失败: ${e.message}`, true);
+      return { ok: false };
+    }
+  };
+
   const downloadCSV = (rows, question) => {
     if (!rows || !rows.length) return;
     const headers = Object.keys(rows[0]);
@@ -242,7 +264,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
         : <ChatConversation T={T} messages={messages} scrollRef={scrollRef} loading={loading}
                             question={question} setQuestion={setQuestion}
                             onSubmit={sendQuery} onKeyDown={handleKeyDown}
-                            onCopy={copyToClipboard} onDownload={downloadCSV}
+                            onCopy={copyToClipboard} onDownload={downloadCSV} onPin={pinMessage}
                                                         agentEvents={agentEvents}
                             activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
       }
@@ -285,7 +307,7 @@ function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDow
   );
 }
 
-function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, agentEvents, activeUpload, setActiveUpload, onUpload }) {
+function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, onPin, agentEvents, activeUpload, setActiveUpload, onUpload }) {
   const showPanel = agentEvents.length > 0;
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -308,6 +330,7 @@ function ChatConversation({ T, messages, scrollRef, loading, question, setQuesti
                   {msg.loading
                     ? <ThinkingCard T={T} agentEvents={agentEvents}/>
                     : <ResultBlock T={T} msg={msg} onCopy={onCopy} onDownload={onDownload}
+                                   onPin={onPin}
                                    onFollowup={(q) => setQuestion(q)}/>}
                 </div>
               </div>
@@ -342,9 +365,10 @@ function ThinkingCard({ T, agentEvents = [] }) {
   );
 }
 
-function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
+function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
+  const [pinned, setPinned] = useState(!!msg.is_pinned);
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
           insight, suggested_followups, is_clarification, intent } = msg;
 
@@ -378,9 +402,8 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
   const labelCols = cols.filter(c => !isNumericCol(c));
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
-  // v0.4.0: 优先用 Agent 输出的 intent；为空时降级到旧启发式
-  const effectiveIntent = intent || inferIntentFromShape(rows, cols);
-  const layoutHint = INTENT_TO_HINT[effectiveIntent] || 'detail_table';
+  // v0.4.1 R-S4 三级优先级链：display_hint > INTENT_TO_HINT[intent] > inferIntentFromShape
+  const layoutHint = resolveEffectiveHint(msg, rows, cols);
   const isMetric = layoutHint === 'metric_card';
   const isDetail = layoutHint === 'detail_table';
   const isRetention = layoutHint === 'retention_matrix';
@@ -417,9 +440,39 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
     { id: 'pie',  label: '饼图' },
   ];
 
+  // v0.4.1 ⭐ 收藏按钮（仅当有 sql + msg.id 是真实数字 + 非 saved_report 内嵌渲染）
+  const canPin = !!(sql && Number.isInteger(msg.id) && !msg.is_saved_report);
+
+  const handlePin = async () => {
+    if (!canPin || pinned || !onPin) return;
+    const r = await onPin(msg.id);
+    if (r && r.ok) setPinned(true);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {explanation && <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.65 }}>{explanation}</div>}
+      {(canPin || explanation) && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          {explanation && (
+            <div style={{ flex: 1, fontSize: 13.5, color: T.text, lineHeight: 1.65 }}>{explanation}</div>
+          )}
+          {canPin && (
+            <button
+              onClick={handlePin}
+              disabled={pinned}
+              title={pinned ? '已收藏' : '收藏到报表'}
+              style={{
+                ...iconBtn(T),
+                color: pinned ? T.accent : T.muted,
+                cursor: pinned ? 'default' : 'pointer',
+                fontSize: 14,
+              }}
+            >
+              {pinned ? '🌟' : '⭐'}
+            </button>
+          )}
+        </div>
+      )}
       {error && <div style={{ padding: '8px 12px', background: T.accentSoft, borderRadius: 6, color: T.accent, fontSize: 12.5 }}>{error}</div>}
 
       {rows && rows.length > 0 && isMetric && (
