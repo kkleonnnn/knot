@@ -177,6 +177,60 @@ def test_message_intent_detail_round_trips_in_json(client, auth_headers):
     assert body[0]["intent"] == "detail"
 
 
+# ── v0.4.1: saved_reports 端到端（pin → list → export → delete 不级联） ──
+
+def _seed_msg_for_pin(client, headers, rows=None):
+    create = client.post("/api/conversations", json={"title": "v0.4.1 smoke"}, headers=headers)
+    cid = create.json()["id"]
+    from bi_agent.repositories.message_repo import save_message
+    mid = save_message(
+        conv_id=cid, question="昨天 GMV", sql="SELECT SUM(pay_amount) FROM orders",
+        explanation="", confidence="high",
+        rows=rows or [{"gmv": 12345}], db_error="",
+        cost_usd=0.0, input_tokens=0, output_tokens=0, retry_count=0,
+        intent="metric",
+    )
+    return cid, mid
+
+
+def test_saved_report_pin_then_list_includes_it(client, auth_headers):
+    """端到端：pin → list 包含该 report，intent + display_hint 字段都在。"""
+    _cid, mid = _seed_msg_for_pin(client, auth_headers)
+    client.post(f"/api/messages/{mid}/pin", json={}, headers=auth_headers)
+    r = client.get("/api/saved-reports", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert any(sr["source_message_id"] == mid for sr in body)
+    sr = next(s for s in body if s["source_message_id"] == mid)
+    assert sr["intent"] == "metric"
+    assert sr["display_hint"] == "metric_card"
+
+
+def test_saved_report_pin_export_lifecycle(client, auth_headers):
+    """端到端：pin → export.csv → 验 BOM + 中文。"""
+    rows = [{"用户": "张三", "金额": 100}]
+    _cid, mid = _seed_msg_for_pin(client, auth_headers, rows=rows)
+    pin = client.post(f"/api/messages/{mid}/pin", json={}, headers=auth_headers)
+    sr_id = pin.json()["id"]
+    r = client.get(f"/api/saved-reports/{sr_id}/export.csv", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.content.startswith(b"\xef\xbb\xbf")
+    assert "张三" in r.content.decode("utf-8-sig")
+
+
+def test_delete_conversation_does_not_cascade_saved_reports(client, auth_headers):
+    """R-S7 dangling 是预期：原 conversation 删 → message 没了 → saved_report 仍存活。"""
+    cid, mid = _seed_msg_for_pin(client, auth_headers)
+    pin = client.post(f"/api/messages/{mid}/pin", json={}, headers=auth_headers)
+    sr_id = pin.json()["id"]
+    # 删原 conversation（级联删 message）
+    d = client.delete(f"/api/conversations/{cid}", headers=auth_headers)
+    assert d.status_code == 200
+    # saved_report 仍在列表
+    r = client.get("/api/saved-reports", headers=auth_headers)
+    assert any(sr["id"] == sr_id for sr in r.json())
+
+
 def test_analyst_cannot_access_admin_routes(client, auth_headers):
     # 先创建 analyst 账号
     create = client.post(
