@@ -47,6 +47,11 @@ def init_db():
         if col not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
 
+    # v0.4.0: messages.intent — Clarifier 输出的 7 类意图，老消息为 NULL
+    msg_cols = {row[1] for row in conn.execute("PRAGMA table_info(messages)").fetchall()}
+    if "intent" not in msg_cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN intent TEXT")
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""

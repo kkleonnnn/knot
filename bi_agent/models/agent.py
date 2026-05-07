@@ -15,11 +15,15 @@ class ClarifierOutput:
 
     is_clear=True：可直接进 SQL Planner；refined_question 是消歧后的精确问句。
     is_clear=False：clarification_question 非空，前端提示用户补充信息后重发。
+
+    intent（v0.4.0 新增）：7 类意图之一，决定前端 layout（INTENT_TO_HINT 映射）。
+    Clarifier 输出缺失或非法时回退 'detail'（保守选择，至少不强行画图）。
     """
     is_clear: bool
     clarification_question: Optional[str]
     refined_question: str
     analysis_approach: str = ""  # 一句话的分析思路提示，给下游 sql_planner 参考
+    intent: Optional[str] = None
 
 
 @dataclass

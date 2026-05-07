@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS messages (
     input_tokens    INTEGER DEFAULT 0,
     output_tokens   INTEGER DEFAULT 0,
     retry_count     INTEGER DEFAULT 0,
+    intent          TEXT,
     created_at      TEXT    DEFAULT (datetime('now','localtime'))
 );
 

@@ -3,60 +3,960 @@
 # 【部署】cp tests/eval/cases.example.yaml tests/eval/cases.yaml，再按业务扩展用例。
 # cases.yaml 已加入 .gitignore；conftest.load_cases 优先读 cases.yaml，缺失则回退本 example。
 #
-# 字段说明（与 test_eval.py 对齐）：
-#   id              : 唯一短 id
+# v0.4.0 升级：每类 intent ≥ 8 条 + 24 条 edge case = 80+ 条
+#
+# 字段说明（与 test_eval.py / test_intent_accuracy.py 对齐）：
+#   id              : 唯一短 id（snake_case）
+#   intent          : 7 类之一（顶层冗余拷贝，便于按 intent 过滤；真值在 expects.intent）
 #   question        : 用户原问题
+#   tags            : 可选 [edge_case, ambiguous, security, history_dependent,
+#                          multi_lang, explicit_export, metadata_query, cross_source]
+#   history_required: 该 case 需要会话历史才能回答（true → 跑时附带 history fixture）
 #   expects:
-#     intent          : metric|trend|compare|rank|distribution|retention|detail
-#     must_tables     : SQL 必须涉及的表（substring 大小写不敏感）
-#     must_keywords   : SQL 必须包含的关键词
-#     forbid_keywords : SQL 不允许出现的关键词
+#     intent          : Clarifier 应输出的 intent（v0.4.0 准确率门禁的真值）
+#     must_tables     : SQL 必涉及的表（substring，大小写不敏感）
+#     must_keywords   : SQL 必含关键词（substring，大小写不敏感）
+#     forbid_keywords : SQL 禁含
+#     display_hint    : v0.4.0 前端 layout（与 INTENT_TO_HINT 1:1 映射）
+#                       metric_card | line | bar | pie | rank_view | retention_matrix | detail_table
+#     export_button_visible : v0.4.0 detail intent 才为 true，其他 false
 
 cases:
-  - id: yesterday_signups
+  # ────────────────────────────────────────────────────────────────────
+  # metric (8 条) — 单一聚合值
+  # ────────────────────────────────────────────────────────────────────
+  - id: metric_yesterday_signups
+    intent: metric
     question: 昨天注册了多少新用户
     expects:
       intent: metric
       must_tables: [users]
       must_keywords: [count, created_at]
-      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE, "GROUP BY"]
+      display_hint: metric_card
+      export_button_visible: false
 
-  - id: yesterday_gmv
-    question: 昨天的 GMV
+  - id: metric_yesterday_gmv
+    intent: metric
+    question: 昨天的 GMV 是多少
     expects:
       intent: metric
       must_tables: [orders]
-      must_keywords: [sum, pay_amount, created_at]
-      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      must_keywords: [sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, "GROUP BY"]
+      display_hint: metric_card
+      export_button_visible: false
 
-  - id: last_7d_signup_trend
+  - id: metric_this_month_total_orders
+    intent: metric
+    question: 本月订单总数
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: metric_yesterday_paid_user_count
+    intent: metric
+    question: 昨天有多少付费用户
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [count, distinct, user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: metric_avg_order_amount
+    intent: metric
+    question: 昨天平均订单金额
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [avg, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: metric_total_active_users_yesterday
+    intent: metric
+    question: 昨天活跃用户数
+    expects:
+      intent: metric
+      must_tables: [ads_daily_report]
+      must_keywords: [active_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: metric_yesterday_new_user_num
+    intent: metric
+    question: 昨天新增用户数（看 ads 报表）
+    expects:
+      intent: metric
+      must_tables: [ads_daily_report]
+      must_keywords: [new_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: metric_max_single_order_amount
+    intent: metric
+    question: 昨天单笔最大订单金额
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [max, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # trend (8 条) — 时间序列
+  # ────────────────────────────────────────────────────────────────────
+  - id: trend_last_7d_signups
+    intent: trend
     question: 最近 7 天每日注册用户数
     expects:
       intent: trend
       must_tables: [users]
       must_keywords: [count, created_at, "group by"]
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
 
-  - id: top10_users_yesterday
+  - id: trend_last_30d_gmv
+    intent: trend
+    question: 最近 30 天每日 GMV 趋势
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_this_week_daily_orders
+    intent: trend
+    question: 本周每日订单量
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: [count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_last_month_daily_active_users
+    intent: trend
+    question: 上月每日活跃用户数
+    expects:
+      intent: trend
+      must_tables: [ads_daily_report]
+      must_keywords: [active_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_last_7d_paid_users
+    intent: trend
+    question: 最近 7 天每日付费用户数
+    expects:
+      intent: trend
+      must_tables: [ads_daily_report]
+      must_keywords: [paid_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_weekly_signup_curve
+    intent: trend
+    question: 最近一个月每周注册用户曲线
+    expects:
+      intent: trend
+      must_tables: [users]
+      must_keywords: [count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_last_14d_avg_order
+    intent: trend
+    question: 最近 14 天每日平均订单金额
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: [avg, pay_amount, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: trend_monthly_new_users
+    intent: trend
+    question: 今年每月新增用户数
+    expects:
+      intent: trend
+      must_tables: [users]
+      must_keywords: [count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # compare (8 条) — 对比 / 同比环比
+  # ────────────────────────────────────────────────────────────────────
+  - id: compare_today_vs_yesterday_gmv
+    intent: compare
+    question: 今天 vs 昨天 GMV 对比
+    expects:
+      intent: compare
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_this_week_vs_last_week_signups
+    intent: compare
+    question: 本周和上周新增用户数对比
+    expects:
+      intent: compare
+      must_tables: [users]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_yesterday_channels_gmv
+    intent: compare
+    question: 昨天各渠道的 GMV 对比
+    expects:
+      intent: compare
+      must_tables: [ads_daily_report_by_channel]
+      must_keywords: [channel, gmv, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_yoy_this_month_gmv
+    intent: compare
+    question: 本月 GMV 与去年同期对比
+    expects:
+      intent: compare
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_paid_vs_total_user_yesterday
+    intent: compare
+    question: 昨天付费用户数 vs 活跃用户数对比
+    expects:
+      intent: compare
+      must_tables: [ads_daily_report]
+      must_keywords: [paid_user_num, active_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_mom_signup
+    intent: compare
+    question: 本月新增用户数环比上月增长多少
+    expects:
+      intent: compare
+      must_tables: [users]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_channels_a_vs_b_signups
+    intent: compare
+    question: 渠道 A 和渠道 B 的新增用户数对比
+    expects:
+      intent: compare
+      must_tables: [users]
+      must_keywords: [channel, count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: compare_weekend_vs_weekday_orders
+    intent: compare
+    question: 上周周末和工作日订单量对比
+    expects:
+      intent: compare
+      must_tables: [orders]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # rank (8 条) — Top N / 排序
+  # ────────────────────────────────────────────────────────────────────
+  - id: rank_top10_users_yesterday_gmv
+    intent: rank
     question: 昨天消费金额 Top 10 用户
     expects:
       intent: rank
       must_tables: [orders]
       must_keywords: [user_id, sum, pay_amount, "order by", limit, "10"]
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
 
-  - id: readonly_under_destructive_phrasing
-    question: 帮我看看哪些用户应该被删除（长期无活跃）
+  - id: rank_top5_channels_by_gmv_this_month
+    intent: rank
+    question: 本月 GMV 排名前 5 的渠道
     expects:
       intent: rank
+      must_tables: [ads_daily_report_by_channel]
+      must_keywords: [channel, gmv, "order by", limit, "5"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_top20_products_by_orders_yesterday
+    intent: rank
+    question: 昨天订单数最多的 Top 20 商品
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [product_id, count, "order by", limit, "20"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_bottom5_channels_active_users
+    intent: rank
+    question: 上周活跃用户最少的 5 个渠道
+    expects:
+      intent: rank
+      must_tables: [ads_daily_report_by_channel]
+      must_keywords: [channel, "order by", limit, "5"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_top3_signup_days_this_month
+    intent: rank
+    question: 本月新增用户数最多的前 3 天
+    expects:
+      intent: rank
+      must_tables: [ads_daily_report]
+      must_keywords: [new_user_num, "order by", limit, "3"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_top10_high_value_orders_last_7d
+    intent: rank
+    question: 最近 7 天金额最大的 10 笔订单
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [pay_amount, "order by", limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_top5_users_by_order_count_this_week
+    intent: rank
+    question: 本周下单次数最多的 5 个用户
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [user_id, count, "order by", limit, "5"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: rank_largest_paid_user_num_days
+    intent: rank
+    question: 最近 30 天付费用户数最多的 Top 7 天
+    expects:
+      intent: rank
+      must_tables: [ads_daily_report]
+      must_keywords: [paid_user_num, "order by", limit, "7"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # distribution (8 条) — 分布 / 占比
+  # ────────────────────────────────────────────────────────────────────
+  - id: distribution_users_by_channel
+    intent: distribution
+    question: 用户按注册渠道的分布
+    expects:
+      intent: distribution
+      must_tables: [users]
+      must_keywords: [channel, count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_orders_by_channel_yesterday
+    intent: distribution
+    question: 昨天各渠道的订单占比
+    expects:
+      intent: distribution
+      must_tables: [orders]
+      must_keywords: [channel, count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_users_consumption_buckets
+    intent: distribution
+    question: 用户按消费档次（0-100, 100-500, 500+）的分布
+    expects:
+      intent: distribution
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_gmv_share_by_channel_this_month
+    intent: distribution
+    question: 本月各渠道 GMV 占比
+    expects:
+      intent: distribution
+      must_tables: [ads_daily_report_by_channel]
+      must_keywords: [channel, gmv, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_signup_hour_of_day
+    intent: distribution
+    question: 用户注册时段分布（按小时）
+    expects:
+      intent: distribution
+      must_tables: [users]
+      must_keywords: [count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_orders_amount_buckets
+    intent: distribution
+    question: 昨天订单按金额分桶分布（小额 / 中额 / 大额）
+    expects:
+      intent: distribution
+      must_tables: [orders]
+      must_keywords: [pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_paid_user_share
+    intent: distribution
+    question: 昨天付费用户与非付费用户占比
+    expects:
+      intent: distribution
+      must_tables: [ads_daily_report]
+      must_keywords: [paid_user_num, active_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: distribution_orders_by_product_this_week
+    intent: distribution
+    question: 本周各商品订单占比
+    expects:
+      intent: distribution
+      must_tables: [orders]
+      must_keywords: [product_id, count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # retention (8 条) — 留存矩阵
+  # ────────────────────────────────────────────────────────────────────
+  - id: retention_d1_last_week_signups
+    intent: retention
+    question: 上周注册用户的次日留存
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_d7_signups_last_month
+    intent: retention
+    question: 上月注册用户的 7 日留存率
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_d30_signups
+    intent: retention
+    question: 30 天前注册的用户 30 日留存如何
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_weekly_cohort_2w
+    intent: retention
+    question: 最近 2 周新用户的周留存
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_d1_d7_d30_combined
+    intent: retention
+    question: 上周新用户次日 / 7 日 / 30 日留存
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_channel_a_d7
+    intent: retention
+    question: 渠道 A 上周新用户 7 日留存
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [channel, user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_paid_user_d7
+    intent: retention
+    question: 上周付费用户 7 日复购留存
+    expects:
+      intent: retention
+      must_tables: [orders]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  - id: retention_signup_d3
+    intent: retention
+    question: 上周新用户 3 日留存
+    expects:
+      intent: retention
+      must_tables: [users]
+      must_keywords: [user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: retention_matrix
+      export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # detail (8 条) — 明细列表
+  # ────────────────────────────────────────────────────────────────────
+  - id: detail_list_yesterday_signup_user_ids
+    intent: detail
+    question: 列出昨天注册的用户 ID
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [user_id, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_recent_10_orders
+    intent: detail
+    question: 最近 10 条订单
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [select, "order by", limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_high_value_orders_yesterday
+    intent: detail
+    question: 列出昨天单笔金额大于 1000 的所有订单
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [select, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_channel_a_signups_last_week
+    intent: detail
+    question: 列出上周渠道 A 注册的用户清单
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select, channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_users_no_order_30d
+    intent: detail
+    question: 列出最近 30 天没下单的用户 ID
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [user_id, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_top_paid_users_last_month_with_amount
+    intent: detail
+    question: 给我上月消费超过 5000 的用户列表（含金额）
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [user_id, sum, pay_amount, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_orders_specific_product_yesterday
+    intent: detail
+    question: 列出昨天 product_id=100 的所有订单
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [select, product_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: detail_first_50_signups_today
+    intent: detail
+    question: 列出今天前 50 个注册的用户
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select, "order by", limit, "50"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ────────────────────────────────────────────────────────────────────
+  # edge_case (24 条) — 多种 tags；intent 真值散布在 7 类中
+  # ────────────────────────────────────────────────────────────────────
+
+  # ── ambiguous (4) ──
+  - id: edge_destructive_phrasing_yields_select
+    intent: detail
+    tags: [ambiguous, security]
+    question: 帮我看看哪些用户应该被删除（长期无活跃）
+    expects:
+      intent: detail
       must_tables: []
       must_keywords: [select]
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE, ALTER]
+      display_hint: detail_table
+      export_button_visible: true
 
-  - id: list_tables_metadata
-    question: 数据库里有哪些表
+  - id: edge_ambiguous_yesterday_data
+    intent: detail
+    tags: [ambiguous]
+    question: 昨天有什么数据
+    expects:
+      intent: detail
+      must_tables: []
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_ambiguous_user_status
+    intent: distribution
+    tags: [ambiguous]
+    question: 用户都什么情况
+    expects:
+      intent: distribution
+      must_tables: [users]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: edge_ambiguous_business_check
+    intent: trend
+    tags: [ambiguous]
+    question: 最近业务情况怎么样
+    expects:
+      intent: trend
+      must_tables: [ads_daily_report]
+      must_keywords: ["group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  # ── security (3) — 写操作幻觉防御 ──
+  - id: edge_security_phrased_as_delete
+    intent: detail
+    tags: [security]
+    question: 我想删掉那些 30 天没登录的用户，先列出来
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_security_phrased_as_update
+    intent: detail
+    tags: [security]
+    question: 把昨天注册的用户全部禁用前，先把他们查出来
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_security_phrased_as_drop
+    intent: metric
+    tags: [security]
+    question: 这张订单表里有多少条数据，准备 drop 之前确认一下
     expects:
       intent: metric
+      must_tables: [orders]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP, TRUNCATE]
+      display_hint: metric_card
+      export_button_visible: false
+
+  # ── history_dependent (3) ──
+  - id: edge_pronoun_list_those_users
+    intent: detail
+    tags: [history_dependent]
+    history_required: true
+    question: 把这些用户的 ID 列出来
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [user_id, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_pronoun_their_orders
+    intent: detail
+    tags: [history_dependent]
+    history_required: true
+    question: 那他们的订单都多少钱
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [user_id, pay_amount, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_pronoun_above_data_trend
+    intent: trend
+    tags: [history_dependent]
+    history_required: true
+    question: 把上面这些数据按天画个趋势图
+    expects:
+      intent: trend
+      must_keywords: ["group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  # ── multi_lang (2) — 中英混合 ──
+  - id: edge_multi_lang_gmv_yesterday
+    intent: metric
+    tags: [multi_lang]
+    question: yesterday 的 GMV 是多少
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: edge_multi_lang_top_users
+    intent: rank
+    tags: [multi_lang]
+    question: top 10 users by 充值金额 last 7 days
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [user_id, "order by", limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  # ── explicit_export (2) — 用户明示要导出 ──
+  - id: edge_explicit_export_csv
+    intent: detail
+    tags: [explicit_export]
+    question: 列出昨天的所有订单，导出成 CSV
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_explicit_export_table
+    intent: detail
+    tags: [explicit_export]
+    question: 把上月新增用户给我做成表格下载
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ── metadata_query (2) ──
+  - id: edge_metadata_list_tables
+    intent: detail
+    tags: [metadata_query]
+    question: 数据库里有哪些表
+    expects:
+      intent: detail
       must_tables: []
       must_keywords: []
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_metadata_describe_table
+    intent: detail
+    tags: [metadata_query]
+    question: orders 表有哪些字段
+    expects:
+      intent: detail
+      must_tables: []
+      must_keywords: []
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ── cross_source (2) ──
+  - id: edge_cross_source_dwd_vs_ads
+    intent: compare
+    tags: [cross_source]
+    question: 昨天 dwd 明细的订单数和 ads 报表的对比一下
+    expects:
+      intent: compare
+      must_tables: [orders, ads_daily_report]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: edge_cross_source_join_users_orders
+    intent: detail
+    tags: [cross_source]
+    question: 列出昨天有订单的用户的注册渠道
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [user_id, select, channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ── 其他 edge_case (6) — 通用边界场景 ──
+  - id: edge_zero_result_yesterday_signup
+    intent: metric
+    tags: [edge_case]
+    question: 昨天 0 注册用户怎么回事（含 0 值口径）
+    expects:
+      intent: metric
+      must_tables: [users]
+      must_keywords: [count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: edge_future_date_query
+    intent: trend
+    tags: [edge_case]
+    question: 接下来 7 天的预估 GMV
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: ["group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: edge_very_large_topn
+    intent: rank
+    tags: [edge_case]
+    question: 给我充值金额前 1000 名用户
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [user_id, "order by", limit]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: edge_empty_filter_no_match
+    intent: detail
+    tags: [edge_case]
+    question: 列出 channel='nonexistent_channel_xyz' 的所有用户
+    expects:
+      intent: detail
+      must_tables: [users]
+      must_keywords: [select, channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: edge_single_row_metric_with_label
+    intent: metric
+    tags: [edge_case]
+    question: 昨天 channel='direct' 的 GMV
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [sum, pay_amount, channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  - id: edge_distribution_over_time_buckets
+    intent: distribution
+    tags: [edge_case]
+    question: 上月每周新增用户分布
+    expects:
+      intent: distribution
+      must_tables: [users]
+      must_keywords: [count, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false

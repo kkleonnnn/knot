@@ -6,16 +6,17 @@
 
 
 def test_healthz_returns_200(client):
-    """v0.2.x 起的 health endpoint 仍工作（路由总数 54 不变）。"""
+    """v0.2.x 起的 health endpoint 仍工作。"""
     # /healthz 不一定挂载；用 /docs 替代证明 app 启动正常
     r = client.get("/docs")
     assert r.status_code == 200
 
 
-def test_app_has_54_routes(client):
-    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。"""
+def test_app_has_55_routes(client):
+    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
+    v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。"""
     from bi_agent.main import app
-    assert len(app.routes) == 54
+    assert len(app.routes) == 55
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──
@@ -136,6 +137,43 @@ def test_few_shot_crud(client, auth_headers):
 
 
 # ── 权限检查（analyst 不能访问 admin 路由）──
+
+# ── v0.4.0: intent 字段端到端流转（持久化 → 拉取 messages → JSON 含 intent） ──
+
+def _seed_message_with_intent(client, headers, intent: str, question: str) -> int:
+    create = client.post("/api/conversations", json={"title": "intent 测试"}, headers=headers)
+    assert create.status_code == 200
+    cid = create.json()["id"]
+    from bi_agent.repositories.message_repo import save_message
+    save_message(
+        conv_id=cid, question=question,
+        sql="SELECT 1", explanation="", confidence="high",
+        rows=[{"x": 1}], db_error="",
+        cost_usd=0.0, input_tokens=0, output_tokens=0, retry_count=0,
+        intent=intent,
+    )
+    return cid
+
+
+def test_message_intent_metric_round_trips_in_json(client, auth_headers):
+    """metric 类问题 → 消息 JSON 含 intent='metric'（手册 §7 用户补充 #1）。"""
+    cid = _seed_message_with_intent(client, auth_headers, "metric", "昨天的 GMV")
+    r = client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["intent"] == "metric"
+
+
+def test_message_intent_detail_round_trips_in_json(client, auth_headers):
+    """detail 类问题 → 消息 JSON 含 intent='detail'。"""
+    cid = _seed_message_with_intent(client, auth_headers, "detail", "列出昨天注册用户")
+    r = client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["intent"] == "detail"
+
 
 def test_analyst_cannot_access_admin_routes(client, auth_headers):
     # 先创建 analyst 账号

@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from bi_agent.api import admin, auth, conversations, database, knowledge, query, uploads
 from bi_agent.api import catalog as catalog_router
+from bi_agent.api import exports as exports_router
 from bi_agent.api import few_shots as few_shots_router
 from bi_agent.api import prompts as prompts_router
 from bi_agent.api import templates as templates_router
@@ -24,7 +25,7 @@ from bi_agent.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="BI-Agent", version="0.3.3")
+app = FastAPI(title="BI-Agent", version="0.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)
@@ -63,7 +64,7 @@ async def request_id_middleware(request: Request, call_next):
 for _router in [auth.router, conversations.router, query.router, database.router,
                 uploads.router, knowledge.router, admin.router,
                 few_shots_router.router, prompts_router.router, templates_router.router,
-                catalog_router.router]:
+                catalog_router.router, exports_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

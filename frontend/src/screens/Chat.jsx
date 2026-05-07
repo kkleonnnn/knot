@@ -4,6 +4,28 @@ import { usePersist, toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
+// v0.4.0: Clarifier 输出的 7 类 intent → 前端 layout（与后端 INTENT_TO_HINT 一一对应）
+const INTENT_TO_HINT = {
+  metric: 'metric_card',
+  trend: 'line',
+  compare: 'bar',
+  rank: 'rank_view',
+  distribution: 'pie',
+  retention: 'retention_matrix',
+  detail: 'detail_table',
+};
+
+// v0.4.0 老消息（无 intent 字段）兼容降级：从 rows/cols 形态推断意图
+function inferIntentFromShape(rows, cols) {
+  if (!rows || rows.length === 0) return 'detail';
+  if (rows.length === 1) return 'metric';  // 单行（不论几列）作 metric
+  if (cols.some(c => /\d{4}[-/年]/.test(String(rows[0][c])))) return 'trend';
+  if (cols.length >= 4) return 'detail';
+  const idLikeCols = cols.filter(c => /(_id|^id)$/i.test(c));
+  if (idLikeCols.length > 0 && cols.length <= 3) return 'detail';
+  return 'rank';
+}
+
 export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [convs, setConvs] = useState([]);
   const [activeConvId, setActiveConvId] = usePersist('cb_conv', null);
@@ -116,7 +138,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
               explanation: ev.question, is_clarification: true,
               sql: '', rows: [], confidence: 'low', error: '',
               input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
-              cost_usd: ev.cost_usd, loading: false,
+              cost_usd: ev.cost_usd, intent: ev.intent || null, loading: false,
             } : m));
             setLoading(false);
           }
@@ -133,6 +155,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
               insight: ev.insight, suggested_followups: ev.suggested_followups || [],
               input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
               cost_usd: ev.cost_usd, query_time_ms: ev.query_time_ms,
+              intent: ev.intent || null,
               loading: false,
             } : m));
             loadConvs();
@@ -323,7 +346,7 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
-          insight, suggested_followups, is_clarification } = msg;
+          insight, suggested_followups, is_clarification, intent } = msg;
 
   if (is_clarification) {
     return (
@@ -355,8 +378,18 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
   const labelCols = cols.filter(c => !isNumericCol(c));
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
+  // v0.4.0: 优先用 Agent 输出的 intent；为空时降级到旧启发式
+  const effectiveIntent = intent || inferIntentFromShape(rows, cols);
+  const layoutHint = INTENT_TO_HINT[effectiveIntent] || 'detail_table';
+  const isMetric = layoutHint === 'metric_card';
+  const isDetail = layoutHint === 'detail_table';
+  const isRetention = layoutHint === 'retention_matrix';
+
   const isDateLike = chartable && rows.some(r => /\d{4}[-/年]\d/.test(String(r[labelCols[0]] || '')));
+  // intent → 默认 chart type；retention/detail/metric 不画 chart
+  const intentDefaultType = ({ line: 'line', bar: 'bar', pie: 'pie', rank_view: 'bar' })[layoutHint] || null;
   const autoType = (() => {
+    if (intentDefaultType) return intentDefaultType;
     if (!chartable) return 'bar';
     if (isDateLike || rows.length > 12) return 'line';
     if (numericCols.length === 1 && rows.length <= 10) return 'pie';
@@ -364,6 +397,7 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
   })();
 
   const activeType = chartType === 'auto' ? autoType : chartType;
+  const showChart = chartable && !isMetric && !isDetail && !isRetention;
 
   const chartData = chartable
     ? (isDateLike ? [...rows].sort((a, b) => String(a[labelCols[0]]).localeCompare(String(b[labelCols[0]]))) : rows)
@@ -388,9 +422,13 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
       {explanation && <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.65 }}>{explanation}</div>}
       {error && <div style={{ padding: '8px 12px', background: T.accentSoft, borderRadius: 6, color: T.accent, fontSize: 12.5 }}>{error}</div>}
 
-      {rows && rows.length > 0 && (
+      {rows && rows.length > 0 && isMetric && (
+        <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols}/>
+      )}
+
+      {rows && rows.length > 0 && !isMetric && (
         <>
-          {chartable && (
+          {showChart && (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 12px 10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{labelCols[0]} · {numericCols[0]}</span>
@@ -414,7 +452,9 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
               <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rows.length} 行 · {cols.length} 列</span>
-              <button onClick={() => onDownload(rows, msg.question)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="下载 CSV"><I.dl/></button>
+              {isDetail && msg.id
+                ? <button onClick={() => exportMessageCsv(msg.id)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="导出 CSV"><I.dl/></button>
+                : <button onClick={() => onDownload(rows, msg.question)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="下载 CSV"><I.dl/></button>}
             </div>
             <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 280 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -487,6 +527,54 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup }) {
       )}
     </div>
   );
+}
+
+// v0.4.0: metric intent 渲染大数字卡片（取代 chart+table）
+function MetricCard({ T, rows, cols, numericCols }) {
+  if (!rows || rows.length === 0) return null;
+  const r = rows[0];
+  const valueCol = numericCols[0] || cols[0];
+  const labelCol = cols.find(c => c !== valueCol);
+  const value = r[valueCol];
+  const display = (value === null || value === undefined)
+    ? '—'
+    : (typeof value === 'number' ? value.toLocaleString() : String(value));
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '20px 22px' }}>
+      {labelCol && r[labelCol] !== undefined && (
+        <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 6, letterSpacing: '0.04em',
+                      textTransform: 'uppercase' }}>
+          {labelCol}: {String(r[labelCol])}
+        </div>
+      )}
+      <div style={{ fontSize: 48, fontWeight: 600, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>
+        {display}
+      </div>
+      <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{valueCol}</div>
+    </div>
+  );
+}
+
+// v0.4.0: detail intent 服务端 CSV 导出（utf-8-sig BOM, Excel 直开）
+async function exportMessageCsv(messageId) {
+  try {
+    const r = await fetch(`/api/messages/${messageId}/export.csv`, {
+      headers: { Authorization: `Bearer ${api._token()}` },
+    });
+    if (!r.ok) {
+      toast(`导出失败: ${r.status}`, true);
+      return;
+    }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `export_msg${messageId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    toast(`导出失败: ${e.message}`, true);
+  }
 }
 
 function AgentThinkingPanel({ T, events, visible }) {
