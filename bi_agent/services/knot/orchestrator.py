@@ -2,6 +2,7 @@
 multi_agent.py — 3-Agent Orchestrator (Clarifier / SQL Planner / Presenter)
 SQL Planner reuses the existing sql_agent.run_sql_agent().
 v0.2.2: Validator agent removed; Presenter prompt now does light anomaly check inline.
+v0.4.0: Clarifier 输出新增 intent 字段（7 类）+ INTENT_TO_HINT 映射；前端按 intent 分支渲染 layout。
 """
 
 import json
@@ -10,6 +11,27 @@ import re
 from bi_agent.core import date_context
 from bi_agent.services import llm_client
 from bi_agent.services import prompt_service as _prompts_mod
+
+# ── v0.4.0 Intent 枚举 + 前端 layout 映射 ──────────────────────────────────────
+# 7 类意图（与 tests/eval/cases.example.yaml expects.intent 字段一致）。
+# 顺序按手册 §2.1 判定优先级：detail > retention > rank > compare > trend > distribution > metric
+VALID_INTENTS: tuple[str, ...] = (
+    "metric", "trend", "compare", "rank", "distribution", "retention", "detail",
+)
+
+# intent → 前端 display_hint（与 ResultBlock.layoutByIntent 一一对应）。
+INTENT_TO_HINT: dict[str, str] = {
+    "metric":       "metric_card",
+    "trend":        "line",
+    "compare":      "bar",
+    "rank":         "rank_view",
+    "distribution": "pie",
+    "retention":    "retention_matrix",
+    "detail":       "detail_table",
+}
+
+# Clarifier 返回 intent 缺失 / 非法时的兜底（手册 §2.4）。
+DEFAULT_INTENT_FALLBACK: str = "detail"
 
 try:
     from bi_agent.services.knot import catalog as _cl
@@ -140,12 +162,39 @@ _CLARIFIER_SYS = """你是数据分析助手的「问题理解专家」。
   "is_clear": true,
   "clarification_question": null,
   "refined_question": "精确化后的完整问题描述",
-  "analysis_approach": "一句话说明分析思路"
+  "analysis_approach": "一句话说明分析思路",
+  "intent": "metric"
 }
 
 is_clear 为 false 仅当：核心指标存在多种完全不同的解释（如"利润"可能是净利润或手续费），且这些解释会导致完全不同的 SQL。
 注意：下方 Schema 包含字段名+注释，若字段注释能直接对应问题中的概念（如"注册用户"对应 user.created_at），视为 is_clear=true，不要追问。
 如对话历史中已有澄清回复，直接视为 is_clear=true 并将澄清信息融入 refined_question。
+
+意图分类（intent 字段 — 必填，7 类必选其一）：
+- metric         : 用户问"是多少 / 总和 / 平均"，期望单一聚合值
+- trend          : 用户问"近 N 天 / 最近一段时间 / 每日/每周/每月趋势"，期望时间序列
+- compare        : 用户问"A vs B / 同比 / 环比 / 对比"，期望两组或多组对照
+- rank           : 用户问"Top N / 最大/最小/前几 / 排行"，期望排序后取前 N
+- distribution   : 用户问"分布 / 占比 / 各 X 多少"（不强调排序），期望桶式聚合
+- retention      : 用户问"留存 / 次日 / 7日 / 30日活跃"，期望留存矩阵
+- detail         : 用户问"列出 / 列表 / 明细 / ID / 给我 X 条"，期望原始记录
+
+判定优先级（多种语义共存时按 leftmost match 取）：
+detail > retention > rank > compare > trend > distribution > metric
+
+特殊规则：
+- 用户提及"导出 / 下载 / CSV / 表格" → 强制 detail
+- 用户用"上述/这些用户/这些 ID"等代词指代具体记录 → 通常 detail
+- 单一聚合 + 按时间分桶（如"每天的 GMV"）→ trend，不是 metric
+
+意图分类示例：
+- "昨天的 GMV 是多少？"           → intent: metric
+- "最近 7 天每日 GMV"            → intent: trend
+- "本周 vs 上周 GMV 对比"         → intent: compare
+- "昨天充值金额 Top 10 用户"      → intent: rank
+- "用户按消费档次分布"            → intent: distribution
+- "上周注册用户的 7 日留存"       → intent: retention
+- "列出昨天注册的用户 ID"         → intent: detail
 
 代词解析（强制规则）：用户用「这些」「上述」「刚才的」「他们」「那批」等指代词时：
 1. 必须结合 history 中上一条 Q+SQL+结果定位到具体口径
@@ -157,7 +206,7 @@ is_clear 为 false 仅当：核心指标存在多种完全不同的解释（如"
 正确示例：
   history Q: "2026-04-25 注册用户数" → SQL 用 ads_operation_report_daily.reg_user_num=8
   当前 Q: "把这些用户的ID列一下"
-  正确输出：{"is_clear": true, "refined_question": "列出 2026-04-25 当天注册的用户的 ID", "analysis_approach": "上一题用的是聚合表无 ID，需 sql_planner 在 dwd/ods 层找用户注册明细表"}
+  正确输出：{"is_clear": true, "refined_question": "列出 2026-04-25 当天注册的用户的 ID", "analysis_approach": "上一题用的是聚合表无 ID，需 sql_planner 在 dwd/ods 层找用户注册明细表", "intent": "detail"}
 
 Schema（表 / 字段 / 注释）：
 {schema}
@@ -213,11 +262,14 @@ def run_clarifier(
     except Exception:
         pass
 
+    raw_intent = result.get("intent")
+    intent = raw_intent if raw_intent in VALID_INTENTS else DEFAULT_INTENT_FALLBACK
     return {
         "is_clear": result.get("is_clear", True),
         "clarification_question": result.get("clarification_question"),
         "refined_question": result.get("refined_question", question),
         "analysis_approach": result.get("analysis_approach", ""),
+        "intent": intent,
         "input_tokens": it,
         "output_tokens": ot,
         "cost_usd": cost,

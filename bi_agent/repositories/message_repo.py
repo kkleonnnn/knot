@@ -7,16 +7,17 @@ from bi_agent.repositories.base import get_conn
 
 
 def save_message(conv_id, question, sql, explanation, confidence,
-                 rows, db_error, cost_usd, input_tokens, output_tokens, retry_count) -> int:
+                 rows, db_error, cost_usd, input_tokens, output_tokens, retry_count,
+                 intent: str | None = None) -> int:
     rows_json = json.dumps(rows, ensure_ascii=False, default=str)
     conn = get_conn()
     cur = conn.execute(
         "INSERT INTO messages "
         "(conversation_id, question, sql_text, explanation, confidence, "
-        "rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (conv_id, question, sql, explanation, confidence,
-         rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count),
+         rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent),
     )
     mid = cur.lastrowid
     conn.execute(

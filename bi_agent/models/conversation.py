@@ -46,4 +46,5 @@ class Message:
     input_tokens: int = 0
     output_tokens: int = 0
     retry_count: int = 0
+    intent: Optional[str] = None  # v0.4.0 Clarifier 7 类意图；老消息为 None，前端走启发式
     created_at: Optional[str] = None

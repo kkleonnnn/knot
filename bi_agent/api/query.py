@@ -155,6 +155,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         rows=rows[:cfg.MAX_RESULT_ROWS], db_error=error,
         cost_usd=cost_usd, input_tokens=input_tokens,
         output_tokens=output_tokens, retry_count=retry_count,
+        intent=None,
     )
 
     all_msgs = message_repo.get_messages(conv_id)
@@ -171,6 +172,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         "input_tokens": input_tokens, "output_tokens": output_tokens,
         "cost_usd": cost_usd, "retry_count": retry_count,
         "query_time_ms": query_time_ms, "agent_steps": agent_steps,
+        "intent": None,
     }
 
 
@@ -259,6 +261,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                     rows=[], db_error="",
                     cost_usd=total_cost, input_tokens=total_input,
                     output_tokens=total_output, retry_count=0,
+                    intent=clarifier_result.get("intent"),
                 )
                 all_msgs = message_repo.get_messages(conv_id)
                 if len(all_msgs) == 1:
@@ -269,10 +272,14 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             "output_tokens": total_output, "cost_usd": total_cost})
                 return
 
-            logger.info(f"clarifier done refined={clarifier_result['refined_question'][:80]!r}")
+            logger.info(
+                f"clarifier done refined={clarifier_result['refined_question'][:80]!r} "
+                f"intent={clarifier_result.get('intent')!r}"
+            )
             yield emit({"type": "agent_done", "agent": "clarifier",
                         "output": {"refined_question": clarifier_result["refined_question"],
-                                   "approach": clarifier_result["analysis_approach"]}})
+                                   "approach": clarifier_result["analysis_approach"],
+                                   "intent": clarifier_result.get("intent")}})
 
             refined_q = clarifier_result["refined_question"]
             sql_planner_key = _agent_key("sql_planner")
@@ -316,6 +323,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
             final_rows = (sql_result.rows or [])[:cfg.MAX_RESULT_ROWS]
             query_time_ms = int((time.time() - t0) * 1000)
+            intent = clarifier_result.get("intent")
             mid = message_repo.save_message(
                 conv_id=conv_id, question=req.question,
                 sql=sql_result.sql,
@@ -324,6 +332,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 rows=final_rows, db_error=sql_result.error or "",
                 cost_usd=total_cost, input_tokens=total_input,
                 output_tokens=total_output, retry_count=retry_count,
+                intent=intent,
             )
             all_msgs = message_repo.get_messages(conv_id)
             if len(all_msgs) == 1:
@@ -341,6 +350,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "suggested_followups": presenter_result["suggested_followups"],
                 "input_tokens": total_input, "output_tokens": total_output,
                 "cost_usd": total_cost, "query_time_ms": query_time_ms,
+                "intent": intent,
             })
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")
