@@ -124,3 +124,24 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
     updated_by INTEGER,
     updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- v0.4.1: 报表沉淀。完全去耦合的快照（无硬 FK）— 上游 conversation/message/datasource
+-- 删除时本表行不级联，source_message_id / data_source_id 变 dangling 是预期。
+CREATE TABLE IF NOT EXISTS saved_reports (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER NOT NULL,
+    source_message_id   INTEGER,
+    data_source_id      INTEGER,
+    title               TEXT    NOT NULL,
+    question            TEXT,
+    sql_text            TEXT    NOT NULL,
+    intent              TEXT,
+    display_hint        TEXT,
+    pin_note            TEXT,
+    last_run_at         TEXT,
+    last_run_rows_json  TEXT,
+    last_run_truncated  INTEGER DEFAULT 0,
+    last_run_ms         INTEGER DEFAULT 0,
+    pinned_at           TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (user_id, source_message_id)
+);
