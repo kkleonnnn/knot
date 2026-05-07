@@ -8,14 +8,19 @@
 
 R-12 幂等：pin 同 message 二次返 200 + already_pinned=true，前端按钮变 🌟。
 """
+import json
+from io import BytesIO
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from bi_agent.api.deps import get_current_user
 from bi_agent.repositories import conversation_repo, message_repo
 from bi_agent.services import saved_report_service
+from bi_agent.services.export_service import rows_to_csv_bytes
 
 router = APIRouter()
 
@@ -76,3 +81,33 @@ async def delete_saved_report(report_id: int, user=Depends(get_current_user)):
     if not ok:
         raise HTTPException(status_code=404, detail="报表不存在或无权访问")
     return {"ok": True}
+
+
+@router.get("/api/saved-reports/{report_id}/export.csv")
+async def export_saved_report_csv(report_id: int, user=Depends(get_current_user)):
+    """导出 saved_report 最近一次重跑的 rows 为 CSV（复用 v0.4.0 export_service）。
+
+    400 — 该报表无 rows 可导出（请先调 /run）
+    404 — 报表不存在 / 无权访问
+    """
+    sr = saved_report_service.get_owned(report_id, user)
+    if not sr:
+        raise HTTPException(status_code=404, detail="报表不存在或无权访问")
+    rows_json = sr.get("last_run_rows_json") or "[]"
+    try:
+        rows = json.loads(rows_json)
+    except json.JSONDecodeError:
+        rows = []
+    if not rows:
+        raise HTTPException(status_code=400, detail="该报表无可导出数据（请先重跑）")
+
+    csv_bytes = rows_to_csv_bytes(rows)
+    filename = f"saved_report_{report_id}.csv"
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+    }
+    return StreamingResponse(
+        BytesIO(csv_bytes),
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
