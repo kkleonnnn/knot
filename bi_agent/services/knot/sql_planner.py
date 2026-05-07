@@ -22,6 +22,28 @@ def _business_rules() -> str:
     return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
 
 
+def _relations_for_schema(schema_text: str) -> str:
+    """v0.4.1.1：从 schema_text 解析出 selected 表全名，调 catalog.get_relations_for_tables
+    按需渲染 RELATIONS 段（仅相关表的关联），避免 token 预算挤压（R-S4）。
+
+    schema_text 格式约定（与 schema_filter / db_connector.get_schema 输出一致）：
+      ## demo_dwd.dwd_user_reg
+      - created_at ...
+      ## demo_dwd.dwd_order
+      ...
+    """
+    if not _cl:
+        return ""
+    try:
+        get_rels = getattr(_cl, "get_relations_for_tables", None)
+        if not callable(get_rels):
+            return ""
+    except Exception:
+        return ""
+    selected = re.findall(r"^##+\s*([\w.]+)\s*$", schema_text or "", re.MULTILINE)
+    return get_rels(selected)
+
+
 from bi_agent.config import (  # noqa: E402  legacy import order；v0.3.x 不强制重排
     DEFAULT_MODEL,
     MAX_TOKENS_PER_QUERY,
@@ -81,11 +103,19 @@ Action Input: [工具的输入]
 - 最多推理 {max_steps} 步；超过后直接输出当前最佳 SQL
 - 严格遵守上方业务规则（时区/业务日 14:00 切日 / 真实用户范围 / 默认 USDT / 表分层）
 
+## 多表查询规则（必读 — 防笛卡尔积）
+- 当 SQL 涉及 ≥ 2 张表时，**必须**用 `JOIN ... ON 关联字段` 显式连接
+- **严禁**旧式 `FROM a, b WHERE ...` 写法（隐式笛卡尔积，结果集会爆炸）
+- 关联字段优先参考下方「## 表关系 RELATIONS」段；该段无明确关联时，先 search_schema
+  查同名 _id 字段；仍找不到则 final_answer 报错"无法确定 JOIN 条件"，不要瞎猜
+
 ## 数据库环境
 {db_env}
 
 ## 数据库 Schema
 {schema}
+
+{relations}
 
 {business_ctx}"""
 
@@ -254,6 +284,7 @@ def run_sql_agent(
             "max_steps": max_steps,
             "db_env": "Apache Doris（兼容 MySQL 5.7 语法）",
             "schema": schema_text,
+            "relations": _relations_for_schema(schema_text),  # v0.4.1.1 RELATIONS 注入
             "business_ctx": business_section,
             "today": date_context.today_iso(),
             "date_block": date_context.date_context_block(),

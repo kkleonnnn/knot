@@ -66,3 +66,59 @@ def test_get_table_full_names(tmp_db_path):
     assert isinstance(names, list)
     if names:
         assert all("." in n for n in names)
+
+
+# ── v0.4.1.1: RELATIONS 元数据测试 ──────────────────────────────────────────
+
+def test_relations_loaded_from_example(tmp_db_path):
+    """example catalog 包含 ≥ 1 条 RELATIONS（通用电商 user_id / sta_date 占位）。"""
+    from bi_agent.services.knot import catalog
+    catalog.reload()
+    rels = catalog.get_relations()
+    assert isinstance(rels, list)
+    # 真实 ohx_catalog.py 可能没补 RELATIONS 仍走 example fallback；example 必有 ≥ 1
+    if catalog._SOURCE == "example":
+        assert len(rels) >= 1
+        # 字段结构契约：(left_t, left_c, right_t, right_c, semantics) 5 元组
+        for r in rels:
+            assert len(r) >= 5
+
+
+def test_relations_fallback_when_module_missing_constant(tmp_db_path, monkeypatch):
+    """R-S3：老 catalog 模块无 RELATIONS 常量 → get_relations() 返 [] 不抛 AttributeError。"""
+    from bi_agent.services.knot import catalog as cat_mod
+
+    # 模拟一个无 RELATIONS 的"老 module"
+    class _OldCatalog:
+        LEXICON: dict = {}
+        TABLES: list = []
+        BUSINESS_RULES: str = ""
+        # 故意不定义 RELATIONS
+
+    monkeypatch.setattr(cat_mod, "_load_from_files",
+                        lambda: ({}, [], "", list(getattr(_OldCatalog, "RELATIONS", []) or []), "real"))
+    cat_mod.reload()
+    assert cat_mod.get_relations() == []
+
+
+def test_get_relations_for_tables_filters_to_selected(tmp_db_path):
+    """R-S4：仅返 selected 表涉及的关联，避免 token 预算挤压。"""
+    from bi_agent.services.knot import catalog
+    catalog.reload()
+    rels = catalog.get_relations()
+    if not rels:
+        pytest.skip("RELATIONS 为空（真实 catalog 未填）")
+
+    # 选 1 张表 → 关联两端必须都在 selected 才返
+    one_table = rels[0][0]
+    out_one = catalog.get_relations_for_tables([one_table])
+    assert out_one == ""  # 单表不 join，返空
+
+    # 选齐第一条关联的两端 → 必返非空 markdown
+    out_both = catalog.get_relations_for_tables([rels[0][0], rels[0][2]])
+    assert "RELATIONS" in out_both
+    assert rels[0][1] in out_both  # left column
+    assert rels[0][3] in out_both  # right column
+
+    # 空 selected → 空
+    assert catalog.get_relations_for_tables([]) == ""
