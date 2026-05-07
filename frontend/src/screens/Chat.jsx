@@ -244,6 +244,15 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
       }}>
         <I.plus width="14" height="14"/> 新建对话
       </button>
+      {/* v0.4.1: 收藏报表入口 */}
+      <button onClick={() => onNavigate('saved-reports')} style={{
+        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+        padding: '7px 10px', borderRadius: 6, background: 'transparent',
+        color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
+        cursor: 'pointer', marginBottom: 6,
+      }}>
+        <span>📌</span> 收藏报表
+      </button>
       <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
     </>
   );
