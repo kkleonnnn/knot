@@ -165,8 +165,18 @@ gantt
 | ✅ v0.3.1 | services/ 落地（含 knot/）+ 删 repos facade re-export + core 无业务化 | 9 个文件 git mv → services/[knot/]，repos 仅暴露 `init_db / get_conn` |
 | ✅ v0.3.2 | adapters/ 落地（llm/db/notification 协议驱动）+ services/llm_client 瘦身 | adapters/{llm,db,notification}/{base,...}.py，5 contracts KEPT |
 | ✅ v0.3.3 | routers→api 改名 + core 完全瘦身 + Full Forbidden Mode + 端到端集成测试 | api/ + 6 contracts KEPT + 13 集成测试 + 3 core 纯度守护测试 |
-| ⏳ v0.3.2 | adapters/ 落地（llm/db/notification 协议） | `adapters/llm/openrouter.py` / `adapters/db/doris.py` / `adapters/notification/lark.py` (stub) |
-| ⏳ v0.3.3 | routers→api 改名 + core 完全瘦身 + contract 全锁 | 删除 3 处 FIXME |
+
+## v0.4.x 业务迭代路线图（v0.3.3 之后）
+
+架构底座已稳，进入业务能力迭代期。6 条 contract 全程 KEPT，不再开工程化大刀。
+
+| PATCH | 主题 | 关键交付 |
+|-------|------|---------|
+| ✅ v0.4.0 | Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量 | Clarifier 7 类 intent；前端按 intent 渲染 layout（MetricCard/Chart/RankView/RetentionMatrix/DetailTable）；`/api/messages/{id}/export.csv`（utf-8-sig BOM）；eval 80 条（每 intent ≥8 + 24 edge）；GH Actions live LLM CI；intent 准确率 ≥90% 门禁；AsyncLLMAdapter Protocol 占位 |
+| ⏳ v0.4.1 | 报表沉淀 + xlsx 导出 | saved_reports 表 + 收藏 + 重跑；export_service 加 xlsx |
+| ⏳ v0.4.2 | 成本可观测 + 预算 | 按 agent_kind 分桶；System_Recovery 维度铺垫 |
+| ⏳ v0.4.3 | 错误体验 + 加密 + 审计 | SQL fail fallback 计入 System_Recovery cost |
+| ⏳ v0.4.4 | async LLM/DB 真异步 | 落 AsyncLLMAdapter impl；切 services/llm_client 到 await |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 

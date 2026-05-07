@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.0 Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量
+
+> 4-PATCH 工程化重构收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，
+> 进入 v0.4.x 业务迭代期。
+
+### Added — Clarifier 7 类 intent + 前端 Layout 分支
+- **`bi_agent/services/knot/orchestrator.py`** — `_CLARIFIER_SYS` 注入意图分类规则
+  + 优先级 `detail > retention > rank > compare > trend > distribution > metric`
+  + 7 条 few-shot 示例 + 特殊规则（导出 / 代词 / 时间分桶）
+- **`VALID_INTENTS`** 元组 + **`INTENT_TO_HINT`** 映射常量：
+  metric→metric_card / trend→line / compare→bar / rank→rank_view /
+  distribution→pie / retention→retention_matrix / detail→detail_table
+- **`DEFAULT_INTENT_FALLBACK="detail"`** — Clarifier 输出缺失或非法时保守不画图
+- **`models/agent.py::ClarifierOutput`** 加 `intent: Optional[str]`
+- **`models/conversation.py::Message`** 加 `intent: Optional[str]`（老消息为 None）
+- **`schema.sql` + `base.py`** — `messages.intent TEXT` 列 + ALTER TABLE 兼容
+- **`api/query.py`** — `agent_done(clarifier)` 与 `final` SSE 事件携带 intent；
+  `clarification_needed` 也带 intent
+- **前端 `Chat.jsx::ResultBlock`** — `effectiveIntent = msg.intent ||
+  inferIntentFromShape(rows, cols)`；按 intent 决定 layout 与默认 chart 类型；
+  `inferIntentFromShape` 启发式回退给老消息（无 intent 字段）
+
+### Added — `/api/messages/{id}/export.csv` (CSV 导出)
+- **`services/export_service.py::rows_to_csv_bytes`** — 内存 BytesIO 模式
+  （手册 §4.1）；utf-8-sig BOM 让 Excel 中文直开不乱码；复杂值（dict/list）
+  JSON 序列化 ensure_ascii=False
+- **`api/exports.py`** — GET 路由；StreamingResponse(BytesIO) +
+  `Content-Disposition: attachment; filename*=UTF-8''…`
+- **权限**：必须是 conversation 所有者 OR admin；非所有者统一 404 防 message_id 枚举
+- **空 rows** → 400；不存在 → 404
+- **`repositories/conversation_repo.get_conversation_owner`** + 
+  `message_repo.get_message` — 导出权限校验依赖
+- **`main.py`** 注册 exports_router；路由总数 54 → 55；app version 0.3.3 → 0.4.0
+- **前端 `DetailTable`** — detail intent + msg.id 存在时调用服务端 CSV 导出
+  （取代原 client-side toCsv 逻辑）
+
+### Added — eval 扩量 + intent 准确率门禁
+- **`tests/eval/cases.example.yaml`** — 17 → 80 条；每类 intent ≥ 8 条 +
+  24 条 edge case；新加 `display_hint` / `export_button_visible` 字段
+- **edge tags**：ambiguous(4) / security(4) / history_dependent(3) /
+  multi_lang(2) / explicit_export(2) / metadata_query(2) / cross_source(2) /
+  edge_case(6)
+- **`tests/eval/test_intent_accuracy.py`**（新增）：
+  - Layer 1（无 LLM, CI 必跑）：mapping 完整性 / yaml intent ↔ display_hint
+    一致 / detail intent 与 export_button_visible 一致 / 每类 ≥ 8 条
+  - Layer 2（live LLM）：80 条 case 通过 Clarifier，intent 准确率 ≥ 90%
+- **`tests/integration/test_api_smoke.py`** — 加 2 条 intent 端到端 smoke
+  （metric / detail 各 1）
+
+### Added — GitHub Actions live LLM CI
+- **`.github/workflows/eval-live.yml`**：
+  - schedule: cron `0 16 * * 1`（周二北京时间 00:00）
+  - workflow_dispatch + PR paths（services/knot / llm_client / adapters/llm /
+    tests/eval 改动时强制触发）
+  - env：OPENROUTER_API_KEY (secret) / EVAL_MODEL (vars，默认 gemini-2.0-flash)
+
+### Added — AsyncLLMAdapter Protocol 占位（v0.4.4 落 impl）
+- **`bi_agent/adapters/llm/async_base.py`** — `AsyncLLMAdapter(Protocol)` +
+  `async def acomplete(req: LLMRequest) -> LLMResponse`
+- **`adapters/llm/__init__.py`** re-export AsyncLLMAdapter
+- **3 条单测** — Protocol 接受/拒绝；现有 3 个 sync adapter 均不满足
+  （守护 v0.4.4 工作量真实存在）
+
+### Verified
+- `pytest tests/ -v`：**125 passed / 81 skipped**（v0.3.3 101 → v0.4.0 125；
+  +24 = 8 export_service + 5 exports api + 2 integration intent + 6 mapping/yaml +
+  3 async protocol）
+- `lint-imports`：6 contracts KEPT, 0 broken（不动 .importlinter）
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：**55 routes**，version=0.4.0
+- `npm run build`：通过；bundle 1396 kB / gzip 446 kB（与 v0.3.3 持平）
+
+### 不在 v0.4.0 范围（留 v0.4.x 后续）
+- ❌ xlsx / 复制富文本 / PNG 截图 → v0.4.1
+- ❌ 报表沉淀（saved_reports 表 + 收藏 + 重跑）→ v0.4.1
+- ❌ 成本可观测拆 agent_kind 维度 → v0.4.2
+- ❌ 真异步 LLM/DB 改造 → v0.4.4（本 PATCH 仅占位）
+- ❌ Clarifier 升级剩余 3 项（sub_questions / methodology / gap）→ v0.5.x
+- ❌ /api/v1/ 版本前缀（T-1）→ v0.5.0
+
 ## [Unreleased] - v0.3.3 工程化重构（第 4 刀 / 4 · 收官）— Full Forbidden Mode
 
 > **4-PATCH 工程化重构正式封笔**。Python 后端已成为 Go 重写的"逻辑镜像"。
