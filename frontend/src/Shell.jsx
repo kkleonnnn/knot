@@ -1,5 +1,9 @@
 import { I, iconBtn } from './Shared.jsx';
 
+// v0.4.1.1: 非 admin 屏（chat / saved-reports / 未来用户屏）一律渲染传入的 sidebarContent；
+// admin 屏（active 以 'admin-' 开头）走硬写导航。
+// 命名约定：所有 admin 类屏的 active 标识必须以 'admin-' 开头（v0.3.3 已统一）；
+// 新增 admin 屏漏前缀会 fallthrough 到 sidebarContent 分支（行为退化但不崩溃）。
 export function AppShell({
   T, user, active = 'chat', sidebarContent,
   topbarTitle, topbarTrailing,
@@ -36,7 +40,7 @@ export function AppShell({
           </div>
         </div>
 
-        {active === 'chat' ? (
+        {!active.startsWith('admin-') ? (
           <>
             {sidebarContent}
           </>
