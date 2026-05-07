@@ -96,6 +96,65 @@ v0.3.0（已合入）建立 4 层架构 `routers → services → repositories |
 **v0.3.3 终态（Full Forbidden Mode）**：6 条 contract 全部 KEPT，所有 FIXME 清空。
 4-PATCH 工程化重构正式收官，进入 v0.4.x 业务迭代期。
 
+### 4 层依赖图（v0.3.3 终态）
+
+```mermaid
+graph TD
+    api["🌐 api/ (FastAPI 路由)"]
+    services["🧩 services/ (业务编排)<br/>knot/ + auth + catalog + rag + ..."]
+    repos["🗄️ repositories/ (SQLite CRUD)<br/>9 个 *_repo.py"]
+    adapters["🔌 adapters/ (Protocol 实现)<br/>llm + db + notification"]
+    models["📦 models/ (数据形状·叶子)<br/>10 个领域 dataclass"]
+    core["🛠️ core/ (横切工具)<br/>logging + date_context"]
+    config["⚙️ config/ (settings 单例)"]
+
+    api --> services
+    services --> repos
+    services --> adapters
+    repos --> models
+    adapters --> models
+    services --> models
+    api --> models
+
+    api -.-> core
+    services -.-> core
+    repos -.-> core
+    adapters -.-> core
+    api --> config
+    services --> config
+    repos --> config
+    adapters --> config
+
+    classDef leaf fill:#e8f5e9,stroke:#2e7d32
+    classDef horizontal fill:#fff3e0,stroke:#e65100,stroke-dasharray:5
+    class models,core leaf
+    class core horizontal
+```
+
+> **规则**：实线 = 业务依赖（自上而下）；虚线 = 横切工具（任意层可用，不构成业务依赖）。
+> import-linter 6 条 contract 把所有反向箭头都禁了。
+
+### 4-PATCH 演进时间轴
+
+```mermaid
+gantt
+    title 4-PATCH 工程化重构总账（v0.3.0 → v0.3.3）
+    dateFormat X
+    axisFormat %s
+
+    section v0.3.0
+    repos + models + 工程化基线 (4 contracts, 48 tests)  :done, 0, 1
+
+    section v0.3.1
+    services + core 无业务化 (4 contracts, 61 tests)     :done, 1, 2
+
+    section v0.3.2
+    adapters 协议驱动 + errors 树 (5 contracts, 85 tests) :done, 2, 3
+
+    section v0.3.3
+    api 改名 + Full Forbidden (6 contracts, 101 tests)   :done, 3, 4
+```
+
 资深寄语：v0.3.3 结束前 `core` 的 `forbidden_modules` 必须锁死至最高级别。
 
 辅助 v0.3.x 计划：
