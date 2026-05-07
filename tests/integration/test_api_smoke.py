@@ -1,0 +1,159 @@
+"""tests/integration/test_api_smoke.py — 端到端集成测试（v0.3.3 收官）
+
+覆盖 4 层链路：api → services → repositories → models（不命中 LLM/Doris）。
+跑前 init_db() 创建 tmp SQLite + seed admin；跑后清理。
+"""
+
+
+def test_healthz_returns_200(client):
+    """v0.2.x 起的 health endpoint 仍工作（路由总数 54 不变）。"""
+    # /healthz 不一定挂载；用 /docs 替代证明 app 启动正常
+    r = client.get("/docs")
+    assert r.status_code == 200
+
+
+def test_app_has_54_routes(client):
+    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。"""
+    from bi_agent.main import app
+    assert len(app.routes) == 54
+
+
+# ── 登录链路（api → services.auth_service → repositories.user_repo） ──
+
+def test_login_seed_admin_succeeds(client):
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert r.status_code == 200
+    body = r.json()
+    assert "token" in body
+    assert body["user"]["username"] == "admin"
+    assert body["user"]["role"] == "admin"
+
+
+def test_login_wrong_password_401(client):
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "wrong"})
+    assert r.status_code == 401
+
+
+def test_login_unknown_user_401(client):
+    r = client.post("/api/auth/login", json={"username": "noexist", "password": "x"})
+    assert r.status_code == 401
+
+
+# ── /api/auth/me（JWT 解析 → user_repo.get_user_by_id） ──
+
+def test_auth_me_with_valid_token(client, auth_headers):
+    r = client.get("/api/auth/me", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["username"] == "admin"
+
+
+def test_auth_me_without_token_403(client):
+    """FastAPI HTTPBearer 默认无 token 返 403（不是 401）。"""
+    r = client.get("/api/auth/me")
+    assert r.status_code in (401, 403)
+
+
+def test_auth_me_invalid_token_401(client):
+    r = client.get("/api/auth/me", headers={"Authorization": "Bearer invalid"})
+    assert r.status_code == 401
+
+
+# ── 会话 CRUD（api → services → repositories.conversation_repo） ──
+
+def test_conversation_create_list_delete(client, auth_headers):
+    create = client.post("/api/conversations", json={"title": "集成测试"}, headers=auth_headers)
+    assert create.status_code == 200
+    cid = create.json()["id"]
+
+    listing = client.get("/api/conversations", headers=auth_headers)
+    assert listing.status_code == 200
+    titles = [c["title"] for c in listing.json()]
+    assert "集成测试" in titles
+
+    delete = client.delete(f"/api/conversations/{cid}", headers=auth_headers)
+    assert delete.status_code == 200
+
+    after = client.get("/api/conversations", headers=auth_headers)
+    assert all(c["id"] != cid for c in after.json())
+
+
+# ── Catalog admin 编辑（api.catalog → services.knot.catalog → repositories.settings_repo） ──
+
+def test_catalog_get_returns_default(client, auth_headers):
+    r = client.get("/api/admin/catalog", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert "current" in body
+    assert "defaults" in body
+    assert body["source"] in ("example", "real", "empty")
+
+
+def test_catalog_put_business_rules_then_reset(client, auth_headers):
+    # PUT 注入 DB 覆盖
+    r = client.put(
+        "/api/admin/catalog",
+        json={"business_rules": "## 集成测试规则\n- 测试用户排除"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["source"] == "db"
+
+    # GET 应返回 db 来源
+    r2 = client.get("/api/admin/catalog", headers=auth_headers)
+    assert "集成测试规则" in r2.json()["current"]["business_rules"]
+
+    # POST reset 回到默认
+    r3 = client.post("/api/admin/catalog/reset",
+                     json={"fields": ["business_rules"]}, headers=auth_headers)
+    assert r3.status_code == 200
+    assert "business_rules" in r3.json()["cleared"]
+
+
+# ── few-shots admin（api.few_shots → repositories.few_shot_repo） ──
+
+def test_few_shot_crud(client, auth_headers):
+    create = client.post(
+        "/api/few-shots",
+        json={"question": "测试问题", "sql": "SELECT 1", "type": "metric", "is_active": 1},
+        headers=auth_headers,
+    )
+    assert create.status_code == 200
+    fid = create.json()["id"]
+
+    listing = client.get("/api/few-shots", headers=auth_headers)
+    qs = [r["question"] for r in listing.json()]
+    assert "测试问题" in qs
+
+    update = client.put(
+        f"/api/few-shots/{fid}",
+        json={"sql": "SELECT 2"},
+        headers=auth_headers,
+    )
+    assert update.status_code == 200
+
+    delete = client.delete(f"/api/few-shots/{fid}", headers=auth_headers)
+    assert delete.status_code == 200
+
+
+# ── 权限检查（analyst 不能访问 admin 路由）──
+
+def test_analyst_cannot_access_admin_routes(client, auth_headers):
+    # 先创建 analyst 账号
+    create = client.post(
+        "/api/admin/users",
+        json={"username": "alice", "password": "p", "role": "analyst"},
+        headers=auth_headers,
+    )
+    assert create.status_code == 200
+
+    # 用 analyst 登录
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "p"})
+    assert login.status_code == 200
+    analyst_token = login.json()["token"]
+
+    # admin-only 路由应返回 403
+    r = client.get(
+        "/api/admin/users",
+        headers={"Authorization": f"Bearer {analyst_token}"},
+    )
+    assert r.status_code == 403

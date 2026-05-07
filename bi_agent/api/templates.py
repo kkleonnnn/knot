@@ -6,7 +6,7 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from ..dependencies import require_admin
+from bi_agent.api.deps import require_admin
 
 router = APIRouter()
 

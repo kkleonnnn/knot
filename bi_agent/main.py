@@ -13,18 +13,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from bi_agent.api import admin, auth, conversations, database, knowledge, query, uploads
+from bi_agent.api import catalog as catalog_router
+from bi_agent.api import few_shots as few_shots_router
+from bi_agent.api import prompts as prompts_router
+from bi_agent.api import templates as templates_router
 from bi_agent.core.logging_setup import logger, new_request_id, set_request_id
 from bi_agent.repositories import init_db
-from bi_agent.routers import admin, auth, conversations, database, knowledge, query, uploads
-from bi_agent.routers import catalog as catalog_router
-from bi_agent.routers import few_shots as few_shots_router
-from bi_agent.routers import prompts as prompts_router
-from bi_agent.routers import templates as templates_router
 
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="BI-Agent", version="0.3.0")
+app = FastAPI(title="BI-Agent", version="0.3.3")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)

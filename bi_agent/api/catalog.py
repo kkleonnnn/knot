@@ -13,12 +13,11 @@ import json
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
+from bi_agent.api.deps import require_admin
 from bi_agent.repositories import settings_repo
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from bi_agent.services.knot import catalog as catalog_loader
-
-from ..dependencies import require_admin
 
 router = APIRouter()
 

@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from bi_agent import config as cfg
+from bi_agent.api.deps import create_token, get_current_user
+from bi_agent.api.schemas import LoginRequest
 from bi_agent.services import auth_service
-
-from ..dependencies import create_token, get_current_user
-from ..schemas import LoginRequest
 
 router = APIRouter()
 

@@ -90,8 +90,70 @@ v0.3.0（已合入）建立 4 层架构 `routers → services → repositories |
 |-----------|---------|---------|---------|
 | ~~`FIXME-v0.3.1`~~ ✅ v0.3.1 已偿还 | `repositories` 仅禁 `routers` | 加上 `bi_agent.services` 到 `forbidden_modules` | v0.3.1 services 落地后 |
 | ~~`FIXME-v0.3.2`~~ ✅ v0.3.2 已偿还 | `repositories` 仅禁 `routers + services` | 加上 `bi_agent.adapters` + 新增 contract `adapters-no-business` | v0.3.2 adapters 落地后 |
-| `FIXME-v0.3.2` | `repositories` 仅禁 `routers / services` | 再加 `bi_agent.adapters` | v0.3.2 adapters 落地后 |
-| `FIXME-v0.3.3` | `core-no-models` 仅禁 `models / routers` | 完整 `forbidden_modules`：`models, routers, api, services, repositories, adapters` | v0.3.3 core 完全瘦身后 |
+| ~~`FIXME-v0.3.2`~~ ✅ v0.3.2 已偿还 | `repositories` 仅禁 `routers / services` | 再加 `bi_agent.adapters` | v0.3.2 adapters 落地后 |
+| ~~`FIXME-v0.3.3`~~ ✅ v0.3.3 已偿还 | `core-no-models` 仅禁 `models / routers` | 完整 `forbidden_modules`：`models, api, services, repositories, adapters` | v0.3.3 core 完全瘦身后 |
+
+**v0.3.3 终态（Full Forbidden Mode）**：6 条 contract 全部 KEPT，所有 FIXME 清空。
+4-PATCH 工程化重构正式收官，进入 v0.4.x 业务迭代期。
+
+### 4 层依赖图（v0.3.3 终态）
+
+```mermaid
+graph TD
+    api["🌐 api/ (FastAPI 路由)"]
+    services["🧩 services/ (业务编排)<br/>knot/ + auth + catalog + rag + ..."]
+    repos["🗄️ repositories/ (SQLite CRUD)<br/>9 个 *_repo.py"]
+    adapters["🔌 adapters/ (Protocol 实现)<br/>llm + db + notification"]
+    models["📦 models/ (数据形状·叶子)<br/>10 个领域 dataclass"]
+    core["🛠️ core/ (横切工具)<br/>logging + date_context"]
+    config["⚙️ config/ (settings 单例)"]
+
+    api --> services
+    services --> repos
+    services --> adapters
+    repos --> models
+    adapters --> models
+    services --> models
+    api --> models
+
+    api -.-> core
+    services -.-> core
+    repos -.-> core
+    adapters -.-> core
+    api --> config
+    services --> config
+    repos --> config
+    adapters --> config
+
+    classDef leaf fill:#e8f5e9,stroke:#2e7d32
+    classDef horizontal fill:#fff3e0,stroke:#e65100,stroke-dasharray:5
+    class models,core leaf
+    class core horizontal
+```
+
+> **规则**：实线 = 业务依赖（自上而下）；虚线 = 横切工具（任意层可用，不构成业务依赖）。
+> import-linter 6 条 contract 把所有反向箭头都禁了。
+
+### 4-PATCH 演进时间轴
+
+```mermaid
+gantt
+    title 4-PATCH 工程化重构总账（v0.3.0 → v0.3.3）
+    dateFormat X
+    axisFormat %s
+
+    section v0.3.0
+    repos + models + 工程化基线 (4 contracts, 48 tests)  :done, 0, 1
+
+    section v0.3.1
+    services + core 无业务化 (4 contracts, 61 tests)     :done, 1, 2
+
+    section v0.3.2
+    adapters 协议驱动 + errors 树 (5 contracts, 85 tests) :done, 2, 3
+
+    section v0.3.3
+    api 改名 + Full Forbidden (6 contracts, 101 tests)   :done, 3, 4
+```
 
 资深寄语：v0.3.3 结束前 `core` 的 `forbidden_modules` 必须锁死至最高级别。
 
@@ -102,6 +164,7 @@ v0.3.0（已合入）建立 4 层架构 `routers → services → repositories |
 | ✅ v0.3.0 | repos 拆分 + models 顶级包 + 工程化基线 | `pyproject.toml` / `.importlinter` / `pip install -e .` |
 | ✅ v0.3.1 | services/ 落地（含 knot/）+ 删 repos facade re-export + core 无业务化 | 9 个文件 git mv → services/[knot/]，repos 仅暴露 `init_db / get_conn` |
 | ✅ v0.3.2 | adapters/ 落地（llm/db/notification 协议驱动）+ services/llm_client 瘦身 | adapters/{llm,db,notification}/{base,...}.py，5 contracts KEPT |
+| ✅ v0.3.3 | routers→api 改名 + core 完全瘦身 + Full Forbidden Mode + 端到端集成测试 | api/ + 6 contracts KEPT + 13 集成测试 + 3 core 纯度守护测试 |
 | ⏳ v0.3.2 | adapters/ 落地（llm/db/notification 协议） | `adapters/llm/openrouter.py` / `adapters/db/doris.py` / `adapters/notification/lark.py` (stub) |
 | ⏳ v0.3.3 | routers→api 改名 + core 完全瘦身 + contract 全锁 | 删除 3 处 FIXME |
 

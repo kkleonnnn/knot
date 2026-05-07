@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.3.3 工程化重构（第 4 刀 / 4 · 收官）— Full Forbidden Mode
+
+> **4-PATCH 工程化重构正式封笔**。Python 后端已成为 Go 重写的"逻辑镜像"。
+
+### Added — `bi_agent/api/` 取代 `bi_agent/routers/`
+- `git mv bi_agent/routers/ → bi_agent/api/`（11 个 router + dependencies + schemas）
+- `bi_agent/dependencies.py` → `bi_agent/api/deps.py`
+- `bi_agent/schemas.py` → `bi_agent/api/schemas.py`
+- `bi_agent/routers/` 目录物理删除
+
+### Changed — `.importlinter` Full Forbidden Mode（FIXME-v0.3.3 偿还）
+**6 条 contract 全部 KEPT，所有 FIXME 清空：**
+1. `layered-architecture` — `api → services → repos|adapters → models`
+2. `models-is-leaf` — models 禁 import 任何子包
+3. **`core-no-business`**（升级）— core 现在禁止 `models, api, services, repositories, adapters` 全部 5 项
+4. **`repos-no-business`**（升级）— repos 禁 `api, services, adapters`
+5. `adapters-no-business` — adapters 禁 `api, services, repositories`
+6. **`api-is-entrypoint`**（v0.3.3 新增）— 其他层禁止反向 import api
+
+### Added — 守护测试三道防线
+- **`tests/test_core_purity.py`**（T-2，3 条）：
+  - AST 扫描 `bi_agent/core/*.py` 所有 import，验证无业务层引用
+  - 运行时反射扫描模块 `__dict__`，验证不持有业务对象引用
+  - 文件清单守护：`bi_agent/core/` 仅可包含 `__init__.py / logging_setup.py / date_context.py`，新增其他文件即失败
+- **`tests/integration/test_api_smoke.py`**（13 条端到端集成测试）：
+  - 路由总数固化 = 54（防止重构丢失端点）
+  - 登录链路：seed admin / 错误密码 / 未知用户
+  - JWT 路径：valid / missing / invalid token
+  - 会话 CRUD（api → services → repositories）
+  - Catalog admin 编辑 + DB 覆盖 → reset 回退
+  - few-shots admin CRUD
+  - 角色权限：analyst 不可访问 admin 路由
+- **TestClient** 使用 tmp SQLite，不依赖 LLM API key / Doris
+
+### Skipped（v0.4.x 范围说明）
+- **T-1 `/api/v1/` 版本前缀**：评审指令"顺手检查"，但落地需同步改前端 `frontend/src/api.js` base URL +
+  影响 Vite 构建产物里的所有 fetch 路径。本 PATCH 已 BREAKING 较多（routers→api / persistence 多次迁移），
+  再加版本前缀会让 admin 部署方更新成本超阈。已记入 v0.4.0 路线图，与 SSE→WebSocket 迁移评估一并做。
+
+### Verified
+- `pytest tests/ -v`：**101 passed / 6 skipped**（v0.3.2 85 → v0.3.3 101，新增 16 条：3 core 纯度 + 13 集成）
+- `lint-imports`：**6 contracts KEPT, 0 broken**（v0.3.2 5 → v0.3.3 6）
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：54 routes 启动 OK
+
+### BREAKING（最后一次大规模迁移）
+1. `bi_agent.routers.X` → `bi_agent.api.X`（11 个 router 模块）
+2. `bi_agent.dependencies` → `bi_agent.api.deps`
+3. `bi_agent.schemas` → `bi_agent.api.schemas`
+
+### 4-PATCH 工程化重构总账（v0.3.0 → v0.3.3）
+| | 主题 | tests | contracts |
+|---|---|---|---|
+| v0.3.0 | repos + models + 工程化基线 | 48 | 4 |
+| v0.3.1 | services + core 无业务化 | 61 | 4 |
+| v0.3.2 | adapters 协议驱动 + errors 树 | 85 | 5 |
+| **v0.3.3** | **api 改名 + Full Forbidden Mode** | **101** | **6** |
+
+### 下一阶段
+v0.4.x 进入业务迭代期：成本观测（原 v0.2.6）/ Clarifier 升级（原 v0.3.0）/ async LLM /
+WebSocket 评估等。**架构底座已稳，KNOT 协议驱动引擎正式点火。** 🔥
+
+## [0.3.2.202605062150] - 2026-05-06 v0.3.2 adapters/ 落地
+
 ## [Unreleased] - v0.3.2 工程化重构（第 3 刀 / 4） — adapters/ 落地（协议驱动）
 
 > 行为契约（Protocol）与实现分家；引入第 5 条 import-linter contract。

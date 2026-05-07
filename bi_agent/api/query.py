@@ -9,6 +9,8 @@ from bi_agent import config as cfg
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from bi_agent.adapters.db import doris as db_connector
+from bi_agent.api.deps import get_current_user
+from bi_agent.api.schemas import QueryRequest
 from bi_agent.core.logging_setup import logger
 from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
 from bi_agent.services import llm_client
@@ -16,9 +18,6 @@ from bi_agent.services import rag_service as doc_rag
 from bi_agent.services.engine_cache import _upload_engine, get_user_engine
 from bi_agent.services.knot import orchestrator as multi_agent_module
 from bi_agent.services.knot import sql_planner as agent_module
-
-from ..dependencies import get_current_user
-from ..schemas import QueryRequest
 
 router = APIRouter()
 
