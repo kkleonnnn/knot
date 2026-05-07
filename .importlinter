@@ -1,23 +1,25 @@
-# BI-Agent v0.3.0 — 4 层架构契约
-# 任何 PR 修改下方分层都必须经资深评审；CI 强制不可绕过。
+# BI-Agent v0.3.3 — Full Forbidden Mode（4 PATCH 重构终态）
+#
+# 5 层架构契约，CI 强制不可绕过：
+#   api → services → repositories | adapters → models
+#                                            ↘ core (横切工具，与 models 同层但语义不同)
+#
+# 任何 PR 修改下方分层都必须经资深架构师评审。
 [importlinter]
 root_package = bi_agent
 include_external_packages = False
 
 # ── Contract 1: 4 层方向严格自上而下 ──
-# v0.3.0 阶段：bi_agent.routers 占据 api 层（v0.3.3 改名为 bi_agent.api）；
-#              bi_agent.services / bi_agent.adapters 在 v0.3.1 / v0.3.2 落地，
-#              当前用占位语法允许它们暂不存在（include_external_packages=False 兜底）。
 [importlinter:contract:layered-architecture]
-name = routers → services → repositories | adapters → models
+name = api → services → repositories | adapters → models
 type = layers
 layers =
-    bi_agent.routers | bi_agent.api
+    bi_agent.api
     bi_agent.services
     bi_agent.repositories | bi_agent.adapters
     bi_agent.models
 
-# ── Contract 2: models 是叶子节点（不得 import bi_agent 内任何包，含 core）──
+# ── Contract 2: models 是叶子节点（v0.3.0 起锁定）──
 [importlinter:contract:models-is-leaf]
 name = models 不得 import bi_agent 内部任何其他包（纯叶子）
 type = forbidden
@@ -25,33 +27,49 @@ source_modules = bi_agent.models
 forbidden_modules =
     bi_agent.core
     bi_agent.config
-    bi_agent.routers
+    bi_agent.api
+    bi_agent.services
     bi_agent.repositories
+    bi_agent.adapters
 
-# ── Contract 3: core 不得 import models（已生效）──
-# FIXME-v0.3.3: 此 contract 当前仅锁 models 方向。v0.3.0 阶段 core/ 内部仍含 6 个
-# "未来 service" 文件（auth_utils / llm_client / multi_agent / sql_agent / catalog_loader /
-# doc_rag / prompts），它们合法 import bi_agent.repositories；待 v0.3.1~v0.3.2 把它们搬到
-# services/ 与 adapters/ 后，本 contract 在 v0.3.3 升级为完整 forbidden_modules：
-#   bi_agent.api, bi_agent.services, bi_agent.repositories, bi_agent.adapters
-[importlinter:contract:core-no-models]
-name = core 是横切工具，禁止依赖 models（防止工具拐回业务数据形状）
+# ── Contract 3: core 是横切工具，禁止依赖任何业务层（v0.3.3 Full Forbidden Mode）──
+# 历史：v0.3.0 引入时 core/ 内部有 6 个"未来 service"文件合法依赖 repositories；
+# 经 v0.3.1 全部搬到 services/，v0.3.2 db_connector 搬到 adapters/db/doris.py 后，
+# v0.3.3 收官升级到完整 forbidden_modules，FIXME 全部删除。
+[importlinter:contract:core-no-business]
+name = core 是横切工具，不得依赖 models 或任何业务层
 type = forbidden
 source_modules = bi_agent.core
 forbidden_modules =
     bi_agent.models
-    bi_agent.routers
+    bi_agent.api
+    bi_agent.services
+    bi_agent.repositories
+    bi_agent.adapters
 
-# ── Contract 4: repositories / adapters 之间不互相依赖 ──
+# ── Contract 4: repositories 不得 import 业务编排层（v0.3.0 起逐步收紧到全锁）──
 [importlinter:contract:repos-no-business]
-name = repositories 不得 import routers / services / adapters / 任何业务编排层
+name = repositories 不得 import api / services / adapters
 type = forbidden
 source_modules = bi_agent.repositories
-forbidden_modules = bi_agent.routers, bi_agent.services, bi_agent.adapters
+forbidden_modules = bi_agent.api, bi_agent.services, bi_agent.adapters
 
-# ── Contract 5（v0.3.2 新增）：adapters 不得 import services / routers / repositories ──
+# ── Contract 5: adapters 是叶子实现，禁止依赖业务编排层（v0.3.2 新增）──
 [importlinter:contract:adapters-no-business]
-name = adapters 是叶子实现，禁止依赖业务编排层（services / routers / repositories）
+name = adapters 不得 import api / services / repositories
 type = forbidden
 source_modules = bi_agent.adapters
-forbidden_modules = bi_agent.services, bi_agent.routers, bi_agent.repositories
+forbidden_modules = bi_agent.api, bi_agent.services, bi_agent.repositories
+
+# ── Contract 6（v0.3.3 新增）：api 是入口层，不得被其他层反向依赖 ──
+[importlinter:contract:api-is-entrypoint]
+name = api 是入口层；其他层禁止反向 import api
+type = forbidden
+source_modules =
+    bi_agent.services
+    bi_agent.repositories
+    bi_agent.adapters
+    bi_agent.models
+    bi_agent.core
+    bi_agent.config
+forbidden_modules = bi_agent.api

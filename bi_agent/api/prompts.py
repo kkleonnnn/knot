@@ -5,10 +5,9 @@ v0.2.2: validator 已移除；仍存在的 validator 模板会被忽略（保留
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
-from bi_agent.repositories import prompt_repo
-
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from ..dependencies import require_admin
+from bi_agent.api.deps import require_admin
+from bi_agent.repositories import prompt_repo
 
 router = APIRouter()
 

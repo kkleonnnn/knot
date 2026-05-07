@@ -2,11 +2,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from bi_agent.repositories import conversation_repo, message_repo
-
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from ..dependencies import get_current_user
-from ..schemas import CreateConversationRequest
+from bi_agent.api.deps import get_current_user
+from bi_agent.api.schemas import CreateConversationRequest
+from bi_agent.repositories import conversation_repo, message_repo
 
 router = APIRouter()
 
