@@ -44,6 +44,24 @@ def get_messages(conv_id: int) -> list:
     return result
 
 
+def get_message(message_id: int) -> dict | None:
+    """单条 message 查询（含 rows 解码）。
+
+    用于 v0.4.0 导出路由按 message_id 取数据；调用方负责权限校验。
+    返回 None 表示不存在。
+    """
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM messages WHERE id=?", (message_id,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    d = dict(row)
+    d["rows"] = json.loads(d.get("rows_json") or "[]")
+    return d
+
+
 def get_semantic_layer() -> str:
     conn = get_conn()
     row = conn.execute("SELECT content FROM semantic_layer LIMIT 1").fetchone()

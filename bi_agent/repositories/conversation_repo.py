@@ -41,3 +41,13 @@ def delete_conversation(conv_id: int):
     conn.execute("DELETE FROM conversations WHERE id=?", (conv_id,))
     conn.commit()
     conn.close()
+
+
+def get_conversation_owner(conv_id: int) -> int | None:
+    """返回 conversation 的 user_id；不存在则 None。导出路由权限校验用。"""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT user_id FROM conversations WHERE id=?", (conv_id,),
+    ).fetchone()
+    conn.close()
+    return row["user_id"] if row else None

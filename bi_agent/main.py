@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from bi_agent.api import admin, auth, conversations, database, knowledge, query, uploads
 from bi_agent.api import catalog as catalog_router
+from bi_agent.api import exports as exports_router
 from bi_agent.api import few_shots as few_shots_router
 from bi_agent.api import prompts as prompts_router
 from bi_agent.api import templates as templates_router
@@ -63,7 +64,7 @@ async def request_id_middleware(request: Request, call_next):
 for _router in [auth.router, conversations.router, query.router, database.router,
                 uploads.router, knowledge.router, admin.router,
                 few_shots_router.router, prompts_router.router, templates_router.router,
-                catalog_router.router]:
+                catalog_router.router, exports_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

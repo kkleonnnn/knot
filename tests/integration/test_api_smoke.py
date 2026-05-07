@@ -6,16 +6,17 @@
 
 
 def test_healthz_returns_200(client):
-    """v0.2.x 起的 health endpoint 仍工作（路由总数 54 不变）。"""
+    """v0.2.x 起的 health endpoint 仍工作。"""
     # /healthz 不一定挂载；用 /docs 替代证明 app 启动正常
     r = client.get("/docs")
     assert r.status_code == 200
 
 
-def test_app_has_54_routes(client):
-    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。"""
+def test_app_has_55_routes(client):
+    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
+    v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。"""
     from bi_agent.main import app
-    assert len(app.routes) == 54
+    assert len(app.routes) == 55
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──
