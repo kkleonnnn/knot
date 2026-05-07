@@ -109,6 +109,31 @@ Action Input: [工具的输入]
 - 关联字段优先参考下方「## 表关系 RELATIONS」段；该段无明确关联时，先 search_schema
   查同名 _id 字段；仍找不到则 final_answer 报错"无法确定 JOIN 条件"，不要瞎猜
 
+## 多 LEFT JOIN 聚合的 Fan-Out 陷阱（必读 — 防结果膨胀）
+当 SELECT 含 ≥ 2 个聚合函数（SUM/COUNT/AVG）且 FROM 链 LEFT JOIN ≥ 2 张**不同明细表**时，
+**禁止**直接对各 JOIN 后字段聚合 — 行数相乘会让结果数倍膨胀（虽然 JOIN+ON 写法看似合规）。
+
+错误示范（每个 SUM 都被另一表行数放大）：
+```
+FROM users u
+LEFT JOIN deposits d ON u.id = d.user_id
+LEFT JOIN deals    t ON u.id = t.user_id
+GROUP BY u.id
+-- SUM(d.amount) 被 deals 行数膨胀；SUM(t.amount) 被 deposits 行数膨胀
+```
+
+正确写法 — 每张明细表先按 grain（user_id）预聚合，再 JOIN 聚合结果：
+```
+FROM users u
+LEFT JOIN (SELECT user_id, SUM(amount) AS total FROM deposits GROUP BY user_id) d
+       ON u.id = d.user_id
+LEFT JOIN (SELECT user_id, SUM(amount) AS total FROM deals    GROUP BY user_id) t
+       ON u.id = t.user_id
+```
+
+判定规则：当你写出 ≥ 2 个 LEFT JOIN 且 SELECT 有多个聚合时，**必须**确保每个聚合源表
+都已通过子查询/CTE 预聚合到 JOIN 主表的 grain；否则 final_answer 报错"fan-out 风险"。
+
 ## 数据库环境
 {db_env}
 

@@ -51,6 +51,25 @@ def _check_no_cartesian_join(case_id: str, sql: str, must_tables: list):
     )
 
 
+def _check_fan_out_uses_subquery_aggregation(case_id: str, sql: str, tags: list):
+    """v0.4.1.1 实战补丁：tag=fan_out 的 case 必须用子查询/CTE 预聚合再 JOIN。
+
+    判定：SQL 必须含 ≥ 2 个 `group by`（外层 + 子查询；或两个独立子查询；或 CTE 多个）。
+    bad 模式 SUM(d.amt), SUM(o.amt) FROM u LEFT JOIN deposits d LEFT JOIN orders o GROUP BY u.id
+    仅 1 个 GROUP BY → 必失败。
+    good 模式 LEFT JOIN (SELECT ... GROUP BY uid) d LEFT JOIN (SELECT ... GROUP BY uid) o
+    含 2 个 GROUP BY（两个子查询）→ pass。
+    """
+    if "fan_out" not in (tags or []):
+        return
+    sql_lower = sql.lower()
+    n_group_by = len(re.findall(r"\bgroup\s+by\b", sql_lower))
+    assert n_group_by >= 2, (
+        f"[{case_id}] Fan-out 防御：tag=fan_out 的 case 必须用子查询/CTE 预聚合再 JOIN。"
+        f"SQL 仅含 {n_group_by} 个 GROUP BY，预期 ≥ 2（外层多 SUM + 单层 GROUP BY 是膨胀反模式）: {sql}"
+    )
+
+
 @_REQUIRES_KEY
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
 def test_case(case, fake_schema):
@@ -79,6 +98,8 @@ def test_case(case, fake_schema):
 
     # v0.4.1.1 笛卡尔积守护：多表 SQL 必须 JOIN + ON 且禁旧式 FROM a,b
     _check_no_cartesian_join(case["id"], sql, must_tables)
+    # v0.4.1.1 实战补丁：tag=fan_out 的 case 必须用子查询/CTE 预聚合
+    _check_fan_out_uses_subquery_aggregation(case["id"], sql, case.get("tags", []))
 
 
 # ── 守护正则纯单元测试（无 LLM key 也跑） ───────────────────────────────────
@@ -122,6 +143,53 @@ def test_check_no_cartesian_join_missing_on_fails():
     sql = "select * from users u cross join orders o"
     with pytest.raises(AssertionError, match="ON"):
         _check_no_cartesian_join("smoke", sql, ["users", "orders"])
+
+
+# ── Fan-out 守护单测（无 LLM key 也跑） ─────────────────────────────────
+
+
+def test_fan_out_check_skips_when_tag_absent():
+    """非 fan_out tag 的 case 不应被检测（向下兼容）。"""
+    bad_sql = "select u.id, sum(d.amt), sum(o.amt) from u left join d on u.id=d.uid left join o on u.id=o.uid group by u.id"
+    _check_fan_out_uses_subquery_aggregation("smoke", bad_sql, [])  # 应不抛
+    _check_fan_out_uses_subquery_aggregation("smoke", bad_sql, ["multi_table"])  # 应不抛
+
+
+def test_fan_out_check_fails_on_single_group_by_with_multi_left_joins():
+    """fan-out 反模式：外层多个 SUM + 单层 GROUP BY → fail。"""
+    bad_sql = (
+        "select u.user_id, sum(d.amt), sum(o.amt) from users u "
+        "left join deposits d on u.id = d.user_id "
+        "left join orders   o on u.id = o.user_id "
+        "group by u.user_id"
+    )
+    with pytest.raises(AssertionError, match="Fan-out"):
+        _check_fan_out_uses_subquery_aggregation("smoke", bad_sql, ["fan_out"])
+
+
+def test_fan_out_check_passes_with_subquery_pre_aggregation():
+    """正确写法：每个明细表先按 grain 预聚合（≥ 2 个 group by） → pass。"""
+    good_sql = (
+        "select u.user_id, d.total, o.total from users u "
+        "left join (select user_id, sum(amt) as total from deposits group by user_id) d "
+        "       on u.id = d.user_id "
+        "left join (select user_id, sum(amt) as total from orders   group by user_id) o "
+        "       on u.id = o.user_id"
+    )
+    # 不应抛
+    _check_fan_out_uses_subquery_aggregation("smoke", good_sql, ["fan_out"])
+
+
+def test_fan_out_check_passes_with_cte_pre_aggregation():
+    """CTE 写法（≥ 2 个 group by）也应 pass。"""
+    good_sql = (
+        "with d as (select user_id, sum(amt) as total from deposits group by user_id), "
+        "     o as (select user_id, sum(amt) as total from orders   group by user_id) "
+        "select u.user_id, d.total, o.total from users u "
+        "left join d on u.id = d.user_id "
+        "left join o on u.id = o.user_id"
+    )
+    _check_fan_out_uses_subquery_aggregation("smoke", good_sql, ["fan_out"])
 
 
 def test_cases_loaded():

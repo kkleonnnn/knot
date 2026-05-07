@@ -157,6 +157,13 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 - 多表查询必须显式 `JOIN ... ON 关联字段`；严禁 `FROM a, b WHERE ...` 旧式写法（隐式笛卡尔积）
 - 关联字段优先参考下方「## 表关系 RELATIONS」段；该段未列出明确关联时，
   在 JSON error 字段说明"无法确定 JOIN 条件"，不要瞎猜
+- **Fan-Out 防御**：当 SELECT 含 ≥ 2 个聚合（SUM/COUNT/AVG）且 LEFT JOIN ≥ 2 张
+  不同明细表时，每个聚合源表必须先用子查询/CTE 按 JOIN 主表的 grain 预聚合再 JOIN，
+  否则行数相乘会让聚合结果数倍膨胀（即使 JOIN+ON 看似合规）。
+  错误：FROM u LEFT JOIN deposits d ON u.id=d.uid LEFT JOIN deals t ON u.id=t.uid
+        SELECT SUM(d.amt), SUM(t.amt) GROUP BY u.id  ❌ 双向膨胀
+  正确：LEFT JOIN (SELECT uid, SUM(amt) FROM deposits GROUP BY uid) d
+        LEFT JOIN (SELECT uid, SUM(amt) FROM deals    GROUP BY uid) t
 - 如果用户的问题无法用已知表结构回答，在 JSON 的 error 字段说明原因"""
 
     section_format = """## 输出格式（严格遵守）

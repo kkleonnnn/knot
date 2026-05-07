@@ -1073,3 +1073,21 @@ cases:
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
       display_hint: detail_table
       export_button_visible: true
+
+  # ── Fan-out 反模式守护（v0.4.1.1 实战补丁）─────────────────────
+  # 实测发现：v0.4.1.1 双 JOIN+ON 守护无法拦"多 LEFT JOIN 到不同明细表 + 多聚合"
+  # 引发的隐式 fan-out 膨胀。本 case 验 LLM 必须用预聚合子查询/CTE 写法。
+  - id: edge_fan_out_two_left_joins_aggregates
+    intent: detail
+    tags: [multi_table, edge_case, fan_out]
+    question: 列出最近 10 天每个注册用户的总充值金额和总订单金额
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      # 必须出现 ≥ 2 次 group by（外层 + 子查询；或 2 个独立子查询都 group by）
+      must_keywords: [user_id, sum, "group by", select]
+      # 禁止顶层直接 SUM 多个 LEFT JOIN 后字段（fan-out 反模式）
+      # 用 must_keywords 强制 "join (" 子查询 join 写法（最直接的检测）
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
