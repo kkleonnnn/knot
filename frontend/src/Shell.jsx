@@ -63,6 +63,11 @@ export function AppShell({
                             onClick={() => onNavigate('admin-prompts')}/>
                 <SideNavRow T={T} icon={<I.gear/>} label="业务目录" active={active === 'admin-catalog'}
                             onClick={() => onNavigate('admin-catalog')}/>
+                {/* v0.4.3 admin 看板 */}
+                <SideNavRow T={T} icon={<I.zap/>} label="💰 预算" active={active === 'admin-budgets'}
+                            onClick={() => onNavigate('admin-budgets')}/>
+                <SideNavRow T={T} icon={<I.sparkle/>} label="🛡️ Recovery" active={active === 'admin-recovery'}
+                            onClick={() => onNavigate('admin-recovery')}/>
               </>
             )}
             <div style={{ flex: 1 }}/>
