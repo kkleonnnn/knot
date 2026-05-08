@@ -12,14 +12,15 @@ def test_healthz_returns_200(client):
     assert r.status_code == 200
 
 
-def test_app_has_69_routes(client):
+def test_app_has_70_routes(client):
     """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
     v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。
     v0.4.1 加 saved_reports 6 路由 → 55 → 61。
     v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。
-    v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。"""
+    v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。
+    v0.4.6: +audit-log GET (1) → 69 → 70（commit #5 再 +audit-config 2 路由 → 72）。"""
     from bi_agent.main import app
-    assert len(app.routes) == 69
+    assert len(app.routes) == 70
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──

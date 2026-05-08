@@ -1,9 +1,10 @@
 """
 few_shots.py — admin 维护 few-shot 示例（DB 存储）
 """
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent.api._audit_helpers import audit
 from bi_agent.api.deps import require_admin
 from bi_agent.repositories import few_shot_repo
 
@@ -16,25 +17,32 @@ async def list_few_shots(admin=Depends(require_admin)):
 
 
 @router.post("/api/few-shots")
-async def create_few_shot(payload: dict = Body(...), admin=Depends(require_admin)):
+async def create_few_shot(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
     q = (payload.get("question") or "").strip()
     s = (payload.get("sql") or "").strip()
     t = (payload.get("type") or "").strip()
     if not q or not s:
         raise HTTPException(status_code=400, detail="question / sql 不能为空")
     fid = few_shot_repo.create_few_shot(q, s, t, 1 if payload.get("is_active", 1) else 0)
+    audit(request, admin, action="config.few_shots_change", resource_type="few_shots",
+          resource_id=fid, detail={"op": "create", "type": t})
     return {"id": fid}
 
 
 @router.put("/api/few-shots/{fid}")
-async def update_few_shot(fid: int, payload: dict = Body(...), admin=Depends(require_admin)):
-    few_shot_repo.update_few_shot(fid, **{k: v for k, v in payload.items() if k in {"question", "sql", "type", "is_active"}})
+async def update_few_shot(fid: int, payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+    fields = {k: v for k, v in payload.items() if k in {"question", "sql", "type", "is_active"}}
+    few_shot_repo.update_few_shot(fid, **fields)
+    audit(request, admin, action="config.few_shots_change", resource_type="few_shots",
+          resource_id=fid, detail={"op": "update", "fields": sorted(fields.keys())})
     return {"ok": True}
 
 
 @router.delete("/api/few-shots/{fid}")
-async def delete_few_shot(fid: int, admin=Depends(require_admin)):
+async def delete_few_shot(fid: int, request: Request, admin=Depends(require_admin)):
     few_shot_repo.delete_few_shot(fid)
+    audit(request, admin, action="config.few_shots_change", resource_type="few_shots",
+          resource_id=fid, detail={"op": "delete"})
     return {"ok": True}
 
 

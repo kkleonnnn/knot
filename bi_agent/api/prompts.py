@@ -3,9 +3,10 @@ prompts.py — admin 维护 3 个 agent 的 system prompt 覆盖
 agent_name ∈ {clarifier, sql_planner, presenter}
 v0.2.2: validator 已移除；仍存在的 validator 模板会被忽略（保留 DB 数据待清理）
 """
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
+from bi_agent.api._audit_helpers import audit
 from bi_agent.api.deps import require_admin
 from bi_agent.repositories import prompt_repo
 
@@ -28,19 +29,23 @@ async def get_prompt(agent_name: str, admin=Depends(require_admin)):
 
 
 @router.put("/api/prompts/{agent_name}")
-async def set_prompt(agent_name: str, payload: dict = Body(...), admin=Depends(require_admin)):
+async def set_prompt(agent_name: str, payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     content = payload.get("content", "")
     prompt_repo.set_prompt_template(agent_name, content, updated_by=admin["id"])
+    audit(request, admin, action="config.prompt_update", resource_type="prompt",
+          resource_id=agent_name, detail={"op": "update", "content_len": len(content)})
     return {"ok": True}
 
 
 @router.delete("/api/prompts/{agent_name}")
-async def delete_prompt(agent_name: str, admin=Depends(require_admin)):
+async def delete_prompt(agent_name: str, request: Request, admin=Depends(require_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     prompt_repo.delete_prompt_template(agent_name)
+    audit(request, admin, action="config.prompt_update", resource_type="prompt",
+          resource_id=agent_name, detail={"op": "delete"})
     return {"ok": True}
 
 
