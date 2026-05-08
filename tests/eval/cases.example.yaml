@@ -1091,3 +1091,265 @@ cases:
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
       display_hint: detail_table
       export_button_visible: true
+
+  # ────────────────────────────────────────────────────────────────────
+  # v0.4.2: SQL 复杂度横切（守护者 R-S6 教训：v0.4.0 缺此维度）
+  # subquery 6 / window 6 / cte 6 / mixed 3 = +21 case
+  # tag 触发对应守护检查（test_eval._check_complexity dispatcher）
+  # ────────────────────────────────────────────────────────────────────
+
+  # ── subquery (6) ──
+  - id: subquery_orders_users_with_signup_in_last_7d
+    intent: detail
+    tags: [subquery]
+    question: 列出最近 7 天注册的用户的所有订单
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [select, "in", user_id]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: subquery_users_above_avg_order_amount
+    intent: detail
+    tags: [subquery]
+    question: 列出订单金额超过平均值的用户
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [select, avg, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: subquery_exists_orders_for_users
+    intent: detail
+    tags: [subquery]
+    question: 列出存在订单的用户（用 EXISTS）
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [select, exists]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: subquery_top_users_by_scalar_total
+    intent: rank
+    tags: [subquery]
+    question: 列出昨天总消费超过 1000 的用户
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: [user_id, sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: subquery_users_not_in_active_list
+    intent: detail
+    tags: [subquery]
+    question: 列出最近 30 天没有任何订单的用户
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [select, "not in"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: subquery_max_gmv_day_last_month
+    intent: metric
+    tags: [subquery]
+    question: 上月日 GMV 最高的那一天具体是多少
+    expects:
+      intent: metric
+      must_tables: [orders]
+      must_keywords: [select, max]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: metric_card
+      export_button_visible: false
+
+  # ── window (6) ──
+  - id: window_row_number_per_user_orders
+    intent: detail
+    tags: [window]
+    question: 给每个用户的订单按时间倒序编号，列出最新前 3 条
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [row_number, "over", "partition by", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: window_rank_users_by_monthly_gmv
+    intent: rank
+    tags: [window]
+    question: 本月每个用户消费的全局排名
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: ["rank()", "over", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: window_lag_daily_gmv_growth
+    intent: trend
+    tags: [window]
+    question: 最近 30 天 GMV 与前一天对比的增长率
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: [lag, "over", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: window_running_total_signups
+    intent: trend
+    tags: [window]
+    question: 最近 30 天累计注册用户数（每天滚动累加）
+    expects:
+      intent: trend
+      must_tables: [users]
+      must_keywords: [sum, "over", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  - id: window_dense_rank_top_channels
+    intent: rank
+    tags: [window]
+    question: 各渠道按 GMV dense_rank 排名（同分同名次）
+    expects:
+      intent: rank
+      must_tables: [ads_daily_report_by_channel]
+      must_keywords: [dense_rank, "over", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: window_avg_7d_smoothing
+    intent: trend
+    tags: [window]
+    question: GMV 的 7 天滑动平均（窗口含 partition）
+    expects:
+      intent: trend
+      must_tables: [orders]
+      must_keywords: [avg, "over", "order by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: line
+      export_button_visible: false
+
+  # ── cte (6) ──
+  - id: cte_simple_with_aggregate
+    intent: detail
+    tags: [cte]
+    question: 用 CTE 列出每个用户的订单总额，然后筛选 > 500 的
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: ["with", user_id, sum, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: cte_two_named_aggregates
+    intent: detail
+    tags: [cte]
+    question: 用 CTE 分别算用户总订单数和总充值金额，然后 join
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: ["with", user_id, count, sum]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: cte_filter_then_top
+    intent: rank
+    tags: [cte]
+    question: 用 CTE 先筛昨天的订单再 Top 10 用户
+    expects:
+      intent: rank
+      must_tables: [orders]
+      must_keywords: ["with", user_id, "order by", limit, "10"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: cte_chain_3_levels
+    intent: detail
+    tags: [cte]
+    question: 用 CTE 链式：先聚合订单 → 关联用户 → 加渠道维度
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: ["with", user_id, channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: cte_user_first_order
+    intent: detail
+    tags: [cte]
+    question: 用 CTE 找每个用户的首单
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: ["with", user_id, min, "group by"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: cte_diff_yesterday_vs_today
+    intent: compare
+    tags: [cte]
+    question: 用 CTE 分别算今天和昨天 GMV 再做差
+    expects:
+      intent: compare
+      must_tables: [orders]
+      must_keywords: ["with", sum, pay_amount]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  # ── mixed (3) — CTE + 子查询 + 窗口混搭 ──
+  - id: mixed_cte_window_top_in_each_group
+    intent: detail
+    tags: [cte, window, mixed]
+    question: 用 CTE + 窗口函数：每个渠道下消费最多的 Top 3 用户
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: ["with", "row_number", "over", "partition by", channel]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: mixed_subquery_window_user_with_anomaly
+    intent: detail
+    tags: [subquery, window, mixed]
+    question: 找出本月 GMV 比 7 日均值高 50% 的异常天
+    expects:
+      intent: detail
+      must_tables: [orders]
+      must_keywords: [avg, "over"]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: mixed_cte_subquery_funnel
+    intent: detail
+    tags: [cte, subquery, mixed]
+    question: 用 CTE 算每个渠道的注册数和付费数，比例排序
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: ["with", channel, count]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true

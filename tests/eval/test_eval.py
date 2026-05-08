@@ -70,6 +70,88 @@ def _check_fan_out_uses_subquery_aggregation(case_id: str, sql: str, tags: list)
     )
 
 
+# ── v0.4.2 SQL 复杂度横切（资深 Stage 2 AST hybrid 决议）─────────────────────
+
+
+def _ast_parse_optional(sql: str):
+    """尝试 sqlglot AST 解析；失败返 None（fallback 走纯正则）。"""
+    try:
+        import sqlglot
+        return sqlglot.parse_one(sql, dialect="mysql")
+    except Exception:
+        return None
+
+
+def _check_subquery_present(case_id: str, sql: str):
+    """tag=subquery：SQL 嵌套 SELECT ≥ 2 次（外层 + ≥1 子查询/EXISTS/标量）。"""
+    ast = _ast_parse_optional(sql)
+    if ast is not None:
+        try:
+            from sqlglot import exp
+            selects = list(ast.find_all(exp.Select))
+            if len(selects) >= 2:
+                return
+        except Exception:
+            pass
+    n = len(re.findall(r"\bselect\b", sql.lower()))
+    assert n >= 2, f"[{case_id}] subquery case 至少含 2 个 SELECT: {sql}"
+
+
+def _check_window_with_partition_or_order(case_id: str, sql: str):
+    """tag=window：SQL 必须 OVER (...)，且 OVER 内必须 PARTITION BY 或 ORDER BY。"""
+    ast = _ast_parse_optional(sql)
+    if ast is not None:
+        try:
+            from sqlglot import exp
+            windows = list(ast.find_all(exp.Window))
+            if windows:
+                for w in windows:
+                    if not (w.args.get("partition_by") or w.args.get("order")):
+                        raise AssertionError(
+                            f"[{case_id}] window 缺 PARTITION BY 或 ORDER BY: {sql}"
+                        )
+                return
+        except AssertionError:
+            raise
+        except Exception:
+            pass
+    sql_lower = sql.lower()
+    assert re.search(r"\bover\s*\(", sql_lower), f"[{case_id}] window case 缺 OVER (...): {sql}"
+    assert re.search(r"\b(?:partition\s+by|order\s+by)\b", sql_lower), (
+        f"[{case_id}] window 缺 PARTITION BY 或 ORDER BY（OVER() 无内容是非法窗口）: {sql}"
+    )
+
+
+def _check_cte_uses_with(case_id: str, sql: str):
+    """tag=cte：SQL 必须以 WITH 起手 + AST 找到 CTE expression。"""
+    sql_no_comments = re.sub(
+        r"--.*?$|/\*.*?\*/", "", sql.strip().lower(),
+        flags=re.MULTILINE | re.DOTALL,
+    ).strip()
+    assert sql_no_comments.startswith("with "), f"[{case_id}] CTE case 必须以 WITH 起手: {sql}"
+    ast = _ast_parse_optional(sql)
+    if ast is not None:
+        try:
+            from sqlglot import exp
+            ctes = list(ast.find_all(exp.CTE))
+            assert len(ctes) >= 1, f"[{case_id}] AST 解析无 CTE expression: {sql}"
+        except AssertionError:
+            raise
+        except Exception:
+            pass
+
+
+def _check_complexity(case_id: str, sql: str, tags: list):
+    """v0.4.2 dispatcher（资深 AST hybrid 决议）：按 tag 调对应守护检查。"""
+    tags = tags or []
+    if "subquery" in tags:
+        _check_subquery_present(case_id, sql)
+    if "window" in tags:
+        _check_window_with_partition_or_order(case_id, sql)
+    if "cte" in tags:
+        _check_cte_uses_with(case_id, sql)
+
+
 @_REQUIRES_KEY
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
 def test_case(case, fake_schema):
@@ -100,6 +182,8 @@ def test_case(case, fake_schema):
     _check_no_cartesian_join(case["id"], sql, must_tables)
     # v0.4.1.1 实战补丁：tag=fan_out 的 case 必须用子查询/CTE 预聚合
     _check_fan_out_uses_subquery_aggregation(case["id"], sql, case.get("tags", []))
+    # v0.4.2 SQL 复杂度横切（资深 AST hybrid 决议）：subquery/window/cte 守护
+    _check_complexity(case["id"], sql, case.get("tags", []))
 
 
 # ── 守护正则纯单元测试（无 LLM key 也跑） ───────────────────────────────────
@@ -200,3 +284,66 @@ def test_cases_loaded():
         assert "id" in c and "question" in c, f"case 缺字段：{c}"
         assert c["id"] not in seen, f"重复 id：{c['id']}"
         seen.add(c["id"])
+
+
+def test_eval_cases_total_at_least_110():
+    """v0.4.2 eval 复杂度横切扩量：cases ≥ 110。"""
+    assert len(CASES) >= 110, f"v0.4.2 cases 应 ≥ 110，当前 {len(CASES)}"
+
+
+def test_eval_cases_complexity_tag_coverage():
+    """v0.4.2 R-S6 教训：每个复杂度维度必须 ≥ 6 case，混合 ≥ 3。"""
+    counts = {"subquery": 0, "window": 0, "cte": 0, "mixed": 0}
+    for c in CASES:
+        for tag in c.get("tags", []) or []:
+            if tag in counts:
+                counts[tag] += 1
+    assert counts["subquery"] >= 6, f"subquery cases 不足 6: {counts['subquery']}"
+    assert counts["window"]   >= 6, f"window cases 不足 6: {counts['window']}"
+    assert counts["cte"]      >= 6, f"cte cases 不足 6: {counts['cte']}"
+    assert counts["mixed"]    >= 3, f"mixed cases 不足 3: {counts['mixed']}"
+
+
+# ── 复杂度 dispatcher 守护单测（无 LLM key 也跑） ───────────────────────────
+
+
+def test_complexity_subquery_passes_with_two_selects():
+    sql = "select user_id from users where id in (select user_id from orders)"
+    _check_complexity("smoke", sql, ["subquery"])
+
+
+def test_complexity_subquery_fails_on_single_select():
+    sql = "select user_id from users"
+    with pytest.raises(AssertionError, match="subquery|SELECT"):
+        _check_complexity("smoke", sql, ["subquery"])
+
+
+def test_complexity_window_passes_with_partition_by():
+    sql = "select user_id, row_number() over (partition by user_id order by created_at desc) rn from orders"
+    _check_complexity("smoke", sql, ["window"])
+
+
+def test_complexity_window_fails_when_over_empty():
+    """OVER () 无 partition / order — 守护应 raise。"""
+    sql = "select avg(pay_amount) over () from orders"
+    with pytest.raises(AssertionError, match="PARTITION|ORDER"):
+        _check_complexity("smoke", sql, ["window"])
+
+
+def test_complexity_cte_passes_with_with_clause():
+    sql = "with t as (select user_id, sum(amt) total from orders group by user_id) select * from t"
+    _check_complexity("smoke", sql, ["cte"])
+
+
+def test_complexity_cte_fails_when_no_with_at_top():
+    sql = "select user_id, sum(amt) from orders group by user_id"
+    with pytest.raises(AssertionError, match="WITH"):
+        _check_complexity("smoke", sql, ["cte"])
+
+
+def test_complexity_dispatcher_skips_when_no_relevant_tags():
+    """非 subquery/window/cte tag 的 case 一律跳过守护（向下兼容）。"""
+    sql = "select 1"
+    _check_complexity("smoke", sql, [])
+    _check_complexity("smoke", sql, ["multi_table"])
+    _check_complexity("smoke", sql, ["edge_case"])
