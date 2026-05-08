@@ -96,6 +96,85 @@ def get_message(message_id: int) -> dict | None:
     return d
 
 
+def get_cost_breakdown(period_days: int = 7) -> dict:
+    """v0.4.2 admin 看板：按 agent_kind 分桶 + 按 user 分组的 cost 汇总。
+
+    返回结构：
+        {
+            "period_days": 7,
+            "total_cost_usd": 1.234,
+            "total_messages": 234,
+            "by_agent_kind": {clarifier: 0.1, sql_planner: 0.5, fix_sql: 0.05, presenter: 0.3, legacy: 0.0},
+            "by_user": [{user_id, username, cost_usd, message_count}, ...],
+            "recovery_attempt_total": 12,  # 累计自纠正次数（fan-out + fix_sql）
+        }
+    """
+    conn = get_conn()
+    cutoff_clause = f"created_at >= datetime('now', '-{int(period_days)} days', 'localtime')"
+    # 总览 + 按 agent_kind 分桶
+    by_kind_rows = conn.execute(
+        f"""
+        SELECT
+            COALESCE(SUM(clarifier_cost), 0)   AS clarifier,
+            COALESCE(SUM(sql_planner_cost), 0) AS sql_planner,
+            COALESCE(SUM(fix_sql_cost), 0)     AS fix_sql,
+            COALESCE(SUM(presenter_cost), 0)   AS presenter,
+            COALESCE(SUM(cost_usd), 0)         AS total_cost,
+            COUNT(*)                           AS msg_count,
+            COALESCE(SUM(recovery_attempt), 0) AS recovery_total
+        FROM messages
+        WHERE {cutoff_clause}
+        """
+    ).fetchone()
+    # 'legacy' 桶（老消息只有 cost_usd 没有分桶字段）单独算
+    legacy_row = conn.execute(
+        f"""
+        SELECT COALESCE(SUM(cost_usd), 0) AS legacy_cost
+        FROM messages
+        WHERE agent_kind='legacy' AND {cutoff_clause}
+        """
+    ).fetchone()
+    # 按 user 分组（需要 user 表 join）
+    by_user_rows = conn.execute(
+        f"""
+        SELECT
+            c.user_id           AS user_id,
+            u.username          AS username,
+            COALESCE(SUM(m.cost_usd), 0) AS cost_usd,
+            COUNT(m.id)         AS message_count
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        JOIN users u         ON c.user_id = u.id
+        WHERE m.{cutoff_clause}
+        GROUP BY c.user_id, u.username
+        ORDER BY cost_usd DESC
+        """
+    ).fetchall()
+    conn.close()
+    return {
+        "period_days": period_days,
+        "total_cost_usd": float(by_kind_rows["total_cost"] or 0),
+        "total_messages": int(by_kind_rows["msg_count"] or 0),
+        "by_agent_kind": {
+            "clarifier":   float(by_kind_rows["clarifier"] or 0),
+            "sql_planner": float(by_kind_rows["sql_planner"] or 0),
+            "fix_sql":     float(by_kind_rows["fix_sql"] or 0),
+            "presenter":   float(by_kind_rows["presenter"] or 0),
+            "legacy":      float(legacy_row["legacy_cost"] or 0),
+        },
+        "by_user": [
+            {
+                "user_id": int(r["user_id"]),
+                "username": r["username"],
+                "cost_usd": float(r["cost_usd"] or 0),
+                "message_count": int(r["message_count"] or 0),
+            }
+            for r in by_user_rows
+        ],
+        "recovery_attempt_total": int(by_kind_rows["recovery_total"] or 0),
+    }
+
+
 def get_semantic_layer() -> str:
     conn = get_conn()
     row = conn.execute("SELECT content FROM semantic_layer LIMIT 1").fetchone()

@@ -11,7 +11,7 @@ R-S8 不变量（守护者必修单测）：
 """
 from __future__ import annotations
 
-from bi_agent.repositories import message_repo  # noqa: F401  reserved for breakdown query
+from bi_agent.repositories import message_repo
 
 # v0.4.2 agent kinds（与 models.agent.VALID_AGENT_KINDS 对齐，但 'legacy' 不参与新累加）
 _NEW_AGENT_KINDS: tuple[str, ...] = ("clarifier", "sql_planner", "fix_sql", "presenter")
@@ -70,3 +70,19 @@ def to_sse_payload(buckets: dict) -> dict:
     """把分桶 dict 转成 SSE final 事件的 agent_costs 字段（前端消费）。
     R-S5 / Stage 3-B：不删 cost_usd 总和字段，agent_costs 是新增展开。"""
     return {kind: dict(buckets[kind]) for kind in _NEW_AGENT_KINDS}
+
+
+# ── admin 看板查询 ────────────────────────────────────────────────────────────
+
+def get_cost_breakdown_by_period(period: str = "7d") -> dict:
+    """parse period → 调 message_repo.get_cost_breakdown。
+
+    period 接受 '7d' / '30d' / '90d'（仅天为单位）；解析失败默认 7d。
+    """
+    days = 7
+    s = (period or "").strip().lower()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = max(1, int(s[:-1]))
+    elif s.isdigit():
+        days = max(1, int(s))
+    return message_repo.get_cost_breakdown(period_days=days)
