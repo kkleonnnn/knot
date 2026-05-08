@@ -12,8 +12,9 @@ from bi_agent.adapters.db import doris as db_connector
 from bi_agent.api.deps import get_current_user
 from bi_agent.api.schemas import QueryRequest
 from bi_agent.core.logging_setup import logger
+from bi_agent.models.errors import BIAgentError
 from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
-from bi_agent.services import cost_service, llm_client
+from bi_agent.services import budget_service, cost_service, error_translator, llm_client
 from bi_agent.services import rag_service as doc_rag
 from bi_agent.services.engine_cache import _upload_engine, get_user_engine
 from bi_agent.services.knot import orchestrator as multi_agent_module
@@ -182,6 +183,10 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
     user_repo.update_user_usage(user["id"], input_tokens, output_tokens, cost_usd, query_time_ms)
 
+    # v0.4.3 R-22 一致性：非流式路径也必须返 budget_status / budget_meta
+    # （update_user_usage 已落库；budget_service 读 user_repo 缓存即时一致）
+    budget_status_ns, budget_meta_ns = budget_service.check_user_monthly_budget(user["id"])
+
     return {
         "id": mid, "question": req.question, "sql": sql,
         "explanation": explanation, "confidence": confidence,
@@ -192,6 +197,13 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         # v0.4.2 新增（向前展开；旧 client 自动忽略）
         "agent_costs": cost_service.to_sse_payload(agent_buckets_ns),
         "recovery_attempt": retry_count,
+        # v0.4.3 R-22：双路径同字段
+        "budget_status": budget_status_ns,
+        "budget_meta": budget_meta_ns,
+        # v0.4.4 R-33：错误字段在成功路径全 None（保流式 vs 非流式字段集 diff = ∅）
+        "error_kind": None,
+        "user_message": None,
+        "is_retryable": None,
         "intent": None,
     }
 
@@ -244,9 +256,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
     logger.info(f"query-stream conv={conv_id} user={user['id']} model={model_key} q={req.question[:80]!r}")
 
     async def generate():
-        loop = asyncio.get_running_loop()
-        # v0.4.2: 成本归因分桶（R-S8 单一一致性入口）— 每个 agent 调用后用
-        # cost_service.add_agent_cost 累加，最后用 aggregate_agent_costs 取总和
+        # v0.4.2: 成本归因分桶（R-S8 单一一致性入口）
+        # v0.4.4 R-24：流式路径切真异步（不再 run_in_executor）
         agent_buckets = cost_service.empty_buckets()
 
         def _default(obj):
@@ -265,8 +276,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
         try:
             yield emit({"type": "agent_start", "agent": "clarifier", "label": "理解问题"})
-            clarifier_result = await loop.run_in_executor(
-                None, multi_agent_module.run_clarifier,
+            await asyncio.sleep(0)  # R-26-SSE：让 event loop 推送 agent_start 给前端
+            # v0.4.4 R-24：直 await（不再 run_in_executor）
+            clarifier_result = await multi_agent_module.arun_clarifier(
                 req.question, schema_text, history,
                 _agent_key("clarifier"), api_key, openrouter_api_key,
             )
@@ -306,6 +318,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             "cost_usd": total_cost_clar,
                             "agent_costs": cost_service.to_sse_payload(agent_buckets),
                             "intent": clarifier_result.get("intent")})
+                await asyncio.sleep(0)  # R-26-SSE
                 return
 
             logger.info(
@@ -316,13 +329,15 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                         "output": {"refined_question": clarifier_result["refined_question"],
                                    "approach": clarifier_result["analysis_approach"],
                                    "intent": clarifier_result.get("intent")}})
+            await asyncio.sleep(0)  # R-26-SSE
 
             refined_q = clarifier_result["refined_question"]
             sql_planner_key = _agent_key("sql_planner")
 
             yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
-            sql_result = await loop.run_in_executor(
-                None, agent_module.run_sql_agent,
+            await asyncio.sleep(0)  # R-26-SSE
+            # v0.4.4 R-24：直 await
+            sql_result = await agent_module.arun_sql_agent(
                 refined_q, schema_text, engine,
                 sql_planner_key, api_key, semantic, cfg.AGENT_MAX_STEPS, openrouter_api_key,
             )
@@ -340,17 +355,20 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             for s in sql_result.steps:
                 yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
                             "action": s.action, "observation": s.observation})
+                await asyncio.sleep(0)  # R-26-SSE 每步让步
 
             logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} sql={sql_result.sql[:120]!r}")
             yield emit({"type": "agent_done", "agent": "sql_planner",
                         "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
+            await asyncio.sleep(0)  # R-26-SSE
 
             # v0.2.2: Validator removed; Presenter does inline anomaly check
             retry_count = 0
 
             yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
-            presenter_result = await loop.run_in_executor(
-                None, multi_agent_module.run_presenter,
+            await asyncio.sleep(0)
+            # v0.4.4 R-24：直 await
+            presenter_result = await multi_agent_module.arun_presenter(
                 req.question, sql_result.sql, sql_result.rows,
                 _agent_key("presenter"), api_key, openrouter_api_key,
             )
@@ -396,6 +414,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 conversation_repo.update_conversation_title(conv_id, title)
             user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, query_time_ms)
 
+            # v0.4.3 R-22：流式路径与非流式同款字段（user_repo 已 update，budget 检查实时一致）
+            budget_status, budget_meta = budget_service.check_user_monthly_budget(user["id"])
+
             yield emit({
                 "type": "final", "message_id": mid,
                 "sql": sql_result.sql, "rows": final_rows,
@@ -410,10 +431,24 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 # v0.4.2 新增：分桶 + recovery（向前展开，旧 client 自动忽略）
                 "agent_costs": cost_service.to_sse_payload(agent_buckets),
                 "recovery_attempt": recovery_attempt,
+                # v0.4.3 R-22：budget 状态（流式 + 非流式双路径同字段）
+                "budget_status": budget_status,
+                "budget_meta": budget_meta,
+                # v0.4.4 R-30 / R-33：错误字段（成功路径全 None；保字段集 diff = ∅）
+                "error_kind": None,
+                "user_message": None,
+                "is_retryable": None,
             })
+            await asyncio.sleep(0)  # R-26-SSE 末尾让步
+        except BIAgentError as e:
+            # R-30：领域异常 → error_translator 翻译为用户友好提示
+            logger.warning(f"query-stream BIAgentError: {type(e).__name__}: {str(e)[:200]}")
+            payload = error_translator.to_response(e)
+            yield emit({"type": "error", **payload})
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")
-            yield emit({"type": "error", "message": str(_exc)})
+            payload = error_translator.to_response_unknown(_exc)
+            yield emit({"type": "error", **payload})
 
     return StreamingResponse(
         generate(),

@@ -12,7 +12,7 @@ import json
 import os
 import re
 
-from bi_agent.adapters.llm import LLMRequest, get_adapter
+from bi_agent.adapters.llm import LLMRequest, get_adapter, get_async_adapter
 
 # Note: calculate_cost 定义在本模块下方（与 adapters.llm.calculate_cost 同语义；
 # 保留本地以兼容已有 `from bi_agent.services.llm_client import calculate_cost` 调用方）
@@ -23,6 +23,13 @@ from bi_agent.config import (
     PROVIDER_API_KEYS,
     PROVIDER_BASE_URLS,
     SQL_TEMPERATURE,
+)
+from bi_agent.models.errors import (
+    BIAgentError,
+    BudgetExceededError,
+    LLMAuthError,
+    LLMNetworkError,
+    LLMRateLimitError,
 )
 
 # ── Few-Shot library ───────────────────────────────────────────────────
@@ -405,3 +412,163 @@ def fix_sql(question, schema_text, failed_sql, error_message,
     )
 
     return _invoke_via_adapter(system_prompt, fix_message, model_key, key, model_cfg, provider)
+
+
+# ── v0.4.4 async API（R-24 双 API 并存：sync 保留，新增 async）───────────────
+
+def _estimate_cost_for_budget_check(model_cfg: dict) -> float:
+    """v0.4.4 R-26-Senior：预估单次调用 cost 上限（在 LLM 请求前用于 budget 守护）。
+
+    策略：用 MAX_TOKENS_PER_QUERY 作 output 上限 + 同等量级 input → 粗略上限估算。
+    实际 cost 一般低于此估算（input 通常 < 5K tokens；output 受 max_tokens 限制）。
+    宁可估高不估低 — block 偏严而非偏松。
+    """
+    in_price = float(model_cfg.get("input_price", 0) or 0)
+    out_price = float(model_cfg.get("output_price", 0) or 0)
+    return MAX_TOKENS_PER_QUERY / 1_000_000 * (in_price + out_price)
+
+
+async def _ainvoke_via_adapter(system_prompt: str, user_message: str,
+                                model_key: str, api_key: str, model_cfg: dict, provider: str,
+                                *, agent_kind: str = "sql_planner") -> dict:
+    """v0.4.4 真异步 LLM 调用入口。
+
+    R-26-Senior：第一行先做 budget per_call 守护（早于 SDK 实例化 / 网络连接）；
+    没钱时连 0 字节网络成本都不产生 → 抛 BudgetExceededError。
+    R-32：agent_kind 默认 'sql_planner'，afix_sql 必须显式传 'fix_sql'，
+    使分桶 cost 累加到 fix_sql_cost 桶（query.py 流程不变）。
+    R-30：原 SDK 异常已由 adapter 包装为 LLMAuthError / LLMRateLimitError /
+    LLMNetworkError；本函数捕获 BIAgentError 转 _error_result（保留 sync API 兼容）。
+    """
+    # R-26-Senior：budget block 在 LLM 请求前；延迟 import 避开 v0.3.x 启动期循环依赖
+    from bi_agent.services import budget_service
+    estimated_cost = _estimate_cost_for_budget_check(model_cfg)
+    allowed, meta = budget_service.check_agent_per_call_budget(agent_kind, estimated_cost)
+    if not allowed:
+        raise BudgetExceededError(meta or {})
+
+    base_url = PROVIDER_BASE_URLS.get(provider, "")
+    req = LLMRequest(
+        model_key=model_key,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+        api_key=api_key,
+        base_url=base_url,
+        max_tokens=MAX_TOKENS_PER_QUERY,
+        temperature=SQL_TEMPERATURE,
+        enable_prompt_cache=(provider == "anthropic"),
+    )
+    try:
+        adapter = get_async_adapter(provider)
+        resp = await adapter.acomplete(req)
+    except (LLMAuthError, LLMRateLimitError, LLMNetworkError):
+        raise  # adapter 已分类；上层 api/query.py 用 error_translator 翻译
+    except BIAgentError:
+        raise
+    except Exception as e:
+        # 非领域异常兜底（理论不应发生，因为 adapter 应已包装）
+        raise LLMNetworkError(str(e)[:200]) from e
+
+    parsed = _parse_llm_response(resp.text)
+    parsed["input_tokens"] = resp.input_tokens
+    parsed["output_tokens"] = resp.output_tokens
+    parsed["cost_usd"] = calculate_cost(
+        resp.input_tokens, resp.output_tokens,
+        model_cfg["input_price"], model_cfg["output_price"],
+    )
+    return parsed
+
+
+async def agenerate_sql(
+    question: str,
+    schema_text: str,
+    model_key: str = DEFAULT_MODEL,
+    api_key: str = "",
+    business_context: str = "",
+    history: list = None,
+    openrouter_api_key: str = "",
+) -> dict:
+    """v0.4.4 R-24：generate_sql 的 async 版本。
+
+    复用所有 sync 路径的辅助函数（_resolve_provider_key / build_system_prompt /
+    _build_user_message）；仅最末步 _invoke_via_adapter → _ainvoke_via_adapter。
+    """
+    if _is_openrouter_model(model_key):
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
+        if not key:
+            return _error_result("未设置 OpenRouter API Key，请在「API & 模型」页面填写")
+        model_cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
+        provider = "openrouter"
+    else:
+        model_cfg = MODELS.get(model_key)
+        if not model_cfg:
+            return _error_result(f"未知模型: {model_key}")
+        provider = model_cfg["provider"]
+        key = api_key or PROVIDER_API_KEYS.get(provider, "")
+        if not key and provider != "ollama":
+            return _error_result(f"未设置 {provider} 的 API Key")
+
+    try:
+        from bi_agent.services.schema_filter import filter_schema_for_question
+        filtered_schema = filter_schema_for_question(schema_text, question, max_tables=12)
+    except Exception:
+        filtered_schema = schema_text
+
+    if business_context.strip():
+        try:
+            from bi_agent.services.rag_retriever import retrieve_semantic_context
+            relevant_ctx = retrieve_semantic_context(question, business_context, top_k=5)
+        except Exception:
+            relevant_ctx = business_context
+    else:
+        relevant_ctx = business_context
+
+    system_prompt = build_system_prompt(filtered_schema, relevant_ctx, question)
+    user_message = _build_user_message(question, history or [])
+
+    # R-32：generate_sql 主路径 agent_kind='sql_planner'
+    return await _ainvoke_via_adapter(
+        system_prompt, user_message, model_key, key, model_cfg, provider,
+        agent_kind="sql_planner",
+    )
+
+
+async def afix_sql(question, schema_text, failed_sql, error_message,
+                   model_key=DEFAULT_MODEL, api_key="", business_context="",
+                   openrouter_api_key: str = "") -> dict:
+    """v0.4.4 R-32：fix_sql 的 async 版本，必须传 agent_kind='fix_sql'。
+
+    与 sync fix_sql 行为一致；分桶 cost 进入 fix_sql_cost 桶（query.py 流程已就位）；
+    recovery_attempt 累加在 query.py 调用方（v0.4.2 不变量保留）。
+    R-26-Senior：fix_sql 同样跑 budget per_call 守护（防 fix_sql 死循环烧钱）。
+    """
+    if _is_openrouter_model(model_key):
+        key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
+        if not key:
+            return _error_result("未设置 OpenRouter API Key")
+        model_cfg = {"provider": "openrouter", "input_price": 0.0, "output_price": 0.0}
+        provider = "openrouter"
+    else:
+        model_cfg = MODELS.get(model_key)
+        if not model_cfg:
+            return _error_result(f"未知模型: {model_key}")
+        provider = model_cfg["provider"]
+        key = api_key or PROVIDER_API_KEYS.get(provider, "")
+        if not key and provider != "ollama":
+            return _error_result(f"未设置 {provider} 的 API Key")
+
+    system_prompt = build_system_prompt(schema_text, business_context, question)
+    fix_message = (
+        f"用户的原始问题:\n{question}\n\n"
+        f"上次生成的 SQL（执行失败）:\n{failed_sql}\n\n"
+        f"数据库报错信息:\n{error_message}\n\n"
+        "请分析报错原因，生成修正后的 SQL。\n"
+        "【重要】只输出 JSON，不要解释，不要说其他文字。\n"
+        '格式: {"sql": "...", "explanation": "修正说明", "confidence": "high/medium/low", "error": ""}'
+    )
+
+    # R-32 显式 agent_kind='fix_sql'：cost 进 fix_sql_cost 桶；R-26-Senior 自动生效
+    return await _ainvoke_via_adapter(
+        system_prompt, fix_message, model_key, key, model_cfg, provider,
+        agent_kind="fix_sql",
+    )

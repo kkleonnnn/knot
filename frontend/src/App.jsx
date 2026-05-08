@@ -5,6 +5,8 @@ import { LoginScreen } from './screens/Login.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
 import { SavedReportsScreen } from './screens/SavedReports.jsx';
+import { AdminBudgetsScreen } from './screens/AdminBudgets.jsx';
+import { AdminRecoveryScreen } from './screens/AdminRecovery.jsx';
 
 export default function App() {
   const [T, toggleTheme] = useTheme();
@@ -59,6 +61,9 @@ export default function App() {
     'admin-catalog': 'catalog',
   };
   if (screen === 'saved-reports') return <SavedReportsScreen {...commonProps}/>;
+  // v0.4.3 admin 看板（budgets + recovery 是独立屏，不走 AdminScreen tab）
+  if (screen === 'admin-budgets' && user.role === 'admin') return <AdminBudgetsScreen {...commonProps}/>;
+  if (screen === 'admin-recovery' && user.role === 'admin') return <AdminRecoveryScreen {...commonProps}/>;
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板

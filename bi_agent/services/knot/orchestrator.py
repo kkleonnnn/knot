@@ -121,6 +121,59 @@ def _llm(model_key: str, key: str, cfg: dict, system: str, messages: list, max_t
     return text, it, ot, cost
 
 
+async def _allm(model_key: str, key: str, cfg: dict, system: str, messages: list,
+                max_tokens: int = 400, *, agent_kind: str = "clarifier"):
+    """v0.4.4 _llm 的 async 版本。
+    - 走 adapters/llm/factory.get_async_adapter（R-31 守护）
+    - R-26-Senior：调用前先做 budget per_call 守护（与 llm_client._ainvoke_via_adapter 同模式）
+    - R-32：agent_kind 由调用方传（arun_clarifier='clarifier' / arun_presenter='presenter'）
+    - R-30：原 SDK 异常已由 adapter 包装为 LLMAuthError / LLMRateLimitError / LLMNetworkError；
+      上游 catch BIAgentError 用 error_translator 翻译。
+    返回 (text, input_tokens, output_tokens, cost_usd)。
+    """
+    from bi_agent.adapters.llm import LLMRequest, get_async_adapter
+    from bi_agent.models.errors import (
+        BIAgentError,
+        BudgetExceededError,
+        LLMNetworkError,
+    )
+    from bi_agent.services import budget_service
+
+    # R-26-Senior：在 LLM 请求之前 budget 守护
+    estimated_cost = max_tokens / 1_000_000 * (
+        float(cfg.get("input_price", 0) or 0) + float(cfg.get("output_price", 0) or 0)
+    )
+    allowed, meta = budget_service.check_agent_per_call_budget(agent_kind, estimated_cost)
+    if not allowed:
+        raise BudgetExceededError(meta or {})
+
+    provider = cfg["provider"]
+    base_url = PROVIDER_BASE_URLS.get(provider, "")
+    req = LLMRequest(
+        model_key=model_key,
+        system=system,
+        messages=messages,
+        api_key=key,
+        base_url=base_url,
+        max_tokens=max_tokens,
+        temperature=0,
+        enable_prompt_cache=(provider == "anthropic"),
+    )
+    try:
+        adapter = get_async_adapter(provider)
+        resp = await adapter.acomplete(req)
+    except BIAgentError:
+        raise
+    except Exception as e:
+        raise LLMNetworkError(str(e)[:200]) from e
+
+    cost = llm_client.calculate_cost(
+        resp.input_tokens, resp.output_tokens,
+        cfg.get("input_price", 0), cfg.get("output_price", 0),
+    )
+    return resp.text, resp.input_tokens, resp.output_tokens, cost
+
+
 def _parse_json(text: str) -> dict:
     text = text.strip()
     try:
@@ -276,6 +329,80 @@ def run_clarifier(
     }
 
 
+async def arun_clarifier(
+    question: str,
+    schema_text: str,
+    history: list,
+    model_key: str,
+    api_key: str = "",
+    openrouter_api_key: str = "",
+) -> dict:
+    """v0.4.4 R-24：run_clarifier 的 async 版本。
+
+    - 提示词组装与 sync 版本完全一致（schema_slice / history rendering / get_prompt）
+    - LLM 调用走 _allm（含 R-26-Senior + R-30 错误标准化）
+    - R-32：agent_kind='clarifier'
+    """
+    schema_slice = (schema_text or "")[:6000] or "(无 Schema)"
+    if history:
+        lines = []
+        for h in history[-3:]:
+            q = h.get("question", "")
+            sql = (h.get("sql") or "").strip().replace("\n", " ")
+            rows = h.get("rows") or []
+            if sql:
+                sql_short = sql if len(sql) <= 220 else sql[:220] + "…"
+                sample = json.dumps(rows[:2], ensure_ascii=False, default=str) if rows else "[]"
+                lines.append(f"Q: {q}\n  SQL: {sql_short}\n  结果(前2行,共{len(rows)}行): {sample}")
+            else:
+                lines.append(f"Q: {q}")
+        history_text = "\n".join(lines)
+    else:
+        history_text = "无"
+    system = _prompts_mod.get_prompt(
+        "clarifier", _CLARIFIER_SYS,
+        {
+            "schema": schema_slice, "history": history_text,
+            "today": _today(), "date_block": _date_block(),
+            "business_rules": _business_rules(),
+        },
+    )
+
+    from bi_agent.models.errors import BIAgentError  # 局部 import 避免循环
+    model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
+    it = ot = 0
+    cost = 0.0
+    result = {}
+    try:
+        # R-32 agent_kind='clarifier'，cost 进 clarifier_cost 桶
+        text, it, ot, cost = await _allm(
+            model_key, key, cfg, system,
+            [{"role": "user", "content": question}], max_tokens=300,
+            agent_kind="clarifier",
+        )
+        result = _parse_json(text)
+    except BIAgentError:
+        # R-30：领域异常必须透传上层（api/query.py 用 error_translator 翻译）
+        # BudgetExceededError / LLMAuthError 等不可吞
+        raise
+    except Exception:
+        # 非领域异常（解析 / 网络兜底）静默：与 sync 版本同模式，避免单步失败炸整流
+        pass
+
+    raw_intent = result.get("intent")
+    intent = raw_intent if raw_intent in VALID_INTENTS else DEFAULT_INTENT_FALLBACK
+    return {
+        "is_clear": result.get("is_clear", True),
+        "clarification_question": result.get("clarification_question"),
+        "refined_question": result.get("refined_question", question),
+        "analysis_approach": result.get("analysis_approach", ""),
+        "intent": intent,
+        "input_tokens": it,
+        "output_tokens": ot,
+        "cost_usd": cost,
+    }
+
+
 # ── Agent 3: Presenter ─────────────────────────────────────────────────────────
 
 _PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果，给出简洁的分析洞察，并推荐高价值的追问方向。
@@ -344,6 +471,57 @@ def run_presenter(
         text, it, ot, cost = _llm(model_key, key, cfg, sys_prompt,
                                    [{"role": "user", "content": user_msg}], max_tokens=512)
         result = _parse_json(text)
+    except Exception:
+        pass
+
+    return {
+        "insight": result.get("insight", ""),
+        "confidence": result.get("confidence", "high"),
+        "suggested_followups": result.get("suggested_followups", []),
+        "input_tokens": it,
+        "output_tokens": ot,
+        "cost_usd": cost,
+    }
+
+
+async def arun_presenter(
+    question: str,
+    sql: str,
+    rows: list,
+    model_key: str,
+    api_key: str = "",
+    openrouter_api_key: str = "",
+) -> dict:
+    """v0.4.4 R-24：run_presenter 的 async 版本。"""
+    from bi_agent.models.errors import BIAgentError
+    sample = json.dumps(rows[:10], ensure_ascii=False, default=str) if rows else "[]"
+    user_msg = (
+        f"问题：{question}\n"
+        f"SQL：{sql or '(无)'}\n"
+        f"查询结果（前10行，共 {len(rows)} 行）：{sample}"
+    )
+
+    model_key, key, cfg = _resolve(model_key, api_key, openrouter_api_key)
+    it = ot = 0
+    cost = 0.0
+    result = {}
+    sys_prompt = _prompts_mod.get_prompt(
+        "presenter", _PRESENTER_SYS,
+        {
+            "today": _today(), "date_block": _date_block(),
+            "business_rules": _business_rules(),
+        },
+    )
+    try:
+        # R-32 agent_kind='presenter'
+        text, it, ot, cost = await _allm(
+            model_key, key, cfg, sys_prompt,
+            [{"role": "user", "content": user_msg}], max_tokens=512,
+            agent_kind="presenter",
+        )
+        result = _parse_json(text)
+    except BIAgentError:
+        raise  # R-30：领域异常透传
     except Exception:
         pass
 
