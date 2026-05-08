@@ -26,11 +26,38 @@ from bi_agent.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="BI-Agent", version="0.4.4")
+app = FastAPI(title="BI-Agent", version="0.4.5")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)
 init_db()
+
+# v0.4.5 R-45：master key fail-fast 在 init_db() 之后、所有路由注册之前。
+# 缺失/格式错 → sys.exit(1) + 彩色边框错误（非 traceback，避免吓非技术运维）。
+# 注意：必须在 module top-level 跑（不是 __main__），因为 uvicorn 走 import 加载。
+def _check_master_key_or_exit():
+    import sys
+
+    from bi_agent.core.crypto.fernet import CryptoConfigError, assert_master_key_loaded
+    try:
+        assert_master_key_loaded()
+        logger.info("BIAGENT_MASTER_KEY 已加载（Fernet）")
+    except CryptoConfigError as e:
+        bar = "━" * 60
+        print(f"\033[1;31m{bar}", file=sys.stderr)
+        print("✗ BI-Agent 启动失败 — 缺少加密主密钥", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  生成新密钥:", file=sys.stderr)
+        print('    python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"', file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  设置环境变量后重启:", file=sys.stderr)
+        print("    export BIAGENT_MASTER_KEY=<生成的密钥>", file=sys.stderr)
+        print(f"{bar}\033[0m", file=sys.stderr)
+        sys.exit(1)
+
+
+_check_master_key_or_exit()
 
 
 @app.on_event("startup")

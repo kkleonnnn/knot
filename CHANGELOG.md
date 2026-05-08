@@ -5,36 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.4.5 数据加密（进行中）
+## [Unreleased] - v0.4.5 数据加密
 
-> v0.4.4 收官后第一个延伸 PATCH。Stage 1-3 评审走完（守护者 v0.3 Agent 终审）。
-> 9 条 commits 序列分批落入；commit #2 完成时此节点登记。
+> v0.4.4 收官后第一个延伸 PATCH。Loop Protocol v2 三阶段走完：
+> v0.4 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.3 守护者 Stage 3 终审
+> （含 D1 路径反转 `adapters/crypto/` → `core/crypto/` 等 9 条修订）。
+>
+> KNOT 安全底线建立：6 类敏感字段（4 user keys + doris_password + db_password + app sensitive settings）
+> 全部应用层 Fernet 加密；调用方零改动；4 层契约不破；启动 fail-fast；迁移幂等可恢复。
 
-### Architecture（首次 contract 数变更）
-- **import-linter contracts: 6 → 7** — 新增 `crypto-only-in-allowed-callers`：
+### ⚠️ BREAKING — 必读
+
+- **`BIAGENT_MASTER_KEY` 环境变量必须配置**，否则启动 fail-fast（`sys.exit(1)`）。
+  生成：`python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+- **历史 v0.4.4 DB 升级前**，先备份再跑迁移：
+  ```bash
+  python3 -m bi_agent.scripts.migrate_encrypt_v045 --dry-run
+  python3 -m bi_agent.scripts.migrate_encrypt_v045
+  ```
+- **Master key 丢失 = 历史加密数据永久不可读** — 务必备份至独立保险位置（不只放 .env）
+
+### Architecture — 首次 contract 数变更（6 → 7）
+
+- **新增 Contract 7** `crypto-only-in-allowed-callers`：
   `core.crypto` 仅 `repositories` / `scripts` / 自身可 import；
   `api / services / adapters / models` 直接 import 即触红
-  （`allow_indirect_imports = True`，只查直接边，不阻断 service → repo → core.crypto 的合法链路）
-- **D1 路径**：crypto 物理位置 `bi_agent/core/crypto/`（不是 `adapters/crypto/`，避免破 v0.3.3 双重 contract）
-- **本地异常类**：`core/crypto.fernet.CryptoConfigError`（不依赖 models — 守 Contract 3 core-no-business）；
-  repositories catch 后翻译为 `models.errors.ConfigMissingError`（守领域异常树边界）
+  （`allow_indirect_imports = True` 只查直接边，不阻断合法链路）
+- **D1 路径**（守护者反转）：crypto 物理位置 `bi_agent/core/crypto/`（不是 `adapters/crypto/`，
+  避免破 v0.3.3 双重 contract — layers + repos-no-business）
+- **本地异常**：`core.crypto.fernet.CryptoConfigError`（守 Contract 3 core-no-business）；
+  repositories catch 后翻译为 `models.errors.ConfigMissingError`（领域异常树边界）
 
-### Added — commit #1（已落）
-- `bi_agent/core/crypto/{__init__,base,fernet}.py` — Fernet 加密器 + master key fail-fast
-- `tests/conftest.py` — autouse master_key fixture（R-37 测试隔离）
-- `tests/core/test_crypto_fernet.py`（10 tests）+ `tests/test_startup_master_key.py`（3 tests）
-- 偿还红线：R-34 / R-35 / R-37 / R-40 / R-42 / R-44
+### Added — 加密器 (commit #1, R-34/R-35/R-37/R-40/R-42/R-44)
 
-### Added — commit #2（本节点）
-- `bi_agent/repositories/{user_repo, data_source_repo, settings_repo}.py` 透明加解密
-  - 4 类 user 敏感列：api_key / openrouter_api_key / embedding_api_key / doris_password
-  - data_sources.db_password
-  - app_settings sensitive 白名单：openrouter_api_key / embedding_api_key
-- **R-43** settings_repo 失败安全：未知 key 但带 `enc_v1:` 前缀 → 必尝试解密
-- **R-43-Dual** 写入对偶：写非白名单 key 时若值已是 `enc_v1:` 格式 → 跳过二次加密 + WARNING
-- **边界翻译策略**：选 **repository 层** catch & translate（services 见到的全是 ConfigMissingError 领域异常，不漏 CryptoConfigError 出 core 层）
-- `tests/repositories/test_repo_encryption_transparency.py`（12 tests）
-- 偿还红线：R-38 / R-43 / R-43-Dual
+- `bi_agent/core/crypto/{__init__,base,fernet}.py`：Fernet 加密器 + `CryptoConfigError` + `assert_master_key_loaded`
+- `lru_cache(maxsize=1)` 进程单例；测试 `cache_clear()` 隔离
+- 加密产物前缀 `enc_v1:`；空串占位区分 NULL；老明文兼容（无前缀直接放行）
+
+### Added — repositories 透明加解密 (commit #2, R-38/R-43/R-43-Dual)
+
+- `user_repo` — 4 类敏感列：`api_key / openrouter_api_key / embedding_api_key / doris_password`
+- `data_source_repo` — `db_password`
+- `settings_repo` — sensitive 白名单 `{openrouter_api_key, embedding_api_key}`
+  - **R-43** 失败安全：非白名单但带 `enc_v1:` → 也尝试解密
+  - **R-43-Dual** 写入对偶：误传已加密值 → 跳过二次加密 + WARNING
+
+### Added — 迁移脚本 (commit #3, R-36/R-41/R-46/R-46-Tx)
+
+- `bi_agent/scripts/migrate_encrypt_v045.py`：一次性 + 幂等 + 独立 entrypoint
+- 自动 `<db>.v044-YYYYMMDD-HHMMSS.bak`（timestamp 后缀避免覆盖；同秒加 PID 兜底）
+- **每张表一个事务**（表内异常整表 ROLLBACK，跨表已 commit 保留）
+- `--dry-run` 0 副作用（不写 DB / 不创 bak）
+- master key 缺失先 fail，不创 bak（守护者提示）
+
+### Added — 前端 mask (commit #4, R-39)
+
+- `bi_agent/api/_secret.py`：mask helper 在 api boundary（不污染 services / repos）
+  - `mask_secret(s)` → `••••••••last4`（短于 4 字符全 `••••`）
+  - `should_update_secret(new, old)` → 四态分类（None / "" / mask 占位 / 新值）
+- `GET /api/admin/api-keys` 返 masked
+- PATCH 路由：空字符串 / mask 占位 → 保留原值；新值 → 加密更新
+- 同保留逻辑应用到 `PUT /api/admin/users` 的 `doris_password` 和 `PUT /api/admin/datasources` 的 `db_password`
+- 前端 `Admin.jsx` 编辑差量提交（仅发送被改动的字段）
+
+### Added — startup + docs (commit #5, R-45)
+
+- `bi_agent/main.py::_check_master_key_or_exit()` 在 `init_db()` 之后
+  - 缺失/格式错 → 彩色边框错误 + `sys.exit(1)`（不暴露 traceback）
+  - module top-level（uvicorn import 即触发，不靠 `__main__`）
+- `requirements.txt` +`cryptography>=41,<46`
+- `.env.example` +`BIAGENT_MASTER_KEY` + 生成命令注释
+
+### Tests
+
+新增 **45 测试**（v0.4.4: 264 → v0.4.5: **309 passed** / 112 skipped）：
+
+- `tests/core/test_crypto_fernet.py` (10) — Fernet 单元 + R-34/R-35/R-40/R-42
+- `tests/test_startup_master_key.py` (4) — startup + R-45 subprocess 友好错误
+- `tests/repositories/test_repo_encryption_transparency.py` (12) — R-38/R-43/R-43-Dual + 边界翻译
+- `tests/scripts/test_migrate_encrypt_v045.py` (9) — R-36/R-41/R-46/R-46-Tx + dry-run
+- `tests/api/test_settings_masked.py` (10) — R-39 mask + helper unit + admin 越权防泄漏
+
+### 偿还红线 13 / 13
+
+R-34 (master key fail-fast) / R-35 (enc_v1: 前缀) / R-36 (幂等) / R-37 (测试隔离) /
+R-38 (crypto only in repos) / R-39 (前端 mask + PATCH 保留) / R-40 (单例 lru_cache) /
+R-41 (独立 entrypoint) / R-42 (key 格式校验) / R-43 + R-43-Dual (settings 失败安全) /
+R-44 (async 线程安全文档) / R-45 (startup 友好错误) / R-46 + R-46-Tx (自动 .bak + 每表事务)
+
+### 守护者结构性教训（v0.4.5 复盘 — 留给 v0.4.6+）
+
+> **任何 startup 行为变更，必须同步更新 CI workflow 的 boot smoke step。**
+
+v0.4.5 commit #5 落 R-45 startup `sys.exit(1)` 后，CI 第一次红 — `App boot smoke` 没注入
+`BIAGENT_MASTER_KEY`。13 条红线 R-34~R-46 偿还时遗漏了这条隐含模式：
+
+- v0.4.0 eval-live workflow 也碰过同类问题（CI 跑 live LLM 需 `OPENROUTER_API_KEY`）
+- v0.4.5 startup 加 master key 校验 → CI 必须显式注入临时 key
+
+**未来 PATCH 加任何 startup 校验**（如审计 log 路径、预算服务初始化、其他 env-required 配置）
+**都要回头同步**：
+1. `.github/workflows/ci.yml` 的 `App boot smoke` step
+2. `eval-live.yml`（若涉及 main app boot）
+3. 其他 workflow 内**任何** `from bi_agent.main import app` 或 `uvicorn bi_agent` 的 step
+
+修补方式：动态生成临时凭据（不入 repo 固定字符串）+ export env + 跑 boot 命令。
+
+### 验收数据
+
+- pytest **309 passed** / 112 skipped
+- lint-imports **7 contracts KEPT**, 0 broken（首次从 6 升 7；v0.3.0 以来首次 contract 数变更）
+- ruff All checks passed
+- frontend `npm run build` ✓ ~1424 KB
+- 路由数 64（不变 — v0.4.5 纯加密改造，无新路由）
 
 ---
 
