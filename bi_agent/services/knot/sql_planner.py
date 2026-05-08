@@ -22,6 +22,28 @@ def _business_rules() -> str:
     return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
 
 
+def _relations_for_schema(schema_text: str) -> str:
+    """v0.4.1.1：从 schema_text 解析出 selected 表全名，调 catalog.get_relations_for_tables
+    按需渲染 RELATIONS 段（仅相关表的关联），避免 token 预算挤压（R-S4）。
+
+    schema_text 格式约定（与 schema_filter / db_connector.get_schema 输出一致）：
+      ## demo_dwd.dwd_user_reg
+      - created_at ...
+      ## demo_dwd.dwd_order
+      ...
+    """
+    if not _cl:
+        return ""
+    try:
+        get_rels = getattr(_cl, "get_relations_for_tables", None)
+        if not callable(get_rels):
+            return ""
+    except Exception:
+        return ""
+    selected = re.findall(r"^##+\s*([\w.]+)\s*$", schema_text or "", re.MULTILINE)
+    return get_rels(selected)
+
+
 from bi_agent.config import (  # noqa: E402  legacy import order；v0.3.x 不强制重排
     DEFAULT_MODEL,
     MAX_TOKENS_PER_QUERY,
@@ -81,11 +103,53 @@ Action Input: [工具的输入]
 - 最多推理 {max_steps} 步；超过后直接输出当前最佳 SQL
 - 严格遵守上方业务规则（时区/业务日 14:00 切日 / 真实用户范围 / 默认 USDT / 表分层）
 
+## 多表查询规则（必读 — 防笛卡尔积）
+- 当 SQL 涉及 ≥ 2 张表时，**必须**用 `JOIN ... ON 关联字段` 显式连接
+- **严禁**旧式 `FROM a, b WHERE ...` 写法（隐式笛卡尔积，结果集会爆炸）
+- 关联字段优先参考下方「## 表关系 RELATIONS」段；该段无明确关联时，先 search_schema
+  查同名 _id 字段；仍找不到则 final_answer 报错"无法确定 JOIN 条件"，不要瞎猜
+
+## ⚠️ 必读：SUM 膨胀陷阱（多 LEFT JOIN 聚合 — Fan-Out）
+
+**自检：** 在 final_answer 之前，如果你的 SQL 形如
+
+```
+SELECT key, SUM(d.x), SUM(t.y)
+FROM main m
+LEFT JOIN d_table d ON m.key = d.key
+LEFT JOIN t_table t ON m.key = t.key
+GROUP BY key
+```
+
+**停！** 这是错的。即使每个 LEFT JOIN 都有正确的 ON 条件，行数也会相乘：
+- `SUM(d.x)` 被 `t_table` 的行数倍数膨胀
+- `SUM(t.y)` 被 `d_table` 的行数倍数膨胀
+- 结果是**双向放大**的错误数字（比真实值大几倍～几十倍）
+
+**唯一正确的写法 — 每张明细表先按 grain 预聚合再 JOIN：**
+
+```
+SELECT m.key, COALESCE(d.total, 0), COALESCE(t.total, 0)
+FROM main m
+LEFT JOIN (SELECT key, SUM(x) AS total FROM d_table GROUP BY key) d ON m.key = d.key
+LEFT JOIN (SELECT key, SUM(y) AS total FROM t_table GROUP BY key) t ON m.key = t.key
+```
+
+或用 WITH CTE 同款效果。
+
+**触发判定**（runtime 守护会强制拒绝）：
+- 顶层 SELECT 含 ≥ 2 个 SUM/COUNT/AVG/MIN/MAX
+- AND ≥ 2 个 LEFT JOIN 到具名表（非子查询）
+
+满足以上**必须**用子查询/CTE 预聚合，否则 ReAct 会拒绝你的 final_answer 让你重写。
+
 ## 数据库环境
 {db_env}
 
 ## 数据库 Schema
 {schema}
+
+{relations}
 
 {business_ctx}"""
 
@@ -115,6 +179,52 @@ def _parse_agent_output(text: str) -> tuple[str, str, str]:
         action_input = m.group(1).strip()
 
     return thought, action, action_input
+
+
+# ── Fan-Out 静态检测（v0.4.1.1 实战补丁 C 升级：runtime 守护）─────────────
+# 检测语义错误的 SUM 膨胀反模式：≥ 2 个 LEFT JOIN 到具名表（非子查询）+ 外层 SELECT
+# 含 ≥ 2 个聚合函数。CTE / 子查询 join 模式由前置启发式跳过避免误杀。
+_AGG_FUNC_RE = re.compile(r"\b(?:sum|count|avg|min|max)\s*\(", re.IGNORECASE)
+_LEFT_JOIN_NAMED_TABLE_RE = re.compile(
+    r"\bleft\s+join\s+(?!\()(?:\w+\.)?\w+",  # LEFT JOIN <ident>(.<ident>)?，但不接 (
+    re.IGNORECASE,
+)
+
+
+def _is_fan_out(sql: str) -> tuple[bool, str]:
+    """返 (是否 fan-out, 原因)。
+    跳过的合法场景（避免误杀）：
+    - 顶层是 WITH（CTE 预聚合）
+    - 没有 ≥ 2 个 LEFT JOIN 到具名表
+    - 顶层 SELECT 没有 ≥ 2 个聚合函数
+    """
+    if not sql:
+        return False, ""
+    s = sql.strip()
+    # 1. CTE：顶层是 WITH 关键字 → 跳过（CTE 通常已做预聚合）
+    if re.match(r"^\s*with\s+", s, re.IGNORECASE):
+        return False, ""
+
+    # 2. 顶层 SELECT...FROM 提取（找第一个 SELECT 到第一个 FROM 之间的字段列表）
+    sl = s.lower()
+    m = re.search(r"\bselect\b(.*?)\bfrom\b", sl, re.DOTALL)
+    if not m:
+        return False, ""
+    outer_select = m.group(1)
+    # 3. 顶层 SELECT 中聚合函数计数（≥ 2 才有 fan-out 风险）
+    aggs = _AGG_FUNC_RE.findall(outer_select)
+    if len(aggs) < 2:
+        return False, ""
+
+    # 4. LEFT JOIN 到具名表的次数（不计 LEFT JOIN ( ... ) 子查询）
+    direct_left_joins = _LEFT_JOIN_NAMED_TABLE_RE.findall(sl)
+    if len(direct_left_joins) < 2:
+        return False, ""
+
+    return True, (
+        f"外层 SELECT 含 {len(aggs)} 个聚合函数 + {len(direct_left_joins)} 个 LEFT JOIN 到具名明细表，"
+        f"行数相乘会让聚合结果膨胀"
+    )
 
 
 def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
@@ -170,6 +280,16 @@ def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
         return f"Schema 中没有找到包含 '{keyword}' 的内容"
 
     elif action == "final_answer":
+        # v0.4.1.1 C 升级：final_answer 时 runtime 守护 fan-out 反模式
+        candidate = _strip_sql(action_input)
+        is_fan, reason = _is_fan_out(candidate)
+        if is_fan:
+            return (
+                f"__REJECT_FAN_OUT__:你提交的 SQL 是 fan-out 反模式（{reason}）。"
+                f"必须重写：每个明细表先用 `LEFT JOIN (SELECT key, SUM/COUNT(...) FROM <table> "
+                f"GROUP BY key) AS alias ON ...` 子查询/CTE 按 grain 预聚合后再 JOIN，"
+                f"不要让外层 SELECT 直接对多个 LEFT JOIN 后字段聚合。重新生成 SQL。"
+            )
         return f"__FINAL__:{action_input}"
 
     else:
@@ -254,6 +374,7 @@ def run_sql_agent(
             "max_steps": max_steps,
             "db_env": "Apache Doris（兼容 MySQL 5.7 语法）",
             "schema": schema_text,
+            "relations": _relations_for_schema(schema_text),  # v0.4.1.1 RELATIONS 注入
             "business_ctx": business_section,
             "today": date_context.today_iso(),
             "date_block": date_context.date_context_block(),
@@ -294,6 +415,11 @@ def run_sql_agent(
                 if exec_err:
                     final_error = exec_err
             break
+
+        # v0.4.1.1 C 升级：fan-out 拒绝 — 不 break，把拒绝理由作为 observation 反馈给 LLM 继续 ReAct 重试
+        if observation.startswith("__REJECT_FAN_OUT__:"):
+            observation = observation[len("__REJECT_FAN_OUT__:"):]
+            # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
 
         if action == "execute_sql" and not observation.startswith("执行失败"):
             final_sql = _strip_sql(action_input)

@@ -140,9 +140,30 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 
 {schema_text}"""
 
+    # v0.4.1.1：RELATIONS 注入（按需 — 仅当 schema_text 中出现的表有登记关联时）
+    section_relations = ""
+    try:
+        import re as _re
+
+        from bi_agent.services.knot import catalog as _cl
+        selected = _re.findall(r"^##+\s*([\w.]+)\s*$", schema_text or "", _re.MULTILINE)
+        section_relations = _cl.get_relations_for_tables(selected) if hasattr(_cl, "get_relations_for_tables") else ""
+    except Exception:
+        section_relations = ""
+
     section_safety = """## 安全规则（必须严格遵守）
 - 只允许生成 SELECT 语句
 - 严禁生成 INSERT / UPDATE / DELETE / DROP / TRUNCATE / ALTER / CREATE
+- 多表查询必须显式 `JOIN ... ON 关联字段`；严禁 `FROM a, b WHERE ...` 旧式写法（隐式笛卡尔积）
+- 关联字段优先参考下方「## 表关系 RELATIONS」段；该段未列出明确关联时，
+  在 JSON error 字段说明"无法确定 JOIN 条件"，不要瞎猜
+- **Fan-Out 防御**：当 SELECT 含 ≥ 2 个聚合（SUM/COUNT/AVG）且 LEFT JOIN ≥ 2 张
+  不同明细表时，每个聚合源表必须先用子查询/CTE 按 JOIN 主表的 grain 预聚合再 JOIN，
+  否则行数相乘会让聚合结果数倍膨胀（即使 JOIN+ON 看似合规）。
+  错误：FROM u LEFT JOIN deposits d ON u.id=d.uid LEFT JOIN deals t ON u.id=t.uid
+        SELECT SUM(d.amt), SUM(t.amt) GROUP BY u.id  ❌ 双向膨胀
+  正确：LEFT JOIN (SELECT uid, SUM(amt) FROM deposits GROUP BY uid) d
+        LEFT JOIN (SELECT uid, SUM(amt) FROM deals    GROUP BY uid) t
 - 如果用户的问题无法用已知表结构回答，在 JSON 的 error 字段说明原因"""
 
     section_format = """## 输出格式（严格遵守）
@@ -173,6 +194,8 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
 - 当结果用于趋势分析时，按时间升序排列"""
 
     sections = [section_role, section_db, section_schema]
+    if section_relations:
+        sections.append(section_relations)
     if business_context.strip():
         sections.append(f"## 业务术语与表关系（优先参考）\n{business_context.strip()}")
     sections += [section_safety, section_ordering, section_format, section_examples, section_confidence]

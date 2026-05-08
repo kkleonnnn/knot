@@ -22,17 +22,21 @@ import pathlib
 LEXICON: dict = {}
 TABLES: list = []
 BUSINESS_RULES: str = ""
+RELATIONS: list = []  # v0.4.1.1: 多表关联元数据，list[tuple(left_t, left_c, right_t, right_c, semantics)]
 _SOURCE: str = "empty"  # "db" | "real" | "example" | "empty"
 
 
 def _load_from_files() -> tuple:
-    """返回 (lexicon, tables, business_rules, source_tag)；source_tag ∈ real/example/empty"""
+    """返回 (lexicon, tables, business_rules, relations, source_tag)；
+    source_tag ∈ real/example/empty。
+    v0.4.1.1 R-S3：老 catalog 文件无 RELATIONS 常量时 getattr 返 [] 不抛 AttributeError。"""
     try:
         m = importlib.import_module("ohx_catalog")
         return (
             getattr(m, "LEXICON", {}) or {},
             getattr(m, "TABLES", []) or [],
             getattr(m, "BUSINESS_RULES", "") or "",
+            list(getattr(m, "RELATIONS", []) or []),
             "real",
         )
     except Exception:
@@ -47,11 +51,12 @@ def _load_from_files() -> tuple:
                 getattr(m, "LEXICON", {}) or {},
                 getattr(m, "TABLES", []) or [],
                 getattr(m, "BUSINESS_RULES", "") or "",
+                list(getattr(m, "RELATIONS", []) or []),
                 "example",
             )
     except Exception:
         pass
-    return {}, [], "", "empty"
+    return {}, [], "", [], "empty"
 
 
 def _load_from_db() -> tuple:
@@ -89,15 +94,17 @@ def _load_from_db() -> tuple:
 
 def reload() -> str:
     """重新加载 catalog；返回 source 标签。
-    DB 三键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。"""
-    global LEXICON, TABLES, BUSINESS_RULES, _SOURCE
+    DB 三键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。
+    RELATIONS 不走 DB 覆盖（admin 后台暂无编辑 UI；v0.4.x 只能在 .py 文件维护）。"""
+    global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
 
-    f_lex, f_tables, f_rules, f_src = _load_from_files()
+    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     db_lex, db_tables, db_rules, db_found = _load_from_db()
 
     LEXICON = db_lex if db_lex else f_lex
     TABLES = db_tables if db_tables else f_tables
     BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
+    RELATIONS = f_relations  # 仅 file 来源；db 暂无 UI
 
     _SOURCE = "db" if db_found else f_src
     return _SOURCE
@@ -109,7 +116,7 @@ reload()
 
 def get_defaults_from_files() -> dict:
     """admin "恢复默认"按钮预填值。"""
-    f_lex, f_tables, f_rules, f_src = _load_from_files()
+    f_lex, f_tables, f_rules, _f_relations, f_src = _load_from_files()
     return {
         "lexicon": f_lex,
         "tables": f_tables,
@@ -120,3 +127,34 @@ def get_defaults_from_files() -> dict:
 
 def get_table_full_names() -> list:
     return [f"{t['db']}.{t['table']}" for t in TABLES]
+
+
+# ── v0.4.1.1: RELATIONS 元数据访问 + 按需渲染 ─────────────────────────────────
+def get_relations() -> list:
+    """返当前 RELATIONS 全量。R-S3：老 catalog 无此常量时上面 _load_from_files
+    已经 fallback 成 []，本函数永不 KeyError / AttributeError。"""
+    return list(RELATIONS)
+
+
+def get_relations_for_tables(selected: list) -> str:
+    """R-S4 按需渲染：仅返 selected 表涉及的关联，避免 prompt token 挤压。
+
+    selected: 形如 ['demo_dwd.dwd_user_reg', 'demo_dwd.dwd_order'] 的全名 list
+              （schema_filter 选完 12 表后传入）
+
+    返回 markdown 字符串供 prompt 注入；当无匹配关联时返空字符串。
+    格式：
+        ## 表关系 RELATIONS（多表查询必须按此 ON 条件 JOIN）
+        - `demo_dwd.dwd_order.user_id` = `demo_dwd.dwd_user_reg.user_id` — 订单与注册用户
+    """
+    rels = get_relations()
+    if not rels or not selected:
+        return ""
+    sel = set(selected)
+    matched = [r for r in rels if len(r) >= 5 and r[0] in sel and r[2] in sel]
+    if not matched:
+        return ""
+    lines = ["## 表关系 RELATIONS（多表查询必须按此 ON 条件 JOIN）"]
+    for left_t, left_c, right_t, right_c, sem in matched:
+        lines.append(f"- `{left_t}.{left_c}` = `{right_t}.{right_c}` — {sem}")
+    return "\n".join(lines)

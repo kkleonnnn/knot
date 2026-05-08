@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.1.1 hotfix — 笛卡尔积防御 + UX 双 Bug 修复
+
+> v0.4.1 落地后第一个 hotfix。Stage 1-4 协议走完：v0.4.1 Agent 诊断 +
+> 资深 Stage 2 + v0.4.0 守护者 Stage 3 + 资深 Stage 4 锁定。
+>
+> ⚠️ **隐含承诺（必读）**：合入后 7 天内，用户必须为 gitignored
+> `bi_agent/services/knot/ohx_catalog.py` 按 example 格式补 `RELATIONS` 列表。
+> 否则真实 OHX 业务库的笛卡尔积只在 example 通用电商表上修复，OHX 实表仍可能复发。
+
+### Fixed — Bug 1: 「📌 收藏报表」侧栏跳到管理员导航
+- `frontend/src/Shell.jsx:39` 二分逻辑过窄：`{active === 'chat' ? sidebarContent : adminHardcoded}`
+  未覆盖 v0.4.1 新增的 `saved-reports` 屏 → fallthrough 到 admin 分支
+- 修复：改为 `{!active.startsWith('admin-') ? sidebarContent : adminHardcoded}`
+  非 admin 屏（chat / saved-reports / 未来用户屏）一律渲染 sidebarContent prop
+
+### Fixed — Bug 2: 历史消息看不到 ⭐ 收藏按钮
+- 根因：API 边界字段命名不一致 — SSE final 事件 emit `sql`（v0.4.0 query.py），
+  REST `/api/conversations/{id}/messages` 返回 SQLite 列名 `sql_text`
+- 前端 `ResultBlock` 解构 `const { sql, ... } = msg;` → 历史消息 `sql=undefined`
+  → v0.4.1 `canPin = !!(sql && Number.isInteger(msg.id))` 永远 false
+- 修复（资深 Stage 2 选 backend alias）：`api/conversations.py::get_messages` 在 API 边界
+  对每条 message 加 `m["sql"] = m["sql_text"]`；repo 保留 SQLite 列名干净（职责分离）
+- 所有 consumer（前端 / 未来 client）自动一致
+
+### Fixed — Bug 3: 多表查询产生笛卡尔积（三层防御）
+**根因**（三层全空）：
+- `services/knot/sql_planner.py::_AGENT_SYSTEM_TEMPLATE` 6 条规则零 JOIN 约束
+- `services/llm_client.py::build_system_prompt` 同样无 JOIN 约束
+- `services/knot/ohx_catalog.example.py` 无 PK/FK/relations 元数据
+- v0.4.0 eval 80 case 中 JOIN 关键词 0 出现 — 完全无拦截力
+
+**Layer 1 — Catalog RELATIONS 元数据**：
+- `ohx_catalog.example.py` +`RELATIONS` 常量 (5 元组：left_t/c, right_t/c, semantics)
+  - 含 2 条通用电商占位（user_id 关联 / sta_date 关联）
+- `services/knot/catalog.py`：
+  - `get_relations()` — R-S3 用 getattr 兜底；老 catalog 无常量返 [] 不抛
+  - `get_relations_for_tables(selected)` — R-S4 按需渲染；仅 selected 表涉及的关联
+  - `_load_from_files` 5 元组返回；`reload()` 维护模块全局
+
+**Layer 2 — 双 prompt 硬约束**：
+- `sql_planner._AGENT_SYSTEM_TEMPLATE` 加「## 多表查询规则（必读 — 防笛卡尔积）」段
+- `llm_client.section_safety` 同步加多表规则
+- 双路径 schema 段尾部按需注入 `_relations_for_schema(schema_text)` 渲染结果
+
+**Layer 3 — Eval 守护**：
+- `cases.example.yaml` 80 → 89（+9 multi_table case + 1 反例 `edge_anti_cartesian_product`）
+- `test_eval.py::_check_no_cartesian_join` 守护正则：
+  - 多表 SQL（matched ≥ 2）必须含 `\bjoin\b` + `\bon\b`
+  - 严禁旧式 `FROM a, b` 句式（识别可选表别名 `FROM users u, logs l`）
+- 6 条守护正则纯单测（无 LLM 也跑）：单表 / inner join / left join / 缺 join /
+  缺 on / 混合 comma-FROM 高危句式
+
+### Verified
+- `pytest tests/ -v`：**157 passed / 90 skipped**（v0.4.1 147 → v0.4.1.1 157，+10 全过）
+- eval cases：80 → **89**
+- `lint-imports`：6 contracts KEPT, 0 broken（不动 `.importlinter`）
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：**61 routes 不变**, version=**0.4.1.1**
+- `npm run build`：通过；bundle 与 v0.4.1 持平
+
+### 守护者结构性教训（v0.4.0 反思）
+v0.4.0 eval 80 case 设计**只按 intent 分层 8 条**，缺"SQL 复杂度"横切维度。
+多表关联应是横切维度，不能因 80 条够 intent 准确率门禁就放心。
+v0.4.2+ eval 扩量必须加 join 复杂度 / 子查询 / 窗口函数 / CTE 维度。
+
 ## [Unreleased] - v0.4.1 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）
 
 > v0.4.0 收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，0 broken。

@@ -157,6 +157,29 @@ def _seed_message_with_intent(client, headers, intent: str, question: str) -> in
     return cid
 
 
+def test_get_messages_aliases_sql_text_to_sql(client, auth_headers):
+    """v0.4.1.1 Bug 2 修复：GET /api/conversations/{id}/messages 必须把 SQLite 列名
+    sql_text 同时暴露成 sql 键（与 SSE final 事件对齐），否则历史消息回放时
+    前端 ResultBlock 解构 msg.sql 拿不到值，⭐ 收藏按钮 canPin 永远 false。"""
+    create = client.post("/api/conversations", json={"title": "alias 测试"}, headers=auth_headers)
+    cid = create.json()["id"]
+    from bi_agent.repositories.message_repo import save_message
+    save_message(
+        conv_id=cid, question="昨天 GMV", sql="SELECT SUM(pay_amount) FROM orders",
+        explanation="", confidence="high",
+        rows=[{"gmv": 1}], db_error="",
+        cost_usd=0.0, input_tokens=0, output_tokens=0, retry_count=0,
+        intent="metric",
+    )
+    r = client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    m = body[0]
+    assert m["sql"] == m["sql_text"]
+    assert m["sql"] == "SELECT SUM(pay_amount) FROM orders"
+
+
 def test_message_intent_metric_round_trips_in_json(client, auth_headers):
     """metric 类问题 → 消息 JSON 含 intent='metric'（手册 §7 用户补充 #1）。"""
     cid = _seed_message_with_intent(client, auth_headers, "metric", "昨天的 GMV")

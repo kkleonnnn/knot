@@ -960,3 +960,134 @@ cases:
       forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
       display_hint: pie
       export_button_visible: false
+
+  # ────────────────────────────────────────────────────────────────────
+  # v0.4.1.1: 多表关联 8 case + 1 反例（笛卡尔积守护）
+  # tags=[multi_table]; SQL 必须包含 join + on；不允许 `FROM a, b` 旧式句式
+  # ────────────────────────────────────────────────────────────────────
+  - id: multi_table_orders_with_signup_channel
+    intent: detail
+    tags: [multi_table]
+    question: 列出昨天有订单的用户的注册渠道
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [user_id, select, channel, join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: multi_table_top_users_with_signup_date
+    intent: rank
+    tags: [multi_table]
+    question: 昨天消费 Top 10 用户，带上他们的注册时间
+    expects:
+      intent: rank
+      must_tables: [users, orders]
+      must_keywords: [user_id, sum, pay_amount, "order by", limit, "10", join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: rank_view
+      export_button_visible: false
+
+  - id: multi_table_signup_channel_with_total_gmv
+    intent: distribution
+    tags: [multi_table]
+    question: 各注册渠道用户的总订单金额分布
+    expects:
+      intent: distribution
+      must_tables: [users, orders]
+      must_keywords: [channel, sum, pay_amount, "group by", join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: pie
+      export_button_visible: false
+
+  - id: multi_table_compare_dwd_vs_ads_yesterday_signup
+    intent: compare
+    tags: [multi_table, cross_source]
+    question: 昨天 dwd 明细注册数 vs ads 报表新增用户数对比
+    expects:
+      intent: compare
+      must_tables: [users, ads_daily_report]
+      must_keywords: [count, new_user_num]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: multi_table_left_join_users_without_orders
+    intent: detail
+    tags: [multi_table]
+    question: 列出最近 7 天注册但没下过单的用户
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [user_id, "left join", on, select]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: multi_table_channel_report_with_dwd_count
+    intent: compare
+    tags: [multi_table]
+    question: 昨天每个渠道的报表 GMV 与 dwd 订单数对比
+    expects:
+      intent: compare
+      must_tables: [orders, ads_daily_report_by_channel]
+      must_keywords: [channel, count, gmv, join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: bar
+      export_button_visible: false
+
+  - id: multi_table_three_chain_users_orders_channel_report
+    intent: detail
+    tags: [multi_table]
+    question: 列出昨天每个渠道的注册用户 ID 及其订单总额
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [user_id, channel, sum, pay_amount, join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  - id: multi_table_paid_users_with_signup_info
+    intent: detail
+    tags: [multi_table]
+    question: 上月付费用户的列表（含 user_id / 总消费 / 注册渠道）
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [user_id, channel, sum, pay_amount, join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ── 反例：故意诱导笛卡尔积，必须返合法 SQL（join + on）且禁旧式 FROM a,b ──
+  - id: edge_anti_cartesian_product
+    intent: detail
+    tags: [multi_table, security, edge_case]
+    question: 列出所有用户和所有订单
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      must_keywords: [join, on]
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true
+
+  # ── Fan-out 反模式守护（v0.4.1.1 实战补丁）─────────────────────
+  # 实测发现：v0.4.1.1 双 JOIN+ON 守护无法拦"多 LEFT JOIN 到不同明细表 + 多聚合"
+  # 引发的隐式 fan-out 膨胀。本 case 验 LLM 必须用预聚合子查询/CTE 写法。
+  - id: edge_fan_out_two_left_joins_aggregates
+    intent: detail
+    tags: [multi_table, edge_case, fan_out]
+    question: 列出最近 10 天每个注册用户的总充值金额和总订单金额
+    expects:
+      intent: detail
+      must_tables: [users, orders]
+      # 必须出现 ≥ 2 次 group by（外层 + 子查询；或 2 个独立子查询都 group by）
+      must_keywords: [user_id, sum, "group by", select]
+      # 禁止顶层直接 SUM 多个 LEFT JOIN 后字段（fan-out 反模式）
+      # 用 must_keywords 强制 "join (" 子查询 join 写法（最直接的检测）
+      forbid_keywords: [DELETE, UPDATE, INSERT, DROP]
+      display_hint: detail_table
+      export_button_visible: true

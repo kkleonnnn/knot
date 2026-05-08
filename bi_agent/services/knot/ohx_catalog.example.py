@@ -70,6 +70,23 @@ def get_table_full_names() -> list:
     return [f"{t['db']}.{t['table']}" for t in TABLES]
 
 
+# ── v0.4.1.1：表关联元数据 RELATIONS（多表 JOIN ON 知识源）────────────────────
+# 格式：list[tuple(left_table_full, left_column, right_table_full, right_column, semantics)]
+# 用于 sql_planner / llm_client 拼接 prompt 时按需注入"必须 JOIN ... ON ..."的关联字段，
+# 阻止 LLM 生成 `FROM a, b WHERE ...` 旧式笛卡尔积写法。
+#
+# 维护要求：真实 ohx_catalog.py（gitignored）合入 v0.4.1.1 后 7 天内必须按 OHX 实际
+# Schema 补充本列表，否则真实业务库的笛卡尔积问题不会修复。
+RELATIONS = [
+    # 订单与注册用户：通过 user_id 关联
+    ("demo_dwd.dwd_order", "user_id", "demo_dwd.dwd_user_reg", "user_id",
+     "订单与注册用户：订单的下单用户即注册表中的 user_id"),
+    # 渠道日报与全量日报：通过业务日期 sta_date 关联
+    ("demo_ads.ads_daily_report_by_channel", "sta_date", "demo_ads.ads_daily_report", "sta_date",
+     "渠道日报与全量日报：通过 sta_date 关联同一业务日"),
+]
+
+
 def get_table_meta(full_name: str) -> dict:
     for t in TABLES:
         if f"{t['db']}.{t['table']}" == full_name or t["table"] == full_name:
