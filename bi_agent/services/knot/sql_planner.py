@@ -109,30 +109,39 @@ Action Input: [工具的输入]
 - 关联字段优先参考下方「## 表关系 RELATIONS」段；该段无明确关联时，先 search_schema
   查同名 _id 字段；仍找不到则 final_answer 报错"无法确定 JOIN 条件"，不要瞎猜
 
-## 多 LEFT JOIN 聚合的 Fan-Out 陷阱（必读 — 防结果膨胀）
-当 SELECT 含 ≥ 2 个聚合函数（SUM/COUNT/AVG）且 FROM 链 LEFT JOIN ≥ 2 张**不同明细表**时，
-**禁止**直接对各 JOIN 后字段聚合 — 行数相乘会让结果数倍膨胀（虽然 JOIN+ON 写法看似合规）。
+## ⚠️ 必读：SUM 膨胀陷阱（多 LEFT JOIN 聚合 — Fan-Out）
 
-错误示范（每个 SUM 都被另一表行数放大）：
-```
-FROM users u
-LEFT JOIN deposits d ON u.id = d.user_id
-LEFT JOIN deals    t ON u.id = t.user_id
-GROUP BY u.id
--- SUM(d.amount) 被 deals 行数膨胀；SUM(t.amount) 被 deposits 行数膨胀
-```
+**自检：** 在 final_answer 之前，如果你的 SQL 形如
 
-正确写法 — 每张明细表先按 grain（user_id）预聚合，再 JOIN 聚合结果：
 ```
-FROM users u
-LEFT JOIN (SELECT user_id, SUM(amount) AS total FROM deposits GROUP BY user_id) d
-       ON u.id = d.user_id
-LEFT JOIN (SELECT user_id, SUM(amount) AS total FROM deals    GROUP BY user_id) t
-       ON u.id = t.user_id
+SELECT key, SUM(d.x), SUM(t.y)
+FROM main m
+LEFT JOIN d_table d ON m.key = d.key
+LEFT JOIN t_table t ON m.key = t.key
+GROUP BY key
 ```
 
-判定规则：当你写出 ≥ 2 个 LEFT JOIN 且 SELECT 有多个聚合时，**必须**确保每个聚合源表
-都已通过子查询/CTE 预聚合到 JOIN 主表的 grain；否则 final_answer 报错"fan-out 风险"。
+**停！** 这是错的。即使每个 LEFT JOIN 都有正确的 ON 条件，行数也会相乘：
+- `SUM(d.x)` 被 `t_table` 的行数倍数膨胀
+- `SUM(t.y)` 被 `d_table` 的行数倍数膨胀
+- 结果是**双向放大**的错误数字（比真实值大几倍～几十倍）
+
+**唯一正确的写法 — 每张明细表先按 grain 预聚合再 JOIN：**
+
+```
+SELECT m.key, COALESCE(d.total, 0), COALESCE(t.total, 0)
+FROM main m
+LEFT JOIN (SELECT key, SUM(x) AS total FROM d_table GROUP BY key) d ON m.key = d.key
+LEFT JOIN (SELECT key, SUM(y) AS total FROM t_table GROUP BY key) t ON m.key = t.key
+```
+
+或用 WITH CTE 同款效果。
+
+**触发判定**（runtime 守护会强制拒绝）：
+- 顶层 SELECT 含 ≥ 2 个 SUM/COUNT/AVG/MIN/MAX
+- AND ≥ 2 个 LEFT JOIN 到具名表（非子查询）
+
+满足以上**必须**用子查询/CTE 预聚合，否则 ReAct 会拒绝你的 final_answer 让你重写。
 
 ## 数据库环境
 {db_env}
@@ -170,6 +179,52 @@ def _parse_agent_output(text: str) -> tuple[str, str, str]:
         action_input = m.group(1).strip()
 
     return thought, action, action_input
+
+
+# ── Fan-Out 静态检测（v0.4.1.1 实战补丁 C 升级：runtime 守护）─────────────
+# 检测语义错误的 SUM 膨胀反模式：≥ 2 个 LEFT JOIN 到具名表（非子查询）+ 外层 SELECT
+# 含 ≥ 2 个聚合函数。CTE / 子查询 join 模式由前置启发式跳过避免误杀。
+_AGG_FUNC_RE = re.compile(r"\b(?:sum|count|avg|min|max)\s*\(", re.IGNORECASE)
+_LEFT_JOIN_NAMED_TABLE_RE = re.compile(
+    r"\bleft\s+join\s+(?!\()(?:\w+\.)?\w+",  # LEFT JOIN <ident>(.<ident>)?，但不接 (
+    re.IGNORECASE,
+)
+
+
+def _is_fan_out(sql: str) -> tuple[bool, str]:
+    """返 (是否 fan-out, 原因)。
+    跳过的合法场景（避免误杀）：
+    - 顶层是 WITH（CTE 预聚合）
+    - 没有 ≥ 2 个 LEFT JOIN 到具名表
+    - 顶层 SELECT 没有 ≥ 2 个聚合函数
+    """
+    if not sql:
+        return False, ""
+    s = sql.strip()
+    # 1. CTE：顶层是 WITH 关键字 → 跳过（CTE 通常已做预聚合）
+    if re.match(r"^\s*with\s+", s, re.IGNORECASE):
+        return False, ""
+
+    # 2. 顶层 SELECT...FROM 提取（找第一个 SELECT 到第一个 FROM 之间的字段列表）
+    sl = s.lower()
+    m = re.search(r"\bselect\b(.*?)\bfrom\b", sl, re.DOTALL)
+    if not m:
+        return False, ""
+    outer_select = m.group(1)
+    # 3. 顶层 SELECT 中聚合函数计数（≥ 2 才有 fan-out 风险）
+    aggs = _AGG_FUNC_RE.findall(outer_select)
+    if len(aggs) < 2:
+        return False, ""
+
+    # 4. LEFT JOIN 到具名表的次数（不计 LEFT JOIN ( ... ) 子查询）
+    direct_left_joins = _LEFT_JOIN_NAMED_TABLE_RE.findall(sl)
+    if len(direct_left_joins) < 2:
+        return False, ""
+
+    return True, (
+        f"外层 SELECT 含 {len(aggs)} 个聚合函数 + {len(direct_left_joins)} 个 LEFT JOIN 到具名明细表，"
+        f"行数相乘会让聚合结果膨胀"
+    )
 
 
 def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
@@ -225,6 +280,16 @@ def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
         return f"Schema 中没有找到包含 '{keyword}' 的内容"
 
     elif action == "final_answer":
+        # v0.4.1.1 C 升级：final_answer 时 runtime 守护 fan-out 反模式
+        candidate = _strip_sql(action_input)
+        is_fan, reason = _is_fan_out(candidate)
+        if is_fan:
+            return (
+                f"__REJECT_FAN_OUT__:你提交的 SQL 是 fan-out 反模式（{reason}）。"
+                f"必须重写：每个明细表先用 `LEFT JOIN (SELECT key, SUM/COUNT(...) FROM <table> "
+                f"GROUP BY key) AS alias ON ...` 子查询/CTE 按 grain 预聚合后再 JOIN，"
+                f"不要让外层 SELECT 直接对多个 LEFT JOIN 后字段聚合。重新生成 SQL。"
+            )
         return f"__FINAL__:{action_input}"
 
     else:
@@ -350,6 +415,11 @@ def run_sql_agent(
                 if exec_err:
                     final_error = exec_err
             break
+
+        # v0.4.1.1 C 升级：fan-out 拒绝 — 不 break，把拒绝理由作为 observation 反馈给 LLM 继续 ReAct 重试
+        if observation.startswith("__REJECT_FAN_OUT__:"):
+            observation = observation[len("__REJECT_FAN_OUT__:"):]
+            # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
 
         if action == "execute_sql" and not observation.startswith("执行失败"):
             final_sql = _strip_sql(action_input)
