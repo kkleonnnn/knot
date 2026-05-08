@@ -171,3 +171,25 @@ CREATE TABLE IF NOT EXISTS saved_reports (
     pinned_at           TEXT    DEFAULT (datetime('now','localtime')),
     UNIQUE (user_id, source_message_id)
 );
+
+-- v0.4.6: 审计日志（who-did-what）— INSERT-only（DELETE 仅 purge 脚本入口）
+-- R-58: client_ip / user_agent 独立列；R-54: actor_name 冗余快照（用户被删审计仍可读）
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id      INTEGER,
+    actor_role    TEXT,
+    actor_name    TEXT,
+    action        TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id   TEXT,
+    success       INTEGER DEFAULT 1,
+    detail_json   TEXT DEFAULT '',
+    client_ip     TEXT,
+    user_agent    TEXT,
+    request_id    TEXT,
+    created_at    TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log(actor_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log(resource_type, resource_id);

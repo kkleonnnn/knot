@@ -83,3 +83,11 @@ class BudgetExceededError(BIAgentError):
 
 class ConfigMissingError(BIAgentError):
     """v0.4.4：API Key 未配 / 模型未启用 / admin 配置缺失。"""
+
+
+class AuditWriteError(BIAgentError):
+    """v0.4.6 R-65：审计写入失败（INSERT 异常）。
+
+    audit_service 内部 catch + logger.error 不上抛（R-47 fail-soft）；
+    本类的存在是为保持错误树结构一致（避免 v0.4.4 services/errors.py
+    重复造轮子的 trap），并为未来需要可重试的审计补录场景预留。"""

@@ -5,7 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.4.5 数据加密
+## [Unreleased] - v0.4.6 审计日志（who-did-what）
+
+> v0.4.5 数据加密收官后第一个延伸 PATCH。Loop Protocol v2 三阶段走完：
+> v0.4 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.3 守护者 Stage 3 终审
+> （含 D1 反转 schema +client_ip/user_agent 独立列等 9 条修订）。
+>
+> KNOT **治理三部曲收官**（v0.4.3 经济阀 / v0.4.4 错误阀 / v0.4.5 数据合规阀 / v0.4.6 审计追溯阀）。
+> 团队公测的最后障碍清空。
+
+### Architecture（无新 contract）
+- **7 contracts 维持** — 不增层、不增 contract（v0.4.5 升 6→7 后稳定）
+- audit 各模块严守既有 4 层契约：`api/_audit_helpers + api/audit` → `services/audit_service` → `repositories/audit_repo`
+- 前端 `AdminAudit.jsx` 复用 v0.4.3 视觉风格
+
+### Added — schema + repo (commit #1, R-50/54/55/58/65)
+- `bi_agent/repositories/schema.sql` +`audit_log` 表（INSERT-only 设计）+ 3 索引
+  - **R-58 独立列**：`client_ip` / `user_agent` / `actor_name` 冗余快照（actor 删除后审计仍可读）
+- `bi_agent/repositories/audit_repo.py` — 仅 3 函数表面：`insert / list_filtered / delete_older_than`
+  （R-50：无 update / delete_by_id；purge 脚本是唯一删除入口）
+- `bi_agent/models/audit.py` — `AuditAction` Literal **33 条**（8 类 mutation × 子动作 + meta-audit）；
+  `messages.*` 显式排除（R-63 每 query 一条会爆表）
+- `bi_agent/models/errors.py` +`AuditWriteError(BIAgentError)` — R-65 errors 树复用，不在 services 重定义
+
+### Added — service (commit #2, R-47/48/51/59/62/64)
+- `bi_agent/services/audit_service.py`
+  - **PII 三层防御**：`_PII_BLACKLIST` 含 v0.4.5 全 5 类加密字段 + bcrypt + 原始 password
+  - **R-48 + R-59 + R-62**：字段名命中即 redact，**密文（含 enc_v1: 前缀）也 redact**
+  - **D7 递归深度 3**：超限整体 redact，防恶意嵌套栈溢出
+  - **R-47 fail-soft**：repo.insert 抛错 → logger.error 不阻断业务
+  - **R-64 失败盲区可观测**：`_audit_write_failures_total` 模块级计数器（prometheus hook 预埋）+ `get_failure_count()` 公开
+  - **R-51 actor 强制 token**：detail 中 actor_id 字段被忽略
+  - **R-65 不重定义异常**：service 路径不抛 AuditWriteError（R-47 优先）；类存在为未来分布式补录场景预留
+
+### Added — 7 类 mutation 集成 + admin GET 路由 (commit #3, R-52/53/56/60/61/63)
+- `bi_agent/api/_audit_helpers.py` — api 边界 helper（与 v0.4.5 `_secret.py` 同模式）
+  - `_get_client_ip(request)` 三级 fallback：`X-Forwarded-For` → `X-Real-IP` → `request.client.host`（守护者前瞻：反代部署直接生效）
+  - `audit(request, actor, **kwargs)` 自动取 ip / user_agent / request_id
+- `bi_agent/api/audit.py` — `GET /api/admin/audit-log` + `R-61 limit cap 200`
+- 集成审计到 7 类 mutation（共 20+ 调用点）：
+  - `auth.py` — login_success / login_fail（D5 失败登录记尝试 username）
+  - `admin.py` — users CRUD + role_change + password_reset / datasources CRUD / api_key.{set,clear}_global / budget CRUD / agent_models_update
+  - `saved_reports.py` — pin / run / update / delete
+  - `few_shots.py / prompts.py / catalog.py` — config 变更
+- **R-53 stress**：1000 次连发 mutation → audit p95 < 5ms（同步 INSERT SQLite ~1ms）
+- **R-56 越权防御**：analyst → 403
+
+### Added — 前端 AdminAudit (commit #4, D3 落地)
+- `frontend/src/screens/AdminAudit.jsx` — 筛选 + 表格 + 分页 + 详情抽屉
+  - 显式分页（page 1 / 2 / ...，**不**"加载更多"）配 50/100/200 size 切换
+  - 详情抽屉的 `DetailJsonView` 高亮 `••••redacted••••` 字串（橙色背景 #FF990033）
+    — 守护者前瞻：PII 妥善处理的直观证明，提升 admin 信任感
+- Shell sidebar +「📋 审计日志」入口（admin only）
+
+### Added — purge + retention + meta-audit (commit #5, R-49/57/66)
+- `bi_agent/scripts/purge_audit_log.py` — **R-66 复用 v0.4.5 `migrate_encrypt_v045` 模式**：
+  - 独立 entrypoint（`python3 -m bi_agent.scripts.purge_audit_log [--dry-run]`）
+  - 自动 timestamped `<db>.audit-purge-YYYYMMDD-HHMMSS.bak`（同秒加 PID 兜底）
+  - dry-run 0 副作用（不删 + 不创 bak）
+  - 复用 commit #1 的 `audit_repo.delete_older_than()`（不重写 SQL）
+- `GET / PUT /api/admin/audit-config` — R-49 retention 7~3650 区间校验
+- **R-57 meta-audit**：`audit.retention_change` + `audit.purge` 自身入 audit_log
+
+### Tests
+- 新增 **53 测试**（v0.4.5 309 → v0.4.6 **362 passed** / 112 skipped）：
+  - `tests/repositories/test_audit_repo.py` (10) — schema + INSERT-only + Literal 覆盖
+  - `tests/services/test_audit_service.py` (12) — PII scrub + fail-soft + actor token
+  - `tests/services/test_audit_service_stress.py` (1) — R-53 1000×p95<5ms
+  - `tests/api/test_audit_integration.py` (13) — 7 类 mutation × audit + R-47/R-63 守护
+  - `tests/api/test_audit_list_route.py` (7) — R-56/R-61 + 筛选
+  - `tests/api/test_audit_config_route.py` (6) — R-49 + R-57 + 越权
+  - `tests/scripts/test_purge_audit_log.py` (7) — R-66 复用 + R-57 meta-audit + dry-run
+
+### 偿还红线 20 / 20
+R-47 fail-soft / R-48 PII / R-49 retention / R-50 INSERT-only / R-51 actor token /
+R-52 4 层契约 / R-53 stress / R-54 actor_name 冗余 / R-55 Literal / R-56 越权 /
+R-57 meta-audit / R-58 client_ip 独立列 / R-59 密文不入 / R-60 service 不反向 /
+R-61 强制分页 / R-62 v0.4.5 字段同步 / R-63 子类完整 + messages 排除 /
+R-64 失败计数器 / R-65 errors 复用 / R-66 purge 复用 v0.4.5 模式
+
+### 验收数据
+- pytest **362 passed** / 112 skipped
+- lint-imports **7 contracts KEPT**, 0 broken（不增 contract）
+- ruff All checks passed
+- frontend `npm run build` ✓ ~1432 KB
+- 路由数 **72**（v0.4.5 69 + audit-log GET (1) + audit-config GET/PUT (2)；69 → 72）
+
+---
+
+## [v0.4.5] - 数据加密
 
 > v0.4.4 收官后第一个延伸 PATCH。Loop Protocol v2 三阶段走完：
 > v0.4 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.3 守护者 Stage 3 终审

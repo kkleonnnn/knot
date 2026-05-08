@@ -2,11 +2,12 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from bi_agent import config as cfg
 from bi_agent.adapters.db import doris as db_connector
+from bi_agent.api._audit_helpers import audit
 from bi_agent.api.deps import require_admin
 from bi_agent.api.schemas import (
     AgentModelConfigRequest,
@@ -46,7 +47,7 @@ _VALID_ROLES = {"admin", "analyst"}
 
 
 @router.post("/api/admin/users")
-async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)):
+async def admin_create_user(req: CreateUserRequest, request: Request, admin=Depends(require_admin)):
     if req.role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     ph = auth_service.hash_password(req.password)
@@ -55,13 +56,17 @@ async def admin_create_user(req: CreateUserRequest, admin=Depends(require_admin)
         req.doris_host, req.doris_port, req.doris_user, req.doris_password, req.doris_database,
     )
     if not ok:
+        audit(request, admin, action="user.create", resource_type="user",
+              success=False, detail={"username": req.username, "error": "duplicate"})
         raise HTTPException(status_code=400, detail="用户名已存在")
     user = user_repo.get_user_by_username(req.username)
+    audit(request, admin, action="user.create", resource_type="user",
+          resource_id=user["id"], detail={"username": user["username"], "role": req.role})
     return {"id": user["id"], "username": user["username"], "ok": True}
 
 
 @router.put("/api/admin/users/{user_id}")
-async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admin)):
+async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Request, admin=Depends(require_admin)):
     if req.role is not None and req.role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in ("password", "source_ids")}
@@ -81,14 +86,26 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(
     if "source_ids" in req.__fields_set__:
         data_source_repo.set_user_sources(user_id, req.source_ids or [])
     invalidate_engine_cache(user_id)
+    # 区分子动作：role_change / password_reset / generic update
+    fields_set = set(req.__fields_set__)
+    if "role" in fields_set and req.role is not None:
+        audit(request, admin, action="user.role_change", resource_type="user",
+              resource_id=user_id, detail={"new_role": req.role})
+    elif "password" in fields_set and req.password:
+        audit(request, admin, action="user.password_reset", resource_type="user",
+              resource_id=user_id)
+    else:
+        audit(request, admin, action="user.update", resource_type="user",
+              resource_id=user_id, detail={"fields": sorted(fields_set)})
     return {"ok": True}
 
 
 @router.delete("/api/admin/users/{user_id}")
-async def admin_delete_user(user_id: int, admin=Depends(require_admin)):
+async def admin_delete_user(user_id: int, request: Request, admin=Depends(require_admin)):
     if user_id == admin["id"]:
         raise HTTPException(status_code=400, detail="无法删除自己的账号")
     user_repo.update_user(user_id, is_active=0)
+    audit(request, admin, action="user.disable", resource_type="user", resource_id=user_id)
     return {"ok": True}
 
 
@@ -129,17 +146,19 @@ async def admin_list_datasources(admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/datasources")
-async def admin_create_datasource(req: DataSourceRequest, admin=Depends(require_admin)):
+async def admin_create_datasource(req: DataSourceRequest, request: Request, admin=Depends(require_admin)):
     sid = data_source_repo.create_datasource(
         user_id=admin["id"], name=req.name, description=req.description,
         db_host=req.db_host, db_port=req.db_port, db_user=req.db_user,
         db_password=req.db_password, db_database=req.db_database, db_type=req.db_type,
     )
+    audit(request, admin, action="datasource.create", resource_type="datasource",
+          resource_id=sid, detail={"name": req.name, "db_host": req.db_host, "db_database": req.db_database})
     return {"id": sid, "ok": True}
 
 
 @router.put("/api/admin/datasources/{source_id}")
-async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, admin=Depends(require_admin)):
+async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, request: Request, admin=Depends(require_admin)):
     kwargs = {k: v for k, v in req.dict().items() if v is not None}
     # v0.4.5 R-39：db_password 空/mask 占位 → 保留原值
     if "db_password" in kwargs:
@@ -150,12 +169,16 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
             kwargs.pop("db_password")
     if kwargs:
         data_source_repo.update_datasource(source_id, **kwargs)
+    audit(request, admin, action="datasource.update", resource_type="datasource",
+          resource_id=source_id, detail={"fields": sorted(kwargs.keys())})
     return {"ok": True}
 
 
 @router.delete("/api/admin/datasources/{source_id}")
-async def admin_delete_datasource(source_id: int, admin=Depends(require_admin)):
+async def admin_delete_datasource(source_id: int, request: Request, admin=Depends(require_admin)):
     data_source_repo.delete_datasource(source_id)
+    audit(request, admin, action="datasource.delete", resource_type="datasource",
+          resource_id=source_id)
     return {"ok": True}
 
 
@@ -207,12 +230,14 @@ async def get_agent_model_config(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/agent-models")
-async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(require_admin)):
+async def set_agent_model_config(req: AgentModelConfigRequest, request: Request, admin=Depends(require_admin)):
     settings_repo.set_agent_model_config({
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,
         "presenter":   req.presenter,
     })
+    audit(request, admin, action="config.agent_models_update", resource_type="agent_model",
+          detail={"clarifier": req.clarifier, "sql_planner": req.sql_planner, "presenter": req.presenter})
     return {"ok": True}
 
 
@@ -246,15 +271,29 @@ async def get_api_keys(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/api-keys")
-async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
-    """v0.4.5 R-39：PATCH 空字符串 / mask 占位 → 保留原值；新明文 → 加密更新。"""
+async def set_api_keys(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+    """v0.4.5 R-39：PATCH 空字符串 / mask 占位 → 保留原值；新明文 → 加密更新。
+    v0.4.6：变更入审计（detail 不含明文也不含密文，只记 action 类型 + 字段名）。
+    """
     from bi_agent.api._secret import should_update_secret
+    changed: list[str] = []
+    cleared: list[str] = []
     for key in ("openrouter_api_key", "embedding_api_key"):
         if key in payload:
             old = settings_repo.get_app_setting(key, "")
             should, final = should_update_secret(payload[key], old)
             if should:
                 settings_repo.set_app_setting(key, final)
+                if final:
+                    changed.append(key)
+                else:
+                    cleared.append(key)
+    if changed:
+        audit(request, admin, action="api_key.set_global", resource_type="api_key",
+              detail={"keys": changed})
+    if cleared:
+        audit(request, admin, action="api_key.clear_global", resource_type="api_key",
+              detail={"keys": cleared})
     return {"ok": True}
 
 
@@ -295,7 +334,7 @@ async def admin_list_budgets(admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/budgets")
-async def admin_upsert_budget(req: BudgetUpsertRequest, admin=Depends(require_admin)):
+async def admin_upsert_budget(req: BudgetUpsertRequest, request: Request, admin=Depends(require_admin)):
     """v0.4.3 R-18 幂等：UNIQUE 冲突时 INSERT OR REPLACE 覆盖；返 already_existed flag。
     R-21 守护：拒 (agent_kind, legacy) + 'block' 范围限制。"""
     err = budget_service.validate_budget_input(
@@ -310,11 +349,17 @@ async def admin_upsert_budget(req: BudgetUpsertRequest, admin=Depends(require_ad
         req.threshold, req.action, req.enabled,
     )
     saved = budget_repo.get(rid) or {}
+    audit(request, admin,
+          action="budget.update" if existing else "budget.create",
+          resource_type="budget", resource_id=rid,
+          detail={"scope_type": req.scope_type, "scope_value": req.scope_value,
+                  "budget_type": req.budget_type, "threshold": req.threshold,
+                  "action": req.action, "enabled": req.enabled})
     return {**saved, "already_existed": existing is not None}
 
 
 @router.put("/api/admin/budgets/{budget_id}")
-async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, admin=Depends(require_admin)):
+async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, request: Request, admin=Depends(require_admin)):
     if budget_repo.get(budget_id) is None:
         raise HTTPException(status_code=404, detail="预算不存在")
     # action 改动需重跑校验（避免改成 block + 错配 scope）
@@ -327,14 +372,17 @@ async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, admin=De
         if err:
             raise HTTPException(status_code=400, detail=err)
     budget_repo.update(budget_id, threshold=req.threshold, action=req.action, enabled=req.enabled)
+    audit(request, admin, action="budget.update", resource_type="budget", resource_id=budget_id,
+          detail={"threshold": req.threshold, "action": req.action, "enabled": req.enabled})
     return budget_repo.get(budget_id)
 
 
 @router.delete("/api/admin/budgets/{budget_id}")
-async def admin_delete_budget(budget_id: int, admin=Depends(require_admin)):
+async def admin_delete_budget(budget_id: int, request: Request, admin=Depends(require_admin)):
     if budget_repo.get(budget_id) is None:
         raise HTTPException(status_code=404, detail="预算不存在")
     budget_repo.delete(budget_id)
+    audit(request, admin, action="budget.delete", resource_type="budget", resource_id=budget_id)
     return {"ok": True}
 
 

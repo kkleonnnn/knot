@@ -13,10 +13,11 @@ from io import BytesIO
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from bi_agent.api._audit_helpers import audit
 from bi_agent.api.deps import get_current_user
 from bi_agent.repositories import conversation_repo, message_repo
 from bi_agent.services import saved_report_service
@@ -41,7 +42,7 @@ async def list_saved_reports(user=Depends(get_current_user)):
 
 
 @router.post("/api/messages/{message_id}/pin")
-async def pin_from_message(message_id: int, req: PinRequest, user=Depends(get_current_user)):
+async def pin_from_message(message_id: int, req: PinRequest, request: Request, user=Depends(get_current_user)):
     """从 message 创建 saved_report。R-12 幂等：重复 pin 返 200 + already_pinned=true。"""
     msg = message_repo.get_message(message_id)
     if not msg:
@@ -56,30 +57,40 @@ async def pin_from_message(message_id: int, req: PinRequest, user=Depends(get_cu
     sr, already = saved_report_service.create_from_message(
         user, msg, title=req.title, pin_note=req.pin_note,
     )
+    if not already:
+        audit(request, user, action="saved_report.pin", resource_type="saved_report",
+              resource_id=sr["id"], detail={"source_message_id": message_id, "title": sr.get("title")})
     return {**sr, "already_pinned": already}
 
 
 @router.post("/api/saved-reports/{report_id}/run")
-async def run_saved_report(report_id: int, user=Depends(get_current_user)):
+async def run_saved_report(report_id: int, request: Request, user=Depends(get_current_user)):
     result = saved_report_service.run(report_id, user)
     if result is None:
         raise HTTPException(status_code=404, detail="报表不存在或无权访问")
+    audit(request, user, action="saved_report.run", resource_type="saved_report",
+          resource_id=report_id, detail={"row_count": len(result.get("rows", []))})
     return result
 
 
 @router.put("/api/saved-reports/{report_id}")
-async def update_saved_report(report_id: int, req: UpdateSavedReportRequest, user=Depends(get_current_user)):
+async def update_saved_report(report_id: int, req: UpdateSavedReportRequest, request: Request, user=Depends(get_current_user)):
     sr = saved_report_service.update_owned(report_id, user, title=req.title, pin_note=req.pin_note)
     if sr is None:
         raise HTTPException(status_code=404, detail="报表不存在或无权访问")
+    audit(request, user, action="saved_report.update", resource_type="saved_report",
+          resource_id=report_id,
+          detail={"fields": [k for k, v in {"title": req.title, "pin_note": req.pin_note}.items() if v is not None]})
     return sr
 
 
 @router.delete("/api/saved-reports/{report_id}")
-async def delete_saved_report(report_id: int, user=Depends(get_current_user)):
+async def delete_saved_report(report_id: int, request: Request, user=Depends(get_current_user)):
     ok = saved_report_service.delete_owned(report_id, user)
     if not ok:
         raise HTTPException(status_code=404, detail="报表不存在或无权访问")
+    audit(request, user, action="saved_report.delete", resource_type="saved_report",
+          resource_id=report_id)
     return {"ok": True}
 
 

@@ -11,8 +11,9 @@ catalog.py — admin 维护业务目录（v0.2.5）
 """
 import json
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
+from bi_agent.api._audit_helpers import audit
 from bi_agent.api.deps import require_admin
 from bi_agent.repositories import settings_repo
 
@@ -48,7 +49,7 @@ async def get_catalog(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/catalog")
-async def put_catalog(payload: dict = Body(...), admin=Depends(require_admin)):
+async def put_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
     """payload 形如 {tables?, lexicon?, business_rules?}；任一字段缺失 → 不动。
     传空字符串 / 空列表 / 空 dict 表示「清空该项 DB 覆盖」（回退默认）。
     """
@@ -80,11 +81,14 @@ async def put_catalog(payload: dict = Body(...), admin=Depends(require_admin)):
 
     catalog_loader.reload()
     out["source"] = catalog_loader._SOURCE
+    if out["saved"]:
+        audit(request, admin, action="config.catalog_update", resource_type="catalog",
+              detail={"saved": out["saved"]})
     return out
 
 
 @router.post("/api/admin/catalog/reset")
-async def reset_catalog(payload: dict = Body(default={}), admin=Depends(require_admin)):
+async def reset_catalog(payload: dict = Body(default={}), request: Request = None, admin=Depends(require_admin)):
     """清空 DB 覆盖，回退到文件默认。
     payload.fields 可指定 ["tables", "lexicon", "business_rules"] 子集；缺省则全清。"""
     fields = payload.get("fields") or ["tables", "lexicon", "business_rules"]
@@ -96,4 +100,7 @@ async def reset_catalog(payload: dict = Body(default={}), admin=Depends(require_
         settings_repo.set_app_setting(f"catalog.{f}", "")
         cleared.append(f)
     catalog_loader.reload()
+    if cleared:
+        audit(request, admin, action="config.catalog_update", resource_type="catalog",
+              detail={"op": "reset", "cleared": cleared})
     return {"cleared": cleared, "source": catalog_loader._SOURCE}

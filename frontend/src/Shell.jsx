@@ -68,6 +68,9 @@ export function AppShell({
                             onClick={() => onNavigate('admin-budgets')}/>
                 <SideNavRow T={T} icon={<I.sparkle/>} label="🛡️ Recovery" active={active === 'admin-recovery'}
                             onClick={() => onNavigate('admin-recovery')}/>
+                {/* v0.4.6 D3 落地：审计日志 */}
+                <SideNavRow T={T} icon={<I.book/>} label="📋 审计日志" active={active === 'admin-audit'}
+                            onClick={() => onNavigate('admin-audit')}/>
               </>
             )}
             <div style={{ flex: 1 }}/>
