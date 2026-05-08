@@ -5,19 +5,53 @@ import json
 
 from bi_agent.repositories.base import get_conn
 
+_VALID_AGENT_KINDS_NEW = ("clarifier", "sql_planner", "fix_sql", "presenter")
+
 
 def save_message(conv_id, question, sql, explanation, confidence,
                  rows, db_error, cost_usd, input_tokens, output_tokens, retry_count,
-                 intent: str | None = None) -> int:
+                 intent: str | None = None,
+                 # v0.4.2 成本归因分桶 + recovery_attempt
+                 agent_kind: str = "sql_planner",
+                 clarifier_cost: float = 0.0,
+                 sql_planner_cost: float = 0.0,
+                 fix_sql_cost: float = 0.0,
+                 presenter_cost: float = 0.0,
+                 clarifier_tokens: int = 0,
+                 sql_planner_tokens: int = 0,
+                 fix_sql_tokens: int = 0,
+                 presenter_tokens: int = 0,
+                 recovery_attempt: int = 0) -> int:
+    """v0.4.2 新增成本分桶参数。
+    - 默认 agent_kind='sql_planner'（v0.4.0+ 主路径），强制非 'legacy'（Stage 3-A 守护）
+    - 'legacy' 是不变量：仅供老消息持有，新写入禁止
+    """
+    if agent_kind == "legacy":
+        raise ValueError(
+            "'legacy' is reserved for pre-v0.4.2 records (Stage 3-A 守护者要求)。"
+            "新消息必须显式指定 agent_kind ∈ {clarifier, sql_planner, fix_sql, presenter}。"
+        )
+    if agent_kind not in _VALID_AGENT_KINDS_NEW:
+        raise ValueError(
+            f"Invalid agent_kind {agent_kind!r}; "
+            f"必须是 {_VALID_AGENT_KINDS_NEW} 之一（'legacy' 仅供老消息）"
+        )
+
     rows_json = json.dumps(rows, ensure_ascii=False, default=str)
     conn = get_conn()
     cur = conn.execute(
         "INSERT INTO messages "
         "(conversation_id, question, sql_text, explanation, confidence, "
-        "rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        " rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent, "
+        " agent_kind, clarifier_cost, sql_planner_cost, fix_sql_cost, presenter_cost, "
+        " clarifier_tokens, sql_planner_tokens, fix_sql_tokens, presenter_tokens, "
+        " recovery_attempt) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (conv_id, question, sql, explanation, confidence,
-         rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent),
+         rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent,
+         agent_kind, clarifier_cost, sql_planner_cost, fix_sql_cost, presenter_cost,
+         clarifier_tokens, sql_planner_tokens, fix_sql_tokens, presenter_tokens,
+         recovery_attempt),
     )
     mid = cur.lastrowid
     conn.execute(

@@ -11,6 +11,9 @@ Go 重写映射：internal/domain/conversation.go。
 from dataclasses import dataclass, field
 from typing import Optional
 
+# v0.4.2: 引用 agent.py 同层枚举（models→models 在 layered-architecture 内允许）
+from bi_agent.models.agent import AgentKind  # noqa: F401
+
 
 @dataclass
 class Conversation:
@@ -47,4 +50,15 @@ class Message:
     output_tokens: int = 0
     retry_count: int = 0
     intent: Optional[str] = None  # v0.4.0 Clarifier 7 类意图；老消息为 None，前端走启发式
+    # v0.4.2 成本归因分桶（agent_costs 总和 == cost_usd 由 cost_service.aggregate_agent_costs 保证 R-S8）
+    agent_kind: str = "legacy"          # AgentKind: 老消息默认 'legacy'，新消息由 save_message 守护
+    clarifier_cost: float = 0.0
+    sql_planner_cost: float = 0.0
+    fix_sql_cost: float = 0.0           # R-14 + Stage 4：fix_sql 独立桶
+    presenter_cost: float = 0.0
+    clarifier_tokens: int = 0
+    sql_planner_tokens: int = 0
+    fix_sql_tokens: int = 0
+    presenter_tokens: int = 0
+    recovery_attempt: int = 0           # R-14：含 fan-out reject + fix_sql retry
     created_at: Optional[str] = None
