@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.2 成本可观测 + xlsx 导出 + eval SQL 复杂度横切
+
+> v0.4.1.1 hotfix 合入 main 后第一个业务 PATCH。Stage 1-4 协议走完：
+> v0.4.2 Agent 草案 + 资深 Stage 2（4 项裁决）+ v0.4 守护者 Stage 3（4 条新红线）
+> + 资深 Stage 4 锁定（含 R-14 fix_sql 独立 agent_kind 拍板）。
+>
+> KNOT 从"功能实现"转向"运营精细化 + 质量工程化"：成本归因到 agent 颗粒度，
+> SQL 复杂度横切覆盖 subquery / window / cte。
+
+### Added — 成本归因分桶 (F3.a + F3.d + F3.e)
+- **`messages` 表 +10 列**（资深 Stage 2 列扩展决议）：
+  - `agent_kind TEXT NOT NULL DEFAULT 'legacy'` — 'clarifier' / 'sql_planner' /
+    'fix_sql' / 'presenter' / 'legacy'（资深 Stage 4 拍板：fix_sql 独立桶）
+  - `clarifier_cost / sql_planner_cost / fix_sql_cost / presenter_cost (REAL)`
+  - `clarifier_tokens / sql_planner_tokens / fix_sql_tokens / presenter_tokens (INT)`
+  - `recovery_attempt INTEGER DEFAULT 0` (R-14: fan-out reject + fix_sql retry 计数)
+- **`bi_agent/models/agent.py`**：`AgentKind` Literal + `VALID_AGENT_KINDS` 元组（Stage 3-A 枚举锁）
+- **`bi_agent/services/cost_service.py`**（NEW）：
+  - `empty_buckets()` / `add_agent_cost()` / `aggregate_agent_costs()` (R-S8 唯一一致性入口)
+  - `to_save_message_kwargs()` / `to_sse_payload()` 字段映射
+  - `get_cost_breakdown_by_period(period)` 按 agent_kind + user 聚合
+- **`message_repo.save_message()`** 加 10 个新参数 + `'legacy'` 不变量守护（Stage 3-A）
+- **`api/query.py`** 全面分桶累加：
+  - 流式路径：clarifier/sql_planner/presenter 三桶；扫 sql_result.steps 计 fan-out reject
+  - 非流式路径：sql_planner / fix_sql 双桶（fix_sql 独立累加）
+  - SSE final 事件加 `agent_costs` + `recovery_attempt`（向前展开）
+- **`/api/admin/cost-stats?period=7d`** 新路由：按 agent_kind 5 桶 + 按 user 分组
+
+### Added — xlsx 导出 (F3.b + R-15 + R-S7)
+- **`services/export_service.rows_to_xlsx_bytes`**：
+  - openpyxl 写入；数字保留 number；中文 unicode 保留
+  - **5000 行硬限**（资深 R-15 防 OOM）
+  - 返 `(bytes, metadata)` — `{truncated, total, exported}` 暴露给 API 层
+- **`/api/messages/{id}/export.xlsx`** + **`/api/saved-reports/{id}/export.xlsx`**：
+  - **R-S7 响应头**：`X-Export-Truncated` / `X-Export-Total-Rows` / `X-Export-Returned-Rows`
+  - 前端读响应头，截断时 toast「已截断至 N 行（共 M 行）」
+- 现有 CSV 路由完全保留（向后兼容）
+
+### Added — eval SQL 复杂度横切 (F3.c, v0.4.0 守护者教训)
+- **`tests/eval/cases.example.yaml` 90 → 111** (+21)：
+  - subquery (6) / window (6) / cte (6) / mixed (3)
+- **`test_eval._check_complexity` dispatcher**（资深 AST hybrid 决议）：
+  - `_check_subquery_present` / `_check_window_with_partition_or_order` /
+    `_check_cte_uses_with` — sqlglot AST 优先 + 关键词正则 fallback
+
+### Changed — CI eval-live workflow（R-Stage3-C 守护者）
+- PR 触发改 `types: [labeled]` + `if: contains(labels, 'run-eval')`
+  - 默认不在 PR 跑（cases 111+ 后单跑 cost ≈ $5-6）
+  - reviewer 加 `run-eval` label 主动触发
+- schedule (cron 周一) + workflow_dispatch 不变
+
+### Added — 前端
+- **`Chat.jsx::ResultBlock`**：per-agent cost chip（💡 clarifier / 🔍 sql_planner /
+  🔧 fix_sql / 📊 presenter）+ ↻ N 自纠正次数指示
+- **`SavedReports.jsx::DetailView`**：📊 Excel 按钮 + R-S7 截断 toast
+
+### Verified
+- `pytest tests/ -v`：**203 passed / 112 skipped**（v0.4.1.1 168 → +35）
+- eval cases：89 → **111**（+22）
+- `lint-imports`：6 contracts KEPT, 0 broken
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：**64 routes**, version=**0.4.2**
+
+### 不在 v0.4.2 范围（资深裁决延期）
+- ❌ 预算告警 / 限流 → v0.4.3+
+- ❌ 真异步 LLM/DB → v0.4.4
+- ❌ Alembic / yoyo 迁移工具（R-S6: messages 列数 24，v0.4.5+ 评估）
+
 ## [Unreleased] - v0.4.1.1 hotfix — 笛卡尔积防御 + UX 双 Bug 修复
 
 > v0.4.1 落地后第一个 hotfix。Stage 1-4 协议走完：v0.4.1 Agent 诊断 +

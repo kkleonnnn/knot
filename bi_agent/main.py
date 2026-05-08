@@ -26,7 +26,7 @@ from bi_agent.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="BI-Agent", version="0.4.1.1")
+app = FastAPI(title="BI-Agent", version="0.4.2")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)

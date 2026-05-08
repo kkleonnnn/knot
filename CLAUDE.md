@@ -203,9 +203,10 @@ gantt
 | ✅ v0.4.0 | Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量 | Clarifier 7 类 intent；前端按 intent 渲染 layout（MetricCard/Chart/RankView/RetentionMatrix/DetailTable）；`/api/messages/{id}/export.csv`（utf-8-sig BOM）；eval 80 条（每 intent ≥8 + 24 edge）；GH Actions live LLM CI；intent 准确率 ≥90% 门禁；AsyncLLMAdapter Protocol 占位 |
 | ✅ v0.4.1 | 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）| `saved_reports` 表（去耦合快照）+ 6 路由（list/pin/run/update/delete/export.csv）+ 前端 ⭐ 收藏按钮 + SavedReportsScreen + R-S4 effectiveHint 三级链 + R-12 幂等 + R-S2 data_source 重跑 fallback；6 contracts KEPT；147 tests / 81 skipped；xlsx 推 v0.4.2 |
 | ✅ v0.4.1.1 | hotfix — 笛卡尔积防御 + UX 双 Bug | Bug 1 (Shell.jsx active.startsWith('admin-')) + Bug 2 (后端 sql alias) + Bug 3 三层防御（Catalog RELATIONS + 双 prompt JOIN 硬约束 + eval 9 multi_table case + comma-FROM 守护正则）；157 tests / 90 skipped；89 eval cases；61 routes 不变；6 contracts KEPT。**隐含承诺**：合入后 7 天内须为 gitignored ohx_catalog.py 补 RELATIONS。 |
-| ⏳ v0.4.2 | 成本可观测 + 预算 + xlsx 导出 + eval SQL 复杂度横切 | 按 agent_kind 分桶；System_Recovery 维度铺垫；export_service 加 xlsx；**v0.4.0 守护者结构性教训：eval 必须加 join 复杂度 / 子查询 / 窗口函数 / CTE 横切维度** |
-| ⏳ v0.4.3 | 错误体验 + 加密 + 审计 | SQL fail fallback 计入 System_Recovery cost |
+| ✅ v0.4.2 | 成本可观测 + xlsx 导出 + eval SQL 复杂度横切 | messages +10 列（4 agent_kind 分桶 + recovery_attempt）+ `cost_service` (R-S8 一致性入口) + `/api/admin/cost-stats` + xlsx 导出 (5000 行硬限 + R-S7 截断 metadata header) + eval 89→111 (subquery/window/cte +21) + AST hybrid dispatcher + CI label opt-in；64 routes / 203 tests / 112 skipped；6 contracts KEPT。**预算告警延期 v0.4.3**。**R-S6**：messages 列数 24，v0.4.5+ 评估迁移工具。 |
+| ⏳ v0.4.3 | 预算告警 + 错误体验 + 加密 + 审计 | 复用 `recovery_attempt` 列做 System_Recovery 维度；用 cost_service 加预算阈值告警 |
 | ⏳ v0.4.4 | async LLM/DB 真异步 | 落 AsyncLLMAdapter impl；切 services/llm_client 到 await |
+| ⏳ v0.4.5+ | schema 迁移工具评估（R-S6）| messages 列数 24，达临界点；评估 Alembic / yoyo 引入 |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
