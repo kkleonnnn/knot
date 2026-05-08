@@ -1,25 +1,30 @@
 name: Eval (Live LLM)
 
-# v0.4.0：用真实 LLM 跑 80 条 case，验证 Clarifier intent 分类准确率 ≥ 90% +
-# SQL Planner 关键词约束。需 OPENROUTER_API_KEY secret 配置。
+# v0.4.0 起：用真实 LLM 跑 eval cases，验证 Clarifier intent 准确率 ≥ 90% +
+# SQL Planner 关键词约束 + v0.4.1.1 笛卡尔积/Fan-out 守护 + v0.4.2 SQL 复杂度横切。
+# 需 OPENROUTER_API_KEY secret 配置。
+#
+# v0.4.2 R-Stage3-C 升级：cases 110+ 后单次跑 cost ≈ $5-6。为避免主线 PR 频繁
+# 触发烧 token，PR 触发改为 **label opt-in**：默认不跑；需要时 reviewer 加
+# `run-eval` label 触发。定时和手动入口不变。
 
 on:
   schedule:
-    # 每周一 UTC 16:00 = 周二北京时间 00:00（避开工作日 LLM 限流高峰）
+    # 每周一 UTC 16:00 = 周二北京时间 00:00
     - cron: "0 16 * * 1"
-  workflow_dispatch:        # 手动触发，便于 PR 审查时跑一遍
+  workflow_dispatch:        # 手动触发
   pull_request:
-    paths:
-      # Clarifier / SQL Planner / LLM adapter / eval cases 改动时强制跑
-      - "bi_agent/services/knot/**"
-      - "bi_agent/services/llm_client.py"
-      - "bi_agent/adapters/llm/**"
-      - "tests/eval/**"
+    types: [labeled]        # PR 加 label 才触发；不再每次 push 跑
 
 jobs:
   eval:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # R-Stage3-C：仅当 PR 带 'run-eval' label 才在 PR 事件下跑；
+    # schedule / workflow_dispatch 仍正常。
+    if: >
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'run-eval')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

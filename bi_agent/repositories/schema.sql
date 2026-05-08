@@ -39,6 +39,17 @@ CREATE TABLE IF NOT EXISTS messages (
     output_tokens   INTEGER DEFAULT 0,
     retry_count     INTEGER DEFAULT 0,
     intent          TEXT,
+    -- v0.4.2: 成本归因分桶（资深 Stage 2 列扩展决议；Stage 4 拍板 fix_sql 独立 agent_kind）
+    agent_kind         TEXT    NOT NULL DEFAULT 'legacy',  -- clarifier|sql_planner|fix_sql|presenter|legacy
+    clarifier_cost     REAL    DEFAULT 0,
+    sql_planner_cost   REAL    DEFAULT 0,
+    fix_sql_cost       REAL    DEFAULT 0,
+    presenter_cost     REAL    DEFAULT 0,
+    clarifier_tokens   INTEGER DEFAULT 0,
+    sql_planner_tokens INTEGER DEFAULT 0,
+    fix_sql_tokens     INTEGER DEFAULT 0,
+    presenter_tokens   INTEGER DEFAULT 0,
+    recovery_attempt   INTEGER DEFAULT 0,                  -- R-14：含 fan-out reject + fix_sql retry 计数
     created_at      TEXT    DEFAULT (datetime('now','localtime'))
 );
 

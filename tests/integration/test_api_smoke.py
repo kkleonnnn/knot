@@ -12,13 +12,13 @@ def test_healthz_returns_200(client):
     assert r.status_code == 200
 
 
-def test_app_has_61_routes(client):
+def test_app_has_64_routes(client):
     """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
     v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。
-    v0.4.1 加 saved_reports 6 路由（list/pin/run/update/delete + export.csv）→ 55 → 61。
-    （手册原写 62 算错 1 路由，commit #8 docs sync 时一并修正。）"""
+    v0.4.1 加 saved_reports 6 路由 → 55 → 61。
+    v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。"""
     from bi_agent.main import app
-    assert len(app.routes) == 61
+    assert len(app.routes) == 64
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──
@@ -252,6 +252,60 @@ def test_delete_conversation_does_not_cascade_saved_reports(client, auth_headers
     # saved_report 仍在列表
     r = client.get("/api/saved-reports", headers=auth_headers)
     assert any(sr["id"] == sr_id for sr in r.json())
+
+
+# ── v0.4.2: cost-stats admin 看板 ────────────────────────────────────
+
+def test_cost_stats_returns_breakdown_structure(client, auth_headers):
+    """C3：/api/admin/cost-stats 返回完整结构（按 agent_kind 分桶 + 按 user 分组）。"""
+    # 先种一条带分桶的 message（admin 自己的 conv）
+    create = client.post("/api/conversations", json={"title": "cost stat seed"}, headers=auth_headers)
+    cid = create.json()["id"]
+    from bi_agent.repositories.message_repo import save_message
+    save_message(
+        conv_id=cid, question="Q", sql="SELECT 1", explanation="ok", confidence="high",
+        rows=[{"a": 1}], db_error=None,
+        cost_usd=0.0083, input_tokens=200, output_tokens=100, retry_count=0,
+        intent="metric",
+        agent_kind="sql_planner",
+        clarifier_cost=0.001, sql_planner_cost=0.005, fix_sql_cost=0, presenter_cost=0.0023,
+        clarifier_tokens=100, sql_planner_tokens=1500, fix_sql_tokens=0, presenter_tokens=686,
+        recovery_attempt=1,
+    )
+
+    r = client.get("/api/admin/cost-stats?period=7d", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["period_days"] == 7
+    assert body["total_messages"] >= 1
+    assert body["total_cost_usd"] >= 0.0083
+    bk = body["by_agent_kind"]
+    assert set(bk.keys()) == {"clarifier", "sql_planner", "fix_sql", "presenter", "legacy"}
+    assert bk["clarifier"] >= 0.001
+    assert bk["sql_planner"] >= 0.005
+    assert isinstance(body["by_user"], list)
+    assert body["recovery_attempt_total"] >= 1
+
+
+def test_cost_stats_period_parsing_fallback(client, auth_headers):
+    """非法 period 参数回退到 7d。"""
+    r = client.get("/api/admin/cost-stats?period=garbage", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["period_days"] == 7
+
+
+def test_cost_stats_analyst_forbidden(client, auth_headers):
+    """analyst 不可访问 admin cost-stats。"""
+    create = client.post(
+        "/api/admin/users",
+        json={"username": "stat_user", "password": "p", "role": "analyst"},
+        headers=auth_headers,
+    )
+    assert create.status_code == 200
+    login = client.post("/api/auth/login", json={"username": "stat_user", "password": "p"})
+    analyst_headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    r = client.get("/api/admin/cost-stats", headers=analyst_headers)
+    assert r.status_code == 403
 
 
 def test_analyst_cannot_access_admin_routes(client, auth_headers):

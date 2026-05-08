@@ -166,6 +166,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
               input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
               cost_usd: ev.cost_usd, query_time_ms: ev.query_time_ms,
               intent: ev.intent || null,
+              // v0.4.2 新增（向前展开）
+              agent_costs: ev.agent_costs || null,
+              recovery_attempt: ev.recovery_attempt || 0,
               loading: false,
             } : m));
             loadConvs();
@@ -379,7 +382,8 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
   const [chartType, setChartType] = useState('auto');
   const [pinned, setPinned] = useState(!!msg.is_pinned);
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
-          insight, suggested_followups, is_clarification, intent } = msg;
+          insight, suggested_followups, is_clarification, intent,
+          agent_costs, recovery_attempt } = msg;  // v0.4.2 分桶 + 自纠正计数
 
   if (is_clarification) {
     return (
@@ -580,16 +584,48 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
       )}
 
       {(input_tokens > 0 || output_tokens > 0) && (
-        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: T.muted, fontFamily: T.mono }}>
+        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: T.muted, fontFamily: T.mono, flexWrap: 'wrap' }}>
           <span>↑ {input_tokens?.toLocaleString()} tok</span>
           <span>↓ {output_tokens?.toLocaleString()} tok</span>
           {cost_usd > 0 && <span>$ {cost_usd?.toFixed(5)}</span>}
           {confidence && <span style={{ color: confidence === 'high' ? T.success : confidence === 'medium' ? T.warn : T.accent }}>{confidence}</span>}
+          {recovery_attempt > 0 && (
+            <span title="自纠正次数（fan-out reject + fix_sql retry）"
+                  style={{ color: T.warn || '#FF9900' }}>
+              ↻ {recovery_attempt}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* v0.4.2 per-agent cost 分桶 chip（仅当 agent_costs 存在时；老消息走 cost_usd 单值兼容）*/}
+      {agent_costs && Object.values(agent_costs).some(b => b && (b.cost > 0 || b.tokens > 0)) && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10.5, fontFamily: T.mono }}>
+          {Object.entries(agent_costs)
+            .filter(([_, b]) => b && (b.cost > 0 || b.tokens > 0))
+            .map(([kind, b]) => (
+              <span key={kind} title={`${kind}: $${b.cost?.toFixed(5) || 0} / ${b.tokens || 0} tok`}
+                    style={{
+                      padding: '2px 8px', borderRadius: 10,
+                      background: T.bg || '#0001', color: T.muted,
+                      border: `1px solid ${T.borderSoft || T.border}`,
+                    }}>
+                {AGENT_KIND_EMOJI[kind] || '·'} {kind}: ${b.cost?.toFixed(5) || '0.00000'}
+              </span>
+            ))}
         </div>
       )}
     </div>
   );
 }
+
+// v0.4.2: agent_kind → emoji（与 SavedReports intent emoji 同款风格）
+const AGENT_KIND_EMOJI = {
+  clarifier:   '💡',
+  sql_planner: '🔍',
+  fix_sql:     '🔧',
+  presenter:   '📊',
+};
 
 // v0.4.0: metric intent 渲染大数字卡片（取代 chart+table）
 function MetricCard({ T, rows, cols, numericCols }) {

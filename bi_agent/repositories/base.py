@@ -52,6 +52,30 @@ def init_db():
     if "intent" not in msg_cols:
         conn.execute("ALTER TABLE messages ADD COLUMN intent TEXT")
 
+    # v0.4.2: 成本归因分桶 + recovery_attempt 列（R-S6 警告：messages 列数 ≥ 24，
+    # v0.4.5+ 需评估迁移工具引入）
+    msg_new_cols_v042 = [
+        # agent_kind 不在动态加列里 — 必须在 ALTER 后立刻 UPDATE 老行为 'legacy'，
+        # 但 SQLite 不支持 ALTER ... ADD COLUMN ... NOT NULL DEFAULT 在已有行上同步生效。
+        # 解法：先加可空列 + 立即 UPDATE 全表为 'legacy' + 由 save_message 守护新写入。
+        ("agent_kind",         "TEXT DEFAULT 'legacy'"),
+        ("clarifier_cost",     "REAL DEFAULT 0"),
+        ("sql_planner_cost",   "REAL DEFAULT 0"),
+        ("fix_sql_cost",       "REAL DEFAULT 0"),
+        ("presenter_cost",     "REAL DEFAULT 0"),
+        ("clarifier_tokens",   "INTEGER DEFAULT 0"),
+        ("sql_planner_tokens", "INTEGER DEFAULT 0"),
+        ("fix_sql_tokens",     "INTEGER DEFAULT 0"),
+        ("presenter_tokens",   "INTEGER DEFAULT 0"),
+        ("recovery_attempt",   "INTEGER DEFAULT 0"),
+    ]
+    msg_cols_after_intent = {row[1] for row in conn.execute("PRAGMA table_info(messages)").fetchall()}
+    for col, definition in msg_new_cols_v042:
+        if col not in msg_cols_after_intent:
+            conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {definition}")
+    # R-S6 / Stage 3-A 保险：所有老行（agent_kind 为 NULL）显式回填 'legacy'
+    conn.execute("UPDATE messages SET agent_kind='legacy' WHERE agent_kind IS NULL")
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""

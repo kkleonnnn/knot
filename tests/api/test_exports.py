@@ -95,3 +95,63 @@ def test_export_csv_admin_can_download_any_message(client, auth_headers):
     r = client.get(f"/api/messages/{analyst_mid}/export.csv", headers=auth_headers)
     assert r.status_code == 200
     assert r.content.startswith(b"\xef\xbb\xbf")
+
+
+# ── v0.4.2: xlsx 导出 ────────────────────────────────────────────────────────
+
+
+def test_export_xlsx_owner_success_with_metadata_headers(client, auth_headers):
+    """xlsx 导出成功 + R-S7 响应头含 X-Export-Truncated/Total-Rows/Returned-Rows。"""
+    rows = [{"用户": "张三", "金额": 100}, {"用户": "李四", "金额": 200}]
+    _cid, mid = _seed_message_for(client, auth_headers, rows=rows)
+    r = client.get(f"/api/messages/{mid}/export.xlsx", headers=auth_headers)
+    assert r.status_code == 200
+    # Content-Type
+    ct = r.headers.get("content-type", "")
+    assert "spreadsheet" in ct
+    # R-S7 metadata headers
+    assert r.headers.get("x-export-truncated") == "false"
+    assert r.headers.get("x-export-total-rows") == "2"
+    assert r.headers.get("x-export-returned-rows") == "2"
+    # 文件名
+    cd = r.headers.get("content-disposition", "")
+    assert f"export_msg{mid}.xlsx" in cd
+    # body 是合法 xlsx（用 openpyxl 反读）
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+    ws = load_workbook(BytesIO(r.content)).active
+    assert ws.cell(2, 1).value == "张三"
+    assert ws.cell(2, 2).value == 100  # 数字保留 number 类型
+
+
+def test_export_xlsx_truncation_metadata_when_over_5000_rows(client, auth_headers):
+    """R-S7：>5000 行时 X-Export-Truncated=true，前端可据此 toast 提示。"""
+    rows = [{"i": i} for i in range(5050)]
+    _cid, mid = _seed_message_for(client, auth_headers, rows=rows)
+    r = client.get(f"/api/messages/{mid}/export.xlsx", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.headers.get("x-export-truncated") == "true"
+    assert r.headers.get("x-export-total-rows") == "5050"
+    assert r.headers.get("x-export-returned-rows") == "5000"
+
+
+def test_export_xlsx_other_users_message_returns_404(client, auth_headers):
+    """xlsx 同样守 message_id 枚举（与 csv 同款权限）。"""
+    _cid, admin_mid = _seed_message_for(client, auth_headers, rows=[{"x": 1}])
+    create = client.post(
+        "/api/admin/users",
+        json={"username": "dave", "password": "p", "role": "analyst"},
+        headers=auth_headers,
+    )
+    assert create.status_code == 200
+    login = client.post("/api/auth/login", json={"username": "dave", "password": "p"})
+    analyst_headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    r = client.get(f"/api/messages/{admin_mid}/export.xlsx", headers=analyst_headers)
+    assert r.status_code == 404
+
+
+def test_export_xlsx_empty_rows_400(client, auth_headers):
+    _cid, mid = _seed_message_for(client, auth_headers, rows=[])
+    r = client.get(f"/api/messages/{mid}/export.xlsx", headers=auth_headers)
+    assert r.status_code == 400

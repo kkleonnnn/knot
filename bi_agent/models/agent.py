@@ -6,7 +6,12 @@
 Go 重写映射：internal/domain/agent.go。每个 dataclass = 一个 struct。
 """
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
+
+# v0.4.2: agent_kind 枚举锁（Stage 3-A 守护者要求 + 资深 Stage 4 拍板 fix_sql 独立桶）
+# 'legacy' 仅供 v0.4.2 之前的老 message 持有；新 message save 时禁止显式传 'legacy'。
+AgentKind = Literal["clarifier", "sql_planner", "fix_sql", "presenter", "legacy"]
+VALID_AGENT_KINDS: tuple[str, ...] = ("clarifier", "sql_planner", "fix_sql", "presenter", "legacy")
 
 
 @dataclass

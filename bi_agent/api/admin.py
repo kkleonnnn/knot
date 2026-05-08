@@ -14,7 +14,7 @@ from bi_agent.api.schemas import (
     UpdateUserRequest,
 )
 from bi_agent.repositories import data_source_repo, settings_repo, user_repo
-from bi_agent.services import auth_service
+from bi_agent.services import auth_service, cost_service
 from bi_agent.services.engine_cache import invalidate_engine_cache
 
 router = APIRouter()
@@ -198,6 +198,23 @@ async def set_agent_model_config(req: AgentModelConfigRequest, admin=Depends(req
         "presenter":   req.presenter,
     })
     return {"ok": True}
+
+
+# ── Cost Stats (v0.4.2 admin 看板) ─────────────────────────────────────
+
+@router.get("/api/admin/cost-stats")
+async def admin_cost_stats(period: str = "7d", admin=Depends(require_admin)):
+    """v0.4.2 成本归因汇总（按 agent_kind 分桶 + 按 user 分组）。
+
+    Query params:
+      - period: 时段 ('7d' / '30d' / '90d' 或裸数字天)，默认 7d
+
+    返回（详见 message_repo.get_cost_breakdown）：
+      {period_days, total_cost_usd, total_messages,
+       by_agent_kind: {clarifier, sql_planner, fix_sql, presenter, legacy},
+       by_user: [...], recovery_attempt_total}
+    """
+    return cost_service.get_cost_breakdown_by_period(period)
 
 
 # ── API Keys (app-level, admin-only) ───────────────────────────────────

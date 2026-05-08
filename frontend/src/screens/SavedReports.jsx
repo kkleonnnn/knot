@@ -156,17 +156,24 @@ function DetailView({ T, report, onChanged }) {
     }
   }
 
-  async function handleExport() {
+  async function handleExport(format /* 'csv' | 'xlsx' */) {
     try {
-      const r = await fetch(`/api/saved-reports/${report.id}/export.csv`, {
+      const r = await fetch(`/api/saved-reports/${report.id}/export.${format}`, {
         headers: { Authorization: `Bearer ${api._token()}` },
       });
       if (!r.ok) { toast(`导出失败: ${r.status}`, true); return; }
+      // v0.4.2 R-S7：xlsx 截断时通过响应头 X-Export-Truncated 通知
+      const truncated = r.headers.get('x-export-truncated') === 'true';
+      const total = r.headers.get('x-export-total-rows');
+      const exported = r.headers.get('x-export-returned-rows');
       const blob = await r.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `saved_report_${report.id}.csv`;
+      a.download = `saved_report_${report.id}.${format}`;
       document.body.appendChild(a); a.click(); a.remove();
+      if (truncated) {
+        toast(`已截断至 ${exported} 行（共 ${total} 行）。如需全量请联系 admin。`, true);
+      }
     } catch (e) {
       toast(`导出失败: ${e.message}`, true);
     }
@@ -205,7 +212,8 @@ function DetailView({ T, report, onChanged }) {
               <button onClick={handleRun} disabled={running} style={pillBtn(T, true)}>
                 {running ? '运行中…' : '🔄 重跑一遍'}
               </button>
-              <button onClick={handleExport} style={pillBtn(T)} title="导出 CSV">📥 CSV</button>
+              <button onClick={() => handleExport('csv')} style={pillBtn(T)} title="导出 CSV">📥 CSV</button>
+              <button onClick={() => handleExport('xlsx')} style={pillBtn(T)} title="导出 Excel xlsx（5000 行硬限）">📊 Excel</button>
             </>
           )}
         </div>
