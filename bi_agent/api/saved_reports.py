@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from bi_agent.api.deps import get_current_user
 from bi_agent.repositories import conversation_repo, message_repo
 from bi_agent.services import saved_report_service
-from bi_agent.services.export_service import rows_to_csv_bytes
+from bi_agent.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes
 
 router = APIRouter()
 
@@ -109,5 +109,38 @@ async def export_saved_report_csv(report_id: int, user=Depends(get_current_user)
     return StreamingResponse(
         BytesIO(csv_bytes),
         media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
+
+
+@router.get("/api/saved-reports/{report_id}/export.xlsx")
+async def export_saved_report_xlsx(report_id: int, user=Depends(get_current_user)):
+    """v0.4.2 xlsx 导出（5000 行硬限）。
+
+    R-S7：截断信息通过响应头 X-Export-Truncated / X-Export-Total-Rows /
+    X-Export-Returned-Rows 暴露给前端，由前端 toast 提示。
+    """
+    sr = saved_report_service.get_owned(report_id, user)
+    if not sr:
+        raise HTTPException(status_code=404, detail="报表不存在或无权访问")
+    rows_json = sr.get("last_run_rows_json") or "[]"
+    try:
+        rows = json.loads(rows_json)
+    except json.JSONDecodeError:
+        rows = []
+    if not rows:
+        raise HTTPException(status_code=400, detail="该报表无可导出数据（请先重跑）")
+
+    xlsx_bytes, meta = rows_to_xlsx_bytes(rows)
+    filename = f"saved_report_{report_id}.xlsx"
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+        "X-Export-Truncated":     "true" if meta["truncated"] else "false",
+        "X-Export-Total-Rows":    str(meta["total"]),
+        "X-Export-Returned-Rows": str(meta["exported"]),
+    }
+    return StreamingResponse(
+        BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
