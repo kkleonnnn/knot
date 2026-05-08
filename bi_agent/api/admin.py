@@ -316,3 +316,26 @@ async def admin_delete_budget(budget_id: int, admin=Depends(require_admin)):
         raise HTTPException(status_code=404, detail="预算不存在")
     budget_repo.delete(budget_id)
     return {"ok": True}
+
+
+# ── System Recovery 趋势（v0.4.3 R-19）──────────────────────────────────
+
+@router.get("/api/admin/recovery-stats")
+async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)):
+    """v0.4.3 自纠正趋势（R-19 过滤 legacy + v0.4.2 上线日起点）。
+
+    Query params:
+      - period: '7d' / '30d' / '90d' 或裸数字天，默认 30d
+
+    返回（详见 message_repo.get_recovery_trend）：
+      {period_days, total_recovery_attempts, total_messages,
+       by_day: [{date, count, msg_count}, ...],
+       top_users: [{user_id, username, count, msg_count}, ...]}
+    """
+    days = 30
+    s = (period or "").strip().lower()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = max(1, int(s[:-1]))
+    elif s.isdigit():
+        days = max(1, int(s))
+    return budget_service.get_recovery_trend(period_days=days)
