@@ -76,3 +76,83 @@ def test_none_value_renders_empty():
     # CSV: "1," 表示 a=1, b=空
     data_line = text.splitlines()[1]
     assert data_line.endswith(",")  # b 字段值为空字符串
+
+
+# ── v0.4.2 xlsx 导出 ────────────────────────────────────────────────────────
+
+
+def test_xlsx_basic_round_trip():
+    """xlsx 写入 → 用 openpyxl 读回，字段值一致；数字保留为 number 类型。"""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    rows = [
+        {"name": "alice", "age": 30, "score": 95.5},
+        {"name": "bob", "age": 25, "score": 88.0},
+    ]
+    xlsx_bytes, meta = rows_to_xlsx_bytes(rows)
+    assert meta["truncated"] is False
+    assert meta["total"] == 2
+    assert meta["exported"] == 2
+
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    ws = wb.active
+    # row 1 = header
+    assert [c.value for c in ws[1]] == ["name", "age", "score"]
+    # row 2/3 = data，数字保留为 number
+    assert ws.cell(2, 1).value == "alice"
+    assert ws.cell(2, 2).value == 30
+    assert isinstance(ws.cell(2, 2).value, int)
+    assert ws.cell(2, 3).value == 95.5
+    assert isinstance(ws.cell(2, 3).value, float)
+
+
+def test_xlsx_chinese_chars_preserved():
+    """中文字段名 + 内容在 xlsx 中保留 unicode。"""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    rows = [{"用户": "张三", "金额": 100}]
+    xlsx_bytes, _ = rows_to_xlsx_bytes(rows)
+    ws = load_workbook(BytesIO(xlsx_bytes)).active
+    assert ws.cell(1, 1).value == "用户"
+    assert ws.cell(2, 1).value == "张三"
+
+
+def test_xlsx_truncates_at_5000_rows_with_metadata():
+    """R-15 + R-S7：超过 5000 行截断，metadata 暴露 truncated=true / total / exported。"""
+    from bi_agent.services.export_service import XLSX_MAX_ROWS, rows_to_xlsx_bytes
+    big_rows = [{"i": i} for i in range(XLSX_MAX_ROWS + 1234)]
+    _, meta = rows_to_xlsx_bytes(big_rows)
+    assert meta["truncated"] is True
+    assert meta["total"] == XLSX_MAX_ROWS + 1234
+    assert meta["exported"] == XLSX_MAX_ROWS
+
+
+def test_xlsx_complex_value_json_serialized():
+    """dict/list 复杂值 → JSON 字符串落 cell（不丢失数据）。"""
+    from io import BytesIO
+    import json as _json
+
+    from openpyxl import load_workbook
+
+    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    rows = [{"id": 1, "extra": {"nested": "中文", "n": 42}}]
+    xlsx_bytes, _ = rows_to_xlsx_bytes(rows)
+    ws = load_workbook(BytesIO(xlsx_bytes)).active
+    cell_v = ws.cell(2, 2).value
+    assert isinstance(cell_v, str)
+    parsed = _json.loads(cell_v)
+    assert parsed == {"nested": "中文", "n": 42}
+
+
+def test_xlsx_empty_rows_returns_metadata_zero():
+    """空 rows → metadata 0 / 0 / not truncated；xlsx 文件仍合法（可打开但无数据）。"""
+    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    xlsx_bytes, meta = rows_to_xlsx_bytes([])
+    assert meta == {"truncated": False, "total": 0, "exported": 0}
+    assert xlsx_bytes  # bytes 非空（openpyxl 写了一个 sheet 头）
