@@ -6,7 +6,11 @@ R-37：测试 master key 用 monkeypatch.setenv + autouse fixture 隔离；
 """
 import pytest
 
-# 固定测试 key（仅用于测试 — 不是生产；commit 中以明文出现是安全的，因为它不保护任何真实数据）
+# 固定测试 master key — 守护者 Q4 决策：硬编码胜过 env-driven。
+# ⚠️ 该 key 仅用于测试；严禁用于任何生产环境 / staging / 真实部署。
+# 该 key 不是 secret — 任何人均可调 Fernet.generate_key() 产出等价 key；
+# 硬编码是为测试可重现性（避免 CI 多 worker / 并行测试时 env 污染）。
+# 移除/改动测试时需同步更新。
 TEST_MASTER_KEY = "QwlGZIGjzEryd93omq5UGR5ATZ6mTMm70NmS4o331Xk="
 
 

@@ -239,7 +239,7 @@ gantt
 
 ## v0.4.x 业务迭代路线图（v0.3.3 之后）
 
-架构底座已稳，进入业务能力迭代期。6 条 contract 全程 KEPT，不再开工程化大刀。
+架构底座已稳，进入业务能力迭代期。v0.3.3 → v0.4.4 期间 **6 条 contract** 全程 KEPT；**v0.4.5 首次升至 7 条**（新增 `crypto-only-in-allowed-callers` — core.crypto 仅 repositories / scripts 可用）。
 
 | PATCH | 主题 | 关键交付 |
 |-------|------|---------|

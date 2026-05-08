@@ -73,3 +73,19 @@ source_modules =
     bi_agent.core
     bi_agent.config
 forbidden_modules = bi_agent.api
+
+# ── Contract 7（v0.4.5 新增）：core.crypto 仅限 repositories / scripts / 自身 ──
+# 加密器是横切工具但敏感度高 — 显式禁止 api / services / adapters / models 直接 import；
+# 调用方只见到 repositories 透明加解密产物（明文）+ models.errors.ConfigMissingError
+# （repositories 在 catch CryptoConfigError 后翻译，守领域异常树边界）。
+# repositories + scripts 不在 source_modules 中 → 自动允许（这是 v0.4.5 Stage 3 终审 §4 终版形状）
+[importlinter:contract:crypto-only-in-allowed-callers]
+name = core.crypto 仅 repositories / scripts / 自身可用
+type = forbidden
+source_modules =
+    bi_agent.api
+    bi_agent.services
+    bi_agent.adapters
+    bi_agent.models
+forbidden_modules = bi_agent.core.crypto
+allow_indirect_imports = True

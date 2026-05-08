@@ -1,9 +1,20 @@
-"""settings_repo — app_settings KV + model_settings + agent model config。"""
+"""settings_repo — app_settings KV + model_settings + agent model config。
+
+v0.4.5：sensitive key 白名单透明加解密（守 R-38 / R-43 / R-43-Dual）。
+"""
 from __future__ import annotations
 
 import json
 
+from bi_agent.core.crypto import decrypt, encrypt, is_encrypted
+from bi_agent.core.crypto.fernet import CryptoConfigError
+from bi_agent.core.logging_setup import logger
+from bi_agent.models.errors import ConfigMissingError
 from bi_agent.repositories.base import get_conn
+
+# 敏感 setting key 白名单 — 新增 sensitive setting 必须更新此集合（CLAUDE.md 流程红线）
+_SENSITIVE_KEYS = frozenset({"openrouter_api_key", "embedding_api_key"})
+
 
 # ── 通用 KV ────────────────────────────────────────────────────────────
 
@@ -11,10 +22,34 @@ def get_app_setting(key: str, default: str = "") -> str:
     conn = get_conn()
     row = conn.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
     conn.close()
-    return row["value"] if row else default
+    if not row:
+        return default
+    raw = row["value"]
+    # 白名单 → 必解密
+    if key in _SENSITIVE_KEYS:
+        if not raw:
+            return default
+        try:
+            return decrypt(raw)
+        except CryptoConfigError as e:
+            raise ConfigMissingError(str(e)) from e
+    # R-43 失败安全：非白名单但内容带 enc_v1: 前缀 → 也尝试解密（防漏配置）
+    if raw and is_encrypted(raw):
+        try:
+            return decrypt(raw)
+        except CryptoConfigError:
+            return raw  # 解密失败回退原值（避免老明文 + key 切换误伤）
+    return raw if raw else default
 
 
 def set_app_setting(key: str, value: str):
+    if key in _SENSITIVE_KEYS:
+        value = encrypt(value or "")
+    elif value and is_encrypted(value):
+        # R-43-Dual：写非白名单 key 时若值已 enc_v1: 格式 → 跳过二次加密 + WARNING
+        logger.warning(
+            f"set_app_setting({key}=...): 值已带 {is_encrypted.__name__} 前缀，跳过二次加密"
+        )
     conn = get_conn()
     conn.execute(
         "INSERT INTO app_settings (key, value) VALUES (?, ?) "

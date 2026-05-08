@@ -1,35 +1,60 @@
-"""user_repo — users 表 CRUD + 用量统计。"""
+"""user_repo — users 表 CRUD + 用量统计。
+
+v0.4.5：4 个敏感列（api_key / openrouter_api_key / embedding_api_key / doris_password）
+透明加解密 — 写时 encrypt / 读时 decrypt（守 R-38）。
+core CryptoConfigError → models ConfigMissingError 边界翻译。
+"""
 from __future__ import annotations
 
 import json
 import sqlite3
 
+from bi_agent.core.crypto import decrypt, encrypt
+from bi_agent.core.crypto.fernet import CryptoConfigError
+from bi_agent.models.errors import ConfigMissingError
 from bi_agent.repositories.base import get_conn
+
+_USER_ENCRYPTED_COLS = ("api_key", "openrouter_api_key", "embedding_api_key", "doris_password")
+
+
+def _decrypt_user_row(row) -> dict | None:
+    """透明 wrap：把 row 中所有敏感列解密；CryptoConfigError 翻译为 ConfigMissingError。"""
+    if row is None:
+        return None
+    out = dict(row)
+    for col in _USER_ENCRYPTED_COLS:
+        if col in out and out[col]:
+            try:
+                out[col] = decrypt(out[col])
+            except CryptoConfigError as e:
+                raise ConfigMissingError(str(e)) from e
+    return out
 
 
 def get_user_by_username(username: str) -> dict | None:
     conn = get_conn()
     row = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _decrypt_user_row(row)
 
 
 def get_user_by_id(user_id: int) -> dict | None:
     conn = get_conn()
     row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _decrypt_user_row(row)
 
 
 def list_users() -> list:
     conn = get_conn()
     rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_decrypt_user_row(r) for r in rows]
 
 
 def create_user(username, password_hash, display_name, role,
                 doris_host, doris_port, doris_user, doris_password, doris_database) -> bool:
+    enc_doris_pw = encrypt(doris_password) if doris_password else doris_password
     try:
         conn = get_conn()
         conn.execute(
@@ -37,7 +62,7 @@ def create_user(username, password_hash, display_name, role,
             "(username, password_hash, display_name, role, doris_host, doris_port, doris_user, doris_password, doris_database) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
             (username, password_hash, display_name, role,
-             doris_host, doris_port, doris_user, doris_password, doris_database),
+             doris_host, doris_port, doris_user, enc_doris_pw, doris_database),
         )
         conn.commit()
         conn.close()
@@ -49,6 +74,10 @@ def create_user(username, password_hash, display_name, role,
 def update_user(user_id: int, **kwargs):
     if not kwargs:
         return
+    # 敏感列写时 encrypt（None / 空值不动）
+    for col in _USER_ENCRYPTED_COLS:
+        if col in kwargs and kwargs[col]:
+            kwargs[col] = encrypt(kwargs[col])
     fields = ", ".join(f"{k}=?" for k in kwargs)
     values = list(kwargs.values()) + [user_id]
     conn = get_conn()

@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.4.4 异步 LLM + 错误体验改造
+## [Unreleased] - v0.4.5 数据加密（进行中）
+
+> v0.4.4 收官后第一个延伸 PATCH。Stage 1-3 评审走完（守护者 v0.3 Agent 终审）。
+> 9 条 commits 序列分批落入；commit #2 完成时此节点登记。
+
+### Architecture（首次 contract 数变更）
+- **import-linter contracts: 6 → 7** — 新增 `crypto-only-in-allowed-callers`：
+  `core.crypto` 仅 `repositories` / `scripts` / 自身可 import；
+  `api / services / adapters / models` 直接 import 即触红
+  （`allow_indirect_imports = True`，只查直接边，不阻断 service → repo → core.crypto 的合法链路）
+- **D1 路径**：crypto 物理位置 `bi_agent/core/crypto/`（不是 `adapters/crypto/`，避免破 v0.3.3 双重 contract）
+- **本地异常类**：`core/crypto.fernet.CryptoConfigError`（不依赖 models — 守 Contract 3 core-no-business）；
+  repositories catch 后翻译为 `models.errors.ConfigMissingError`（守领域异常树边界）
+
+### Added — commit #1（已落）
+- `bi_agent/core/crypto/{__init__,base,fernet}.py` — Fernet 加密器 + master key fail-fast
+- `tests/conftest.py` — autouse master_key fixture（R-37 测试隔离）
+- `tests/core/test_crypto_fernet.py`（10 tests）+ `tests/test_startup_master_key.py`（3 tests）
+- 偿还红线：R-34 / R-35 / R-37 / R-40 / R-42 / R-44
+
+### Added — commit #2（本节点）
+- `bi_agent/repositories/{user_repo, data_source_repo, settings_repo}.py` 透明加解密
+  - 4 类 user 敏感列：api_key / openrouter_api_key / embedding_api_key / doris_password
+  - data_sources.db_password
+  - app_settings sensitive 白名单：openrouter_api_key / embedding_api_key
+- **R-43** settings_repo 失败安全：未知 key 但带 `enc_v1:` 前缀 → 必尝试解密
+- **R-43-Dual** 写入对偶：写非白名单 key 时若值已是 `enc_v1:` 格式 → 跳过二次加密 + WARNING
+- **边界翻译策略**：选 **repository 层** catch & translate（services 见到的全是 ConfigMissingError 领域异常，不漏 CryptoConfigError 出 core 层）
+- `tests/repositories/test_repo_encryption_transparency.py`（12 tests）
+- 偿还红线：R-38 / R-43 / R-43-Dual
+
+---
+
+## [v0.4.4] - 异步 LLM + 错误体验改造
 
 > v0.4.3 成本治理收尾后的第一个延伸 PATCH。Stage 1-4 协议走完：
 > 新版本 Agent 草案 + 资深 Stage 2 + 守护者 Stage 3（联合评审 9 条红线 R-24~R-33）+
