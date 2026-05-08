@@ -69,6 +69,13 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, admin=Depends(
         kwargs["default_source_id"] = req.default_source_id
     if req.password:
         kwargs["password_hash"] = auth_service.hash_password(req.password)
+    # v0.4.5 R-39：敏感字段 PATCH 空值/mask 占位 → 保留原值（不清空）
+    if "doris_password" in kwargs:
+        from bi_agent.api._secret import should_update_secret
+        existing = user_repo.get_user_by_id(user_id) or {}
+        should, _ = should_update_secret(kwargs["doris_password"], existing.get("doris_password") or "")
+        if not should:
+            kwargs.pop("doris_password")
     if kwargs:
         user_repo.update_user(user_id, **kwargs)
     if "source_ids" in req.__fields_set__:
@@ -134,6 +141,13 @@ async def admin_create_datasource(req: DataSourceRequest, admin=Depends(require_
 @router.put("/api/admin/datasources/{source_id}")
 async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, admin=Depends(require_admin)):
     kwargs = {k: v for k, v in req.dict().items() if v is not None}
+    # v0.4.5 R-39：db_password 空/mask 占位 → 保留原值
+    if "db_password" in kwargs:
+        from bi_agent.api._secret import should_update_secret
+        existing = data_source_repo.get_datasource(source_id) or {}
+        should, _ = should_update_secret(kwargs["db_password"], existing.get("db_password") or "")
+        if not should:
+            kwargs.pop("db_password")
     if kwargs:
         data_source_repo.update_datasource(source_id, **kwargs)
     return {"ok": True}
@@ -223,18 +237,24 @@ async def admin_cost_stats(period: str = "7d", admin=Depends(require_admin)):
 
 @router.get("/api/admin/api-keys")
 async def get_api_keys(admin=Depends(require_admin)):
+    """v0.4.5 R-39：返回 masked 形式（••••••••last4），不漏明文。"""
+    from bi_agent.api._secret import mask_secret
     return {
-        "openrouter_api_key": settings_repo.get_app_setting("openrouter_api_key", ""),
-        "embedding_api_key":  settings_repo.get_app_setting("embedding_api_key", ""),
+        "openrouter_api_key": mask_secret(settings_repo.get_app_setting("openrouter_api_key", "")),
+        "embedding_api_key":  mask_secret(settings_repo.get_app_setting("embedding_api_key", "")),
     }
 
 
 @router.put("/api/admin/api-keys")
 async def set_api_keys(payload: dict = Body(...), admin=Depends(require_admin)):
-    if "openrouter_api_key" in payload:
-        settings_repo.set_app_setting("openrouter_api_key", payload["openrouter_api_key"] or "")
-    if "embedding_api_key" in payload:
-        settings_repo.set_app_setting("embedding_api_key", payload["embedding_api_key"] or "")
+    """v0.4.5 R-39：PATCH 空字符串 / mask 占位 → 保留原值；新明文 → 加密更新。"""
+    from bi_agent.api._secret import should_update_secret
+    for key in ("openrouter_api_key", "embedding_api_key"):
+        if key in payload:
+            old = settings_repo.get_app_setting(key, "")
+            should, final = should_update_secret(payload[key], old)
+            if should:
+                settings_repo.set_app_setting(key, final)
     return {"ok": True}
 
 
