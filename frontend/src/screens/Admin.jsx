@@ -16,6 +16,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const kbFileRef = useRef(null);
   // 批次 2 新增
   const [apiKeys, setApiKeys] = useState({ openrouter_api_key: '', embedding_api_key: '' });
+  // v0.4.5 R-39：记录 GET 返回的 masked 值；保存时若 input 仍等于此值 → 不发送该字段
+  const [apiKeysLoaded, setApiKeysLoaded] = useState({ openrouter_api_key: '', embedding_api_key: '' });
   const [apiKeysSaving, setApiKeysSaving] = useState(false);
   const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '' });
   const [agentSaving, setAgentSaving] = useState(false);
@@ -48,7 +50,10 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
           api.get('/api/admin/agent-models').catch(() => ({})),
         ]);
         setModels(d);
-        setApiKeys({ openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' });
+        // v0.4.5 R-39：apiKeys 与 apiKeysLoaded 同步初始化
+        const loaded = { openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' };
+        setApiKeys(loaded);
+        setApiKeysLoaded(loaded);
         setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '' });
       }
       if (tab === 'knowledge') { const d = await api.get('/api/knowledge'); setKnowledgeDocs(d); }
@@ -117,7 +122,23 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
 
   const saveApiKeys = async () => {
     setApiKeysSaving(true);
-    try { await api.put('/api/admin/api-keys', apiKeys); toast('API Key 已保存'); }
+    // v0.4.5 R-39：仅发送被编辑过的字段（input 值 !== 加载时的 masked 值）；
+    // 同时跳过 mask 占位（• U+2022 开头）兜底前端误回传。
+    const payload = {};
+    for (const k of ['openrouter_api_key', 'embedding_api_key']) {
+      const v = apiKeys[k];
+      if (v === apiKeysLoaded[k]) continue;       // 未编辑
+      if (typeof v === 'string' && v.startsWith('••••••••')) continue;  // mask 占位
+      payload[k] = v;
+    }
+    try {
+      await api.put('/api/admin/api-keys', payload);
+      toast(Object.keys(payload).length === 0 ? '无更改' : 'API Key 已保存');
+      // 重新加载以拿到新的 masked 值
+      const ks = await api.get('/api/admin/api-keys').catch(() => ({}));
+      const loaded = { openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' };
+      setApiKeys(loaded); setApiKeysLoaded(loaded);
+    }
     catch (e) { toast(String(e), true); }
     finally { setApiKeysSaving(false); }
   };

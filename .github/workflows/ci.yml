@@ -35,4 +35,8 @@ jobs:
         run: pytest tests/ -v --tb=short
 
       - name: App boot smoke
-        run: python -c "from bi_agent.main import app; print('routes=', len(app.routes))"
+        # v0.4.5 R-45：startup 期 fail-fast 校验 BIAGENT_MASTER_KEY；CI 环境必须显式注入。
+        # 用动态生成的临时 key（无固定字符串入 repo）；version 输出顺手 verify bump 生效。
+        run: |
+          export BIAGENT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+          python -c "from bi_agent.main import app; print('routes=', len(app.routes), 'version=', app.version)"
