@@ -13,7 +13,7 @@ from bi_agent.api.deps import get_current_user
 from bi_agent.api.schemas import QueryRequest
 from bi_agent.core.logging_setup import logger
 from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
-from bi_agent.services import llm_client
+from bi_agent.services import cost_service, llm_client
 from bi_agent.services import rag_service as doc_rag
 from bi_agent.services.engine_cache import _upload_engine, get_user_engine
 from bi_agent.services.knot import orchestrator as multi_agent_module
@@ -83,6 +83,8 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
     t0 = time.time()
     retry_count = 0
     agent_steps = []
+    # v0.4.2: 非流式路径成本分桶（fix_sql 单独累加，与 sql_planner 分离）
+    agent_buckets_ns = cost_service.empty_buckets()
 
     if req.use_agent:
         result = agent_module.run_sql_agent(
@@ -97,7 +99,10 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         error = result.error if not result.success else ""
         input_tokens = result.total_input_tokens
         output_tokens = result.total_output_tokens
-        cost_usd = result.total_cost_usd
+        cost_service.add_agent_cost(
+            agent_buckets_ns, "sql_planner",
+            result.total_cost_usd, result.total_input_tokens, result.total_output_tokens,
+        )
         agent_steps = [
             {"step": s.step_num, "thought": s.thought,
              "action": s.action, "action_input": s.action_input,
@@ -117,7 +122,10 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         error = gen["error"]
         input_tokens = gen["input_tokens"]
         output_tokens = gen["output_tokens"]
-        cost_usd = gen["cost_usd"]
+        cost_service.add_agent_cost(
+            agent_buckets_ns, "sql_planner",
+            gen["cost_usd"], gen["input_tokens"], gen["output_tokens"],
+        )
         rows = []
 
         if sql and not error:
@@ -132,7 +140,11 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
                     retry_count += 1
                     input_tokens += fix["input_tokens"]
                     output_tokens += fix["output_tokens"]
-                    cost_usd += fix["cost_usd"]
+                    # fix_sql 单独桶（资深 Stage 4 拍板：独立 agent_kind）
+                    cost_service.add_agent_cost(
+                        agent_buckets_ns, "fix_sql",
+                        fix["cost_usd"], fix["input_tokens"], fix["output_tokens"],
+                    )
                     if fix["sql"] and not fix["error"]:
                         sql = fix["sql"]
                         explanation = fix["explanation"] or explanation
@@ -148,6 +160,8 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
                     error = db_error
 
     query_time_ms = int((time.time() - t0) * 1000)
+    # v0.4.2 R-S8 一致性入口
+    cost_usd, _agg_tokens = cost_service.aggregate_agent_costs(agent_buckets_ns)
 
     mid = message_repo.save_message(
         conv_id=conv_id, question=req.question, sql=sql,
@@ -156,6 +170,9 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         cost_usd=cost_usd, input_tokens=input_tokens,
         output_tokens=output_tokens, retry_count=retry_count,
         intent=None,
+        agent_kind="sql_planner",
+        recovery_attempt=retry_count,  # 非流式：fix_sql retry 等同 recovery_attempt
+        **cost_service.to_save_message_kwargs(agent_buckets_ns),
     )
 
     all_msgs = message_repo.get_messages(conv_id)
@@ -172,6 +189,9 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         "input_tokens": input_tokens, "output_tokens": output_tokens,
         "cost_usd": cost_usd, "retry_count": retry_count,
         "query_time_ms": query_time_ms, "agent_steps": agent_steps,
+        # v0.4.2 新增（向前展开；旧 client 自动忽略）
+        "agent_costs": cost_service.to_sse_payload(agent_buckets_ns),
+        "recovery_attempt": retry_count,
         "intent": None,
     }
 
@@ -225,8 +245,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
     async def generate():
         loop = asyncio.get_running_loop()
-        total_input = total_output = 0
-        total_cost = 0.0
+        # v0.4.2: 成本归因分桶（R-S8 单一一致性入口）— 每个 agent 调用后用
+        # cost_service.add_agent_cost 累加，最后用 aggregate_agent_costs 取总和
+        agent_buckets = cost_service.empty_buckets()
 
         def _default(obj):
             import datetime
@@ -249,27 +270,42 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 req.question, schema_text, history,
                 _agent_key("clarifier"), api_key, openrouter_api_key,
             )
-            total_input += clarifier_result["input_tokens"]
-            total_output += clarifier_result["output_tokens"]
-            total_cost += clarifier_result["cost_usd"]
+            cost_service.add_agent_cost(
+                agent_buckets, "clarifier",
+                clarifier_result["cost_usd"],
+                clarifier_result["input_tokens"], clarifier_result["output_tokens"],
+            )
 
             if not clarifier_result["is_clear"]:
                 cq = clarifier_result["clarification_question"] or "请补充更多信息"
+                # 仅 clarifier 跑过 → agent_kind='clarifier'
+                total_cost_clar, total_tok_clar = cost_service.aggregate_agent_costs(agent_buckets)
                 mid = message_repo.save_message(
                     conv_id=conv_id, question=req.question,
                     sql="", explanation=cq, confidence="low",
                     rows=[], db_error="",
-                    cost_usd=total_cost, input_tokens=total_input,
-                    output_tokens=total_output, retry_count=0,
+                    cost_usd=total_cost_clar,
+                    input_tokens=clarifier_result["input_tokens"],
+                    output_tokens=clarifier_result["output_tokens"],
+                    retry_count=0,
                     intent=clarifier_result.get("intent"),
+                    agent_kind="clarifier",
+                    **cost_service.to_save_message_kwargs(agent_buckets),
                 )
                 all_msgs = message_repo.get_messages(conv_id)
                 if len(all_msgs) == 1:
                     conversation_repo.update_conversation_title(conv_id, req.question[:30])
-                user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, 0)
+                user_repo.update_user_usage(
+                    user["id"], clarifier_result["input_tokens"],
+                    clarifier_result["output_tokens"], total_cost_clar, 0,
+                )
                 yield emit({"type": "clarification_needed", "question": cq,
-                            "message_id": mid, "input_tokens": total_input,
-                            "output_tokens": total_output, "cost_usd": total_cost})
+                            "message_id": mid,
+                            "input_tokens": clarifier_result["input_tokens"],
+                            "output_tokens": clarifier_result["output_tokens"],
+                            "cost_usd": total_cost_clar,
+                            "agent_costs": cost_service.to_sse_payload(agent_buckets),
+                            "intent": clarifier_result.get("intent")})
                 return
 
             logger.info(
@@ -290,9 +326,16 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 refined_q, schema_text, engine,
                 sql_planner_key, api_key, semantic, cfg.AGENT_MAX_STEPS, openrouter_api_key,
             )
-            total_input += sql_result.total_input_tokens
-            total_output += sql_result.total_output_tokens
-            total_cost += sql_result.total_cost_usd
+            cost_service.add_agent_cost(
+                agent_buckets, "sql_planner",
+                sql_result.total_cost_usd,
+                sql_result.total_input_tokens, sql_result.total_output_tokens,
+            )
+            # v0.4.2 R-14：recovery_attempt 含 fan-out reject 计数（v0.4.1.1 守护重试）
+            recovery_attempt = sum(
+                1 for s in sql_result.steps
+                if "Fan-Out 反模式" in (s.observation or "") or "fan-out" in (s.observation or "").lower()
+            )
 
             for s in sql_result.steps:
                 yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
@@ -311,19 +354,29 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 req.question, sql_result.sql, sql_result.rows,
                 _agent_key("presenter"), api_key, openrouter_api_key,
             )
-            total_input += presenter_result["input_tokens"]
-            total_output += presenter_result["output_tokens"]
-            total_cost += presenter_result["cost_usd"]
+            cost_service.add_agent_cost(
+                agent_buckets, "presenter",
+                presenter_result["cost_usd"],
+                presenter_result["input_tokens"], presenter_result["output_tokens"],
+            )
             confidence = presenter_result.get("confidence", "high")
-
-            logger.info(f"presenter done confidence={confidence} cost_usd={total_cost:.4f}")
-            yield emit({"type": "agent_done", "agent": "presenter",
-                        "output": {"insight": presenter_result["insight"],
-                                   "confidence": confidence}})
 
             final_rows = (sql_result.rows or [])[:cfg.MAX_RESULT_ROWS]
             query_time_ms = int((time.time() - t0) * 1000)
             intent = clarifier_result.get("intent")
+            # v0.4.2 R-S8 一致性入口：唯一加和点
+            total_cost, total_tokens = cost_service.aggregate_agent_costs(agent_buckets)
+            total_input = (clarifier_result["input_tokens"] + sql_result.total_input_tokens
+                           + presenter_result["input_tokens"])
+            total_output = (clarifier_result["output_tokens"] + sql_result.total_output_tokens
+                            + presenter_result["output_tokens"])
+            logger.info(
+                f"presenter done confidence={confidence} cost_usd={total_cost:.4f} "
+                f"recovery_attempt={recovery_attempt}"
+            )
+            yield emit({"type": "agent_done", "agent": "presenter",
+                        "output": {"insight": presenter_result["insight"],
+                                   "confidence": confidence}})
             mid = message_repo.save_message(
                 conv_id=conv_id, question=req.question,
                 sql=sql_result.sql,
@@ -333,6 +386,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 cost_usd=total_cost, input_tokens=total_input,
                 output_tokens=total_output, retry_count=retry_count,
                 intent=intent,
+                agent_kind="sql_planner",  # 主路径完成，记 sql_planner（fix_sql 桶在 cost 字段中体现）
+                recovery_attempt=recovery_attempt,
+                **cost_service.to_save_message_kwargs(agent_buckets),
             )
             all_msgs = message_repo.get_messages(conv_id)
             if len(all_msgs) == 1:
@@ -351,6 +407,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "input_tokens": total_input, "output_tokens": total_output,
                 "cost_usd": total_cost, "query_time_ms": query_time_ms,
                 "intent": intent,
+                # v0.4.2 新增：分桶 + recovery（向前展开，旧 client 自动忽略）
+                "agent_costs": cost_service.to_sse_payload(agent_buckets),
+                "recovery_attempt": recovery_attempt,
             })
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")
