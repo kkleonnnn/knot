@@ -295,6 +295,46 @@ def test_cost_stats_period_parsing_fallback(client, auth_headers):
     assert r.json()["period_days"] == 7
 
 
+def test_R22_non_stream_query_returns_budget_status(client, auth_headers, monkeypatch):
+    """v0.4.3 R-22 守护：非流式 POST /query 必须返 budget_status + budget_meta
+    （与流式 SSE final 事件同字段）。
+
+    monkeypatch get_user_engine 注入假 engine（绕过 doris setup 检查）；
+    monkeypatch llm_client.generate_sql 返伪 SQL（避免 LLM key 失败）；
+    验证响应 JSON 含 R-22 双字段且 budget 评估正确。
+    """
+    from bi_agent.repositories import budget_repo, user_repo
+    uid = user_repo.get_user_by_username("admin")["id"]
+    budget_repo.upsert("user", str(uid), "monthly_cost_usd", 5.0, action="warn")
+    user_repo.update_user_usage(uid, 0, 0, 7.0, 0)  # 已超阈值
+
+    # 注入假 engine + 假 generate_sql
+    from bi_agent.api import query as query_module
+    monkeypatch.setattr(query_module, "get_user_engine",
+                        lambda u: (object(), "## fake.table\n- col1 INT"))
+    monkeypatch.setattr(query_module.llm_client, "generate_sql",
+                        lambda **kw: {"sql": "", "explanation": "test", "confidence": "low",
+                                      "error": "test stub", "input_tokens": 10, "output_tokens": 5,
+                                      "cost_usd": 0.001})
+
+    create = client.post("/api/conversations", json={"title": "R-22 test"}, headers=auth_headers)
+    cid = create.json()["id"]
+
+    r = client.post(
+        f"/api/conversations/{cid}/query",
+        json={"question": "test", "use_agent": False},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # R-22 验证：双字段必在
+    assert "budget_status" in body
+    assert "budget_meta" in body
+    # cost=7 USD 已超 5 USD 阈值 → warn
+    assert body["budget_status"] == "warn", f"预期 warn，实际 {body['budget_status']}"
+    assert body["budget_meta"]["threshold"] == 5.0
+
+
 def test_recovery_stats_returns_structure_and_filters_legacy(client, auth_headers):
     """v0.4.3 C4：/api/admin/recovery-stats 返完整结构 + R-19 过滤 legacy。"""
     create = client.post("/api/conversations", json={"title": "recovery seed"}, headers=auth_headers)
