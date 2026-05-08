@@ -153,7 +153,14 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
             setLoading(false);
           }
           if (ev.type === 'error') {
-            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: ev.message } : m));
+            // v0.4.4 R-30/R-33：error_translator 翻译产物（kind/user_message/is_retryable）
+            setMessages(prev => prev.map(m => m.id === tempId ? {
+              ...m, loading: false,
+              error: ev.user_message || ev.message,
+              error_kind: ev.error_kind || null,
+              user_message: ev.user_message || null,
+              is_retryable: ev.is_retryable ?? null,
+            } : m));
             setLoading(false);
           }
           if (ev.type === 'final') {
@@ -172,6 +179,10 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
               // v0.4.3 R-22 双路径同字段（流式 SSE final 事件）
               budget_status: ev.budget_status || null,
               budget_meta: ev.budget_meta || null,
+              // v0.4.4 R-33 双路径同字段（success path 也带 null 占位）
+              error_kind: ev.error_kind || null,
+              user_message: ev.user_message || null,
+              is_retryable: ev.is_retryable ?? null,
               loading: false,
             } : m));
             loadConvs();
@@ -280,6 +291,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
                             question={question} setQuestion={setQuestion}
                             onSubmit={sendQuery} onKeyDown={handleKeyDown}
                             onCopy={copyToClipboard} onDownload={downloadCSV} onPin={pinMessage}
+                            onRetry={(q) => { setQuestion(q); }}
                                                         agentEvents={agentEvents}
                             activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
       }
@@ -322,7 +334,7 @@ function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDow
   );
 }
 
-function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, onPin, agentEvents, activeUpload, setActiveUpload, onUpload }) {
+function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion, onSubmit, onKeyDown, onCopy, onDownload, onPin, onRetry, agentEvents, activeUpload, setActiveUpload, onUpload }) {
   const showPanel = agentEvents.length > 0;
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -345,7 +357,7 @@ function ChatConversation({ T, messages, scrollRef, loading, question, setQuesti
                   {msg.loading
                     ? <ThinkingCard T={T} agentEvents={agentEvents}/>
                     : <ResultBlock T={T} msg={msg} onCopy={onCopy} onDownload={onDownload}
-                                   onPin={onPin}
+                                   onPin={onPin} onRetry={onRetry}
                                    onFollowup={(q) => setQuestion(q)}/>}
                 </div>
               </div>
@@ -380,14 +392,15 @@ function ThinkingCard({ T, agentEvents = [] }) {
   );
 }
 
-function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
+function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onRetry }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
   const [pinned, setPinned] = useState(!!msg.is_pinned);
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
           insight, suggested_followups, is_clarification, intent,
           agent_costs, recovery_attempt,
-          budget_status, budget_meta } = msg;  // v0.4.2 分桶 + 自纠正 / v0.4.3 预算告警
+          budget_status, budget_meta,
+          error_kind, user_message, is_retryable } = msg;  // v0.4.2 分桶 + 自纠正 / v0.4.3 预算告警 / v0.4.4 错误翻译
 
   if (is_clarification) {
     return (
@@ -472,7 +485,22 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
   const [budgetDismissed, setBudgetDismissed] = useState(
     () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(dismissKey) === '1'
   );
-  const showBudgetBanner = budget_status && budget_status !== 'ok' && !budgetDismissed && budget_meta;
+  // v0.4.4 R-28：ErrorBanner > BudgetBanner 优先级；budget_exceeded 错误时不再重复显示 BudgetBanner
+  const showErrorBanner = !!(error && error_kind);
+  const showBudgetBanner = budget_status && budget_status !== 'ok' && !budgetDismissed && budget_meta
+                            && !(showErrorBanner && error_kind === 'budget_exceeded');
+
+  // v0.4.4 错误 kind → 视觉映射（icon + 颜色 + 标题）
+  const ERROR_KIND_META = {
+    budget_exceeded:    { icon: '🛑', title: '预算超限',     color: T.accent,   bg: T.accentSoft },
+    config_missing:     { icon: '🔧', title: '配置缺失',     color: '#cc6600',  bg: '#FF990022' },
+    llm_failed:         { icon: '🤖', title: 'AI 服务异常',  color: '#cc6600',  bg: '#FF990022' },
+    sql_invalid:        { icon: '🚫', title: 'SQL 不合规',   color: T.accent,   bg: T.accentSoft },
+    sql_exec_failed:    { icon: '⚠️',  title: 'SQL 执行失败', color: '#cc6600',  bg: '#FF990022' },
+    data_unavailable:   { icon: '📡', title: '数据源不可用', color: '#cc6600',  bg: '#FF990022' },
+    unknown:            { icon: '❌', title: '系统错误',     color: T.accent,   bg: T.accentSoft },
+  };
+  const errMeta = ERROR_KIND_META[error_kind] || ERROR_KIND_META.unknown;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -523,7 +551,31 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
           )}
         </div>
       )}
-      {error && <div style={{ padding: '8px 12px', background: T.accentSoft, borderRadius: 6, color: T.accent, fontSize: 12.5 }}>{error}</div>}
+      {/* v0.4.4 ErrorBanner：error_kind 已知时走富视觉；旧消息（无 kind）走简版兜底 */}
+      {error && showErrorBanner && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 8,
+          background: errMeta.bg, border: `1px solid ${errMeta.color}`,
+          color: errMeta.color, fontSize: 12.5,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <span style={{ fontSize: 16, lineHeight: 1.2 }}>{errMeta.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 500, marginBottom: 2 }}>{errMeta.title}</div>
+            <div style={{ opacity: 0.9 }}>{user_message || error}</div>
+          </div>
+          {is_retryable && onRetry && (
+            <button onClick={() => onRetry(msg.question)} style={{
+              padding: '4px 10px', borderRadius: 5, fontSize: 11,
+              border: '1px solid currentColor', background: 'transparent', color: 'inherit',
+              cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+            }}>重试</button>
+          )}
+        </div>
+      )}
+      {error && !showErrorBanner && (
+        <div style={{ padding: '8px 12px', background: T.accentSoft, borderRadius: 6, color: T.accent, fontSize: 12.5 }}>{error}</div>
+      )}
 
       {rows && rows.length > 0 && isMetric && (
         <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols}/>
