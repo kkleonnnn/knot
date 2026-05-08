@@ -289,6 +289,38 @@ def get_user_engine(user: dict):
     return None, ""
 
 
+def get_engine_for_source(source_id: int):
+    """v0.4.1 R-S2：按单个 data_source 取/建 engine（不依赖 user→user_sources 链）。
+
+    用于 saved_report 重跑：优先用 pin 时记录的 source；该 source 已删 / 失效
+    时由 service 层 fallback 到 get_user_engine + warning。
+
+    返回 engine 或 None（source 不存在 / 未激活 / 连接失败）。
+    缓存 key = ("source", source_id) — 与 (uid, group_key) 命名空间隔离。
+    """
+    src = data_source_repo.get_datasource(source_id)
+    if not src or not src.get("is_active"):
+        return None
+    cache_key = ("source", source_id)
+    now = time.time()
+    cached = _engine_cache.get(cache_key)
+    if cached and (now - cached["ts"]) < _TTL_SEC:
+        return cached["engine"]
+    try:
+        engine = db_connector.create_engine(
+            src["db_host"], int(src["db_port"]),
+            src["db_user"], src["db_password"], src["db_database"],
+        )
+        ok, _ = db_connector.test_connection(engine)
+        if not ok:
+            return None
+        _engine_cache[cache_key] = {"engine": engine, "ts": now}
+        return engine
+    except Exception as e:
+        logger.warning(f"engine_cache get_engine_for_source({source_id}) failed: {e}")
+        return None
+
+
 def invalidate_engine_cache(user_id: int):
     """清掉某 user 名下的所有连接组缓存。"""
     keys_to_drop = [k for k in _engine_cache if isinstance(k, tuple) and k[0] == user_id]

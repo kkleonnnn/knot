@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
+import { SavedReportsScreen } from './screens/SavedReports.jsx';
 
 export default function App() {
   const [T, toggleTheme] = useTheme();
@@ -57,6 +58,7 @@ export default function App() {
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
     'admin-catalog': 'catalog',
   };
+  if (screen === 'saved-reports') return <SavedReportsScreen {...commonProps}/>;
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板

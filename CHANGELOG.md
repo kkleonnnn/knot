@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.1 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）
+
+> v0.4.0 收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，0 broken。
+> Stage 1-4 协议（资深 + Codex Stage 2 + v0.4.0 守护者 Stage 3 + 资深 Stage 4 锁定）
+> 7 项修补 + 导出选 A 已并入 docs/plans/v0.4.1-saved-reports.md。
+
+### Added — saved_reports 表 + repo + 服务（去耦合快照）
+- **`bi_agent/repositories/schema.sql`** — `CREATE TABLE saved_reports`：
+  - 完全去耦合，无硬 FK；上游 conv/message/data_source 删除时本表行不级联
+  - 14 列：source_message_id / data_source_id / title / question / sql_text /
+    intent / display_hint / pin_note / last_run_at / last_run_rows_json /
+    last_run_truncated / last_run_ms / pinned_at + UNIQUE (user_id, source_message_id)
+- **`bi_agent/models/saved_report.py`** — `SavedReport` dataclass（叶子，stdlib）
+- **`bi_agent/repositories/saved_report_repo.py`** — 薄 SQL helper：
+  - `create()` 用 INSERT OR IGNORE，UNIQUE 冲突返 0（service 回查既存）
+  - `get_by_unique()` 服务于 R-12 幂等
+  - `update_last_run()` 重跑路径用
+- **`bi_agent/services/saved_report_service.py`** — 业务编排（不调 LLM）：
+  - `create_from_message()`：snapshot intent + sql + rows；R-S5 title sanitize +
+    R-S6 老消息 intent fallback 'detail' + R-3 软限制 200 行 + R-12 幂等
+  - `run()`：冻结 SQL 重跑（资深 Stage 2 严禁宏替换）；R-S2 优先用 pin 时
+    data_source，失效时 fallback get_user_engine + warning banner
+  - `get_owned/list/update/delete`：权限校验（owner OR admin），404 防 id 枚举
+- **`bi_agent/services/engine_cache.py`** 加 `get_engine_for_source(source_id)`：
+  按单个 data_source 取/建 engine，缓存 key=("source", source_id)
+  与现有 (uid, group_key) 命名空间隔离
+
+### Added — 6 路由（55 → 61 routes）
+- `GET    /api/saved-reports` — list_for_user
+- `POST   /api/messages/{id}/pin` — 从 message 创建（R-12 幂等：already_pinned）
+- `POST   /api/saved-reports/{id}/run` — 重跑冻结 SQL（R-S2 fallback）
+- `PUT    /api/saved-reports/{id}` — 改 title / pin_note
+- `DELETE /api/saved-reports/{id}` — 删除
+- `GET    /api/saved-reports/{id}/export.csv` — 复用 v0.4.0 export_service
+  （xlsx 推 v0.4.2）
+
+### Added — 前端
+- **`frontend/src/screens/Chat.jsx`**：
+  - ⭐ 收藏按钮（顶部右侧；canPin = sql + integer msg.id + 非 saved_report 内嵌）
+  - R-12 幂等 UX：已收藏 → 🌟 不可点
+  - R-S4 effectiveHint 三级优先级链（display_hint → intent → inferIntentFromShape）
+  - sidebar 加"📌 收藏报表"入口
+- **`frontend/src/screens/SavedReports.jsx`** [NEW]：
+  - SavedReportsScreen 自包含 AppShell；左 sidebar 列出收藏（intent emoji）
+  - DetailView：✏️ 改名 + 🔄 重跑 + 📥 CSV 导出
+  - warning banner（R-S2 fallback）/ truncated banner（200 行截断）
+  - 折叠区显示原始问题 + 备注 + 冻结 SQL + 资深 Stage 2 提示
+- **`frontend/src/App.jsx`**：screen='saved-reports' 路由
+
+### Added — 测试增量 22 条（守护者 R-S3）
+- `tests/repositories/test_saved_report_repo.py` (6)：CRUD + UNIQUE 冲突 +
+  truncated 持久化 + user 隔离
+- `tests/services/test_saved_report_service.py` (5)：snapshot intent +
+  R-S6 老消息 fallback + R-3 软限制 + R-12 幂等 + R-S5 title sanitize
+- `tests/services/conftest.py` 复用 repositories tmp_db_path
+- `tests/api/test_saved_reports.py` (8)：pin owner / R-12 端到端 / 跨 user 404 /
+  list 隔离 / run 错误返结构化 dict / 跨 user run 404 / export.csv BOM /
+  delete 后 404
+- `tests/integration/test_api_smoke.py` (+3)：pin → list / pin → export 端到端 /
+  R-S7 删 conversation 不级联（dangling 是预期）+ test_app_has_55_routes →
+  test_app_has_61_routes（手册原写 62 算错 1）
+
+### Verified
+- `pytest tests/ -v`：**147 passed / 81 skipped**（v0.4.0 125 → v0.4.1 147，+22 全过）
+- `lint-imports`：6 contracts KEPT, 0 broken（不动 .importlinter）
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：**61 routes**，version=0.4.1
+- `npm run build`：通过；bundle 1402 kB / gzip 449 kB（+5/+3 KB，<<50 KB 预算）
+
+### 不在 v0.4.1 范围（留 v0.4.x 后续）
+- ❌ xlsx 导出 → v0.4.2（避免 openpyxl 引入 + 范围膨胀）
+- ❌ 日期占位符 / SQL 宏替换（资深 Stage 2 严禁）→ v0.5.x（如真有需求）
+- ❌ 报表共享给其他用户 / 公开链接 → v0.5.x
+- ❌ 重新生成 SQL（重新走 Clarifier→SQL Planner）→ v0.5.x
+- ❌ 报表订阅 / 邮件推送 / 调度 → 不在 v0.4.x 范围
+
 ## [Unreleased] - v0.4.0 Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量
 
 > 4-PATCH 工程化重构收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，
