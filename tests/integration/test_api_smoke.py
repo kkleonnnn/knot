@@ -12,13 +12,14 @@ def test_healthz_returns_200(client):
     assert r.status_code == 200
 
 
-def test_app_has_64_routes(client):
+def test_app_has_69_routes(client):
     """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
     v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。
     v0.4.1 加 saved_reports 6 路由 → 55 → 61。
-    v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。"""
+    v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。
+    v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。"""
     from bi_agent.main import app
-    assert len(app.routes) == 64
+    assert len(app.routes) == 69
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──
@@ -292,6 +293,103 @@ def test_cost_stats_period_parsing_fallback(client, auth_headers):
     r = client.get("/api/admin/cost-stats?period=garbage", headers=auth_headers)
     assert r.status_code == 200
     assert r.json()["period_days"] == 7
+
+
+def test_R22_non_stream_query_returns_budget_status(client, auth_headers, monkeypatch):
+    """v0.4.3 R-22 守护：非流式 POST /query 必须返 budget_status + budget_meta
+    （与流式 SSE final 事件同字段）。
+
+    monkeypatch get_user_engine 注入假 engine（绕过 doris setup 检查）；
+    monkeypatch llm_client.generate_sql 返伪 SQL（避免 LLM key 失败）；
+    验证响应 JSON 含 R-22 双字段且 budget 评估正确。
+    """
+    from bi_agent.repositories import budget_repo, user_repo
+    uid = user_repo.get_user_by_username("admin")["id"]
+    budget_repo.upsert("user", str(uid), "monthly_cost_usd", 5.0, action="warn")
+    user_repo.update_user_usage(uid, 0, 0, 7.0, 0)  # 已超阈值
+
+    # 注入假 engine + 假 generate_sql
+    from bi_agent.api import query as query_module
+    monkeypatch.setattr(query_module, "get_user_engine",
+                        lambda u: (object(), "## fake.table\n- col1 INT"))
+    monkeypatch.setattr(query_module.llm_client, "generate_sql",
+                        lambda **kw: {"sql": "", "explanation": "test", "confidence": "low",
+                                      "error": "test stub", "input_tokens": 10, "output_tokens": 5,
+                                      "cost_usd": 0.001})
+
+    create = client.post("/api/conversations", json={"title": "R-22 test"}, headers=auth_headers)
+    cid = create.json()["id"]
+
+    r = client.post(
+        f"/api/conversations/{cid}/query",
+        json={"question": "test", "use_agent": False},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # R-22 验证：双字段必在
+    assert "budget_status" in body
+    assert "budget_meta" in body
+    # cost=7 USD 已超 5 USD 阈值 → warn
+    assert body["budget_status"] == "warn", f"预期 warn，实际 {body['budget_status']}"
+    assert body["budget_meta"]["threshold"] == 5.0
+
+
+def test_recovery_stats_returns_structure_and_filters_legacy(client, auth_headers):
+    """v0.4.3 C4：/api/admin/recovery-stats 返完整结构 + R-19 过滤 legacy。"""
+    create = client.post("/api/conversations", json={"title": "recovery seed"}, headers=auth_headers)
+    cid = create.json()["id"]
+
+    # legacy 行（绕过 save_message 守护，模拟 v0.4.2 之前历史）
+    from bi_agent.repositories.base import get_conn
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO messages (conversation_id, question, agent_kind, recovery_attempt) "
+        "VALUES (?, ?, 'legacy', 99)",
+        (cid, "old"),
+    )
+    conn.commit()
+    conn.close()
+
+    # sql_planner 行 3 次自纠正
+    from bi_agent.repositories.message_repo import save_message
+    save_message(
+        cid, "Q", "SELECT 1", "ok", "high",
+        [{"a": 1}], None, 0.001, 100, 50, 0,
+        intent="metric", agent_kind="sql_planner", recovery_attempt=3,
+    )
+
+    r = client.get("/api/admin/recovery-stats?period=30d", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["period_days"] == 30
+    # R-19 验证：legacy 99 不在内；只剩 sql_planner 的 3
+    assert body["total_recovery_attempts"] == 3, (
+        f"R-19 过滤 legacy 失败：trend total={body['total_recovery_attempts']}（应为 3）"
+    )
+    assert isinstance(body["by_day"], list)
+    assert isinstance(body["top_users"], list)
+
+
+def test_recovery_stats_period_parsing_fallback(client, auth_headers):
+    """非法 period 回退 30d。"""
+    r = client.get("/api/admin/recovery-stats?period=garbage", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["period_days"] == 30
+
+
+def test_recovery_stats_analyst_forbidden(client, auth_headers):
+    """analyst 不可访问 admin 看板。"""
+    create = client.post(
+        "/api/admin/users",
+        json={"username": "rec_user", "password": "p", "role": "analyst"},
+        headers=auth_headers,
+    )
+    assert create.status_code == 200
+    login = client.post("/api/auth/login", json={"username": "rec_user", "password": "p"})
+    analyst_headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    r = client.get("/api/admin/recovery-stats", headers=analyst_headers)
+    assert r.status_code == 403
 
 
 def test_cost_stats_analyst_forbidden(client, auth_headers):

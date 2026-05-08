@@ -175,6 +175,97 @@ def get_cost_breakdown(period_days: int = 7) -> dict:
     }
 
 
+def get_recovery_trend(period_days: int = 30, since_date: str | None = None) -> dict:
+    """v0.4.3 System_Recovery 维度（R-19 过滤 legacy）。
+
+    返回结构：
+        {
+            "period_days": 30,
+            "total_recovery_attempts": 42,
+            "total_messages": 234,
+            "by_day": [{"date": "2026-05-08", "count": 5, "msg_count": 30}, ...],
+            "top_users": [{"user_id": 1, "username": "admin", "count": 12, "msg_count": 50}, ...],
+        }
+
+    R-19：WHERE agent_kind != 'legacy' AND created_at >= since_date（默认 v0.4.2 上线日）。
+    避免 v0.4.2 之前历史数据（recovery_attempt 一律 NULL/0）污染趋势曲线。
+    """
+    conn = get_conn()
+    cutoff_clause = f"created_at >= datetime('now', '-{int(period_days)} days', 'localtime')"
+    extra_filter = ""
+    params: list = []
+    if since_date:
+        extra_filter = " AND created_at >= ?"
+        params.append(since_date)
+
+    # 总览
+    overview = conn.execute(
+        f"""
+        SELECT
+            COALESCE(SUM(recovery_attempt), 0) AS total_recovery,
+            COUNT(*) AS msg_count
+        FROM messages
+        WHERE agent_kind != 'legacy' AND {cutoff_clause}{extra_filter}
+        """,
+        params,
+    ).fetchone()
+
+    # 按日分桶
+    by_day_rows = conn.execute(
+        f"""
+        SELECT
+            DATE(created_at) AS day,
+            COALESCE(SUM(recovery_attempt), 0) AS count,
+            COUNT(*) AS msg_count
+        FROM messages
+        WHERE agent_kind != 'legacy' AND {cutoff_clause}{extra_filter}
+        GROUP BY DATE(created_at)
+        ORDER BY day
+        """,
+        params,
+    ).fetchall()
+
+    # Top 10 高频自纠正 user
+    top_users_rows = conn.execute(
+        f"""
+        SELECT
+            c.user_id  AS user_id,
+            u.username AS username,
+            COALESCE(SUM(m.recovery_attempt), 0) AS count,
+            COUNT(m.id) AS msg_count
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        JOIN users u         ON c.user_id = u.id
+        WHERE m.agent_kind != 'legacy' AND m.{cutoff_clause}{extra_filter.replace('created_at', 'm.created_at')}
+        GROUP BY c.user_id, u.username
+        HAVING SUM(m.recovery_attempt) > 0
+        ORDER BY count DESC
+        LIMIT 10
+        """,
+        params,
+    ).fetchall()
+    conn.close()
+
+    return {
+        "period_days": period_days,
+        "total_recovery_attempts": int(overview["total_recovery"] or 0),
+        "total_messages": int(overview["msg_count"] or 0),
+        "by_day": [
+            {"date": r["day"], "count": int(r["count"] or 0), "msg_count": int(r["msg_count"] or 0)}
+            for r in by_day_rows
+        ],
+        "top_users": [
+            {
+                "user_id": int(r["user_id"]),
+                "username": r["username"],
+                "count": int(r["count"] or 0),
+                "msg_count": int(r["msg_count"] or 0),
+            }
+            for r in top_users_rows
+        ],
+    }
+
+
 def get_semantic_layer() -> str:
     conn = get_conn()
     row = conn.execute("SELECT content FROM semantic_layer LIMIT 1").fetchone()

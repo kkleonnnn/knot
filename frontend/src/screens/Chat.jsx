@@ -169,6 +169,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
               // v0.4.2 新增（向前展开）
               agent_costs: ev.agent_costs || null,
               recovery_attempt: ev.recovery_attempt || 0,
+              // v0.4.3 R-22 双路径同字段（流式 SSE final 事件）
+              budget_status: ev.budget_status || null,
+              budget_meta: ev.budget_meta || null,
               loading: false,
             } : m));
             loadConvs();
@@ -383,7 +386,8 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
   const [pinned, setPinned] = useState(!!msg.is_pinned);
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
           insight, suggested_followups, is_clarification, intent,
-          agent_costs, recovery_attempt } = msg;  // v0.4.2 分桶 + 自纠正计数
+          agent_costs, recovery_attempt,
+          budget_status, budget_meta } = msg;  // v0.4.2 分桶 + 自纠正 / v0.4.3 预算告警
 
   if (is_clarification) {
     return (
@@ -462,8 +466,41 @@ function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin }) {
     if (r && r.ok) setPinned(true);
   };
 
+  // v0.4.3 R-20 预算 banner（sessionStorage 降噪）
+  const yearMonth = new Date().toISOString().slice(0, 7).replace('-', '');  // 'YYYYMM'
+  const dismissKey = `budget_warn_${msg.user_id || 'self'}_${yearMonth}`;
+  const [budgetDismissed, setBudgetDismissed] = useState(
+    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(dismissKey) === '1'
+  );
+  const showBudgetBanner = budget_status && budget_status !== 'ok' && !budgetDismissed && budget_meta;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* v0.4.3 R-20 预算告警 banner（每 user × 月份 sessionStorage 降噪） */}
+      {showBudgetBanner && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 8,
+          background: budget_status === 'block' ? T.accentSoft : '#FF990022',
+          border: `1px solid ${budget_status === 'block' ? T.accent : '#FF9900'}`,
+          color: budget_status === 'block' ? T.accent : '#cc6600',
+          fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 16 }}>{budget_status === 'block' ? '🛑' : '⚠️'}</span>
+          <span style={{ flex: 1 }}>
+            {budget_status === 'block' ? '预算已达硬阈值（block）' : '预算告警'}：
+            本月已用 <strong>{budget_meta.percentage}%</strong> 配额（${budget_meta.current?.toFixed(4)} / ${budget_meta.threshold?.toFixed(2)} {budget_meta.budget_type}）
+          </span>
+          <button onClick={() => {
+            try { sessionStorage.setItem(dismissKey, '1'); } catch {}
+            setBudgetDismissed(true);
+          }} style={{
+            padding: '4px 10px', borderRadius: 5, fontSize: 11,
+            border: '1px solid currentColor', background: 'transparent', color: 'inherit',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>本会话不再提醒</button>
+        </div>
+      )}
+
       {(canPin || explanation) && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           {explanation && (

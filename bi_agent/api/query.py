@@ -13,7 +13,7 @@ from bi_agent.api.deps import get_current_user
 from bi_agent.api.schemas import QueryRequest
 from bi_agent.core.logging_setup import logger
 from bi_agent.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
-from bi_agent.services import cost_service, llm_client
+from bi_agent.services import budget_service, cost_service, llm_client
 from bi_agent.services import rag_service as doc_rag
 from bi_agent.services.engine_cache import _upload_engine, get_user_engine
 from bi_agent.services.knot import orchestrator as multi_agent_module
@@ -182,6 +182,10 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
     user_repo.update_user_usage(user["id"], input_tokens, output_tokens, cost_usd, query_time_ms)
 
+    # v0.4.3 R-22 一致性：非流式路径也必须返 budget_status / budget_meta
+    # （update_user_usage 已落库；budget_service 读 user_repo 缓存即时一致）
+    budget_status_ns, budget_meta_ns = budget_service.check_user_monthly_budget(user["id"])
+
     return {
         "id": mid, "question": req.question, "sql": sql,
         "explanation": explanation, "confidence": confidence,
@@ -192,6 +196,9 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         # v0.4.2 新增（向前展开；旧 client 自动忽略）
         "agent_costs": cost_service.to_sse_payload(agent_buckets_ns),
         "recovery_attempt": retry_count,
+        # v0.4.3 R-22：双路径同字段
+        "budget_status": budget_status_ns,
+        "budget_meta": budget_meta_ns,
         "intent": None,
     }
 
@@ -396,6 +403,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 conversation_repo.update_conversation_title(conv_id, title)
             user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, query_time_ms)
 
+            # v0.4.3 R-22：流式路径与非流式同款字段（user_repo 已 update，budget 检查实时一致）
+            budget_status, budget_meta = budget_service.check_user_monthly_budget(user["id"])
+
             yield emit({
                 "type": "final", "message_id": mid,
                 "sql": sql_result.sql, "rows": final_rows,
@@ -410,6 +420,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 # v0.4.2 新增：分桶 + recovery（向前展开，旧 client 自动忽略）
                 "agent_costs": cost_service.to_sse_payload(agent_buckets),
                 "recovery_attempt": recovery_attempt,
+                # v0.4.3 R-22：budget 状态（流式 + 非流式双路径同字段）
+                "budget_status": budget_status,
+                "budget_meta": budget_meta,
             })
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")

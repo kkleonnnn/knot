@@ -136,6 +136,21 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
     updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- v0.4.3: 预算配置（资深 R-16 决议：global / user / agent_kind 同表 DRY）
+-- UNIQUE 防重复 — 服务于 R-18 幂等 INSERT OR REPLACE
+CREATE TABLE IF NOT EXISTS budgets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_type      TEXT    NOT NULL,             -- 'user' | 'agent_kind' | 'global'
+    scope_value     TEXT    NOT NULL,             -- user_id (str) / agent_kind / 'all'
+    budget_type     TEXT    NOT NULL,             -- 'monthly_cost_usd' | 'monthly_tokens' | 'per_call_cost_usd'
+    threshold       REAL    NOT NULL,
+    action          TEXT    NOT NULL DEFAULT 'warn',  -- 'warn' | 'block'（block 仅 agent_kind/per_call）
+    enabled         INTEGER DEFAULT 1,
+    created_at      TEXT    DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (scope_type, scope_value, budget_type)
+);
+
 -- v0.4.1: 报表沉淀。完全去耦合的快照（无硬 FK）— 上游 conversation/message/datasource
 -- 删除时本表行不级联，source_message_id / data_source_id 变 dangling 是预期。
 CREATE TABLE IF NOT EXISTS saved_reports (

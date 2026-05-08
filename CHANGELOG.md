@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.3 预算告警 + System_Recovery 维度（成本治理收尾）
+
+> v0.4.2 cost telemetry 后第一个延伸 PATCH。Stage 1-4 协议走完：
+> v0.4 Agent 草案（Option B）+ 资深 Stage 2（4 项裁决）+ 守护者 Stage 3
+> （4 条新红线 R-S 系列）+ 资深 Stage 4 锁定（8 条红线全部并入）。
+>
+> KNOT 进入「准生产」阶段：架构稳 + cost 透明 + 预算可控 + 自纠正可观察。
+
+### Added — 预算告警 (F4.a + F4.b + R-16/R-23)
+- **`budgets` 表**（资深 R-16 同表 DRY）：
+  - 三层 scope (global / user / agent_kind) + 3 类 budget_type
+  - UNIQUE (scope_type, scope_value, budget_type) 服务于 R-18 幂等
+- **`bi_agent/models/budget.py`** — Budget dataclass + 3 个 Literal 锁
+  - V042_RELEASE_DATE='2026-05-08' 常量（R-19 趋势过滤起点）
+- **`bi_agent/repositories/budget_repo.py`** — CRUD + R-18 INSERT OR REPLACE
+- **`bi_agent/services/budget_service.py`**（NEW）8 红线落点：
+  - `check_user_monthly_budget`：R-16 优先级链 (User > Global) + R-17 一致性
+    （current 从 user_repo.monthly_cost_usd 缓存读，不实时 SUM）
+  - `check_agent_per_call_budget`：R-23 实时查 + 'block' 阻断逻辑
+  - `validate_budget_input`：R-21 拒 (agent_kind, legacy) + 'block' 范围限制
+- **`/api/admin/budgets` CRUD（4 路由）**：
+  - POST 用 R-18 INSERT OR REPLACE 幂等响应 `{id, already_existed}`
+  - R-21 守护：拒 (agent_kind, legacy) → 400
+  - 'block' 仅允许 (agent_kind, per_call_cost_usd) 组合
+
+### Added — System_Recovery 维度 (F4.c + R-19)
+- **`message_repo.get_recovery_trend(period_days, since_date)`**：
+  - R-19 SQL 强制 WHERE agent_kind != 'legacy' AND created_at >= since_date
+  - 返 by_day 趋势 + top_users Top 10 + total_recovery_attempts
+- **`/api/admin/recovery-stats?period=30d`** 新路由（admin 看板）
+
+### Added — query.py R-22 双路径 budget_status
+- 流式（query-stream）SSE final 事件加 `budget_status` + `budget_meta`
+- 非流式（POST /query）JSON 响应加同字段
+- mobile / 第三方 client 一致
+
+### Added — 前端
+- **`screens/AdminBudgets.jsx`**（NEW）— 预算 CRUD + R-21 client-side 守护
+- **`screens/AdminRecovery.jsx`**（NEW）— 时段切换 + 折线 + Top users 表格
+- **Chat.jsx::ResultBlock R-20 banner**：
+  - sessionStorage `budget_warn_{user_id}_{YYYYMM}` 降噪
+  - "本会话不再提醒"按钮 + 月份切换自动重新提醒
+- **Shell.jsx** admin nav +2 行：💰 预算 + 🛡️ Recovery
+
+### Verified
+- `pytest tests/ -v`：**223 passed / 112 skipped**（v0.4.2 203 → +20）
+- 关键测试：
+  - **R-17 守护测试**（`test_cost_alignment.py`）：100 次模拟闭环验证 user_repo
+    与 SUM(messages) 误差 ≤ 0.01%（v0.4.2 R-S8 的延伸）
+  - R-18 端到端：重复 POST UNIQUE 三元组 → 200 + already_existed=True
+  - R-21 守护：(agent_kind, legacy) → 400
+  - R-22 双路径：非流式 JSON 也含 budget_status / budget_meta
+- `lint-imports`：6 contracts KEPT, 0 broken（不动 `.importlinter`）
+- `ruff check bi_agent/`：All checks passed
+- `python -c "from bi_agent.main import app"`：**69 routes**, version=**0.4.3**
+
+### 不在 v0.4.3 范围（推后续 PATCH）
+- ❌ 错误体验改造 → v0.4.4 与 async LLM/DB 改造合并（资深 Stage 2 重定位）
+- ❌ 数据加密（API Key / 业务库 password）→ v0.4.5
+- ❌ 审计日志（who-did-what）→ v0.4.6
+- ❌ user 级 hard block → v0.5.x（v0.4.3 仅 warn）
+- ❌ Alembic / yoyo 迁移工具（R-S6: messages 列数 24，仍未触发）→ v0.4.5+
+
+### 8 条红线全部偿还
+- ✅ R-16 优先级链 / R-17 一致性对齐 / R-18 INSERT OR REPLACE / R-19 过滤 legacy
+- ✅ R-20 banner 降噪 / R-21 拒 legacy scope / R-22 双路径同字段 / R-23 不缓存
+
 ## [Unreleased] - v0.4.2 成本可观测 + xlsx 导出 + eval SQL 复杂度横切
 
 > v0.4.1.1 hotfix 合入 main 后第一个业务 PATCH。Stage 1-4 协议走完：

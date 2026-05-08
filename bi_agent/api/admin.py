@@ -1,7 +1,9 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
 
 from bi_agent import config as cfg
 from bi_agent.adapters.db import doris as db_connector
@@ -13,8 +15,8 @@ from bi_agent.api.schemas import (
     UpdateDataSourceRequest,
     UpdateUserRequest,
 )
-from bi_agent.repositories import data_source_repo, settings_repo, user_repo
-from bi_agent.services import auth_service, cost_service
+from bi_agent.repositories import budget_repo, data_source_repo, settings_repo, user_repo
+from bi_agent.services import auth_service, budget_service, cost_service
 from bi_agent.services.engine_cache import invalidate_engine_cache
 
 router = APIRouter()
@@ -248,3 +250,92 @@ async def admin_stats(admin=Depends(require_admin)):
         "total_sources":   len(sources),
         "monthly_cost_usd": user_repo.get_monthly_cost(),
     }
+
+
+# ── Budgets (v0.4.3 R-18/R-21) ─────────────────────────────────────────
+
+class BudgetUpsertRequest(BaseModel):
+    scope_type: str       # 'user' | 'agent_kind' | 'global'
+    scope_value: str      # user_id (str) | agent_kind | 'all'
+    budget_type: str      # 'monthly_cost_usd' | 'monthly_tokens' | 'per_call_cost_usd'
+    threshold: float
+    action: str = "warn"  # 'warn' | 'block'（block 仅 agent_kind/per_call）
+    enabled: int = 1
+
+
+class BudgetUpdateRequest(BaseModel):
+    threshold: Optional[float] = None
+    action: Optional[str] = None
+    enabled: Optional[int] = None
+
+
+@router.get("/api/admin/budgets")
+async def admin_list_budgets(admin=Depends(require_admin)):
+    return budget_repo.list_all()
+
+
+@router.post("/api/admin/budgets")
+async def admin_upsert_budget(req: BudgetUpsertRequest, admin=Depends(require_admin)):
+    """v0.4.3 R-18 幂等：UNIQUE 冲突时 INSERT OR REPLACE 覆盖；返 already_existed flag。
+    R-21 守护：拒 (agent_kind, legacy) + 'block' 范围限制。"""
+    err = budget_service.validate_budget_input(
+        req.scope_type, req.scope_value, req.budget_type, req.action,
+    )
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+
+    existing = budget_repo.get_by_unique(req.scope_type, req.scope_value, req.budget_type)
+    rid = budget_repo.upsert(
+        req.scope_type, req.scope_value, req.budget_type,
+        req.threshold, req.action, req.enabled,
+    )
+    saved = budget_repo.get(rid) or {}
+    return {**saved, "already_existed": existing is not None}
+
+
+@router.put("/api/admin/budgets/{budget_id}")
+async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, admin=Depends(require_admin)):
+    if budget_repo.get(budget_id) is None:
+        raise HTTPException(status_code=404, detail="预算不存在")
+    # action 改动需重跑校验（避免改成 block + 错配 scope）
+    if req.action is not None:
+        existing = budget_repo.get(budget_id)
+        err = budget_service.validate_budget_input(
+            existing["scope_type"], existing["scope_value"],
+            existing["budget_type"], req.action,
+        )
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+    budget_repo.update(budget_id, threshold=req.threshold, action=req.action, enabled=req.enabled)
+    return budget_repo.get(budget_id)
+
+
+@router.delete("/api/admin/budgets/{budget_id}")
+async def admin_delete_budget(budget_id: int, admin=Depends(require_admin)):
+    if budget_repo.get(budget_id) is None:
+        raise HTTPException(status_code=404, detail="预算不存在")
+    budget_repo.delete(budget_id)
+    return {"ok": True}
+
+
+# ── System Recovery 趋势（v0.4.3 R-19）──────────────────────────────────
+
+@router.get("/api/admin/recovery-stats")
+async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)):
+    """v0.4.3 自纠正趋势（R-19 过滤 legacy + v0.4.2 上线日起点）。
+
+    Query params:
+      - period: '7d' / '30d' / '90d' 或裸数字天，默认 30d
+
+    返回（详见 message_repo.get_recovery_trend）：
+      {period_days, total_recovery_attempts, total_messages,
+       by_day: [{date, count, msg_count}, ...],
+       top_users: [{user_id, username, count, msg_count}, ...]}
+    """
+    days = 30
+    s = (period or "").strip().lower()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = max(1, int(s[:-1]))
+    elif s.isdigit():
+        days = max(1, int(s))
+    return budget_service.get_recovery_trend(period_days=days)

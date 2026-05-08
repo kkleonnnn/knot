@@ -204,9 +204,10 @@ gantt
 | ✅ v0.4.1 | 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）| `saved_reports` 表（去耦合快照）+ 6 路由（list/pin/run/update/delete/export.csv）+ 前端 ⭐ 收藏按钮 + SavedReportsScreen + R-S4 effectiveHint 三级链 + R-12 幂等 + R-S2 data_source 重跑 fallback；6 contracts KEPT；147 tests / 81 skipped；xlsx 推 v0.4.2 |
 | ✅ v0.4.1.1 | hotfix — 笛卡尔积防御 + UX 双 Bug | Bug 1 (Shell.jsx active.startsWith('admin-')) + Bug 2 (后端 sql alias) + Bug 3 三层防御（Catalog RELATIONS + 双 prompt JOIN 硬约束 + eval 9 multi_table case + comma-FROM 守护正则）；157 tests / 90 skipped；89 eval cases；61 routes 不变；6 contracts KEPT。**隐含承诺**：合入后 7 天内须为 gitignored ohx_catalog.py 补 RELATIONS。 |
 | ✅ v0.4.2 | 成本可观测 + xlsx 导出 + eval SQL 复杂度横切 | messages +10 列（4 agent_kind 分桶 + recovery_attempt）+ `cost_service` (R-S8 一致性入口) + `/api/admin/cost-stats` + xlsx 导出 (5000 行硬限 + R-S7 截断 metadata header) + eval 89→111 (subquery/window/cte +21) + AST hybrid dispatcher + CI label opt-in；64 routes / 203 tests / 112 skipped；6 contracts KEPT。**预算告警延期 v0.4.3**。**R-S6**：messages 列数 24，v0.4.5+ 评估迁移工具。 |
-| ⏳ v0.4.3 | 预算告警 + 错误体验 + 加密 + 审计 | 复用 `recovery_attempt` 列做 System_Recovery 维度；用 cost_service 加预算阈值告警 |
-| ⏳ v0.4.4 | async LLM/DB 真异步 | 落 AsyncLLMAdapter impl；切 services/llm_client 到 await |
-| ⏳ v0.4.5+ | schema 迁移工具评估（R-S6）| messages 列数 24，达临界点；评估 Alembic / yoyo 引入 |
+| ✅ v0.4.3 | 预算告警 + System_Recovery 维度（成本治理收尾）| `budgets` 表（global/user/agent_kind 三层 DRY）+ `budget_service` (R-16 优先级 + R-17 一致性对齐 + R-23 不缓存) + 5 路由（budgets CRUD + recovery-stats）+ R-22 流式/非流式同字段 + 前端 AdminBudgets/AdminRecovery + R-20 banner 降噪；69 routes / 223 tests / 112 skipped；6 contracts KEPT。**8 条红线 R-16~R-23 全部偿还**。错误体验/加密/审计推 v0.4.4-6。 |
+| ⏳ v0.4.4 | 性能与异步 + 错误体验改造 | 落 AsyncLLMAdapter impl；async LLM/DB；错误体验跟随 async Try-Except 链路一起改（资深 Stage 2 重定位） |
+| ⏳ v0.4.5 | 数据加密（API Key / DB 密码）| 独立迁移 PATCH；R-S6 schema 迁移工具评估也在此 PATCH 决策 |
+| ⏳ v0.4.6 | 审计日志 | who-did-what；budget 变更入审计 |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
