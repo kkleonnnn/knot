@@ -40,6 +40,17 @@ class LLMRateLimitError(BIAgentError):
     """LLM 调用频率超限（429）。"""
 
 
+class LLMNetworkError(BIAgentError):
+    """v0.4.4：LLM 调用网络错误（timeout / DNS / 5xx）。
+
+    与 LLMAuthError / LLMRateLimitError 区分；is_retryable=True（前端可显示重试按钮）。
+    """
+
+    def __init__(self, detail: str = ""):
+        self.detail = detail
+        super().__init__(f"LLM network error: {detail}" if detail else "LLM network error")
+
+
 # ── adapters / DB ─────────────────────────────────────────────────────
 class BusinessDBError(BIAgentError):
     """业务库基类异常。"""
@@ -51,3 +62,24 @@ class UnsafeSQLError(BusinessDBError):
 
 class CrossGroupSQLError(BusinessDBError):
     """跨连接组 SQL（多源场景下不允许跨组 join）。"""
+
+
+class DataSourceUnavailableError(BIAgentError):
+    """v0.4.4：admin 未配数据源 / 连接失败。"""
+
+
+# ── services / 资源限制 ───────────────────────────────────────────────
+class BudgetExceededError(BIAgentError):
+    """v0.4.4：预算硬阈值阻断（block）。R-26-Senior：在 LLM 调用前抛。
+
+    meta 含 {budget_type, agent_kind, threshold, estimated} 等元信息，
+    error_translator 转 API 响应时透传给前端。
+    """
+
+    def __init__(self, meta: dict | None = None):
+        self.meta = meta or {}
+        super().__init__(f"Budget exceeded: {self.meta}")
+
+
+class ConfigMissingError(BIAgentError):
+    """v0.4.4：API Key 未配 / 模型未启用 / admin 配置缺失。"""

@@ -14,7 +14,8 @@ from bi_agent.adapters.llm.openai_compat import OpenAICompatAdapter
 
 
 class OpenRouterAdapter:
-    """实现 LLMAdapter Protocol。"""
+    """实现 LLMAdapter (sync) + AsyncLLMAdapter (async) — 复用 OpenAICompatAdapter
+    内核（v0.4.4 R-31：sync + async 都委托给 inner adapter）。"""
 
     def __init__(self):
         self._inner = OpenAICompatAdapter(provider_label="openrouter")
@@ -22,6 +23,10 @@ class OpenRouterAdapter:
     def complete(self, req: LLMRequest) -> LLMResponse:
         # OR-specific 行为预留点（v0.3.x 后续可加 X-Title / fallback header 等）
         return self._inner.complete(req)
+
+    async def acomplete(self, req: LLMRequest) -> LLMResponse:
+        """v0.4.4 R-31：异步同样委托内核。"""
+        return await self._inner.acomplete(req)
 
 
 _check: LLMAdapter = OpenRouterAdapter()

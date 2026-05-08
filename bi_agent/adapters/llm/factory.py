@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from bi_agent.adapters.llm.anthropic_native import AnthropicAdapter
+from bi_agent.adapters.llm.async_base import AsyncLLMAdapter
 from bi_agent.adapters.llm.base import LLMAdapter
 from bi_agent.adapters.llm.openai_compat import OpenAICompatAdapter
 from bi_agent.adapters.llm.openrouter import OpenRouterAdapter
@@ -39,3 +40,18 @@ def get_adapter(provider: str) -> LLMAdapter:
     if p in _OPENAI_COMPAT_PROVIDERS:
         return OpenAICompatAdapter(provider_label=p)
     raise ProviderNotImplementedError(provider, supported=sorted(_KNOWN_PROVIDERS))
+
+
+def get_async_adapter(provider: str) -> AsyncLLMAdapter:
+    """v0.4.4 R-31：返同一 adapter 实例（adapter 同时实现 sync + async 两套）。
+    runtime check 验证 acomplete 存在；缺失立即报错而非运行时 AttributeError。
+
+    R-30：未知 provider 抛 ProviderNotImplementedError（与 get_adapter 一致）；
+    Protocol 不满足时 AssertionError（开发期错；生产不应触发）。
+    """
+    adapter = get_adapter(provider)
+    assert isinstance(adapter, AsyncLLMAdapter), (
+        f"R-31 守护：{provider} adapter 缺 acomplete impl；"
+        f"v0.4.4 起所有 LLM adapter 必须实现 async 版本"
+    )
+    return adapter
