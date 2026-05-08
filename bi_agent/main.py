@@ -26,7 +26,7 @@ from bi_agent.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="BI-Agent", version="0.4.3")
+app = FastAPI(title="BI-Agent", version="0.4.4")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 (Path(__file__).parent / "data").mkdir(parents=True, exist_ok=True)
@@ -35,13 +35,14 @@ init_db()
 
 @app.on_event("startup")
 async def _bump_threadpool():
-    """v0.2.2: 把 anyio 默认线程池 token 数从 40 提到 ANYIO_TOKENS（默认 64）。
-    所有 LLM 调用走 run_in_executor（同步 SDK），并发受这里限制。
-    全异步化（httpx.AsyncClient + AsyncOpenAI/AsyncAnthropic）放下个 MINOR。"""
+    """v0.4.4 R-29-anyio：LLM 全面异步化（AsyncAnthropic / AsyncOpenAI）后，
+    threadpool 不再背 LLM 调用，只剩 sync SQLAlchemy 短查询 + 文件 IO。
+    默认降至 32（v0.2.2 是 64，对应 sync LLM 时代）。
+    可通过 ANYIO_TOKENS 环境变量覆写（高并发 SQLAlchemy 场景适当上调）。"""
     import os
 
     from anyio import to_thread
-    tokens = int(os.getenv("ANYIO_TOKENS", "64"))
+    tokens = int(os.getenv("ANYIO_TOKENS", "32"))
     to_thread.current_default_thread_limiter().total_tokens = tokens
     logger.info(f"anyio threadpool tokens = {tokens}")
 

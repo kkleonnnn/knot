@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.4.3 预算告警 + System_Recovery 维度（成本治理收尾）
+## [Unreleased] - v0.4.4 异步 LLM + 错误体验改造
+
+> v0.4.3 成本治理收尾后的第一个延伸 PATCH。Stage 1-4 协议走完：
+> 新版本 Agent 草案 + 资深 Stage 2 + 守护者 Stage 3（联合评审 9 条红线 R-24~R-33）+
+> 资深 Stage 4 锁定（含 R-30 关键事实纠正：复用 `models/errors.py`，禁建 `services/errors.py`）。
+>
+> KNOT 进入「真异步」阶段：LLM 调用脱离 run_in_executor 走 native AsyncAnthropic / AsyncOpenAI；
+> 错误体验从「裸 RuntimeError」升级为 BIAgentError 树 + error_translator → 前端 ErrorBanner。
+
+### Added — 异步 LLM 适配层 (R-24 / R-31 / R-32)
+- **`adapters/llm/anthropic_native.py`**：新增 `acomplete()` 走 `anthropic.AsyncAnthropic`
+- **`adapters/llm/openai_compat.py`**：新增 `acomplete()` 走 `openai.AsyncOpenAI`
+- **`adapters/llm/openrouter.py`**：新增 `acomplete()` 委托内嵌 OpenAICompatAdapter
+- **`adapters/llm/factory.py::get_async_adapter`**：R-31 Protocol 完整性
+  `assert isinstance(adapter, AsyncLLMAdapter)`（v0.4.0 占位 → v0.4.4 落地）
+- R-24 双 API 共存：sync `complete()` 全部保留（向后兼容旧 sync 路径）
+
+### Added — BIAgentError 树扩展 + error_translator (R-25 / R-30)
+- **`models/errors.py`**（v0.3.2 既有树）扩充 4 个领域错误：
+  - `LLMNetworkError`（网络/timeout/5xx，is_retryable=True）
+  - `BudgetExceededError(meta)` / `DataSourceUnavailableError` / `ConfigMissingError`
+- **`services/error_translator.py`**（NEW）：BIAgentError → `{kind, user_message, is_retryable, details}`
+  7 类 kind：budget_exceeded / config_missing / llm_failed / sql_invalid / sql_exec_failed /
+  data_unavailable / unknown；子类优先匹配（UnsafeSQL 早于 BusinessDB）
+- **R-30 守护**：原计划 `services/errors.py` 被守护者拦截 → 复用 models/errors.py 不重复造轮子
+
+### Added — 异步业务编排 (R-26-Senior / R-27 / R-32)
+- **`services/llm_client.py`**：
+  - `_ainvoke_via_adapter(*, agent_kind)` — **R-26-Senior 第一行 budget 守护**
+    （SDK 实例化前、网络连接前抛 BudgetExceededError，adapter 永不被调用）
+  - `agenerate_sql()` (agent_kind="sql_planner") / `afix_sql()` (agent_kind="fix_sql" R-32)
+- **`services/knot/orchestrator.py`**：
+  - `arun_clarifier()` (agent_kind="clarifier") / `arun_presenter()` (agent_kind="presenter")
+  - 错误传播契约：`except BIAgentError: raise` (R-30) / `except Exception: pass`（兜底）
+- **`services/knot/sql_planner.py`**：`arun_sql_agent()` ReAct 异步循环
+  - 继承 v0.4.1.1 `__REJECT_FAN_OUT__` 防御
+  - BIAgentError 透传 / 非领域异常 → AgentResult.error
+
+### Added — api/query.py 真异步路径 (R-26-SSE / R-33)
+- 替换 3 处 `loop.run_in_executor` → 直接 `await arun_*`
+- **R-26-SSE**：每个 `yield emit(...)` 后 `await asyncio.sleep(0)` 让步 event loop
+- **R-33 双路径同字段**：流式 SSE final + 非流 JSON 返回**字段集相同**
+  （成功也带 `error_kind=None / user_message=None / is_retryable=None` 占位）
+- BIAgentError → `error_translator.to_response(e)`；非领域异常 → `to_response_unknown()`
+- **R-27 race 守护**：`tests/services/test_async_concurrency.py` 100 次 × asyncio.gather
+  3 agent 并发累加，验证 `user_repo.monthly_cost_usd ≈ SUM(messages.cost_usd)` 漂移 ≤ 0.01%
+
+### Added — 前端 ErrorBanner + R-28 优先级
+- **`frontend/src/screens/Chat.jsx`** ResultBlock 内嵌 ErrorBanner：
+  - 7 类 error_kind → (icon, title, color) 视觉映射
+  - `is_retryable=true` 显示「重试」按钮，回填 question 到 composer
+- **R-28 优先级**：`error_kind === 'budget_exceeded'` 时隐藏 BudgetBanner（避免同条消息双 banner）
+- 流式 SSE error / final 事件均消费 error_kind / user_message / is_retryable
+- 旧消息（无 kind）走简版兜底 div，向后兼容
+
+### Changed — anyio threadpool 默认值 (R-29-anyio)
+- `bi_agent/main.py` ANYIO_TOKENS 默认 **64 → 32**（LLM 离开线程池后 sync DB 不再竞争）
+- 高并发 SQLAlchemy 场景可通过 `ANYIO_TOKENS` 环境变量上调
+
+### Tests
+- 新增 53 测试，全套 264 passed / 112 skipped（v0.4.3: 223）：
+  - `tests/adapters/test_async_llm_factory.py` (9) — R-31 Protocol 完整性
+  - `tests/adapters/test_async_llm_protocol.py`（v0.4.0 占位测试方向反转）
+  - `tests/services/test_error_translator.py` (13) — R-25 全 kind 映射 + 子类优先 + unknown 兜底
+  - `tests/services/test_llm_client_async.py` (6) — R-26-Senior + R-32 + R-24 sync 兼容
+  - `tests/services/test_orchestrator_async.py` (6) — R-30 + R-32 + R-26-Senior 端到端
+  - `tests/services/test_sql_planner_async.py` (5) — R-30 ReAct 透传
+  - `tests/services/test_async_concurrency.py` (2) — R-27 race 守护
+
+### Architecture
+- 6 contracts 全程 KEPT（无 import-linter 改动）
+- ruff All checks passed
+- frontend `npm run build` ✓ (1423 KB)
+
+---
+
+## [v0.4.3] - 预算告警 + System_Recovery 维度（成本治理收尾）
 
 > v0.4.2 cost telemetry 后第一个延伸 PATCH。Stage 1-4 协议走完：
 > v0.4 Agent 草案（Option B）+ 资深 Stage 2（4 项裁决）+ 守护者 Stage 3
