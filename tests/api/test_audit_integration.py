@@ -8,7 +8,7 @@ from typing import Optional
 
 import pytest
 
-from bi_agent.repositories import audit_repo
+from knot.repositories import audit_repo
 
 
 def _last_action(action_prefix: str) -> Optional[dict]:
@@ -150,7 +150,7 @@ def test_audit_catalog_update(client, auth_headers):
 def test_R63_messages_routes_do_not_call_audit():
     """grep 守护：query.py / conversations.py 不应 import audit_helpers / audit_service。"""
     from pathlib import Path
-    forbidden = ["bi_agent/api/query.py", "bi_agent/api/conversations.py"]
+    forbidden = ["knot/api/query.py", "knot/api/conversations.py"]
     for f in forbidden:
         src = Path(f).read_text()
         assert "audit_service" not in src and "_audit_helpers" not in src, \
@@ -161,7 +161,7 @@ def test_R63_messages_routes_do_not_call_audit():
 
 def test_R47_audit_repo_failure_does_not_break_route(client, auth_headers, monkeypatch):
     """mock audit_repo.insert 抛错 → 业务路由仍 200。"""
-    from bi_agent.repositories import audit_repo as ar
+    from knot.repositories import audit_repo as ar
     monkeypatch.setattr(ar, "insert", lambda **kw: (_ for _ in ()).throw(RuntimeError("boom")))
     r = client.post("/api/admin/users", headers=auth_headers, json={
         "username": "fail-safe", "password": "pw", "role": "analyst",

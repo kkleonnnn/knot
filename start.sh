@@ -10,7 +10,7 @@ if [ ! -f .env ]; then
 fi
 
 # 检查前端是否已构建（或仍是旧版 babel 页面）
-if [ ! -f bi_agent/static/index.html ] || grep -q "babel" bi_agent/static/index.html 2>/dev/null; then
+if [ ! -f knot/static/index.html ] || grep -q "babel" knot/static/index.html 2>/dev/null; then
   echo "📦 构建前端..."
   cd frontend && npm install && npm run build && cd ..
 fi
@@ -20,8 +20,8 @@ if ! python3 -c "import uvicorn" 2>/dev/null; then
   pip3 install -r requirements.txt
 fi
 
-echo "🚀 启动 BI-Agent..."
+echo "🚀 启动 KNOT..."
 echo "   地址：http://localhost:8000"
 echo "   停止：Ctrl+C"
 echo ""
-python3 -m uvicorn bi_agent.main:app --reload --port 8000
+python3 -m uvicorn knot.main:app --reload --port 8000

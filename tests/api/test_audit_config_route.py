@@ -2,7 +2,7 @@
 
 R-49 retention 7~3650 区间 + R-57 meta-audit + R-56 越权防御
 """
-from bi_agent.repositories import audit_repo
+from knot.repositories import audit_repo
 
 
 def _last_action(prefix: str):

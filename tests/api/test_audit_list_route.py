@@ -2,7 +2,7 @@
 
 R-56 越权 / R-61 强制分页 / 筛选 / 时间窗口。
 """
-from bi_agent.repositories import audit_repo
+from knot.repositories import audit_repo
 
 
 def _seed(actor_id: int, action: str, resource_type: str = "user"):

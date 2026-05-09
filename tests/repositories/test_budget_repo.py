@@ -1,5 +1,5 @@
 """tests/repositories/test_budget_repo.py — v0.4.3 budgets CRUD（4 条 + R-18 幂等）。"""
-from bi_agent.repositories import budget_repo
+from knot.repositories import budget_repo
 
 
 def test_upsert_creates_new_row(tmp_db_path):

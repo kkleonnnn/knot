@@ -1,5 +1,5 @@
 """user_repo happy-path 单测。"""
-from bi_agent.repositories import user_repo
+from knot.repositories import user_repo
 
 
 def test_seed_admin_exists(tmp_db_path):

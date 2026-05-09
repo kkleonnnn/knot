@@ -1,5 +1,5 @@
 """prompt_repo happy-path 单测。"""
-from bi_agent.repositories import prompt_repo
+from knot.repositories import prompt_repo
 
 
 def test_default_empty(tmp_db_path):

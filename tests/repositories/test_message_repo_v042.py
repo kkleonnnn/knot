@@ -9,7 +9,7 @@
 """
 import pytest
 
-from bi_agent.repositories import conversation_repo, message_repo, user_repo
+from knot.repositories import conversation_repo, message_repo, user_repo
 
 
 def _admin_id():
@@ -67,7 +67,7 @@ def test_init_db_backfills_legacy_for_old_messages(tmp_db_path):
     """R-S6 / Stage 3-A 保险：所有老消息 agent_kind='legacy'。
     本测试在 fresh DB 上跑（init_db 已执行），不会有老消息；
     但验证 schema DEFAULT 'legacy' 确实生效。"""
-    from bi_agent.repositories.base import get_conn
+    from knot.repositories.base import get_conn
     conn = get_conn()
     # 直接 INSERT 不走 save_message（模拟 v0.4.2 之前的写入）
     cid = conversation_repo.create_conversation(_admin_id())
@@ -86,7 +86,7 @@ def test_init_db_backfills_legacy_for_old_messages(tmp_db_path):
 
 def test_agent_kind_literal_includes_fix_sql():
     """资深 Stage 4 拍板：fix_sql 是独立 agent_kind 不是 sql_planner.retry。"""
-    from bi_agent.models.agent import VALID_AGENT_KINDS
+    from knot.models.agent import VALID_AGENT_KINDS
     assert "fix_sql" in VALID_AGENT_KINDS
     assert "clarifier" in VALID_AGENT_KINDS
     assert "sql_planner" in VALID_AGENT_KINDS

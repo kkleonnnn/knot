@@ -5,7 +5,7 @@
 import statistics
 import time
 
-from bi_agent.services import audit_service
+from knot.services import audit_service
 
 
 def test_R53_stress_1000_inserts_p95_under_5ms(tmp_db_path):

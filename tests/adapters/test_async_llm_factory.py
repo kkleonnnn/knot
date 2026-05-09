@@ -6,12 +6,12 @@
 - factory.get_async_adapter 正确路由 + 缺 impl 时 AssertionError
 - 未知 provider 抛 ProviderNotImplementedError（与 get_adapter 一致）
 """
-from bi_agent.adapters.llm import AsyncLLMAdapter
-from bi_agent.adapters.llm.anthropic_native import AnthropicAdapter
-from bi_agent.adapters.llm.factory import get_adapter, get_async_adapter
-from bi_agent.adapters.llm.openai_compat import OpenAICompatAdapter
-from bi_agent.adapters.llm.openrouter import OpenRouterAdapter
-from bi_agent.models.errors import ProviderNotImplementedError
+from knot.adapters.llm import AsyncLLMAdapter
+from knot.adapters.llm.anthropic_native import AnthropicAdapter
+from knot.adapters.llm.factory import get_adapter, get_async_adapter
+from knot.adapters.llm.openai_compat import OpenAICompatAdapter
+from knot.adapters.llm.openrouter import OpenRouterAdapter
+from knot.models.errors import ProviderNotImplementedError
 
 import pytest
 
@@ -67,7 +67,7 @@ def test_sync_and_async_adapter_share_instance_class():
     async_adapter = get_async_adapter("anthropic")
     assert type(sync_adapter) is type(async_adapter)
     # 两者都满足两个 Protocol（双重契约）
-    from bi_agent.adapters.llm.base import LLMAdapter
+    from knot.adapters.llm.base import LLMAdapter
     assert isinstance(sync_adapter, LLMAdapter)
     assert isinstance(async_adapter, AsyncLLMAdapter)
 
@@ -75,7 +75,7 @@ def test_sync_and_async_adapter_share_instance_class():
 def test_R31_factory_assertion_message_mentions_acomplete():
     """守护：错误消息必须提示 'acomplete' 字眼，便于排查（断言式快速失败）。
     构造一个故意不实现 acomplete 的 adapter 类，验证 assert message。"""
-    from bi_agent.adapters.llm.async_base import AsyncLLMAdapter as AP
+    from knot.adapters.llm.async_base import AsyncLLMAdapter as AP
     class _Bad:
         def complete(self, req):
             return None

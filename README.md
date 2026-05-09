@@ -1,4 +1,4 @@
-# BI-Agent
+# KNOT
 
 公司内部用的 AI 取数助手：自然语言 → SQL → 图表 + 洞察。
 
@@ -28,7 +28,7 @@ Clarifier → SQL Planner → Presenter
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # 填 JWT_SECRET、默认数据源
-python3 -m uvicorn bi_agent.main:app --reload --port 8000
+python3 -m uvicorn knot.main:app --reload --port 8000
 # http://localhost:8000
 ```
 
@@ -37,8 +37,8 @@ python3 -m uvicorn bi_agent.main:app --reload --port 8000
 ## Docker
 
 ```bash
-docker build -t bi-agent .
-docker run -d -p 8000:8000 --env-file .env bi-agent
+docker build -t knot .
+docker run -d -p 8000:8000 --env-file .env knot
 ```
 
 ## 部署私有数据（可选）
@@ -50,8 +50,8 @@ docker run -d -p 8000:8000 --env-file .env bi-agent
 **B. 文件部署**（持久 / git 管理）：复制 `.example` → 真实文件（已 `.gitignore`）：
 
 ```bash
-cp bi_agent/core/ohx_catalog.example.py  bi_agent/core/ohx_catalog.py
-cp bi_agent/core/few_shots.example.yaml  bi_agent/core/few_shots.yaml
+cp knot/core/ohx_catalog.example.py  knot/core/ohx_catalog.py
+cp knot/core/few_shots.example.yaml  knot/core/few_shots.yaml
 cp tests/eval/cases.example.yaml         tests/eval/cases.yaml
 cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 ```
@@ -61,7 +61,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 ## 技术栈（v0.2.5）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru
-- **前端**：React 19 + Vite 8（构建产物输出至 `bi_agent/static/`）
+- **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）
 - **LLM**：OpenRouter 统一路由（Anthropic / OpenAI / Google / DeepSeek / Qwen / 智谱 / MiniMax）
 - **业务库**：Apache Doris / MySQL（多源按 `host:port:user` 分组合并）
 - **RAG**：BM25 + embedding cosine

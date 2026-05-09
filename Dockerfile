@@ -12,7 +12,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-COPY --from=frontend-builder /app/bi_agent/static ./bi_agent/static
-RUN mkdir -p bi_agent/data
+COPY --from=frontend-builder /app/knot/static ./knot/static
+RUN mkdir -p knot/data
 EXPOSE 8000
-CMD ["uvicorn", "bi_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "knot.main:app", "--host", "0.0.0.0", "--port", "8000"]

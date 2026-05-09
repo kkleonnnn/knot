@@ -9,8 +9,8 @@
 """
 import pytest
 
-from bi_agent.repositories import conversation_repo, message_repo, user_repo
-from bi_agent.services import cost_service
+from knot.repositories import conversation_repo, message_repo, user_repo
+from knot.services import cost_service
 
 
 def test_empty_buckets_has_4_kinds():

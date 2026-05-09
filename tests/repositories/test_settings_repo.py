@@ -1,5 +1,5 @@
 """settings_repo happy-path 单测。"""
-from bi_agent.repositories import settings_repo
+from knot.repositories import settings_repo
 
 
 def test_app_setting_get_default(tmp_db_path):

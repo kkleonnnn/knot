@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from bi_agent.repositories import audit_repo, settings_repo
+from knot.repositories import audit_repo, settings_repo
 
 
 def _seed_n_old_rows(n: int):
     """直接走 sqlite3 写入「100 天前」的 audit_log 行（绕过 created_at 默认值）。"""
     import sqlite3
 
-    from bi_agent.repositories.base import get_conn
+    from knot.repositories.base import get_conn
     conn = get_conn()
     for i in range(n):
         conn.execute(
@@ -51,7 +51,7 @@ def test_purge_deletes_old_only(tmp_db_path):
     _seed_n_old_rows(5)
     _seed_n_recent_rows(3)
 
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     stats = purge_audit_log.purge(dry_run=False)
 
     assert stats["deleted"] == 5
@@ -65,7 +65,7 @@ def test_R66_purge_dry_run_does_not_write(tmp_db_path):
     """R-66 dry-run 0 副作用：不删 + 不创 bak。"""
     _seed_n_old_rows(3)
 
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     stats = purge_audit_log.purge(dry_run=True)
 
     assert stats["deleted"] == 3  # dry-run 仍统计 would_delete
@@ -82,7 +82,7 @@ def test_R66_purge_creates_timestamped_backup(tmp_db_path):
     """R-66 + v0.4.5 模式：真跑生成 timestamped .bak。"""
     _seed_n_old_rows(2)
 
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     stats = purge_audit_log.purge(dry_run=False)
 
     bak = stats.get("backup_path")
@@ -101,7 +101,7 @@ def test_R66_purge_uses_audit_repo_delete_older_than(tmp_db_path, monkeypatch):
         return real(days, dry_run=dry_run)
 
     monkeypatch.setattr(audit_repo, "delete_older_than", _spy)
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     purge_audit_log.purge(dry_run=False)
     assert called["n"] >= 1
 
@@ -111,7 +111,7 @@ def test_R66_purge_uses_audit_repo_delete_older_than(tmp_db_path, monkeypatch):
 def test_R57_purge_run_creates_meta_audit_entry(tmp_db_path):
     """purge 真跑后，audit_log 应有一条 action='audit.purge'。"""
     _seed_n_old_rows(2)
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     purge_audit_log.purge(dry_run=False)
 
     rows = audit_repo.list_filtered(action="audit.purge", page=1, size=10)
@@ -123,7 +123,7 @@ def test_R57_purge_run_creates_meta_audit_entry(tmp_db_path):
 def test_R57_purge_dry_run_no_meta_audit(tmp_db_path):
     """dry-run 不写 → 不入 meta-audit。"""
     _seed_n_old_rows(2)
-    from bi_agent.scripts import purge_audit_log
+    from knot.scripts import purge_audit_log
     purge_audit_log.purge(dry_run=True)
 
     rows = audit_repo.list_filtered(action="audit.purge", page=1, size=10)

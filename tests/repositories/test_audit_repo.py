@@ -12,8 +12,8 @@ import sqlite3
 
 import pytest
 
-from bi_agent.repositories import audit_repo
-from bi_agent.repositories.base import get_conn
+from knot.repositories import audit_repo
+from knot.repositories.base import get_conn
 
 
 # ─── R-58 schema 必含 client_ip + user_agent + actor_name 独立列 ────
@@ -121,7 +121,7 @@ def test_delete_older_than(tmp_db_path):
 def test_R65_audit_write_error_in_models_errors():
     """R-65：AuditWriteError 必须扩展自 models.errors.BIAgentError；
     不在 services/audit_service 重定义（避免 v0.4.4 services/errors.py 重复造轮子）。"""
-    from bi_agent.models.errors import AuditWriteError, BIAgentError
+    from knot.models.errors import AuditWriteError, BIAgentError
     assert issubclass(AuditWriteError, BIAgentError)
 
 
@@ -129,7 +129,7 @@ def test_R65_audit_write_error_in_models_errors():
 
 def test_R55_audit_action_literal_covers_8_categories():
     """R-55 + R-63：Literal 必须覆盖 8 类 mutation × 子动作；messages 显式不在内。"""
-    from bi_agent.models.audit import AuditAction
+    from knot.models.audit import AuditAction
     # 取 Literal 的字符串集合
     actions = set(AuditAction.__args__)
     # 8 类 mutation 关键 prefix 必须各有 ≥1 条

@@ -1,4 +1,4 @@
-# BI-Agent Eval
+# KNOT Eval
 
 YAML 驱动的 SQL 生成质量回归集。
 

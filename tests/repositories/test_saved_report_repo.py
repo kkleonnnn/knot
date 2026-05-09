@@ -2,7 +2,7 @@
 
 覆盖：create / get / get_by_unique / UNIQUE 冲突 / update_last_run / list 排序。
 """
-from bi_agent.repositories import saved_report_repo
+from knot.repositories import saved_report_repo
 
 
 def test_create_and_get(tmp_db_path):

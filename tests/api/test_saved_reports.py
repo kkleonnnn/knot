@@ -18,7 +18,7 @@ def _seed_message(client, headers, intent="metric", rows=None, sql="SELECT 1") -
     create = client.post("/api/conversations", json={"title": "saved_report 测试"}, headers=headers)
     assert create.status_code == 200, create.text
     cid = create.json()["id"]
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     mid = save_message(
         conv_id=cid, question="昨天的 GMV", sql=sql,
         explanation="", confidence="high",

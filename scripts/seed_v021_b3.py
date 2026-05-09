@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "bi_agent" / "core"))
+sys.path.insert(0, str(ROOT / "knot" / "core"))
 
 import persistence  # noqa: E402
 

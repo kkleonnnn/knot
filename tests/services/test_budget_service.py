@@ -10,8 +10,8 @@
 """
 import pytest
 
-from bi_agent.repositories import budget_repo, conversation_repo, message_repo, user_repo
-from bi_agent.services import budget_service
+from knot.repositories import budget_repo, conversation_repo, message_repo, user_repo
+from knot.services import budget_service
 
 
 def _admin_id():
@@ -123,7 +123,7 @@ def test_R19_recovery_trend_excludes_legacy(tmp_db_path):
     cid = conversation_repo.create_conversation(uid)
 
     # legacy 行（绕过 save_message 守护，直接 INSERT）
-    from bi_agent.repositories.base import get_conn
+    from knot.repositories.base import get_conn
     conn = get_conn()
     conn.execute(
         "INSERT INTO messages (conversation_id, question, agent_kind, recovery_attempt) "

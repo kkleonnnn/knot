@@ -220,7 +220,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `bi-agent-${Date.now()}.csv`;
+    a.download = `knot-${Date.now()}.csv`;
     a.click();
   };
 
@@ -329,7 +329,7 @@ function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDow
           </button>
         ))}
       </div>
-      <div style={{ marginTop: 20, fontSize: 11, color: T.muted }}>BI-Agent 可能出错 · 关键结果请核对原始数据</div>
+      <div style={{ marginTop: 20, fontSize: 11, color: T.muted }}>KNOT 可能出错 · 关键结果请核对原始数据</div>
     </div>
   );
 }

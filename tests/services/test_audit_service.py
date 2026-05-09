@@ -12,7 +12,7 @@
 """
 import pytest
 
-from bi_agent.services import audit_service
+from knot.services import audit_service
 
 
 _REDACTED = "••••redacted••••"
@@ -105,7 +105,7 @@ def test_R51_actor_from_dict_param_not_payload(tmp_db_path):
         # 模拟客户端伪造（恶意）— 应被忽略
         detail={"actor_id": 999, "actor_name": "imposter"},
     )
-    from bi_agent.repositories import audit_repo
+    from knot.repositories import audit_repo
     rows = audit_repo.list_filtered(page=1, size=10)
     assert len(rows) == 1
     assert rows[0]["actor_id"] == 1, "R-51：actor_id 必须来自 token，不能信 detail"
@@ -120,7 +120,7 @@ def test_R51_anonymous_actor_allowed_for_failed_login(tmp_db_path):
         resource_type="user",
         detail={"attempted_username": "alice"},
     )
-    from bi_agent.repositories import audit_repo
+    from knot.repositories import audit_repo
     rows = audit_repo.list_filtered(page=1, size=10)
     assert len(rows) == 1
     assert rows[0]["actor_id"] is None
@@ -130,7 +130,7 @@ def test_R51_anonymous_actor_allowed_for_failed_login(tmp_db_path):
 
 def test_R47_repo_insert_fails_business_continues(tmp_db_path, monkeypatch):
     """mock repo.insert 抛错 → audit_service.log 静默吞，不抛出。"""
-    from bi_agent.repositories import audit_repo as ar
+    from knot.repositories import audit_repo as ar
 
     def _boom(**kwargs):
         raise RuntimeError("simulated repo failure")
@@ -147,7 +147,7 @@ def test_R47_repo_insert_fails_business_continues(tmp_db_path, monkeypatch):
 
 def test_R64_failure_increments_metric_counter(tmp_db_path, monkeypatch):
     """R-64：写入失败时模块级 counter 累加（prometheus hook 预埋）。"""
-    from bi_agent.repositories import audit_repo as ar
+    from knot.repositories import audit_repo as ar
 
     def _boom(**kwargs):
         raise RuntimeError("simulated")
@@ -185,6 +185,6 @@ def test_service_does_not_validate_business_schema(tmp_db_path):
     audit_service.log(actor=actor, action="user.create", resource_type="user", detail={})
     audit_service.log(actor=actor, action="user.create", resource_type="user",
                       detail={"any_random_field": 123})
-    from bi_agent.repositories import audit_repo
+    from knot.repositories import audit_repo
     rows = audit_repo.list_filtered(page=1, size=10)
     assert len(rows) == 3

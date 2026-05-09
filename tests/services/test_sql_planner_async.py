@@ -7,9 +7,9 @@
 """
 import pytest
 
-from bi_agent.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
-from bi_agent.repositories import budget_repo
-from bi_agent.services.knot import sql_planner
+from knot.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
+from knot.repositories import budget_repo
+from knot.services.agents import sql_planner
 
 
 @pytest.mark.asyncio
@@ -24,7 +24,7 @@ async def test_R26_senior_acall_llm_budget_block_before_adapter(tmp_db_path, mon
         called["adapter"] = True
         raise RuntimeError("R-26-Senior 失败：adapter 在 block 后被调用")
 
-    import bi_agent.adapters.llm.factory as factory_mod
+    import knot.adapters.llm.factory as factory_mod
     monkeypatch.setattr(factory_mod, "get_async_adapter", _spy)
 
     with pytest.raises(BudgetExceededError):

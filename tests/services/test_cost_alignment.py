@@ -8,9 +8,9 @@
 """
 import pytest
 
-from bi_agent.repositories import conversation_repo, message_repo, user_repo
-from bi_agent.repositories.base import get_conn
-from bi_agent.services import cost_service
+from knot.repositories import conversation_repo, message_repo, user_repo
+from knot.repositories.base import get_conn
+from knot.services import cost_service
 
 
 def test_R17_user_repo_monthly_cost_aligns_with_messages_sum(tmp_db_path):

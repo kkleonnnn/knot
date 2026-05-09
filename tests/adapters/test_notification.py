@@ -1,9 +1,9 @@
 """adapters/notification 契约单测（v0.3.2 仅锁形状，Lark 是 stub）。"""
 import pytest
 
-from bi_agent.adapters.notification import NotificationAdapter
-from bi_agent.adapters.notification.base import Notification
-from bi_agent.adapters.notification.lark import LarkAdapter
+from knot.adapters.notification import NotificationAdapter
+from knot.adapters.notification.base import Notification
+from knot.adapters.notification.lark import LarkAdapter
 
 
 def test_notification_dataclass_defaults():

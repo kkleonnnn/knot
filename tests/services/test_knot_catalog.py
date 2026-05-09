@@ -1,4 +1,4 @@
-"""services.knot.catalog happy-path 单测：DB → real → example fallback chain。"""
+"""services.agents.catalog happy-path 单测：DB → real → example fallback chain。"""
 import os
 import tempfile
 
@@ -10,7 +10,7 @@ def tmp_db_path(monkeypatch):
     fd, path = tempfile.mkstemp(suffix=".db", prefix="bi_agent_test_")
     os.close(fd)
     os.unlink(path)
-    from bi_agent.repositories import base as base_mod
+    from knot.repositories import base as base_mod
     monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
     base_mod.init_db()
     yield path
@@ -20,7 +20,7 @@ def tmp_db_path(monkeypatch):
 
 def test_example_fallback_loaded_when_no_db_no_real(tmp_db_path):
     """无 DB 覆盖 + 无真实 ohx_catalog.py → 应加载 ohx_catalog.example.py。"""
-    from bi_agent.services.knot import catalog
+    from knot.services.agents import catalog
     catalog.reload()
     # source 至少是 example（如果开发机有 ohx_catalog.py 真实文件可能是 real）
     assert catalog._SOURCE in ("example", "real")
@@ -30,8 +30,8 @@ def test_example_fallback_loaded_when_no_db_no_real(tmp_db_path):
 
 def test_db_override_takes_precedence(tmp_db_path):
     """DB 三键非空时优先于文件 fallback。"""
-    from bi_agent.repositories.settings_repo import set_app_setting
-    from bi_agent.services.knot import catalog
+    from knot.repositories.settings_repo import set_app_setting
+    from knot.services.agents import catalog
 
     set_app_setting("catalog.business_rules", "## DB-injected\nRule A")
     catalog.reload()
@@ -41,8 +41,8 @@ def test_db_override_takes_precedence(tmp_db_path):
 
 def test_reset_db_falls_back_to_example(tmp_db_path):
     """清空 DB 三键 → 回退到文件 example/real。"""
-    from bi_agent.repositories.settings_repo import set_app_setting
-    from bi_agent.services.knot import catalog
+    from knot.repositories.settings_repo import set_app_setting
+    from knot.services.agents import catalog
 
     set_app_setting("catalog.business_rules", "X")
     catalog.reload()
@@ -54,13 +54,13 @@ def test_reset_db_falls_back_to_example(tmp_db_path):
 
 
 def test_get_defaults_from_files_returns_dict(tmp_db_path):
-    from bi_agent.services.knot import catalog
+    from knot.services.agents import catalog
     d = catalog.get_defaults_from_files()
     assert "tables" in d and "lexicon" in d and "business_rules" in d and "source" in d
 
 
 def test_get_table_full_names(tmp_db_path):
-    from bi_agent.services.knot import catalog
+    from knot.services.agents import catalog
     catalog.reload()
     names = catalog.get_table_full_names()
     assert isinstance(names, list)
@@ -72,7 +72,7 @@ def test_get_table_full_names(tmp_db_path):
 
 def test_relations_loaded_from_example(tmp_db_path):
     """example catalog 包含 ≥ 1 条 RELATIONS（通用电商 user_id / sta_date 占位）。"""
-    from bi_agent.services.knot import catalog
+    from knot.services.agents import catalog
     catalog.reload()
     rels = catalog.get_relations()
     assert isinstance(rels, list)
@@ -86,7 +86,7 @@ def test_relations_loaded_from_example(tmp_db_path):
 
 def test_relations_fallback_when_module_missing_constant(tmp_db_path, monkeypatch):
     """R-S3：老 catalog 模块无 RELATIONS 常量 → get_relations() 返 [] 不抛 AttributeError。"""
-    from bi_agent.services.knot import catalog as cat_mod
+    from knot.services.agents import catalog as cat_mod
 
     # 模拟一个无 RELATIONS 的"老 module"
     class _OldCatalog:
@@ -103,7 +103,7 @@ def test_relations_fallback_when_module_missing_constant(tmp_db_path, monkeypatc
 
 def test_get_relations_for_tables_filters_to_selected(tmp_db_path):
     """R-S4：仅返 selected 表涉及的关联，避免 token 预算挤压。"""
-    from bi_agent.services.knot import catalog
+    from knot.services.agents import catalog
     catalog.reload()
     rels = catalog.get_relations()
     if not rels:

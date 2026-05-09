@@ -6,7 +6,7 @@ v0.2.4 隐私分层：
 
 加载顺序：先尝试真实文件；缺失则回退 .example。
 
-v0.3.0：bi_agent 已 pip install -e；不再需要 sys.path hack。
+v0.3.0：knot 已 pip install -e；不再需要 sys.path hack。
 """
 from pathlib import Path
 

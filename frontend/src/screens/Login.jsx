@@ -48,7 +48,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 8, background: T.accent, display: 'grid', placeItems: 'center', color: '#fff' }}><I.sparkle/></div>
-          <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: T.text }}>BI-Agent</span>
+          <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: T.text }}>KNOT</span>
           <span style={{ fontSize: 11, color: T.muted, padding: '2px 7px', background: T.chipBg, border: `1px solid ${T.border}`, borderRadius: 999, marginLeft: 4 }}>v 0.2</span>
         </div>
 
@@ -69,13 +69,13 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: T.muted }}>© 2026 BI-Agent · 内部系统</div>
+        <div style={{ fontSize: 11, color: T.muted }}>© 2026 KNOT · 内部系统</div>
       </div>
 
       {/* Right form */}
       <div style={{ width: 420, flexShrink: 0, padding: '80px 48px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: T.content }}>
         <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.015em', marginBottom: 6 }}>欢迎回来</div>
-        <div style={{ fontSize: 13, color: T.muted, marginBottom: 26 }}>使用你的账号登录 BI-Agent</div>
+        <div style={{ fontSize: 13, color: T.muted, marginBottom: 26 }}>使用你的账号登录 KNOT</div>
 
         <form onSubmit={submit}>
           <div style={{ marginBottom: 14 }}>
