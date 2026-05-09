@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from knot.adapters.db import doris as db_connector
 from knot.core import date_context
-from knot.services import llm_client
+from knot.services import llm_client, sql_validator
 from knot.services import prompt_service as _prompts_mod
 
 try:
@@ -280,8 +280,15 @@ def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
         return f"Schema 中没有找到包含 '{keyword}' 的内容"
 
     elif action == "final_answer":
-        # v0.4.1.1 C 升级：final_answer 时 runtime 守护 fan-out 反模式
+        # v0.4.1.1 C 升级：final_answer 时 runtime 守护反模式
+        # v0.5.1 R-85：cartesian 优先（更基础错误，先于 fan-out 细分聚合错误）
         candidate = _strip_sql(action_input)
+        is_cart, cart_reason = sql_validator.is_cartesian(candidate)
+        if is_cart:
+            return (
+                f"__REJECT_CARTESIAN__:{cart_reason} "
+                f"Regenerate the SQL with explicit JOIN ... ON conditions."
+            )
         is_fan, reason = _is_fan_out(candidate)
         if is_fan:
             return (
@@ -429,6 +436,7 @@ def run_sql_agent(
     total_it = total_ot = 0
     final_sql = final_error = ""
     final_rows: list = []
+    cart_reject_count = 0  # v0.5.1 R-91：连续 3 次 cartesian 拒收强制终止
 
     for step_num in range(1, max_steps + 1):
         try:
@@ -456,6 +464,17 @@ def run_sql_agent(
                 if exec_err:
                     final_error = exec_err
             break
+
+        # v0.5.1 R-91：cartesian 拒收 — 计数 + ≥3 次强制终止；否则继续反馈 LLM 重生成
+        if observation.startswith("__REJECT_CARTESIAN__:"):
+            cart_reject_count += 1
+            if cart_reject_count >= 3:
+                final_error = (
+                    f"SQL 校验连续 {cart_reject_count} 次发现笛卡尔积 / 恒真 ON，"
+                    f"LLM 未能收敛。最近一次原因：{observation[len('__REJECT_CARTESIAN__:'):]}"
+                )
+                break
+            observation = observation[len("__REJECT_CARTESIAN__:"):]
 
         # v0.4.1.1 C 升级：fan-out 拒绝 — 不 break，把拒绝理由作为 observation 反馈给 LLM 继续 ReAct 重试
         if observation.startswith("__REJECT_FAN_OUT__:"):
@@ -558,6 +577,7 @@ async def arun_sql_agent(
     total_it = total_ot = 0
     final_sql = final_error = ""
     final_rows: list = []
+    cart_reject_count = 0  # v0.5.1 R-91：连续 3 次 cartesian 拒收强制终止
 
     for step_num in range(1, max_steps + 1):
         try:
@@ -590,6 +610,17 @@ async def arun_sql_agent(
                 if exec_err:
                     final_error = exec_err
             break
+
+        # v0.5.1 R-91：cartesian 拒收 — 计数 + ≥3 次强制终止；否则继续反馈 LLM 重生成
+        if observation.startswith("__REJECT_CARTESIAN__:"):
+            cart_reject_count += 1
+            if cart_reject_count >= 3:
+                final_error = (
+                    f"SQL 校验连续 {cart_reject_count} 次发现笛卡尔积 / 恒真 ON，"
+                    f"LLM 未能收敛。最近一次原因：{observation[len('__REJECT_CARTESIAN__:'):]}"
+                )
+                break
+            observation = observation[len("__REJECT_CARTESIAN__:"):]
 
         # v0.4.1.1 fan-out 拒绝：不 break，把拒绝理由作为 observation 反馈给 LLM 继续 ReAct 重试
         if observation.startswith("__REJECT_FAN_OUT__:"):
