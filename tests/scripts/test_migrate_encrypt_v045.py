@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from bi_agent.core.crypto import ENC_PREFIX, encrypt
-from bi_agent.core.crypto.fernet import get_crypto_adapter
-from bi_agent.repositories import data_source_repo, settings_repo, user_repo
+from knot.core.crypto import ENC_PREFIX, encrypt
+from knot.core.crypto.fernet import get_crypto_adapter
+from knot.repositories import data_source_repo, settings_repo, user_repo
 
 
 def _db_sha256(path: str) -> str:
@@ -55,7 +55,7 @@ def _seed_legacy_plaintext(db_path: str):
 def test_migrate_encrypts_all_targets(tmp_db_path):
     """全 6 列覆盖 — 老明文跑迁移后全部带 enc_v1: 前缀。"""
     _seed_legacy_plaintext(tmp_db_path)
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     stats = migrate_encrypt_v045.migrate(dry_run=False)
     assert stats["scanned"] >= 3  # 至少 1 user + 1 ds + 1 sensitive setting
     assert stats["encrypted"] >= 3
@@ -77,7 +77,7 @@ def test_migrate_encrypts_all_targets(tmp_db_path):
 def test_R36_migrate_idempotent_run_twice_noop(tmp_db_path):
     """R-36：跑两次第二次 encrypted=0；DB content 不变（防"看似 noop 实际重新加密"）。"""
     _seed_legacy_plaintext(tmp_db_path)
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     migrate_encrypt_v045.migrate(dry_run=False)
     sha_after_first = _db_sha256(tmp_db_path)
 
@@ -92,7 +92,7 @@ def test_migrate_skips_already_encrypted_row(tmp_db_path):
     user_repo.create_user("new", "h", "N", "analyst", "h", 9030, "u", "fresh-pw", "db")  # 已加密
     _seed_legacy_plaintext(tmp_db_path)  # 老明文
 
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     stats = migrate_encrypt_v045.migrate(dry_run=False)
 
     # legacy1 老明文应被加密；new 用户的 fresh-pw 已加密 → skipped
@@ -108,7 +108,7 @@ def test_migrate_dry_run_does_not_write(tmp_db_path):
     _seed_legacy_plaintext(tmp_db_path)
     sha_before = _db_sha256(tmp_db_path)
 
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     stats = migrate_encrypt_v045.migrate(dry_run=True)
 
     sha_after = _db_sha256(tmp_db_path)
@@ -129,7 +129,7 @@ def test_R46_migrate_creates_backup_before_write(tmp_db_path):
     _seed_legacy_plaintext(tmp_db_path)
     sha_orig = _db_sha256(tmp_db_path)
 
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     bak_path = migrate_encrypt_v045.migrate(dry_run=False)["backup_path"]
 
     assert bak_path is not None
@@ -142,7 +142,7 @@ def test_R46_bak_timestamped_does_not_overwrite_previous(tmp_db_path):
     """守护者提示：多次跑应用 timestamp 后缀，不覆盖前一次 bak（数据丢失教训）。"""
     _seed_legacy_plaintext(tmp_db_path)
 
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
     bak1 = migrate_encrypt_v045.migrate(dry_run=False)["backup_path"]
     # 故意改 DB 模拟"第一次 bak 后又有变更"
     conn = sqlite3.connect(tmp_db_path)
@@ -176,7 +176,7 @@ def test_R46_Tx_per_table_transaction_rollback_on_error(tmp_db_path, monkeypatch
     data_sources 全表回滚；users 表（已先处理）应保持加密；app_settings（之后）应跳过。"""
     _seed_legacy_plaintext(tmp_db_path)
 
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.scripts import migrate_encrypt_v045
 
     call_count = {"n": 0}
     real_encrypt = migrate_encrypt_v045.encrypt
@@ -209,7 +209,7 @@ def test_R41_migrate_not_called_in_main_or_base():
     """R-41：grep 守护 — main.py / base.py 不得引用 migrate_encrypt。"""
     import subprocess
     result = subprocess.run(
-        ["grep", "-rn", "migrate_encrypt", "bi_agent/main.py", "bi_agent/repositories/base.py"],
+        ["grep", "-rn", "migrate_encrypt", "knot/main.py", "knot/repositories/base.py"],
         capture_output=True, text=True,
     )
     assert result.returncode != 0, f"R-41：startup hook 不应引用 migrate；命中：{result.stdout}"
@@ -220,10 +220,11 @@ def test_R41_migrate_not_called_in_main_or_base():
 def test_R46_no_master_key_fails_before_backup(tmp_db_path, monkeypatch):
     """守护者提示：master key 缺失立即 fail，不创建 bak（避免浪费磁盘 / 误导）。"""
     monkeypatch.delenv("BIAGENT_MASTER_KEY", raising=False)
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68 双源后必须同步清理
     get_crypto_adapter.cache_clear()
 
-    from bi_agent.core.crypto.fernet import CryptoConfigError
-    from bi_agent.scripts import migrate_encrypt_v045
+    from knot.core.crypto.fernet import CryptoConfigError
+    from knot.scripts import migrate_encrypt_v045
     with pytest.raises(CryptoConfigError):
         migrate_encrypt_v045.migrate(dry_run=False)
 

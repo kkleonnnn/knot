@@ -15,7 +15,7 @@ def tmp_db_path(monkeypatch):
     os.close(fd)
     os.unlink(path)  # 让 init_db() 自己创建
 
-    from bi_agent.repositories import base as base_mod
+    from knot.repositories import base as base_mod
     monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
 
     base_mod.init_db()

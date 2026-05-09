@@ -7,7 +7,7 @@ from __future__ import annotations
 import csv
 from io import StringIO
 
-from bi_agent.services.export_service import rows_to_csv_bytes
+from knot.services.export_service import rows_to_csv_bytes
 
 
 def _decode(b: bytes) -> str:
@@ -87,7 +87,7 @@ def test_xlsx_basic_round_trip():
 
     from openpyxl import load_workbook
 
-    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    from knot.services.export_service import rows_to_xlsx_bytes
     rows = [
         {"name": "alice", "age": 30, "score": 95.5},
         {"name": "bob", "age": 25, "score": 88.0},
@@ -115,7 +115,7 @@ def test_xlsx_chinese_chars_preserved():
 
     from openpyxl import load_workbook
 
-    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    from knot.services.export_service import rows_to_xlsx_bytes
     rows = [{"用户": "张三", "金额": 100}]
     xlsx_bytes, _ = rows_to_xlsx_bytes(rows)
     ws = load_workbook(BytesIO(xlsx_bytes)).active
@@ -125,7 +125,7 @@ def test_xlsx_chinese_chars_preserved():
 
 def test_xlsx_truncates_at_5000_rows_with_metadata():
     """R-15 + R-S7：超过 5000 行截断，metadata 暴露 truncated=true / total / exported。"""
-    from bi_agent.services.export_service import XLSX_MAX_ROWS, rows_to_xlsx_bytes
+    from knot.services.export_service import XLSX_MAX_ROWS, rows_to_xlsx_bytes
     big_rows = [{"i": i} for i in range(XLSX_MAX_ROWS + 1234)]
     _, meta = rows_to_xlsx_bytes(big_rows)
     assert meta["truncated"] is True
@@ -140,7 +140,7 @@ def test_xlsx_complex_value_json_serialized():
 
     from openpyxl import load_workbook
 
-    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    from knot.services.export_service import rows_to_xlsx_bytes
     rows = [{"id": 1, "extra": {"nested": "中文", "n": 42}}]
     xlsx_bytes, _ = rows_to_xlsx_bytes(rows)
     ws = load_workbook(BytesIO(xlsx_bytes)).active
@@ -152,7 +152,7 @@ def test_xlsx_complex_value_json_serialized():
 
 def test_xlsx_empty_rows_returns_metadata_zero():
     """空 rows → metadata 0 / 0 / not truncated；xlsx 文件仍合法（可打开但无数据）。"""
-    from bi_agent.services.export_service import rows_to_xlsx_bytes
+    from knot.services.export_service import rows_to_xlsx_bytes
     xlsx_bytes, meta = rows_to_xlsx_bytes([])
     assert meta == {"truncated": False, "total": 0, "exported": 0}
     assert xlsx_bytes  # bytes 非空（openpyxl 写了一个 sheet 头）

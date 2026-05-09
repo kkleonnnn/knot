@@ -11,11 +11,11 @@ import sqlite3
 
 import pytest
 
-from bi_agent.core.crypto import ENC_PREFIX, encrypt
-from bi_agent.core.crypto.fernet import get_crypto_adapter
-from bi_agent.models.errors import ConfigMissingError
-from bi_agent.repositories import data_source_repo, settings_repo, user_repo
-from bi_agent.repositories.base import get_conn
+from knot.core.crypto import ENC_PREFIX, encrypt
+from knot.core.crypto.fernet import get_crypto_adapter
+from knot.models.errors import ConfigMissingError
+from knot.repositories import data_source_repo, settings_repo, user_repo
+from knot.repositories.base import get_conn
 
 
 def _raw_value(table: str, col: str, where_sql: str, params: tuple):
@@ -150,6 +150,7 @@ def test_repo_translates_crypto_config_error_to_config_missing(tmp_db_path, monk
     # 切到不同 master key
     other_key = "RbU1qJOKDpyRpaeQEvO7G0YkU9tnxAjLfqg0gQNFLjI="
     monkeypatch.setenv("BIAGENT_MASTER_KEY", other_key)
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68：测旧 KEY 切换
     get_crypto_adapter.cache_clear()
     with pytest.raises(ConfigMissingError, match="解密失败"):
         user_repo.get_user_by_username("e")

@@ -7,9 +7,9 @@
 """
 import pytest
 
-from bi_agent.models.errors import BudgetExceededError
-from bi_agent.repositories import budget_repo
-from bi_agent.services import llm_client
+from knot.models.errors import BudgetExceededError
+from knot.repositories import budget_repo
+from knot.services import llm_client
 
 
 @pytest.mark.asyncio
@@ -54,7 +54,7 @@ async def test_R26_senior_no_budget_no_block(tmp_db_path, monkeypatch):
 
     class _StubAdapter:
         async def acomplete(self, req):
-            from bi_agent.adapters.llm.base import LLMResponse
+            from knot.adapters.llm.base import LLMResponse
             called["adapter"] = True
             return LLMResponse(text='{"sql": "SELECT 1", "explanation": "", "confidence": "high"}',
                                input_tokens=10, output_tokens=5)

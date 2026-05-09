@@ -1,5 +1,5 @@
 """knowledge_repo happy-path 单测。"""
-from bi_agent.repositories import knowledge_repo
+from knot.repositories import knowledge_repo
 
 
 def test_create_list_doc(tmp_db_path):

@@ -117,37 +117,55 @@ PATCH 内（v0.5.0 → v0.5.1 → …）**不切换角色**，仍由同一执行
 ## 启动
 
 ```bash
-# 本地开发
-pip install -r requirements.txt
-python3 -m uvicorn bi_agent.main:app --reload --port 8000
+# 本地开发（v0.5.0 起包名 knot）
+pip install -e ".[dev]"
+python3 -m uvicorn knot.main:app --reload --port 8000
 
 # Docker 部署
-docker build -t bi-agent . && docker run -d -p 8000:8000 --env-file .env bi-agent
+docker build -t knot . && docker run -d -p 8000:8000 --env-file .env knot
+
+# v0.5.0 升级老用户（v0.4.x → v0.5.0）
+# 1. pip uninstall bi-agent && pip install -e .（包名变更）
+# 2. .env 改 KNOT_MASTER_KEY（旧 BIAGENT_MASTER_KEY 兼容至 v1.0）
+# 3. DB 自动迁移：startup 检测 bi_agent.db → 自动 rename knot.db + 留 timestamped bak
+# 4. Docker volume：-v 路径变更 bi_agent/data/ → knot/data/
 ```
 
-## 关键路径
+## 关键路径（v0.5.0 起包名 knot）
 
 | 文件 | 职责 |
 |------|------|
-| `bi_agent/main.py` | App 工厂，sys.path 设置必须最先执行，注册所有路由 |
-| `bi_agent/dependencies.py` | JWT 常量、create_token、get_current_user、require_admin |
-| `bi_agent/schemas.py` | 所有 Pydantic 请求模型（9 个） |
-| `bi_agent/engine_cache.py` | 用户 DB 引擎缓存（TTL 1h）、_upload_engine |
-| `bi_agent/routers/` | 业务域路由文件（auth / admin / conversations / database / few_shots / knowledge / prompts / query / templates / uploads / user） |
-| `bi_agent/core/` | 核心模块（config, persistence, llm_client, sql_agent, multi_agent 等） |
-| `bi_agent/static/` | Vite 构建产物（`frontend/` 源码 → `npm run build` 输出至此） |
-| `bi_agent/data/` | SQLite 数据库（gitignore，运行时自动创建） |
+| `knot/main.py` | App 工厂，FastAPI title=KNOT version=0.5.0；启动 banner 显示实际加载 env 名 |
+| `knot/api/deps.py` | JWT 常量、create_token、get_current_user、require_admin |
+| `knot/api/schemas.py` | 所有 Pydantic 请求模型（9 个） |
+| `knot/services/engine_cache.py` | 用户 DB 引擎缓存（TTL 1h）、_upload_engine |
+| `knot/api/` | 业务域路由文件（72 路由：auth / admin / conversations / database / few_shots / knowledge / prompts / query / templates / uploads / saved_reports / audit / catalog / exports） |
+| `knot/services/agents/` | 3 agent 实现（v0.5.0 从 services/knot/ rename，避免 knot/services/knot 重名）|
+| `knot/services/` | 业务编排层（auth_service / budget_service / cost_service / audit_service / error_translator / llm_client 等） |
+| `knot/repositories/` | 9 个 *_repo.py + audit_repo.py |
+| `knot/adapters/` | llm/{anthropic_native,openai_compat,openrouter,async+sync 双 API} + db/doris.py + notification/lark.py(stub) |
+| `knot/core/` | 横切工具（logging_setup / date_context / crypto/fernet）|
+| `knot/scripts/` | migrate_encrypt_v045.py / purge_audit_log.py / migrate_db_rename_v050.py |
+| `knot/static/` | Vite 构建产物（`frontend/` 源码 → `npm run build` 输出至此） |
+| `knot/data/` | SQLite 数据库（gitignore，runtime 自动创建；v0.5.0 起文件名 knot.db） |
 
 ## 导入约定
 
-`main.py` 最先执行 `sys.path.insert(0, .../core)`，使 core/ 内模块可用扁平导入
-（`import config`、`import persistence` 等）。
-`routers/` 通过相对导入拿 `dependencies` 和 `engine_cache`，不需要重复 sys.path 操作。
+v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包，无 sys.path hack。
+所有业务模块用 `from knot.X import Y` 绝对导入（`from knot.api.deps import get_current_user` 等）。
 
 ## 数据库
 
-- `bi_agent/data/bi_agent.db` — 用户 / 会话 / 消息 / 知识库 / 用户上传 CSV/Excel（v0.2.4 合并 uploads.db）
+- `knot/data/knot.db` — 用户 / 会话 / 消息 / 知识库 / 用户上传 CSV/Excel / 审计日志
+  （v0.2.4 合并 uploads.db；v0.4.6 加 audit_log；v0.5.0 文件名 bi_agent.db → knot.db）
+- 启动 migration（v0.5.0+）：检测旧 `bi_agent.db` → 自动 rename + 留 timestamped backup（R-69 幂等 + R-76 atomic 异常保护）
 - Apache Doris / MySQL — 业务查询目标（通过 .env 配置）
+
+## 加密 master key（v0.5.0 双源）
+
+- **v0.5.0+ 推荐**：`KNOT_MASTER_KEY`（新名）
+- **兼容旧名**：`BIAGENT_MASTER_KEY`（v0.4.5 起；启动见 deprecation warn；v1.0 移除）
+- 同时设置且值不同 + DB 有 `enc_v1:` 数据 → R-74 探针验证旧/新解密能力，旧成功新失败 → `sys.exit(1)` 防数据永久丢失
 
 ## 版本管理
 
@@ -280,6 +298,22 @@ gantt
 | ✅ v0.4.4 | 异步 LLM + 错误体验改造 | AsyncLLMAdapter 落地（AsyncAnthropic / AsyncOpenAI / OpenRouter）+ R-31 Protocol 完整性；models/errors.py 扩 4 类（R-30 复用不重造）+ services/error_translator.py 7 类 kind 映射；async 业务链 (arun_clarifier/arun_sql_agent/arun_presenter) + R-26-Senior 首行 budget 守护 + R-32 fix_sql 独立桶；api/query.py 真异步 + R-26-SSE sleep(0) + R-33 双路径同字段；R-27 race 守护（100×gather 误差 ≤ 0.01%）；前端 ErrorBanner + R-28 优先级（覆盖 BudgetBanner）；R-29-anyio threadpool 默认 64→32；264 tests / 112 skipped；6 contracts KEPT。**已偿还** 9 条红线 R-24~R-33。 |
 | ✅ v0.4.5 | 数据加密（API Key / DB 密码）| Loop Protocol v2 三阶段：v0.4 执行者 Stage 1 + 资深/Codex Stage 2 + v0.3 守护者 Stage 3（D1 路径反转 `adapters/crypto/` → `core/crypto/`）；6 类敏感字段 Fernet 应用层加密 + `enc_v1:` 前缀；`BIAGENT_MASTER_KEY` env fail-fast + 友好彩色错误（R-45 sys.exit(1)）；`bi_agent/scripts/migrate_encrypt_v045.py` 一次性幂等迁移 + 自动 timestamped `.v044-<ts>.bak`（R-46/R-46-Tx 每表事务）；前端 API Key `••••••••last4` masked + PATCH 空值/mask 占位保留（R-39）；**首次 contract 数变更 6 → 7 条**（新增 `crypto-only-in-allowed-callers` + `allow_indirect_imports = True` 只查直接边）；309 tests / 112 skipped；**已偿还** 13 条红线 R-34~R-46。 |
 | ✅ v0.4.6 | 审计日志（who-did-what）| Loop Protocol v2 三阶段：v0.4 执行者 Stage 1 + 资深/Codex Stage 2 + v0.3 守护者 Stage 3（D1 反转 schema +client_ip/user_agent 独立列）；`audit_log` 表 INSERT-only + 3 索引；`AuditAction` Literal 33 条覆盖 8 类 mutation × 子动作（messages 显式排除 R-63 防爆表）；`audit_service.log()` fail-soft + R-64 失败计数器 hook + R-48/59/62 PII 三层防御（含 v0.4.5 加密字段 + 密文也 redact）+ D7 递归深度 3 防嵌套炸弹；`AuditWriteError(BIAgentError)` 复用 errors 树（R-65 不重复造轮子）；7 类 mutation 集成（auth/users/datasources/api-keys/budgets/agent-models/saved_reports/few_shots/prompts/catalog）+ admin GET 路由 + R-61 强制分页 cap 200 + R-56 越权 403 + R-53 stress 1000×p95<5ms；前端 AdminAudit 列表 + 筛选 + 详情抽屉（D3 落地，redacted 高亮提升 admin 信任感）；`purge_audit_log` 脚本复用 v0.4.5 模式（独立 entrypoint + timestamped .bak + dry-run）+ retention 90 天默认 7~3650 admin 可调 + R-57 meta-audit；362 tests / 112 skipped；7 contracts KEPT；72 routes（+3）；**已偿还** 20 条红线 R-47~R-66。 |
+
+## v0.5.x 业务迭代路线图（v0.4.6 之后 — KNOT 准生产）
+
+**bi-agent 品牌正式归档历史**（v0.5.0 起包名 knot）。Loop Protocol v3 首次完整 PATCH 内施行（执行者 + 守护者 + 远古守护者 + 辅助 AI 初审组 4 级角色 + MINOR 滚动整体审核仪式）。7 条 contract 全程 KEPT。
+
+| PATCH | 主题 | 关键交付 |
+|-------|------|---------|
+| ✅ v0.5.0 | (C0) bi-agent → KNOT 重命名 + Foundation | Loop Protocol v3 三阶段：v0.5 执行者 Stage 1 + 资深/Codex Stage 2 + v0.4 守护者 Stage 3（含资深 3 维度提问回应：R-74 密文兼容性探针 / R-75 审计连续性 / R-76 迁移备份原子性）；`bi_agent/` → `knot/` 包重命名（git mv 132 个 .py 保 history）+ `services/knot/` → `services/agents/`（守护者整体审核新发现重名冲突）；env 双源 `KNOT_MASTER_KEY` 优先 + `BIAGENT_MASTER_KEY` deprecated 回退（v1.0 移除）；R-74 密文兼容性探针（双 key 不同值时 sqlite3 直读 enc_v1: 探针验证旧/新解密能力，旧成功新失败 → sys.exit(1) 防数据永久丢失）；DB startup migration `bi_agent.db` → `knot.db`（R-69 4 场景幂等 + R-76 atomic try/except + 独立 entrypoint --dry-run 双轨 + timestamped .v044-<ts>.bak）；`_v050_rename.py` 一次性 Python 跨平台替换脚本（R-77 禁 sed -i ''；4 phase 顺序锁定；字面量保护占位防 `bi_agent.db` 误替）；7 contracts KEPT（Contract 7 forbidden_modules 同步替换 `knot.core.crypto` 关键 R-71）；frontend vite outDir + Chat.jsx CSV 文件名前缀 `knot-`；CI matrix 4 组合 × ubuntu+macOS 双平台（R-72/R-77 完整覆盖）；375 tests / 112 skipped（v0.4.6 362 → +13）；**已偿还** 13 条红线 R-67~R-79；**守护者结构性教训** 3 条（dotenv 自动发现 / R-77 替换顺序漏洞 / PEP 585 顺手清理）。 |
+| ⏳ v0.5.1 | (C1) SQL AST 预校验（笛卡尔积硬防御）| sqlglot AST 解析 + JOIN graph 抽取 + 笛卡尔积 / 1=1 恒真 / 跨表 WHERE 无前缀检测；触发 → sql_planner ReAct 重生成（带反馈 prompt）；≤ 200 行；1.0 阻塞偿还 |
+| ⏳ v0.5.2 | (C2) 后端代码瘦身 | sql_planner.py (622) / llm_client.py (574) / orchestrator.py (535) / api/query.py (457) 拆分 |
+| ⏳ v0.5.3 | (C3) 前端代码瘦身 | Chat.jsx (925) / Admin.jsx (773) 拆分 |
+| ⏳ v0.5.4 | (C4) Loop Protocol v3 路线图同步 | CLAUDE.md / CHANGELOG / README 同步 v3 协议 + 整体审核仪式 |
+| ⏳ v0.5.5+ | (C5+) Claude Design UI 重构（多 PATCH）| `knot_ui_demo/v0.5/` 1:1 复刻；以体验先行重构产品形态 |
+| ⏳ v0.5.x | (Cn) cleanup | 删 lark.py stub + sync LLM API @deprecated 标注 |
+
+> v0.5.x 主线推进 1.0 release 准备。1.0 团队公测起点。
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 

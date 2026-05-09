@@ -1,4 +1,4 @@
-# BI-Agent eval 用例模板（仓库内提交版本，**不含真实业务数据**）
+# KNOT eval 用例模板（仓库内提交版本，**不含真实业务数据**）
 #
 # 【部署】cp tests/eval/cases.example.yaml tests/eval/cases.yaml，再按业务扩展用例。
 # cases.yaml 已加入 .gitignore；conftest.load_cases 优先读 cases.yaml，缺失则回退本 example。

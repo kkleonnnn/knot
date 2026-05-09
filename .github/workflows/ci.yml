@@ -17,26 +17,100 @@ jobs:
           cache: pip
 
       # ⚠️ editable 安装必须在所有静态/动态分析步骤之前完成 ——
-      # import-linter / pytest / boot-smoke 都依赖 site-packages 中已注册的 bi_agent
+      # import-linter / pytest / boot-smoke 都依赖 site-packages 中已注册的 knot
       - name: Install (editable)
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          python -c "import bi_agent; print('bi_agent installed at', bi_agent.__file__)"
+          python -c "import knot; print('knot installed at', knot.__file__)"
 
       - name: Ruff lint
-        run: ruff check bi_agent/
+        run: ruff check knot/
 
-      # 依赖 Install 步骤完成；4 层 contract 不绕过即合入
-      - name: Import-linter (4-layer architecture)
+      # 依赖 Install 步骤完成；7 contracts 不绕过即合入
+      - name: Import-linter (7 contracts KEPT)
         run: lint-imports
 
       - name: Pytest
-        run: pytest tests/ -v --tb=short
-
-      - name: App boot smoke
-        # v0.4.5 R-45：startup 期 fail-fast 校验 BIAGENT_MASTER_KEY；CI 环境必须显式注入。
-        # 用动态生成的临时 key（无固定字符串入 repo）；version 输出顺手 verify bump 生效。
+        env:
+          KNOT_MASTER_KEY: ${{ secrets.TEST_MASTER_KEY }}
         run: |
-          export BIAGENT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-          python -c "from bi_agent.main import app; print('routes=', len(app.routes), 'version=', app.version)"
+          # CI 注入测试 key（v0.4.5 R-37：测试 master key 与生产隔离）
+          # 若 secrets.TEST_MASTER_KEY 未配置，conftest autouse fixture 会兜底设置
+          if [ -z "$KNOT_MASTER_KEY" ]; then
+            export KNOT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+          fi
+          pytest tests/ -v --tb=short --ignore=tests/eval
+
+  # v0.5.0 R-72 / R-77：env 4 组合 × 双平台 boot smoke
+  # ubuntu-latest 跑全 4 组合（仅新 / 仅旧 / 都设 / 都无）
+  # macos-latest 跑 1 组合（仅新）保证 R-77 跨平台 sed/Python 替换真生效
+  boot-smoke:
+    name: boot smoke (${{ matrix.env_setup.name }}, ${{ matrix.os }})
+    needs: lint-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        env_setup:
+          - { name: "only-knot",    set_knot: "yes", set_biagent: "no" }
+          - { name: "only-biagent", set_knot: "no",  set_biagent: "yes" }
+          - { name: "both-same",    set_knot: "yes", set_biagent: "same" }
+          - { name: "neither",      set_knot: "no",  set_biagent: "no" }  # 期望 fail-fast
+        include:
+          # macOS 仅跑 only-knot 路径，验证 R-77 跨平台无 sed -i '' 隐患
+          - os: macos-latest
+            env_setup: { name: "only-knot", set_knot: "yes", set_biagent: "no" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (editable)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Boot smoke
+        run: |
+          TEST_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+
+          # 设置 env 按 matrix 组合
+          if [ "${{ matrix.env_setup.set_knot }}" = "yes" ]; then
+            export KNOT_MASTER_KEY="$TEST_KEY"
+          fi
+          if [ "${{ matrix.env_setup.set_biagent }}" = "yes" ]; then
+            export BIAGENT_MASTER_KEY="$TEST_KEY"
+          elif [ "${{ matrix.env_setup.set_biagent }}" = "same" ]; then
+            export BIAGENT_MASTER_KEY="$TEST_KEY"  # 同值
+          fi
+
+          case "${{ matrix.env_setup.name }}" in
+            neither)
+              # R-68 都无 → 期望 fail-fast (sys.exit 1) + 彩色边框 + 文案含 KNOT_MASTER_KEY + Fernet.generate_key
+              set +e
+              OUT=$(python -c "from knot.main import app" 2>&1)
+              rc=$?
+              set -e
+              echo "$OUT"
+              if [ $rc -ne 1 ]; then
+                echo "::error::neither 路径期望 exit 1，实际 $rc"
+                exit 1
+              fi
+              echo "$OUT" | grep -q "KNOT 启动失败" || (echo "::error::缺友好错误文案"; exit 1)
+              echo "$OUT" | grep -q "KNOT_MASTER_KEY" || (echo "::error::缺新 env 名提示"; exit 1)
+              echo "$OUT" | grep -q "Fernet.generate_key" || (echo "::error::缺生成命令提示"; exit 1)
+              echo "neither path: fail-fast 正确 ✓"
+              ;;
+            *)
+              # 三个成功路径：title=KNOT, version=0.5.0, routes=72 不变
+              python -c "
+          from knot.main import app
+          assert app.title == 'KNOT', f'title={app.title}'
+          assert app.version == '0.5.0', f'version={app.version}'
+          assert len(app.routes) == 72, f'routes={len(app.routes)}'
+          print('boot smoke OK: title=KNOT version=0.5.0 routes=72')
+          "
+              ;;
+          esac

@@ -14,7 +14,7 @@ import pytest
 
 from tests.eval.conftest import load_cases
 
-from bi_agent.services.knot.orchestrator import (
+from knot.services.agents.orchestrator import (
     INTENT_TO_HINT,
     VALID_INTENTS,
     run_clarifier,

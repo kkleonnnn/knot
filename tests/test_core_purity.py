@@ -1,6 +1,6 @@
 """tests/test_core_purity.py — T-2 资深要求：core/ 边界守护测试。
 
-利用反射 + AST 扫描 bi_agent.core 下所有模块的 import 语句，
+利用反射 + AST 扫描 knot.core 下所有模块的 import 语句，
 若发现任何 services / repositories / adapters / api / models 的痕迹，
 测试**直接挂掉**。这是除 import-linter 之外的第二道防线。
 
@@ -15,15 +15,15 @@ import importlib
 import pathlib
 import pkgutil
 
-import bi_agent.core
+import knot.core
 
 
 _FORBIDDEN_PREFIXES = (
-    "bi_agent.api",
-    "bi_agent.services",
-    "bi_agent.repositories",
-    "bi_agent.adapters",
-    "bi_agent.models",  # core 与 models 同层，语义不同，禁止互相 import
+    "knot.api",
+    "knot.services",
+    "knot.repositories",
+    "knot.adapters",
+    "knot.models",  # core 与 models 同层，语义不同，禁止互相 import
 )
 
 
@@ -42,10 +42,10 @@ def _collect_imports_via_ast(src_path: pathlib.Path) -> set[str]:
 
 
 def test_core_purity_via_ast():
-    """对 bi_agent.core 下所有 .py 文件做 AST 扫描，断言无业务层 import。"""
-    core_dir = pathlib.Path(bi_agent.core.__file__).parent
+    """对 knot.core 下所有 .py 文件做 AST 扫描，断言无业务层 import。"""
+    core_dir = pathlib.Path(knot.core.__file__).parent
     py_files = list(core_dir.glob("*.py"))
-    assert py_files, "bi_agent.core 至少应有 __init__.py"
+    assert py_files, "knot.core 至少应有 __init__.py"
 
     violations = []
     for f in py_files:
@@ -62,10 +62,10 @@ def test_core_purity_via_ast():
 
 
 def test_core_purity_via_runtime_reflection():
-    """运行时再校验：所有 core 模块的 __dict__ 中不含任何 bi_agent 业务包对象。"""
+    """运行时再校验：所有 core 模块的 __dict__ 中不含任何 knot 业务包对象。"""
     violations = []
-    for _, mod_name, _ in pkgutil.iter_modules(bi_agent.core.__path__):
-        full = f"bi_agent.core.{mod_name}"
+    for _, mod_name, _ in pkgutil.iter_modules(knot.core.__path__):
+        full = f"knot.core.{mod_name}"
         m = importlib.import_module(full)
         for attr_name, attr_val in vars(m).items():
             if hasattr(attr_val, "__module__"):
@@ -84,7 +84,7 @@ def test_core_purity_via_runtime_reflection():
 def test_core_only_contains_horizontal_utilities():
     """v0.3.3 终态：core/ 应只剩横切工具（logging / date_context / errors）。
     若新增其他业务文件，本测试失败 — 强制 reviewer 思考分层归属。"""
-    core_dir = pathlib.Path(bi_agent.core.__file__).parent
+    core_dir = pathlib.Path(knot.core.__file__).parent
     expected = {"__init__.py", "logging_setup.py", "date_context.py"}
     actual = {f.name for f in core_dir.glob("*.py")}
     unexpected = actual - expected

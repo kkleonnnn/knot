@@ -16,7 +16,7 @@ import pytest
 
 from tests.eval.conftest import load_cases  # noqa: E402
 
-from bi_agent.services import llm_client  # noqa: E402
+from knot.services import llm_client  # noqa: E402
 
 _REQUIRES_KEY = pytest.mark.skipif(
     not os.getenv("OPENROUTER_API_KEY"),

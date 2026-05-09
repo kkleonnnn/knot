@@ -1,9 +1,9 @@
 """adapters/llm/factory happy-path 单测。"""
-from bi_agent.adapters.llm.anthropic_native import AnthropicAdapter
-from bi_agent.adapters.llm.base import LLMAdapter, LLMRequest, calculate_cost
-from bi_agent.adapters.llm.factory import get_adapter
-from bi_agent.adapters.llm.openai_compat import OpenAICompatAdapter
-from bi_agent.adapters.llm.openrouter import OpenRouterAdapter
+from knot.adapters.llm.anthropic_native import AnthropicAdapter
+from knot.adapters.llm.base import LLMAdapter, LLMRequest, calculate_cost
+from knot.adapters.llm.factory import get_adapter
+from knot.adapters.llm.openai_compat import OpenAICompatAdapter
+from knot.adapters.llm.openrouter import OpenRouterAdapter
 
 
 def test_factory_anthropic():
@@ -68,7 +68,7 @@ def test_protocol_runtime_check_rejects_non_adapter():
 def test_factory_unknown_provider_raises():
     """v0.3.2 R-7：传 typo provider 必须显式失败，不再 silently fallback。"""
     import pytest
-    from bi_agent.models.errors import ProviderNotImplementedError
+    from knot.models.errors import ProviderNotImplementedError
 
     with pytest.raises(ProviderNotImplementedError) as exc_info:
         get_adapter("anthropics-typo")

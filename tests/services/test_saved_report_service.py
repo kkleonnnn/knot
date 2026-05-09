@@ -11,8 +11,8 @@ import json
 
 import pytest
 
-from bi_agent.repositories import base as base_mod
-from bi_agent.services import saved_report_service
+from knot.repositories import base as base_mod
+from knot.services import saved_report_service
 
 
 @pytest.fixture()

@@ -36,7 +36,7 @@ export function AppShell({
             }}>
               <I.sparkle width="14" height="14"/>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: T.text }}>BI-Agent</span>
+            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: T.text }}>KNOT</span>
           </div>
         </div>
 

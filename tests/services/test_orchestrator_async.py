@@ -8,8 +8,8 @@
 """
 import pytest
 
-from bi_agent.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
-from bi_agent.services.knot import orchestrator
+from knot.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
+from knot.services.agents import orchestrator
 
 
 @pytest.mark.asyncio
@@ -108,7 +108,7 @@ async def test_arun_clarifier_swallows_non_BIAgent_exception(monkeypatch):
 async def test_R26_senior_arun_clarifier_blocks_before_adapter(tmp_db_path, monkeypatch):
     """R-26-Senior 端到端：clarifier 级 budget block 配置 → 抛 BudgetExceededError；
     确认 adapter.acomplete 永不被调用。"""
-    from bi_agent.repositories import budget_repo
+    from knot.repositories import budget_repo
     budget_repo.upsert("agent_kind", "clarifier", "per_call_cost_usd", 0.000001, action="block")
 
     called = {"adapter": False}
@@ -118,7 +118,7 @@ async def test_R26_senior_arun_clarifier_blocks_before_adapter(tmp_db_path, monk
                                            "output_price": 15.0}))
 
     # spy get_async_adapter — 通过 _allm 内部 import；用 import 路径替换
-    import bi_agent.adapters.llm as adapters_pkg
+    import knot.adapters.llm as adapters_pkg
 
     def _spy(provider):
         called["adapter"] = True
@@ -126,7 +126,7 @@ async def test_R26_senior_arun_clarifier_blocks_before_adapter(tmp_db_path, monk
 
     monkeypatch.setattr(adapters_pkg, "get_async_adapter", _spy)
     # 同时 patch orchestrator 模块级（_allm 内部 import 也要拦）
-    import bi_agent.adapters.llm.factory as factory_mod
+    import knot.adapters.llm.factory as factory_mod
     monkeypatch.setattr(factory_mod, "get_async_adapter", _spy)
 
     with pytest.raises(BudgetExceededError):

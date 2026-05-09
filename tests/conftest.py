@@ -19,17 +19,21 @@ TEST_MASTER_KEY = "QwlGZIGjzEryd93omq5UGR5ATZ6mTMm70NmS4o331Xk="
 
 @pytest.fixture(autouse=True)
 def _master_key_for_tests(monkeypatch):
-    """为每个测试默认设置 BIAGENT_MASTER_KEY；清空 lru_cache 防 fixture 间污染（R-40）。"""
-    monkeypatch.setenv("BIAGENT_MASTER_KEY", TEST_MASTER_KEY)
+    """为每个测试默认设置 KNOT_MASTER_KEY；清空 lru_cache 防 fixture 间污染（R-40）。
+
+    v0.5.0 R-78：默认走 "仅新 key" 路径（避免每测试触发 deprecation warn 污染 caplog）。
+    旧 BIAGENT_MASTER_KEY 兼容由 tests/test_env_dual_source.py 显式覆盖测试。
+    """
+    monkeypatch.setenv("KNOT_MASTER_KEY", TEST_MASTER_KEY)
     # 清 lru_cache（防上一测试持有了不同 key 的 adapter）
     try:
-        from bi_agent.core.crypto.fernet import get_crypto_adapter
+        from knot.core.crypto.fernet import get_crypto_adapter
         get_crypto_adapter.cache_clear()
     except ImportError:
         pass  # commit #1 之前 crypto 模块还没建
     yield
     try:
-        from bi_agent.core.crypto.fernet import get_crypto_adapter
+        from knot.core.crypto.fernet import get_crypto_adapter
         get_crypto_adapter.cache_clear()
     except ImportError:
         pass
@@ -46,7 +50,7 @@ def tmp_db_path(monkeypatch):
     os.close(fd)
     os.unlink(path)  # 让 init_db() 自己创建
 
-    from bi_agent.repositories import base as base_mod
+    from knot.repositories import base as base_mod
     monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
     base_mod.init_db()
 

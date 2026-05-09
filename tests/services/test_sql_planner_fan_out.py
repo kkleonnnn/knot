@@ -4,7 +4,7 @@
 - ≥ 2 个 LEFT JOIN 到具名表 + 顶层 SELECT ≥ 2 个聚合 → True（fan-out 反模式）
 - 单 LEFT JOIN / 单聚合 / 子查询 join / CTE → False（不误杀）
 """
-from bi_agent.services.knot.sql_planner import _is_fan_out
+from knot.services.agents.sql_planner import _is_fan_out
 
 
 def test_fan_out_detects_two_left_joins_with_two_sums():

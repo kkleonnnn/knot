@@ -1,5 +1,5 @@
 """services.schema_filter happy-path 单测。"""
-from bi_agent.services import schema_filter
+from knot.services import schema_filter
 
 
 def test_parse_schema_tables():

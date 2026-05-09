@@ -16,12 +16,12 @@ def client(monkeypatch):
     os.unlink(path)
 
     # patch SQLite 路径
-    from bi_agent.repositories import base as base_mod
+    from knot.repositories import base as base_mod
     monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
     base_mod.init_db()
 
     # 重新 import main 触发 app factory（模块级 init_db 已跑过；TestClient 共用 app）
-    from bi_agent.main import app
+    from knot.main import app
     with TestClient(app) as c:
         yield c
 

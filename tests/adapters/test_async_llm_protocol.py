@@ -4,8 +4,8 @@ v0.4.0 占位 Protocol；v0.4.4 落 impl（守护测试方向反转：现有 3 a
 """
 from __future__ import annotations
 
-from bi_agent.adapters.llm import AsyncLLMAdapter
-from bi_agent.adapters.llm.base import LLMRequest, LLMResponse
+from knot.adapters.llm import AsyncLLMAdapter
+from knot.adapters.llm.base import LLMRequest, LLMResponse
 
 
 def test_async_protocol_runtime_check_accepts_acomplete_class():
@@ -30,9 +30,9 @@ def test_existing_sync_adapters_satisfy_async_protocol_v044():
 
     v0.4.0 时此测试期望 not isinstance（占位无 impl）；v0.4.4 落 impl 后期望 isinstance。
     """
-    from bi_agent.adapters.llm.anthropic_native import AnthropicAdapter
-    from bi_agent.adapters.llm.openai_compat import OpenAICompatAdapter
-    from bi_agent.adapters.llm.openrouter import OpenRouterAdapter
+    from knot.adapters.llm.anthropic_native import AnthropicAdapter
+    from knot.adapters.llm.openai_compat import OpenAICompatAdapter
+    from knot.adapters.llm.openrouter import OpenRouterAdapter
 
     for cls in (AnthropicAdapter, OpenAICompatAdapter, OpenRouterAdapter):
         assert isinstance(cls(), AsyncLLMAdapter), (

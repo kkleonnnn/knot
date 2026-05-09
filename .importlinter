@@ -1,4 +1,4 @@
-# BI-Agent v0.3.3 — Full Forbidden Mode（4 PATCH 重构终态）
+# KNOT v0.3.3 — Full Forbidden Mode（4 PATCH 重构终态）
 #
 # 5 层架构契约，CI 强制不可绕过：
 #   api → services → repositories | adapters → models
@@ -6,7 +6,7 @@
 #
 # 任何 PR 修改下方分层都必须经资深架构师评审。
 [importlinter]
-root_package = bi_agent
+root_package = knot
 include_external_packages = False
 
 # ── Contract 1: 4 层方向严格自上而下 ──
@@ -14,23 +14,23 @@ include_external_packages = False
 name = api → services → repositories | adapters → models
 type = layers
 layers =
-    bi_agent.api
-    bi_agent.services
-    bi_agent.repositories | bi_agent.adapters
-    bi_agent.models
+    knot.api
+    knot.services
+    knot.repositories | knot.adapters
+    knot.models
 
 # ── Contract 2: models 是叶子节点（v0.3.0 起锁定）──
 [importlinter:contract:models-is-leaf]
-name = models 不得 import bi_agent 内部任何其他包（纯叶子）
+name = models 不得 import knot 内部任何其他包（纯叶子）
 type = forbidden
-source_modules = bi_agent.models
+source_modules = knot.models
 forbidden_modules =
-    bi_agent.core
-    bi_agent.config
-    bi_agent.api
-    bi_agent.services
-    bi_agent.repositories
-    bi_agent.adapters
+    knot.core
+    knot.config
+    knot.api
+    knot.services
+    knot.repositories
+    knot.adapters
 
 # ── Contract 3: core 是横切工具，禁止依赖任何业务层（v0.3.3 Full Forbidden Mode）──
 # 历史：v0.3.0 引入时 core/ 内部有 6 个"未来 service"文件合法依赖 repositories；
@@ -39,40 +39,40 @@ forbidden_modules =
 [importlinter:contract:core-no-business]
 name = core 是横切工具，不得依赖 models 或任何业务层
 type = forbidden
-source_modules = bi_agent.core
+source_modules = knot.core
 forbidden_modules =
-    bi_agent.models
-    bi_agent.api
-    bi_agent.services
-    bi_agent.repositories
-    bi_agent.adapters
+    knot.models
+    knot.api
+    knot.services
+    knot.repositories
+    knot.adapters
 
 # ── Contract 4: repositories 不得 import 业务编排层（v0.3.0 起逐步收紧到全锁）──
 [importlinter:contract:repos-no-business]
 name = repositories 不得 import api / services / adapters
 type = forbidden
-source_modules = bi_agent.repositories
-forbidden_modules = bi_agent.api, bi_agent.services, bi_agent.adapters
+source_modules = knot.repositories
+forbidden_modules = knot.api, knot.services, knot.adapters
 
 # ── Contract 5: adapters 是叶子实现，禁止依赖业务编排层（v0.3.2 新增）──
 [importlinter:contract:adapters-no-business]
 name = adapters 不得 import api / services / repositories
 type = forbidden
-source_modules = bi_agent.adapters
-forbidden_modules = bi_agent.api, bi_agent.services, bi_agent.repositories
+source_modules = knot.adapters
+forbidden_modules = knot.api, knot.services, knot.repositories
 
 # ── Contract 6（v0.3.3 新增）：api 是入口层，不得被其他层反向依赖 ──
 [importlinter:contract:api-is-entrypoint]
 name = api 是入口层；其他层禁止反向 import api
 type = forbidden
 source_modules =
-    bi_agent.services
-    bi_agent.repositories
-    bi_agent.adapters
-    bi_agent.models
-    bi_agent.core
-    bi_agent.config
-forbidden_modules = bi_agent.api
+    knot.services
+    knot.repositories
+    knot.adapters
+    knot.models
+    knot.core
+    knot.config
+forbidden_modules = knot.api
 
 # ── Contract 7（v0.4.5 新增）：core.crypto 仅限 repositories / scripts / 自身 ──
 # 加密器是横切工具但敏感度高 — 显式禁止 api / services / adapters / models 直接 import；
@@ -83,9 +83,9 @@ forbidden_modules = bi_agent.api
 name = core.crypto 仅 repositories / scripts / 自身可用
 type = forbidden
 source_modules =
-    bi_agent.api
-    bi_agent.services
-    bi_agent.adapters
-    bi_agent.models
-forbidden_modules = bi_agent.core.crypto
+    knot.api
+    knot.services
+    knot.adapters
+    knot.models
+forbidden_modules = knot.core.crypto
 allow_indirect_imports = True

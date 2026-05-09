@@ -1,5 +1,5 @@
 """upload_repo happy-path 单测。"""
-from bi_agent.repositories import upload_repo
+from knot.repositories import upload_repo
 
 
 def test_create_list_get(tmp_db_path):

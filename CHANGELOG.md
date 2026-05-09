@@ -5,7 +5,169 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.4.6 审计日志（who-did-what）
+## [Unreleased] - v0.5.0 (C0) KNOT 重命名 + Foundation
+
+> v0.4.6 治理三部曲收官后**准生产前最后一刀大改**的第一步。Loop Protocol v3 **首次完整 PATCH 内施行**：
+> v0.5 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.4 守护者 Stage 3 终审
+> （13 红线 R-67~R-79，含 R-74 密文兼容性探针 / R-77 跨平台 / R-78 conftest 同步等）。
+>
+> 本 PATCH = v0.5.0 commit 序列 **C0 only**（rename + foundation）；C1 SQL AST 推 v0.5.1；C2~Cn 各开 PATCH。
+
+### ⚠️ BREAKING — 必读
+
+1. **包名变更 `bi-agent` → `knot`**：升级前必跑 `pip uninstall bi-agent && pip install -e .`（开发环境）
+2. **env 双源 + 旧名 deprecation**：
+   - `KNOT_MASTER_KEY` 优先（v0.5.0 新名）
+   - `BIAGENT_MASTER_KEY` 仍兼容（启动见 deprecation warn）；**v1.0 移除**
+   - 同时设置且值不同 + DB 有 `enc_v1:` 数据 + 旧 KEY 解密成功新 KEY 失败 → R-74 探针 `sys.exit(1)` 防数据永久丢失
+3. **DB 自动 startup migration**：首次启动检测 `knot/data/bi_agent.db` → 自动 rename `knot/data/knot.db`，留 timestamped `bi_agent.db.v044-<ts>.bak`；幂等
+4. **Docker volume 用户**：`-v` 路径变更
+   - 旧：`docker run -v /host/path:/app/bi_agent/data ...`
+   - 新：`docker run -v /host/path:/app/knot/data ...`
+5. **导入路径**：`from bi_agent.X import Y` → `from knot.X import Y`（132 个 .py 全替换）
+6. **services/knot/ → services/agents/**：守护者整体审核新发现 `knot/services/knot/` 重名冲突，子目录改 `services/agents/`（产品名 knot 留顶层；子目录通用语义 — 里面就是 3 个 agent）
+
+### Architecture（不增 contract）
+
+7 import-linter contracts 全程 KEPT（v0.4.5 7 → v0.5.0 7）：
+
+- Contract 1-6 source/forbidden 全部 `bi_agent.X` → `knot.X` 替换
+- **Contract 7 `crypto-only-in-allowed-callers`** forbidden_modules 必须从 `bi_agent.core.crypto` 改 `knot.core.crypto`（**关键 R-71**：否则 lint-imports 显示 KEPT 但实际 forbidden 项不存在 = 契约失效但不报警）
+- `allow_indirect_imports = True` 行为不变（v0.4.5 设定）
+
+### Added
+
+#### D-2 测试骨架（5 永久守护 + 1 一次性 D-5 删除）
+
+- `tests/test_rename_smoke.py` — R-67/R-70/R-79 brand 字面量 + R-72 routes/version
+- `tests/test_contracts_renamed.py` — R-71 7 contracts + Contract 7 forbidden 同步
+- `tests/test_env_dual_source.py` — R-68 4 组合 + R-74 密文兼容性探针 4 case
+- `tests/scripts/test_db_migration.py` — R-69 4 场景 + R-76 atomic（mock os.rename / shutil.copy2 抛错）
+- `tests/integration/test_audit_continuity.py` — R-75 audit_log + 加密字段 rename 后可读
+- ~~`tests/scripts/test_v050_rename.py`~~ — R-77 跨平台脚本守护（D-5 删，与一次性脚本同生死）
+
+#### D-3 替换实施
+
+- `knot/scripts/_v050_rename.py`（D-5 删）— Python 跨平台一次性替换；4 phase 顺序锁定
+- **R-77 跨平台**：禁用 `sed -i ''`（macOS BSD vs Linux GNU 不兼容）；改用 `pathlib + str.replace`
+- **字面量保护占位** `__V050_PRESERVE_BIAGENT_DB__` — 防 `bi_agent.db` 被误替成 `knot.db`
+- **Phase 3 顺序漏洞主动发现 + 幂等修复**（见守护者结构性教训 §2）
+- 边缘字面量 6 处手工补：`.importlinter` root_package / `pyproject.toml include glob` / `settings.py SQLITE_DB_PATH default` / `engine_cache.py _BIAGENT_DB → _KNOT_DB` / `logging_setup.py 4 处下划线模式` / CI workflow
+
+#### env 双源 + R-74 密文兼容性探针
+
+- `knot/core/crypto/fernet.py` 重写：`_NEW_ENV` / `_OLD_ENV` + `_read_master_key()` + `loaded_env_name()`
+- R-74 `_find_enc_probe_in_db()`：用 stdlib sqlite3 直读 `enc_v1:` 数据探针（**不破坏 Contract 3** core-no-business — sqlite3 是 stdlib，合规）
+- R-74 `_try_decrypt()`：旧 KEY 成功新 KEY 失败 → `sys.exit(1)` + 强烈警报（防数据永久丢失场景）
+- `from __future__ import annotations`：兼容 Python 3.9（PEP 604 `X | None` 在 py3.10+ 才原生支持）
+
+#### DB startup migration（R-69 + R-76）
+
+- `knot/scripts/migrate_db_rename_v050.py`（永久 — 一次性脚本性质但保留以备 rollback / dry-run 调试）
+- R-69 4 场景幂等（`no_db_yet` / `already_migrated` / `migrated` / `both_exist` raise RuntimeError）
+- R-76 atomic 异常保护：`shutil.copy2 + Path.rename` try/except；rename 失败 → 删 bak + 老 DB 保留（绝不允许 DB 消失）
+- 双轨支持：startup hook 调用 + 独立 entrypoint `python3 -m knot.scripts.migrate_db_rename_v050 [--dry-run --data-dir <path>]`
+- 沿袭 v0.4.5 R-46 timestamped backup 命名 `bi_agent.db.v044-<ts>.bak`
+
+#### main.py 启动改造
+
+- FastAPI `title="KNOT"` `version="0.5.0"`
+- `migrate_db_rename(_DATA_DIR)` 在 `init_db()` 之前
+- 启动 banner 用 `loaded_env_name()` 显示实际加载 env 名（KNOT_MASTER_KEY 或 BIAGENT_MASTER_KEY）
+- 错误文案改 KNOT brand + dual env hint（推荐 KNOT_MASTER_KEY；提及 BIAGENT_MASTER_KEY 兼容至 v1.0）
+
+#### conftest.py R-78 + dotenv 隔离
+
+- autouse fixture `_master_key_for_tests` 改 `setenv("KNOT_MASTER_KEY")`（默认走仅新 key 路径，避免 caplog deprecation 污染）
+- `tests/test_env_dual_source.py` 显式 unset 全局 fixture（防 autouse 污染 R-68 双源测试）
+- `test_R45` subprocess 测试用 `cwd=tmp_path + PYTHONPATH 注入` 隔离 .env 自动发现（守护者教训 §1）
+
+#### frontend
+
+- `vite.config.js` outDir `'../bi_agent/static'` → `'../knot/static'`
+- `Chat.jsx:223` CSV 导出文件名前缀 `bi-agent-${ts}.csv` → `knot-${ts}.csv`（D5 拍板 brand 一致性）
+
+#### 配置 + CI
+
+- `pyproject.toml` `name = "bi-agent"` → `"knot"`；`include = ["bi_agent*"]` → `["knot*"]`
+- `Dockerfile` 3 处 path + `uvicorn knot.main:app`
+- `start.sh` 同步替
+- `.github/workflows/ci.yml`：matrix env 4 组合 × ubuntu+macOS 双平台（R-72/R-77 完整覆盖）
+
+### 偿还红线 13/13（R-67~R-79）
+
+| ID | 内容 | 守护机制 |
+|---|---|---|
+| R-67 | 包名 / 包目录 / DB 文件名一致 | grep 守护测试 |
+| R-68 | env 双源优先级（KNOT > BIAGENT；4 组合） | 单元测试 + CI matrix |
+| R-69 | DB migration 幂等 + timestamped bak + 双 db fail-fast | 4 场景测试 |
+| R-70 | services/knot → services/agents 强制（无 alias） | grep 守护测试 |
+| R-71 | contract 数仍 7 + Contract 7 forbidden 同步替换 `knot.core.crypto` | lint-imports + assertion |
+| R-72 | CI matrix 4 组合 + routes 72 + import smoke | CI matrix job |
+| R-73 | knot/ 包内严禁 bi_agent 命名 | grep 守护 |
+| R-74 | 密文兼容性探针 — 双 key 不同值时验证旧/新解密能力 | 单元测试 4 case |
+| R-75 | DB rename 后 v0.4.6 audit_log 数据完整可读 | 集成测试 2 case |
+| R-76 | 迁移备份原子性 — rename 失败 → 删 bak 保老 DB | 单元测试 2 case |
+| R-77 | 跨平台 Python 脚本（禁 sed） | 一次性测试守护（D-5 删）+ macOS+Linux CI |
+| R-78 | conftest 同步修改 + R-68 测试隔离 + dotenv 隔离 | grep + autouse override + cwd=tmp_path |
+| R-79 | brand 字面量 grep 守护（业务代码） | grep 守护测试 |
+
+### 验收数据
+
+- **pytest 375 passed** in 75.7s（v0.4.6 362 → +13 = 19 新 - 6 一次性删）
+- **lint-imports 7 contracts KEPT, 0 broken**
+- **ruff All checks passed**（顺手清理 4 处 `typing.Iterable` → `collections.abc.Iterable` PEP 585）
+- **frontend npm run build** 产物 `knot/static/`（vite outDir 替换正确）
+- **路由数 72 不变**（v0.4.6 锚点；本 PATCH 纯 rename，无新增路由）
+- **env 2 组合本地预演**（仅新 / 仅旧）— deprecation warn 文案精准
+- **R-79 grep 守护**：业务代码（agent prompt / repositories / api）0 命中 brand 字面量
+- **R-67 grep 守护**：knot/ 内 bi_agent 命中 28 → 9（剩 9 全合法白名单业务字面量）
+
+### Loop Protocol v3 首次完整 PATCH 内施行
+
+| 阶段 | 责任方 | 产出 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 `docs/plans/v0.5.0-rename-and-foundation.md`（D1-D7 决策点 + R-67~R-72 6 红线） |
+| Stage 2 | 资深 + Codex | D1-D7 拍板（A 全采纳）+ R-73 增量 |
+| Stage 3 | v0.4 守护者 | 终审整合（R-74/R-75/R-76 答资深 3 维度 + R-77/R-78/R-79 守护者预查 + 5 修订）|
+| 执行 | v0.5 执行者 | D-1 ~ D-7 七步切片，每完成停下汇报守护者闸门复核 |
+
+### 守护者结构性教训（留 v0.5.x / v0.6 PATCH 警示）
+
+#### 1. dotenv 向上自动发现 `.env` 文件 — 测试隔离的隐藏 trap
+
+**场景**：D-4 调试 `test_R45_startup_missing_key_prints_friendly_error_and_exits_1` subprocess 测试时发现，**worktree 父目录** `.env` 含 `BIAGENT_MASTER_KEY`，settings.py 的 `load_dotenv()` 默认 `find_dotenv()` 向上搜索 → subprocess 即使 `env.pop("BIAGENT_MASTER_KEY")` 也会被 .env 注入回来。
+
+**修复**：subprocess test 用 `cwd=tmp_path` 隔离 .env 自动发现 + `PYTHONPATH` 注入 worktree 让 knot 模块仍可 import。
+
+**警示**：未来任何 subprocess 测试跑 main app 必须 cwd 隔离。这也是真实生产场景隐藏 issue（用户多实例部署 / dev .env 残留）。
+
+#### 2. R-77 替换顺序漏洞 — 包重命名脚本输入前提
+
+**场景**：守护者终审 §7 Phase 3 设计「① `knot.services.knot` → `knot.services.agents`」前提**错了**——git mv 不动字符串字面量，源码里实际仍是 `from bi_agent.services.knot import`，不匹配 ①；② `bi_agent.X` → `knot.X` 跑后变成 `knot.services.knot`，之后无人再处理 → 残留。
+
+**修复**：执行者发现并扩展 ① 同时覆盖两种前缀（`bi_agent.services.knot.` / `knot.services.knot.`）。脚本幂等，重跑补 12 个文件。
+
+**警示**：未来任何包重命名 PATCH，sed/Python 替换的输入前提必须以**源码字面量**为准，不以"目录已 mv 的理想形态"为准。
+
+#### 3. PEP 585 顺手清理 typing → collections.abc
+
+py3.9+ 推荐 `from collections.abc import Iterable` 取代 `from typing import Iterable`。v0.4.x 累积 4 处旧 typing import（含执行者新写的 `_v050_rename.py` 一处），ruff PEP 585 检测 + 自动 fix 已清理。
+
+**警示**：未来新代码直接用 `collections.abc`，不要再写 `from typing import Iterable`。
+
+### Out-of-Scope（明确推迟）
+
+- ~~SQL AST 预校验~~ → v0.5.1（C1）
+- ~~后端 / 前端瘦身（sql_planner / Chat.jsx 等）~~ → C2/C3 各 PATCH
+- ~~Claude Design UI 重构~~ → C5+（多 PATCH）
+- ~~lark.py stub 删 / sync LLM API @deprecated~~ → Cn cleanup
+- ~~/api/v1/ 路由前缀（CHANGELOG line 642 标记 v0.5.0）~~ → 独立 PATCH
+- ~~messages 表 26 列瘦身（v0.4.2 R-S6）~~ → v0.5.x 评估迁移工具
+
+---
+
+## [v0.4.6] - 审计日志（who-did-what）
 
 > v0.4.5 数据加密收官后第一个延伸 PATCH。Loop Protocol v2 三阶段走完：
 > v0.4 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.3 守护者 Stage 3 终审

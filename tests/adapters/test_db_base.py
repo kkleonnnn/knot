@@ -1,5 +1,5 @@
 """adapters/db/base 契约单测。"""
-from bi_agent.adapters.db.base import BusinessDBAdapter, is_safe_sql
+from knot.adapters.db.base import BusinessDBAdapter, is_safe_sql
 
 
 def test_is_safe_sql_select():

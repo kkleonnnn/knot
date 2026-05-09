@@ -6,7 +6,7 @@
 - 兜底 BIAgentError 子类 + 未注册类 → internal
 - 非 BIAgentError 异常走 to_response_unknown
 """
-from bi_agent.models.errors import (
+from knot.models.errors import (
     BIAgentError,
     BudgetExceededError,
     BusinessDBError,
@@ -19,7 +19,7 @@ from bi_agent.models.errors import (
     ProviderNotImplementedError,
     UnsafeSQLError,
 )
-from bi_agent.services import error_translator
+from knot.services import error_translator
 
 
 def test_R25_budget_exceeded_is_not_retryable():

@@ -10,4 +10,4 @@ repos:
     rev: v2.1
     hooks:
       - id: import-linter
-        files: ^bi_agent/
+        files: ^knot/

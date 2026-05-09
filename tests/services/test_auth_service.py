@@ -1,5 +1,5 @@
 """auth_service happy-path 单测。"""
-from bi_agent.services import auth_service
+from knot.services import auth_service
 
 
 def test_hash_and_verify_roundtrip():

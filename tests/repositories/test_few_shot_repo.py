@@ -1,5 +1,5 @@
 """few_shot_repo happy-path 单测。"""
-from bi_agent.repositories import few_shot_repo
+from knot.repositories import few_shot_repo
 
 
 def test_empty_initial(tmp_db_path):

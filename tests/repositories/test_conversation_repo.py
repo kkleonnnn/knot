@@ -1,5 +1,5 @@
 """conversation + message_repo happy-path 单测。"""
-from bi_agent.repositories import conversation_repo, message_repo, user_repo
+from knot.repositories import conversation_repo, message_repo, user_repo
 
 
 def _admin_id(_):

@@ -13,9 +13,9 @@ import asyncio
 
 import pytest
 
-from bi_agent.repositories import conversation_repo, message_repo, user_repo
-from bi_agent.repositories.base import get_conn
-from bi_agent.services import cost_service
+from knot.repositories import conversation_repo, message_repo, user_repo
+from knot.repositories.base import get_conn
+from knot.services import cost_service
 
 
 @pytest.mark.asyncio

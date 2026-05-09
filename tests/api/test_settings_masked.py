@@ -48,7 +48,7 @@ def test_R39_patch_empty_api_key_preserves_original(client, auth_headers):
                json={"openrouter_api_key": ""},
                headers=auth_headers)
     # 验证：repo 拿到的明文仍是原值
-    from bi_agent.repositories import settings_repo
+    from knot.repositories import settings_repo
     assert settings_repo.get_app_setting("openrouter_api_key") == "sk-or-original-LAST"
 
 
@@ -61,7 +61,7 @@ def test_R39_patch_mask_placeholder_preserves_original(client, auth_headers):
     client.put("/api/admin/api-keys",
                json={"openrouter_api_key": "•" * 8 + "LAST"},
                headers=auth_headers)
-    from bi_agent.repositories import settings_repo
+    from knot.repositories import settings_repo
     assert settings_repo.get_app_setting("openrouter_api_key") == "sk-or-keep-this-LAST"
 
 
@@ -73,7 +73,7 @@ def test_R39_patch_new_value_overwrites(client, auth_headers):
     client.put("/api/admin/api-keys",
                json={"openrouter_api_key": "sk-or-NEW-VALUE-2026"},
                headers=auth_headers)
-    from bi_agent.repositories import settings_repo
+    from knot.repositories import settings_repo
     assert settings_repo.get_app_setting("openrouter_api_key") == "sk-or-NEW-VALUE-2026"
 
 
@@ -100,7 +100,7 @@ def test_R39_admin_list_datasources_does_not_leak_db_password(client, auth_heade
 
 def test_R39_mask_helper_unit():
     """单元测试 mask_secret helper（边界）。"""
-    from bi_agent.api._secret import mask_secret
+    from knot.api._secret import mask_secret
     assert mask_secret("") == ""
     assert mask_secret(None) == ""
     assert mask_secret("abc") == "••••"
@@ -111,7 +111,7 @@ def test_R39_mask_helper_unit():
 
 def test_R39_should_update_secret_helper_unit():
     """单元测试 should_update_secret 四种输入分类。"""
-    from bi_agent.api._secret import should_update_secret
+    from knot.api._secret import should_update_secret
     # None → 字段缺失
     assert should_update_secret(None, "old") == (False, "old")
     # "" 空白 → 保留

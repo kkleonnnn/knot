@@ -19,7 +19,7 @@ def test_app_has_72_routes(client):
     v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。
     v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。
     v0.4.6: +audit-log GET (1) + audit-config GET/PUT (2) → 69 → 72。"""
-    from bi_agent.main import app
+    from knot.main import app
     assert len(app.routes) == 72
 
 
@@ -82,7 +82,7 @@ def test_conversation_create_list_delete(client, auth_headers):
     assert all(c["id"] != cid for c in after.json())
 
 
-# ── Catalog admin 编辑（api.catalog → services.knot.catalog → repositories.settings_repo） ──
+# ── Catalog admin 编辑（api.catalog → services.agents.catalog → repositories.settings_repo） ──
 
 def test_catalog_get_returns_default(client, auth_headers):
     r = client.get("/api/admin/catalog", headers=auth_headers)
@@ -148,7 +148,7 @@ def _seed_message_with_intent(client, headers, intent: str, question: str) -> in
     create = client.post("/api/conversations", json={"title": "intent 测试"}, headers=headers)
     assert create.status_code == 200
     cid = create.json()["id"]
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     save_message(
         conv_id=cid, question=question,
         sql="SELECT 1", explanation="", confidence="high",
@@ -165,7 +165,7 @@ def test_get_messages_aliases_sql_text_to_sql(client, auth_headers):
     前端 ResultBlock 解构 msg.sql 拿不到值，⭐ 收藏按钮 canPin 永远 false。"""
     create = client.post("/api/conversations", json={"title": "alias 测试"}, headers=auth_headers)
     cid = create.json()["id"]
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     save_message(
         conv_id=cid, question="昨天 GMV", sql="SELECT SUM(pay_amount) FROM orders",
         explanation="", confidence="high",
@@ -207,7 +207,7 @@ def test_message_intent_detail_round_trips_in_json(client, auth_headers):
 def _seed_msg_for_pin(client, headers, rows=None):
     create = client.post("/api/conversations", json={"title": "v0.4.1 smoke"}, headers=headers)
     cid = create.json()["id"]
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     mid = save_message(
         conv_id=cid, question="昨天 GMV", sql="SELECT SUM(pay_amount) FROM orders",
         explanation="", confidence="high",
@@ -263,7 +263,7 @@ def test_cost_stats_returns_breakdown_structure(client, auth_headers):
     # 先种一条带分桶的 message（admin 自己的 conv）
     create = client.post("/api/conversations", json={"title": "cost stat seed"}, headers=auth_headers)
     cid = create.json()["id"]
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     save_message(
         conv_id=cid, question="Q", sql="SELECT 1", explanation="ok", confidence="high",
         rows=[{"a": 1}], db_error=None,
@@ -304,13 +304,13 @@ def test_R22_non_stream_query_returns_budget_status(client, auth_headers, monkey
     monkeypatch llm_client.generate_sql 返伪 SQL（避免 LLM key 失败）；
     验证响应 JSON 含 R-22 双字段且 budget 评估正确。
     """
-    from bi_agent.repositories import budget_repo, user_repo
+    from knot.repositories import budget_repo, user_repo
     uid = user_repo.get_user_by_username("admin")["id"]
     budget_repo.upsert("user", str(uid), "monthly_cost_usd", 5.0, action="warn")
     user_repo.update_user_usage(uid, 0, 0, 7.0, 0)  # 已超阈值
 
     # 注入假 engine + 假 generate_sql
-    from bi_agent.api import query as query_module
+    from knot.api import query as query_module
     monkeypatch.setattr(query_module, "get_user_engine",
                         lambda u: (object(), "## fake.table\n- col1 INT"))
     monkeypatch.setattr(query_module.llm_client, "generate_sql",
@@ -342,7 +342,7 @@ def test_recovery_stats_returns_structure_and_filters_legacy(client, auth_header
     cid = create.json()["id"]
 
     # legacy 行（绕过 save_message 守护，模拟 v0.4.2 之前历史）
-    from bi_agent.repositories.base import get_conn
+    from knot.repositories.base import get_conn
     conn = get_conn()
     conn.execute(
         "INSERT INTO messages (conversation_id, question, agent_kind, recovery_attempt) "
@@ -353,7 +353,7 @@ def test_recovery_stats_returns_structure_and_filters_legacy(client, auth_header
     conn.close()
 
     # sql_planner 行 3 次自纠正
-    from bi_agent.repositories.message_repo import save_message
+    from knot.repositories.message_repo import save_message
     save_message(
         cid, "Q", "SELECT 1", "ok", "high",
         [{"a": 1}], None, 0.001, 100, 50, 0,

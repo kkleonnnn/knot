@@ -10,8 +10,8 @@
 """
 import pytest
 
-from bi_agent.core.crypto import decrypt, encrypt, is_encrypted
-from bi_agent.core.crypto.fernet import (
+from knot.core.crypto import decrypt, encrypt, is_encrypted
+from knot.core.crypto.fernet import (
     ENC_PREFIX,
     CryptoConfigError,
     assert_master_key_loaded,
@@ -42,8 +42,9 @@ def test_encrypt_same_plaintext_different_ciphertext():
 
 
 def test_master_key_missing_raises_config_missing_error(monkeypatch):
-    """R-34：BIAGENT_MASTER_KEY 缺失 → CryptoConfigError。"""
+    """R-34：master key 缺失 → CryptoConfigError。"""
     monkeypatch.delenv("BIAGENT_MASTER_KEY", raising=False)
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68 双源后必须同步清理
     get_crypto_adapter.cache_clear()
     with pytest.raises(CryptoConfigError, match="未设置"):
         assert_master_key_loaded()
@@ -52,6 +53,7 @@ def test_master_key_missing_raises_config_missing_error(monkeypatch):
 def test_master_key_invalid_format_raises(monkeypatch):
     """R-42：非 base64-urlsafe 32 字节 → 友好错误（非裸 ValueError）。"""
     monkeypatch.setenv("BIAGENT_MASTER_KEY", "not-a-valid-fernet-key")
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68：测旧 KEY 无效路径
     get_crypto_adapter.cache_clear()
     with pytest.raises(CryptoConfigError, match="格式无效"):
         assert_master_key_loaded()
@@ -69,6 +71,7 @@ def test_decrypt_wrong_key_raises_crypto_config_error(monkeypatch):
     # 切换到另一个 key
     new_key = "RbU1qJOKDpyRpaeQEvO7G0YkU9tnxAjLfqg0gQNFLjI="  # 另一个有效 Fernet key
     monkeypatch.setenv("BIAGENT_MASTER_KEY", new_key)
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68：测旧 KEY 切换
     get_crypto_adapter.cache_clear()
     with pytest.raises(CryptoConfigError, match="解密失败"):
         decrypt(ct)
