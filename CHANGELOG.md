@@ -5,7 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.0 (C0) KNOT 重命名 + Foundation
+## [Unreleased] - v0.5.1 (C1) SQL AST 预校验（笛卡尔积硬防御）
+
+> v0.5.0 KNOT 重命名收官后第二刀：1.0 release **阻塞偿还**。在 v0.4.1.1 已建立的 prompt 三层防御之上，加 **后端 sqlglot AST 硬防御** —— 笛卡尔积 / 恒真 ON 检测，触发后让 sql_planner ReAct 重生成。
+>
+> Loop Protocol v3 第二次完整 PATCH 内施行：v0.5 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.4 守护者 Stage 3 终审。**14 红线 R-80~R-93** 全部偿还，**核心代码 182 行 ≤ 200 预算**（R-84），不引新依赖（sqlglot 既有）。
+
+### Added — SQL AST 笛卡尔积守护层
+
+- **`knot/services/sql_validator.py`** [NEW, 149 行] — 独立纯函数模块（D1 决策；为 v0.5.2 sql_planner 瘦身预留解耦）
+  - `is_cartesian(sql) -> tuple[bool, str]` 检测 4 类反模式：
+    - **C1** 旧式逗号 `FROM a, b`（文本侧 — sqlglot 30.x 与缺 ON 同 AST）
+    - **C2** 显式 `CROSS JOIN`
+    - **C3** JOIN 缺 `ON` / `USING`
+    - **C4** 恒真 ON：`Boolean True` / `Literal=Literal` 且相等（`1=1` / `'x'='x'`）
+  - **R-83 递归**：`tree.find_all(exp.Select)` 自动覆盖 CTE / 子查询，禁止 LLM 用嵌套绕过
+  - **R-92 建设性 reason**：`"Cartesian product: tables [users, orders] joined without ON/USING condition. Add 'ON <key>' (see RELATIONS for the keys)."` 模板化输出，便于 ReAct LLM 修正
+- **`knot/services/agents/sql_planner.py`** [EDIT, +33 行] — ReAct 接入
+  - `_run_tool` final_answer 分支：cartesian 优先于 fan-out（R-85 — 更基础错误先返）
+  - 返 `__REJECT_CARTESIAN__:<reason>`（与 v0.4.1.1 `__REJECT_FAN_OUT__:` 同协议）
+  - **sync `run_sql_agent` + async `arun_sql_agent` 双路径**（R-82）加 `cart_reject_count` 局部计数器
+  - **R-91 ReAct 无限循环保护**：连续 ≥ 3 次 `__REJECT_CARTESIAN__` 强制 `break` + `final_error`，与 `max_steps` 共享预算（不耗尽 5 步）
+  - **性能**：`is_cartesian` 仅在 `final_answer` 分支调用一次（与 `_is_fan_out` 同位置）
+
+### Test
+
+- **`tests/services/test_sql_validator.py`** [NEW, 23 unit case]
+  - **D-2 优先组**（Stage 3 守护者末段指示）：R-83 CTE/子查询递归 (3) + C4 恒真 ON (4)
+  - C1 / C2 / C3 / 正例（USING / 单表 / 三表链 JOIN）/ R-89 输入预检 / R-80 fail-open / **R-93 v0.4.5 enc_v1: 加密字段值不被误判**
+- **`tests/services/test_sql_planner_cartesian.py`** [NEW, 8 integration case]
+  - R-82 `_run_tool` 单元 (3) + **R-85 cartesian 优先 fan-out** + **R-91 sync + async 双路径强制终止** + R-91 收敛恢复 + R-80 sqlglot 失败 fail-open
+- 测试增量 31 case：v0.5.0 baseline 400 passed → v0.5.1 baseline **431 passed** / 112 skipped（R-88 校正：plan §5 写 ≥ 388 是按 v0.5.0 plan §6 数字 375 推算的，实际 baseline 400 + 31 = 431）
+
+### Architecture（不增 contract）
+
+7 import-linter contracts 全程 KEPT（与 v0.5.0 同条数）：
+- `services` 层新增 `sql_validator.py` 不动现有 4 层依赖关系；`R-90` 守护：纯函数禁 `import knot.adapters.db / knot.repositories`
+- `R-87` 守护：`api → services → repositories | adapters → models` 依赖方向不变
+
+### Decisions Locked (D1-D5)
+
+| ID | 锁定 | 依据 |
+|---|---|---|
+| **D1** | 独立 `knot/services/sql_validator.py` | 为 v0.5.2 sql_planner 瘦身预留解耦 |
+| **D2** | 跨表 WHERE 无前缀检测 → **推迟**（v0.5.2 后） | 无 Schema Cache 误杀风险高 |
+| **D3** | sqlglot 缺包/解析失败 → **fail-open** | 安全 guardrail 已在 doris.py 闭环；本验证器是质量守护 |
+| **D4** | 旧式逗号 `FROM a,b WHERE a.id=b.id` 一律拒 | 维护 prompt/runtime 语义一致性（v0.4.1.1 prompt 已禁） |
+| **D5** | fan-out regex → AST 升级 → **不动** | 单 PATCH 单核心问题 |
+
+### Red-lines（R-80~R-93 共 14 条全部偿还）
+
+| ID | 来源 | 内容 | 落地 |
+|---|---|---|---|
+| **R-80** | 执行者 | sqlglot 缺包/解析失败 → fail-open + warning | `is_cartesian` import + parse try/except + logger.warning |
+| **R-81** | 执行者 | 4 类笛卡尔积全拒，reason 含表名 | `_REASON_TEMPLATES` 4 类 + `_extract_comma_tables` |
+| **R-82** | 执行者 | `__REJECT_CARTESIAN__:` 协议 + sync/async 双 ReAct 不 break | sql_planner `_run_tool` + `cart_reject_count` |
+| **R-83** | 执行者 | CTE / 子查询递归检测 | `tree.find_all(exp.Select)` 内层遍历 |
+| **R-84** | 执行者 | 核心代码 ≤ 200 行硬约束 | validator 149 + planner +33 = **182** ≤ 200 ✓ |
+| **R-85** | 执行者 | 不破坏 fan-out；同时触发 cartesian 优先 | final_answer 分支 cartesian 检测前置；fan-out 7 测试 100% 绿 |
+| **R-86** | 执行者 | 不引新依赖 | `requirements.txt` 不动；sqlglot 既有 |
+| **R-87** | 执行者 | 7 contracts KEPT 不动 | `lint-imports` 0 broken |
+| **R-88** | 执行者 | 测试增量 ≥ 13 | 实际 +31 (23 unit + 8 integration) |
+| **R-89** | Stage 2 | 递归深度限制 | `_MAX_SQL_LEN=100k` + `_MAX_PAREN_DEPTH=100` 入口预检 |
+| **R-90** | Stage 2 | Validator 纯函数禁 DB | sql_validator.py 0 import `adapters.db` / `repositories` |
+| **R-91** | Stage 3 | ReAct 无限循环保护（≥3 次拒收终止） | `cart_reject_count` 共享 `max_steps` 预算 |
+| **R-92** | Stage 3 | 建设性 reason | `_REASON_TEMPLATES` 4 类含修复指引 |
+| **R-93** | Stage 3 | v0.4.5 加密列兼容 | 单元测试覆盖 `WHERE k = 'enc_v1:...'` 不误判 |
+
+### Loop Protocol v3 — 第二次完整施行
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.1-sql-ast-validator.md](docs/plans/v0.5.1-sql-ast-validator.md)（D1-D5 决策点 + R-80~R-88 9 红线） |
+| Stage 2 | 资深架构师 + Codex | Redline / 评分 / 风险点（D1-D5 全 A/B 锁定 + 新增 R-89 R-90） |
+| Stage 3 | v0.4 守护者 | 终审意见（GO + 新增 R-91 R-92 R-93 + D-2 测试骨架优先指示 + 性能注意） |
+| Stage 4 | v0.5 执行者 | 4-commit 落地（C1 validator + C2 planner + C3 version + C4 docs），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码（合规 — Loop Protocol v3 § 角色定义）；v0.3 远古守护者 dormant 未激活（PATCH 内常规流程，未达 MINOR 滚动整体审核仪式条件）。
+
+
 
 > v0.4.6 治理三部曲收官后**准生产前最后一刀大改**的第一步。Loop Protocol v3 **首次完整 PATCH 内施行**：
 > v0.5 执行者 Stage 1 草案 → 资深 + Codex 辅助 AI 初审 → v0.4 守护者 Stage 3 终审
