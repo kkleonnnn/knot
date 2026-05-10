@@ -125,6 +125,65 @@ PATCH 内（v0.5.0 → v0.5.1 → …）**不切换角色**，仍由同一执行
 | v0.5.5 | Cn cleanup（遗留清理） | R-139~R-153 (15) | **首次净行数减少（Negative Delta -18）**；物理删 `lark.py` stub；8 处 sync API 标 `[DEPRECATED v0.5.5; target removal in v1.0]`；测试受控降级 432→430；**第 6 次 v3 施行** |
 | v0.5.6 | C5 Claude Design UI 重构 — Foundation | R-154~R-169 (16) | **第二次 Negative Delta -136**；Shared.jsx + utils.jsx + App.css 视觉重构 — OKLCH 蓝青 195° brand + PingFang/HarmonyOS 字体 + Icon viewBox 24 stroke 1.6；R-167 语义色翠绿 145°/琥珀 85° 远离 brand；R-169 CHART_COLORS hue 45° 均匀分布；R-156 18 屏 0 修改自动换皮；R-158/159 Shared/utils 契约 9+8 exports byte-equal；**第 7 次 v3 施行** |
 | v0.5.7 | C5+ Login 屏首屏复刻 pilot | R-170~R-186 (17) | **1 屏 1 PATCH 模式确立**；Shared.jsx +3 exports (KnotMark/Wordmark/Logo) 9→12；decor/NarrativeMotif.jsx [NEW 112 行] React.memo + OKLCH color-mix tint；Login.jsx 116→178 demo grid 1.05fr 1fr + KNOT tagline + "进入 KNOT" + "7 天内自动登录" + 页脚 v0.5.7；R-184 input focus 蓝青；R-186 抗诱惑 — Shell.jsx 严守 0 改；R-181 三处版本同步（main.py + smoke + Login 页脚）；432 tests / 112 skipped；**第 8 次 v3 施行** |
+| v0.5.8 | Cn+ Chore — CI fix + Visual Replication Protocol | R-187~R-191 (5) | docs+ci chore；偿还 v0.5.0 R-72 留下的 ci.yml boot smoke 硬编 0.5.0 bug（R-187 动态读 main.py）；CLAUDE.md 加 § Visual Replication Protocol 段（R-188）提炼 v0.5.7 经验为 v0.5.8+ 屏复刻铺路；432 tests / 112 skipped 不变；7 contracts KEPT；**第 9 次 v3 施行**（简化 — 跳 Stage 2/3 直接 Stage 4，资深 ack） |
+
+
+## § Visual Replication Protocol（v0.5.7+ 屏复刻通用约束）
+
+> **触发**：v0.5.7 起每个屏复刻 PATCH（home / shell / thinking / favorites / 9 admin tabs）
+> **依据**：v0.5.7 Login pilot 实证经验提炼；适用于 v0.5.8+ 17 屏渐进复刻
+> **与 Loop Protocol v3 关系**：本协议是视觉复刻专项约束，**不替代** v3 三阶段评审；每屏 PATCH 仍走 Stage 1+2+3+4
+
+### 路径常量
+
+- **Demo 设计稿**：`/Users/kk/Documents/knot_ui_demo/v0.5/artboards/*.jsx`（设计代理，**不进产品**）
+- **产品屏**：`frontend/src/screens/*.jsx`
+- **共享 Foundation**（v0.5.6 + v0.5.7 落地）：
+  - `Shared.jsx` — buildTheme(dark) 25 字段 + I 36 icons + iconBtn/pillBtn + CHART_COLORS 8 色 + LineChart/BarChart/PieChart/TypingDots + KnotMark/KnotWordmark/KnotLogo 三件套
+  - `utils.jsx` — Modal/ModalHeader/Input/Select/Spinner/toast/useTheme/usePersist
+  - `decor/NarrativeMotif.jsx` — 原子 motif SVG（React.memo + OKLCH color-mix tint）
+
+### 设计系统（v0.5.6 锁定，严禁扩展）
+
+- **色彩**：OKLCH 单一色空间 — brand 195° / success 145° / warn 85° / error 27° / chart 8 色 hue 45° 均匀分布
+- **字体**：HarmonyOS Sans SC / PingFang SC / Inter（sans）+ JetBrains Mono / Geist Mono（mono）
+- **图标**：I 36 names viewBox 24×24 stroke 1.6（Logo 用 KnotMark viewBox 100×100，语义不同）
+- **OKLCH fallback**：R-165 :root CSS Variables + `@supports not` 已兜底，新代码无需重复
+
+### 视觉模型（v0.5.7 验证）
+
+- **底色面板** → fluid 100%（铺满 viewport 边缘；不要 artboard 整体居中）
+- **元素** → 尺寸不变，位置 anchor 到 panel 边角（与主题切换 fixed 右上同思路）
+- demo 是 1200×760 artboard 设计代理，产品按"viewport-fluid + element-anchored"模式呈现，**不要照搬 artboard 尺寸**
+
+### byte-equal 红线（每屏 PATCH 通用，沿用 v0.5.7 R-170~172/178/179/186 模板）
+
+- export name + props 签名 byte-equal（App.jsx / Shell.jsx / 父组件调用 0 改动）
+- 业务链路（api.* / state hooks / SSE handler / localStorage key）byte-equal
+- 错误文案 / 提示文案字面 byte-equal（i18n 留 v0.6+）
+- 其他 17 屏 + 子模块 byte-equal（`git diff origin/main HEAD -- frontend/src/screens/` 仅含目标屏）
+- App.jsx / api.js / index.css / main.jsx / utils.jsx / Shell.jsx byte-equal（除非 PATCH 明确改 Shell 屏）
+
+### 抗诱惑清单（5 条 — v0.5.7 R-186 经验）
+
+- 即使 Foundation 资产可用，**仅在当前 PATCH 目标屏引用**
+- 严禁顺手扩 buildTheme 加新字段（破 R-158 25 字段契约）
+- 严禁顺手 i18n / 国际化（zh-CN 写死至 v0.5.x 末）
+- 严禁顺手改其他屏 / Shell topbar / favicon 等不在 PATCH scope 内的资产
+- 严禁引入新 npm 依赖（若需要 → 单独 chore PATCH 评估）
+
+### 三处版本同步（v0.5.0 R-72 + v0.5.7 R-181 模板）
+
+每 PATCH 升版本须**三处同步**：
+1. `knot/main.py` FastAPI version
+2. `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
+3. **若改 Login.jsx**：`frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试 grep）
+
+未来若复刻 home/shell 等新屏含版本字面，加对应同步红线。
+
+### 复用 v0.5.7 LOCKED 手册作模板
+
+每屏 PATCH 沿用 `docs/plans/v0.5.7-login-pilot.md` 8 节模板（决议 / 红线 / 文件改动 / 验收 / commit 序列 / 协议合规 / 自检），按本屏特性填空即可。
 
 
 ## 启动
