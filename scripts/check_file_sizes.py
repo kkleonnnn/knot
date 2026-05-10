@@ -5,6 +5,7 @@ v0.5.2 R-94：后端 4 主文件硬上限 + 8 个新建模块 ≤ 250；query.py
 v0.5.3 R-111：前端 Chat.jsx ≤ 350 / Admin.jsx ≤ 360 / 子模块 ≤ 250；
   ResultBlock.jsx 250 → 400（复合 UI 组件）+ Admin.jsx 250 → 360（状态容器）资深 ack 微调。
 v0.5.7 R-176：Login.jsx ≤ 200 + decor/NarrativeMotif.jsx ≤ 120（27 → 29 条 LIMITS）。
+v0.5.9 R-205：Shell.jsx ≤ 220（29 → 30 条 LIMITS）。
 """
 import sys
 from pathlib import Path
@@ -46,6 +47,8 @@ LIMITS = {
     # ── v0.5.7 R-176 ──────────────────────────────────────────
     "frontend/src/screens/Login.jsx":              200,
     "frontend/src/decor/NarrativeMotif.jsx":       120,
+    # ── v0.5.9 R-205 ──────────────────────────────────────────
+    "frontend/src/Shell.jsx":                      220,
 }
 
 repo = Path(__file__).resolve().parent.parent
