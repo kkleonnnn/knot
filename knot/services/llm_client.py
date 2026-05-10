@@ -59,6 +59,7 @@ def generate_sql(
     history: list = None,
     openrouter_api_key: str = "",
 ) -> dict:
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead."""
     if _is_openrouter_model(model_key):
         key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:
@@ -125,6 +126,7 @@ def _build_user_message(question: str, history: list) -> str:
 def fix_sql(question, schema_text, failed_sql, error_message,
             model_key=DEFAULT_MODEL, api_key="", business_context="",
             openrouter_api_key: str = "") -> dict:
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead."""
     if _is_openrouter_model(model_key):
         key = openrouter_api_key or _app_or_key() or PROVIDER_API_KEYS.get("openrouter", "")
         if not key:

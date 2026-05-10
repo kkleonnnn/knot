@@ -99,7 +99,10 @@ def _error_result(message: str) -> dict:
 
 def _invoke_via_adapter(system_prompt: str, user_message: str,
                         model_key: str, api_key: str, model_cfg: dict, provider: str) -> dict:
-    """统一走 adapters/llm/factory；provider 路由 + 错误友好转换 + cost 计算。"""
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead.
+
+    统一走 adapters/llm/factory；provider 路由 + 错误友好转换 + cost 计算。
+    """
     base_url = PROVIDER_BASE_URLS.get(provider, "")
     req = LLMRequest(
         model_key=model_key,

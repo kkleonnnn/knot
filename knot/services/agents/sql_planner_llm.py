@@ -12,6 +12,7 @@ from knot.config import MAX_TOKENS_PER_QUERY, PROVIDER_BASE_URLS
 
 
 def _call_llm(model_key, api_key, model_cfg, system_prompt, messages) -> tuple[str, int, int]:
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead."""
     provider = model_cfg["provider"]
 
     if provider == "anthropic":

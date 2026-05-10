@@ -63,6 +63,7 @@ def run_sql_agent(
     max_steps: int = 5,
     openrouter_api_key: str = "",
 ) -> AgentResult:
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead."""
     def _err(msg):
         return AgentResult(
             success=False, sql="", rows=[], explanation="",
