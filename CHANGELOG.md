@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.8 (Cn+) Chore — CI Boot Smoke 修复 + Visual Replication Protocol
+
+> v0.5.7 Login pilot 收官后 chore PATCH：**两件并一个** — 偿还 v0.5.0 R-72 留下的预存 CI bug，提炼 v0.5.7 经验为 v0.5.8+ 屏复刻铺路。
+>
+> Loop Protocol v3 **第 9 次施行**（**首次简化协议** — 跳 Stage 2/3 直接 Stage 4，资深 ack）。docs+ci PATCH，0 业务逻辑改动。
+
+### Fixed — v0.5.0 R-72 遗留 CI 硬编 bug 偿还
+
+**`.github/workflows/ci.yml` boot smoke version assertion 动态读 main.py（R-187）**：
+
+- 旧：`assert app.version == '0.5.0'`（v0.5.0 R-72 时硬编，每个后续 PATCH 升版本必挂）
+- 新：`expected = re.search(r'version="([\d.]+)"', open('knot/main.py').read()).group(1); assert app.version == expected`
+- 效果：v0.5.1~v0.5.7 的 boot smoke matrix（only-knot / only-biagent / both-same）应该全绿 — 假设 R-72/77 业务代码本身正确（neither 路径之前一直 PASS 已验证 fail-fast 逻辑）
+- 影响：以后任何 PATCH 升版本 ci.yml 自动跟随，无需 4 处版本同步（仅 main.py + smoke + Login 三处）
+
+### Added — § Visual Replication Protocol（R-188）
+
+**`CLAUDE.md` 加 § Visual Replication Protocol 段（59 行 ≤ 80 上限）**，与 Loop Protocol v3 并列定位为视觉复刻专项约束：
+
+- **路径常量**：demo `/Users/kk/Documents/knot_ui_demo/v0.5/artboards/*.jsx`（设计代理，**不进产品**）/ 产品屏 `frontend/src/screens/*.jsx` / Foundation 资产（Shared.jsx + utils.jsx + decor/NarrativeMotif.jsx）
+- **设计系统**（v0.5.6 锁定，严禁扩展）：OKLCH 单一色空间 brand 195°/success 145°/warn 85°/error 27°；HarmonyOS/PingFang/Inter 字体；I 36 icons viewBox 24×24 stroke 1.6；R-165 OKLCH fallback 已兜底
+- **视觉模型**（v0.5.7 验证）：fluid panel + element-anchored 模式，**不要 artboard 整体居中**
+- **byte-equal 红线**：export name + props + api 链路 + 错误文案 + 17 屏 byte-equal + App/Shell/api/index/main/utils byte-equal
+- **抗诱惑清单 5 条**：Foundation 资产仅在目标屏引用 / 严禁扩 buildTheme 25 字段 / 严禁顺手 i18n / 严禁顺手改其他屏 / 严禁引入新 npm 依赖
+- **三处版本同步模板**（R-72 + R-181）：每 PATCH 升版本 main.py + smoke + Login 页脚同步
+- **复用 v0.5.7 LOCKED 手册作模板**：`docs/plans/v0.5.7-login-pilot.md` 8 节模板按本屏特性填空
+
+定位：本协议**不替代** Loop Protocol v3 三阶段评审；每屏 PATCH 仍走 Stage 1+2+3+4。
+
+### Loop Protocol v3 — 第 9 次施行（**首次简化协议**）
+
+- **简化触发条件**（4 全满足）：
+  1. PATCH 完全是 docs/ci/chore（0 业务 .py/.jsx 改动）
+  2. 红线数 ≤ 8（本 PATCH 5 条）
+  3. 无决议争议点（D1-D3 均为执行细节）
+  4. 资深架构师明确 ack 简化
+- **协议路径**：Stage 1 草案 → 资深直接 ack → Stage 4 落地（跳 Stage 2/3，省 ~30 分钟 round-trip）
+- **守护者**：v0.4 全程 dormant（未激活）
+- **远古守护者**：v0.3 dormant
+- **未来回头风险**：低 — chore deterministic，Stage 2/3 即便走也大概率 0 修订
+- **不适用简化场景**：视觉重构/屏复刻（仍走全 v3）/ 后端业务逻辑（仍走全 v3）/ 架构契约变更（仍走全 v3）
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-189 严格不变 — 0 测试增减）
+- frontend build：`npm run build` 0 警告 0 error；bundle hash 更新
+
+### Architecture（不变）
+
+- 7 import-linter contracts 全程 KEPT
+- 72 routes 不变
+- check_file_sizes.py 29 files 不变（无新加/删 LIMITS）
+- requirements.txt / package.json / pyproject.toml / .importlinter / vite.config.js 0 修改
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7 (C5+) Login pilot
+- ✅ **v0.5.8 (Cn+) Chore — CI fix + Visual Replication Protocol**
+- ⏳ v0.5.9+ (C5+) 1 屏 1 PATCH 渐进替换剩余 17 屏（home / shell / thinking / favorites / 9 admin tabs）
+
+### 验收（全绿）
+
+- [x] backend tests 432 passed / 7 contracts KEPT / 72 routes / version 0.5.8
+- [x] check_file_sizes.py 29 files OK
+- [x] R-181 + R-185 sync test 通过
+- [x] § Visual Replication Protocol 59 行 ≤ 80 ✓
+- [x] R-187 ci.yml 动态读 version 本地等价测试 PASS
+- [x] R-191 docs+ci 守护 — 0 业务 .py/.jsx 改动
+
+---
+
 ## [Unreleased] - v0.5.7 (C5+) Claude Design UI 重构 — Login 屏首屏复刻 pilot
 
 > v0.5.6 Foundation 落地后第八刀：**首屏 1:1 复刻 demo 视觉 — Login pilot**。资深架构师拍板"1 屏 1 PATCH"渐进替换 18 个 artboards，本 PATCH 建立的执行模板将服务于 v0.5.8+ Home / Shell / Thinking / Favorites / 9 admin tabs。
