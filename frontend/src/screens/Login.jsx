@@ -52,38 +52,43 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', display: 'grid',
-      gridTemplateColumns: '1.05fr 1fr',
-      background: T.bg, color: T.text, fontFamily: T.sans, fontSize: 13.5,
+      width: '100vw', height: '100vh',
+      color: T.text, fontFamily: T.sans, fontSize: 13.5,
+      display: 'grid', gridTemplateColumns: '1.05fr 1fr',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* 主题切换按钮（保留旧位） */}
+      {/* 主题切换按钮 — fixed 到 viewport 右上（永远跟随 viewport 边角） */}
       <button onClick={onToggleTheme} style={{
-        position: 'absolute', top: 20, right: 22, zIndex: 2,
+        position: 'fixed', top: 20, right: 22, zIndex: 3,
         width: 32, height: 32, borderRadius: 8, background: T.content,
         border: `1px solid ${T.border}`, color: T.subtext,
         display: 'grid', placeItems: 'center', cursor: 'pointer',
       }}>{T.dark ? <I.sun/> : <I.moon/>}</button>
 
-      {/* Left narrative panel */}
+      {/* Left narrative panel — 占满 viewport 左半，内容贴 viewport 边角 */}
       <div style={{
-        position: 'relative', overflow: 'hidden', padding: 56,
+        position: 'relative', overflow: 'hidden',
+        background: T.bg,
+        padding: '48px 60px',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         borderRight: `1px solid ${T.border}`,
       }}>
+        {/* motif 铺满 left panel — radial-gradient 蔓延到边缘；SVG 内部居中固定尺寸 */}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <NarrativeMotif T={T}/>
+        </div>
+
+        {/* 左上 Logo（贴 viewport 左上边角） */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <KnotLogo T={T} size={22}/>
         </div>
 
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '70%', pointerEvents: 'none' }}>
-          <NarrativeMotif T={T}/>
-        </div>
-
+        {/* 左下 headline + desc（贴 viewport 左下边角） */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: 13, color: T.accent, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
             Knowledge · Nexus · Objective · Trace
           </div>
-          <div style={{ fontSize: 38, fontWeight: 600, color: T.text, lineHeight: 1.2, letterSpacing: '-0.03em', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 38, fontWeight: 600, color: T.text, lineHeight: 1.2, letterSpacing: '-0.03em' }}>
             复杂结于此，洞察始于此
           </div>
           <div style={{ fontSize: 14, color: T.subtext, marginTop: 18, lineHeight: 1.7, maxWidth: 480 }}>
@@ -92,11 +97,14 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
         </div>
       </div>
 
-      {/* Right form panel */}
+      {/* Right form panel — 占满 viewport 右半，表单组件几何居中，footer 贴底 */}
       <div style={{
-        background: T.content, padding: '64px 80px',
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
+        background: T.content,
+        display: 'grid', placeItems: 'center',
+        padding: '0 64px',
       }}>
+        <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ marginBottom: 40 }}>
           <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
             sign in
@@ -166,9 +174,13 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
             {loading ? <><Spinner size={14} color="#fff"/> 登录中…</> : <>进入 KNOT <I.send/></>}
           </button>
         </form>
+        </div>
 
-        {/* Footer — R-181 "v0.5.7" 字面同步 */}
-        <div style={{ marginTop: 'auto', paddingTop: 40, fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between' }}>
+        {/* Footer — absolute 贴右板底（与左下文案对称）；R-181 "v0.5.7" 字面同步 */}
+        <div style={{
+          position: 'absolute', bottom: 24, left: 64, right: 64,
+          fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
+        }}>
           <span>v0.5.7 · KNOT 内部系统</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
