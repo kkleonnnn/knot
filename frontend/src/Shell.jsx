@@ -1,4 +1,4 @@
-import { I, iconBtn } from './Shared.jsx';
+import { I, KnotLogo, iconBtn } from './Shared.jsx';
 
 // v0.4.1.1: 非 admin 屏（chat / saved-reports / 未来用户屏）一律渲染传入的 sidebarContent；
 // admin 屏（active 以 'admin-' 开头）走硬写导航。
@@ -21,25 +21,23 @@ export function AppShell({
       background: T.bg, color: T.text, fontFamily: T.sans,
       fontSize: 13.5, overflow: 'hidden', letterSpacing: '-0.003em', lineHeight: 1.5,
     }}>
-      {/* ═══ Sidebar ═══ */}
+      {/* ═══ Sidebar (R-198: 256→224；Q2 加码 Label ellipsis) ═══ */}
       <aside style={{
-        width: 256, flexShrink: 0, height: '100%',
+        width: 224, flexShrink: 0, height: '100%',
         background: T.sidebar, borderRight: `1px solid ${T.border}`,
-        display: 'flex', flexDirection: 'column', padding: '14px 12px 12px',
+        display: 'flex', flexDirection: 'column',
       }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: 6, background: T.accent,
-              display: 'grid', placeItems: 'center', color: '#fff',
-            }}>
-              <I.sparkle width="14" height="14"/>
-            </div>
-            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: T.text }}>KNOT</span>
-          </div>
+        {/* Brand 区 — R-199 KnotLogo size=20（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
+            R-200 logoArea 56px + borderBottom（与 main header 52px 视觉对齐） */}
+        <div style={{
+          height: 56, padding: '0 16px', flexShrink: 0,
+          display: 'flex', alignItems: 'center',
+          borderBottom: `1px solid ${T.border}`,
+        }}>
+          <KnotLogo T={T} size={20}/>
         </div>
 
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0' }}>
         {!active.startsWith('admin-') ? (
           <>
             {sidebarContent}
@@ -63,13 +61,13 @@ export function AppShell({
                             onClick={() => onNavigate('admin-prompts')}/>
                 <SideNavRow T={T} icon={<I.gear/>} label="业务目录" active={active === 'admin-catalog'}
                             onClick={() => onNavigate('admin-catalog')}/>
-                {/* v0.4.3 admin 看板 */}
-                <SideNavRow T={T} icon={<I.zap/>} label="💰 预算" active={active === 'admin-budgets'}
+                {/* admin 看板（R-202: emoji 前缀 → SVG icon 统一） */}
+                <SideNavRow T={T} icon={<I.zap/>} label="预算" active={active === 'admin-budgets'}
                             onClick={() => onNavigate('admin-budgets')}/>
-                <SideNavRow T={T} icon={<I.sparkle/>} label="🛡️ Recovery" active={active === 'admin-recovery'}
+                <SideNavRow T={T} icon={<I.shield/>} label="Recovery" active={active === 'admin-recovery'}
                             onClick={() => onNavigate('admin-recovery')}/>
                 {/* v0.4.6 D3 落地：审计日志 */}
-                <SideNavRow T={T} icon={<I.book/>} label="📋 审计日志" active={active === 'admin-audit'}
+                <SideNavRow T={T} icon={<I.book/>} label="审计日志" active={active === 'admin-audit'}
                             onClick={() => onNavigate('admin-audit')}/>
               </>
             )}
@@ -86,25 +84,29 @@ export function AppShell({
           </>
         )}
 
-        {/* Footer: user row */}
-        <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, marginTop: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: `linear-gradient(135deg, ${T.accent}, #ff7a3a)`, color: '#fff',
-              display: 'grid', placeItems: 'center', fontSize: 11.5, fontWeight: 600, flexShrink: 0,
-            }}>{initials}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {user?.display_name || user?.username}
-                {isAdmin && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 600 }}>ADMIN</span>}
-              </div>
+        </div>
+
+        {/* Footer: user row — R-201/R-211 渐变橘色偿还 → 纯 T.accent；高度 56px borderTop */}
+        <div style={{
+          height: 56, padding: '0 12px', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 10,
+          borderTop: `1px solid ${T.border}`,
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: T.accent, color: '#fff',
+            display: 'grid', placeItems: 'center', fontSize: 11.5, fontWeight: 600, flexShrink: 0,
+          }}>{initials}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {user?.display_name || user?.username}
+              {isAdmin && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 600 }}>ADMIN</span>}
             </div>
-            {isAdmin && (
-              <button onClick={() => onNavigate('settings')} style={iconBtn(T)} title="设置"><I.gear/></button>
-            )}
-            <button onClick={onLogout} style={iconBtn(T)} title="退出"><I.logout/></button>
           </div>
+          {isAdmin && (
+            <button onClick={() => onNavigate('settings')} style={iconBtn(T)} title="设置"><I.gear/></button>
+          )}
+          <button onClick={onLogout} style={iconBtn(T)} title="退出"><I.logout/></button>
         </div>
       </aside>
 
@@ -146,27 +148,39 @@ export function AppShell({
 }
 
 export function SideHeading({ T, children }) {
+  // R-204: 字体改 T.mono（与 Login "SIGN IN" mono 风格统一）
   return (
     <div style={{
-      padding: '12px 10px 4px', fontSize: 10.5, color: T.muted,
-      letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600,
+      padding: '14px 20px 6px', fontSize: 10, color: T.muted,
+      fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
     }}>{children}</div>
   );
 }
 
 export function SideNavRow({ T, icon, label, active, onClick }) {
+  // R-203 + Q4: active 指示改 absolute span 2px brand bar 右侧（避 overflow:hidden 裁切）
+  // Q2 加码: Label ellipsis 防 224px 宽度下中文长 label 溢出
   return (
     <div onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px',
-      borderRadius: 6, cursor: 'pointer', fontSize: 13,
+      position: 'relative',
+      display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
+      margin: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
       background: active ? T.accentSoft : 'transparent',
       color: active ? T.accent : T.subtext,
-      borderLeft: active ? `2px solid ${T.accent}` : '2px solid transparent',
-      paddingLeft: active ? 8 : 10, fontWeight: active ? 500 : 400,
+      fontWeight: active ? 500 : 400,
       marginBottom: 1,
     }}>
-      <span style={{ display: 'inline-flex' }}>{icon}</span>
-      <span dangerouslySetInnerHTML={{ __html: label }}/>
+      {active && <span style={{
+        position: 'absolute', right: 0, top: '50%',
+        transform: 'translateY(-50%)',
+        width: 2, height: '60%',
+        background: T.accent, borderRadius: 2,
+      }}/>}
+      <span style={{ display: 'inline-flex', flexShrink: 0 }}>{icon}</span>
+      <span style={{
+        flex: 1, minWidth: 0,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }} dangerouslySetInnerHTML={{ __html: label }}/>
     </div>
   );
 }

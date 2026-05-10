@@ -5,6 +5,97 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.9 (C5+) Shell 屏复刻 — 首个真正屏复刻 PATCH
+
+> v0.5.7 Login pilot + v0.5.8 Visual Replication Protocol 后第一个真正屏复刻 PATCH。Shell 是 18 屏的容器，**最高优先级守 R-192 AppShell 13 props 签名 byte-equal（宪法级）**。
+>
+> Loop Protocol v3 **第 10 次施行** — 恢复全 v3 三阶段评审（Shell 是真视觉重构，简化协议不适用）。视觉聚焦 4 处偿还/解禁。
+
+### Changed — Shell.jsx 视觉重构（172 → 186 行 ≤ 220 R-205）
+
+按 Stage 3 §2 7 子步骤顺序锁死执行：
+
+**Brand 区**：
+- 24×24 sparkle 圆角块 + "KNOT" 文字 → `<KnotLogo T={T} size={20}/>`（**v0.5.7 R-186 抗诱惑首次解禁**）
+- logoArea 高度 padding 14+12 ≈ 38 → 56px + borderBottom（与 main header 52 视觉对齐）
+- Q1 修订：原提议 size=16，资深 Stage 2 改 20（Atom 轨道 16px 下细节丢失）
+
+**Sidebar**：
+- 宽度 256 → 224（match demo）
+- SideNavRow Label 加 `text-overflow: ellipsis + white-space: nowrap + overflow: hidden`（Q2 加码 — 防 224px 中文长 label 溢出）
+- Admin nav 3 处 emoji 偿还：💰 预算 / 🛡️ Recovery / 📋 审计日志 → 纯 SVG（`I.zap` / `I.shield` / `I.book`，36 names 已存在前置 grep 双保险确认）
+- NavItem active 指示 borderLeft 2px → **absolute span 2px brand bar 右侧**（Q4 防 `overflow: hidden` 裁切）
+- SideHeading 字体 sans 10.5px → `T.mono` 10px（与 Login "SIGN IN" mono 风格统一）
+
+**User row（Footer）**：
+- 头像渐变 `linear-gradient(135deg, ${T.accent}, #ff7a3a)` → 纯 `T.accent`（v0.5.6 brand 切换遗漏的橘色残留**全局净空** — R-211 grep `#ff7a3a` 全文 0 命中）
+- 高度 borderTop + paddingTop 10 → 56px + borderTop
+
+**Topbar**（保产品现状 — D8 宪法级 ack）：
+- AppShell 内集成 header 52px 不拆为独立 TopBar 组件（防 13 props 签名 + 18 屏调用方破坏）
+- showConnectionPill / connectionOk 业务逻辑不变（R-196）
+
+### Architecture — 宪法级守护（守 18 屏不崩溃）
+
+**R-192 AppShell 13 props 签名 byte-equal**（宪法级 — 三方共识）：
+- diff vs origin/main = 0 行（完整签名块完全一致）
+- 13 props: `T, user, active, sidebarContent, topbarTitle, topbarTrailing, showConnectionPill, connectionOk, hideSidebarNewChat, onToggleTheme, onNewChat, onNavigate, onLogout, children`
+
+**R-193 SideHeading + SideNavRow export name + 签名 byte-equal**（chat / saved-reports / admin/* 12+ 文件 import 这两个名字）。
+**R-194 onNavigate / onToggleTheme / onLogout / onNewChat 调用方式 + active 字面 byte-equal**。
+**R-195 'admin-' 前缀分流逻辑 byte-equal**（v0.4.1.1 hotfix Bug 1 既有模式 — 改 active 视觉时严禁触碰 `active.startsWith('admin-')` if 分支）。
+**R-197 `API &amp; 模型` HTML entity 字面 byte-equal**。
+
+### Architecture — 范围守护（v0.5.8 § Visual Replication Protocol 模板）
+
+**R-199.5 KnotLogo 解禁仅限 Shell.jsx LogoArea 一处**（v0.5.7 R-186 抗诱惑首次解禁，明确边界）：
+- grep `KnotLogo|KnotMark|KnotWordmark` 仅 3 文件命中：`Shared.jsx`（定义）/ `screens/Login.jsx`（v0.5.7）/ `Shell.jsx`（v0.5.9 解禁）
+- 严禁蔓延 Home / ThinkingCard / 其他业务屏
+
+**R-210 CSS 污染防御**：Shell 视觉重构全用 inline style 对象 + 已有 utility；`git diff frontend/src/App.css` = 0 行 ✓；Shell.jsx 0 新 className 字面。
+
+**R-213 版本同步血缘扩展**：Shell.jsx 严禁 version 字面（保 Login 页脚唯一显示位）；grep `0.5.X|v0.5` = 0 命中（注释中版本号引用清理为 R-XXX 编号）。
+
+**R-207/208 范围守护**：
+- 17 屏 + 12 子模块 byte-equal（`git diff origin/main HEAD -- frontend/src/screens/` 仅 Login.jsx 页脚 v0.5.9 字面）
+- App.jsx / api.js / index.css / main.jsx / utils.jsx / Shared.jsx / decor/NarrativeMotif.jsx 0 改
+
+### Loop Protocol v3 — 第 10 次施行（恢复全 v3）
+
+- **Stage 1**（v0.5 执行者）：v0.5.7 LOCKED 模板填空 — Shell 现状 vs demo 视觉差距 10 维度 + D1-D8 决策 + R-192~R-209 红线（18 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：D8 宪法级 ack + Q1 修订 16→20 + 加 R-199.5 KnotLogo 解禁边界 + R-210 CSS 污染防御 + Q2 加码 ellipsis
+- **Stage 3**（v0.4 守护者）：加 R-211 #ff7a3a 全局净空 + R-212 'admin-' 前缀分流字面 byte-equal + R-213 Shell.jsx 严禁 version 字面 + 7 子步骤实施顺序锁死
+- **Stage 4**（执行者）：3 commit 落地，全程 0 修订；commit 1 内 7 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（Q1 唯一修订 16→20）；新增 6 条红线（Stage 2: 3 + Stage 3: 3）；红线总数 22（**R-192~R-213**，含 R-199.5）。
+
+### Migration
+
+- 客户端无任何 breaking change（AppShell 13 props 签名 + SideHeading + SideNavRow export name byte-equal）
+- 18 屏 + 12 子模块原样工作（R-207 守护证明）
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-206 严格不变 — 0 测试增减）
+- R-181 + R-185 sync test 自动跟随 0.5.9 PASS
+- frontend build：`npm run build` 0 警告 0 error；bundle hash `index-VY5B4NF1.js` → `index-C67E7slY.js`
+
+### 验收（待人测）
+
+- [ ] 启动 dev server + 实际登录 → 18 路由切换肉眼校验：topbar title + topbar trailing + connection pill 状态 + sidebar active span 停在正确项
+- [ ] admin 子页面切 tab 验证 R-212：进 admin/users → admin/budgets → admin/audit；sidebar admin nav 始终正确 active
+- [ ] KnotLogo size=20 在 224px sidebar 视觉清晰可辨（Q1 验证）
+- [ ] admin 12 项 nav row 长 label（如 "Few-shot 示例"）ellipsis 截断生效（Q2 验证）
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7 (C5+) Login pilot
+- ✅ v0.5.8 (Cn+) Chore — CI fix + Visual Replication Protocol
+- ✅ **v0.5.9 (C5+) Shell 屏复刻**（首个真正屏复刻 PATCH，宪法级 R-192 三方共识）
+- ⏳ v0.5.10+ (C5+) 1 屏 1 PATCH 渐进替换剩余 16 屏（home / thinking / favorites / 9 admin tabs / database / knowledge / catalog / sql-lab / settings / conversations）
+
+---
+
 ## [Unreleased] - v0.5.8 (Cn+) Chore — CI Boot Smoke 修复 + Visual Replication Protocol
 
 > v0.5.7 Login pilot 收官后 chore PATCH：**两件并一个** — 偿还 v0.5.0 R-72 留下的预存 CI bug，提炼 v0.5.7 经验为 v0.5.8+ 屏复刻铺路。
