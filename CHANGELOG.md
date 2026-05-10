@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.3 (C3) 前端代码瘦身
+
+> v0.5.2 后端瘦身落地后第四刀：2 个前端主屏（Chat.jsx 925 / Admin.jsx 773）按 4-commit 节奏拆分为 13 个子组件。Loop Protocol v3 第四次完整 PATCH 内施行（D1-D7 全锁定 + 18 红线 R-111~R-128）。
+>
+> **范围最小化原则**：D-2 backend 0 改动（除 main.py version + smoke）；R-118 SSE handler 纯函数化 callbacks 注入；R-128 className 字面 byte-equal；R-124 全局状态零变更（chat/admin 子模块 0 含 useContext/Provider/redux）；R-114/115/121 手测端到端守护（前端无 unit test）。
+
+### Refactor — 2 主屏拆 13 子组件（行数）
+
+| 主文件 | 拆前 | 拆后 | 子模块 | 行数 |
+|---|---|---|---|---|
+| `frontend/src/screens/Chat.jsx` | 925 | **254** ≤ 350 | `chat/intent_helpers.js` / `sse_handler.js` / `ResultBlock.jsx` / `ChatEmpty.jsx` / `Conversation.jsx` / `ThinkingCard.jsx` / `Composer.jsx` | 32 / 65 / 381 ⚠️ / 40 / 53 / 110 / 71 |
+| `frontend/src/screens/Admin.jsx` | 773 | **352** ≤ 360 ⚠️ | `admin/tab_access.jsx` / `tab_resources.jsx` / `tab_knowledge.jsx` / `tab_system.jsx` / `modals.jsx` | 60 / 85 / 107 / 53 / 210 |
+
+> **R-111 行数硬约束 2 处微调**（资深 ack 方案 A — 与 v0.5.2 query.py SSE 样板代价同精神）：
+> - `chat/ResultBlock.jsx` 250 → 400：复合 UI 组件 7 独立 UI 段（错误 banner / budget banner / metric|chart|table 三选一 / insight / followups / sql panel / cost chips）+ setup 80 行 + 3 helpers (MetricCard / exportMessageCsv / AGENT_KIND_EMOJI)
+> - `Admin.jsx` 250 → 360：状态容器 14 handlers + 11 state + 7 tab dispatch + topbar trailing 7 分支；React 集中状态管理最佳实践不应散布到独立 handlers 文件
+
+### Added — D7 加码 CI 行数核验扩展
+
+- **`scripts/check_file_sizes.py`** [EDIT]：LIMITS dict 13 → 27 files（+14 前端 = 2 主 + 12 子模块）
+- **`.github/workflows/ci.yml`** [v0.5.2 既有]：file-sizes step 自动覆盖前端阈值
+
+### Architecture（不增 contract / 不动 backend）
+
+7 import-linter contracts 全程 KEPT（R-113；前端不入 contract，但 import-linter 不破坏）：
+- 子模块全部落 `frontend/src/screens/{chat,admin}/` 子目录
+- R-124 全局状态守护：grep `useContext|Provider|createContext|redux|zustand` 在子模块 0 命中
+- R-118 SSE handler 纯函数化：`runQueryStream(url, body, token, callbacks)` 0 React 依赖；
+  callbacks (onAgentEvent / onClarification / onError / onFinal / onException) 注入 state setter
+- R-128 className 字面 byte-equal：拆分前后 unique className 完全一致（`cb-fadein` + `cb-sb`）
+
+### Decisions Locked (D1-D7)
+
+| ID | 锁定 |
+|---|---|
+| **D1** 目录结构 | A 子目录化（`screens/chat/` + `screens/admin/`） |
+| **D2** ResultBlock 处理 | A 整体抽出（避免 prop drilling） |
+| **D3** SSE Handler 抽出 | A 独立纯函数文件（callbacks 注入） |
+| **D4** Admin Tab 粒度 | ⚠️ B 按职责合并 4 文件（Stage 2 修订；执行者按 Admin.jsx 实际 7 tabs 调整内部 mapping） |
+| **D5** 行数硬约束 | A 严格执行 ≤ 350 主 / ≤ 250 子（2 处微调资深 ack） |
+| **D6** re-export 兼容 | A 强制 ChatScreen / AdminScreen export 名 + props 0 修改 |
+| **D7** 检测工具链 | A 扩展既有 check_file_sizes.py（v0.5.2 既建脚本） |
+
+### Red-lines（R-111~R-128 共 18 条全部偿还）
+
+| ID | 来源 | 偿还方式 |
+|---|---|---|
+| **R-111** | 执行者 | Chat.jsx 254 ≤ 350；Admin.jsx 352 ≤ 360（A 微调）；ResultBlock 381 ≤ 400（A 微调）；其他子模块 ≤ 250 |
+| **R-112** | 执行者 | backend / package.json / .importlinter / Shell.jsx / SavedReports.jsx 0 修改 |
+| **R-113** | 执行者 | 7 contracts KEPT；不动 .importlinter |
+| **R-114** | 执行者 | npm run build 每 commit 后绿 |
+| **R-115** | 执行者 | 7 intent layout 分支逐字保留（ResultBlock R-117） |
+| **R-116** | 执行者 | ChatScreen / AdminScreen export 名 + props 签名 0 修改（含 initialTab 深链） |
+| **R-117** | 执行者 | 7 intent layout 分支零行为变更（metric_card/line/bar/rank_view/pie/retention_matrix/detail_table） |
+| **R-118** | 执行者 | runQueryStream 纯函数 0 副作用 + callbacks 注入 state setter |
+| **R-119** | 执行者 | 432 backend tests 严格不变 |
+| **R-120** | 执行者 | routes=72 / version=0.5.3 |
+| **R-121** | 执行者 | live LLM eval 不影响 |
+| **R-122** | 执行者 | 9 新文件顶部 docstring 含"v0.5.3: extracted from X" |
+| **R-123** | 执行者 | commit message 含源行号区间 |
+| **R-124** | Stage 2 | grep `useContext|Provider|createContext|redux|zustand` 在 chat/* + admin/* 子模块 0 命中 |
+| **R-125** | Stage 2 | npm run build 每 commit 后 0 error 强制 |
+| **R-126** | Stage 3 | KNOT brand 字面（CSV `knot-` + `KNOT 可能出错`）main 2 处 → local Chat.jsx + ChatEmpty.jsx 2 处完整平移 |
+| **R-127** | Stage 3 | error_kind / user_message / is_retryable 字段 sse_handler.js 透传 → ResultBlock.jsx ErrorBanner 渲染（v0.4.4 ERROR_KIND_META 7 类逐字保留） |
+| **R-128** | Stage 3 | className 字面 byte-equal 守护（main vs local 完全一致：`cb-fadein` + `cb-sb`） |
+
+### Loop Protocol v3 — 第四次完整施行
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.3-frontend-slim.md](docs/plans/v0.5.3-frontend-slim.md)（D1-D7 + R-111~R-123 13 红线） |
+| Stage 2 | 资深架构师 + Codex | D4 修订（7 → 4 文件按职责合并）+ 新增 R-124/R-125 |
+| Stage 3 | v0.4 守护者 | 终审 GO + 新增 R-126/R-127/R-128 + Chat.jsx 优先 / 每 commit 手测闭环 |
+| Stage 4 | v0.5 执行者 | 4-commit 落地（C1 Chat.jsx + C2 Admin.jsx + C3 version+CI + C4 docs），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码（合规 — Loop Protocol v3 § 角色定义）；v0.3 远古守护者 dormant 未激活。
+
+---
+
 ## [Unreleased] - v0.5.2 (C2) 后端代码瘦身
 
 > v0.5.1 SQL AST 守护落地后第三刀：4 主文件（sql_planner 653 / llm_client 574 / orchestrator 535 / api/query 457）按文件级 1 commit 拆分为 9 个子模块。Loop Protocol v3 第三次完整 PATCH 内施行（D1-D8 全锁定 + 17 红线 R-94~R-110）。
