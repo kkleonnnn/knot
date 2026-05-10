@@ -285,6 +285,58 @@ export function TypingDots({ color = 'oklch(58% 0.17 195)' }) {
   );
 }
 
+/* ─── KNOT Logo lockup (v0.5.7 R-174 +3 exports / R-183 size props / Q2 viewBox 100×100 / Q4 T.dark) ─── */
+
+// Atom mark: 3 elliptical orbits + central nucleus. fg derived from T.dark (no theme string).
+export function KnotMark({ T, size = 32 }) {
+  const fg = T.dark ? '#f4f6f8' : '#0d1014';
+  const sw = size <= 16 ? 6 : 4.5;
+  const r  = size <= 16 ? 11 : 9;
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100"
+         xmlns="http://www.w3.org/2000/svg"
+         style={{ display: 'block', flexShrink: 0 }}>
+      {[0, 60, -60].map(angle => (
+        <ellipse key={angle} cx="50" cy="50" rx="42" ry="14"
+                 transform={`rotate(${angle} 50 50)`}
+                 fill="none" stroke={fg} strokeWidth={sw}/>
+      ))}
+      <circle cx="50" cy="50" r={r} fill={fg}/>
+    </svg>
+  );
+}
+
+// "KNOT" wordmark — Inter Black, tight tracking, no dot.
+export function KnotWordmark({ T, size = 24 }) {
+  const fg = T.dark ? '#f4f6f8' : '#0d1014';
+  const w = size * (240 / 80);
+  return (
+    <svg width={w} height={size} viewBox="0 0 240 80"
+         xmlns="http://www.w3.org/2000/svg"
+         style={{ display: 'block', flexShrink: 0 }}>
+      <text x="0" y="64"
+            fontFamily='"Inter", "Geist", system-ui, -apple-system, sans-serif'
+            fontWeight="900" fontSize="72"
+            fill={fg} letterSpacing="-3.5">KNOT</text>
+    </svg>
+  );
+}
+
+// Default brand logo = horizontal lockup (Atom + KNOT). `size` = total mark height.
+export function KnotLogo({ T, size = 32 }) {
+  const wordHeight = Math.round(size * 0.62);
+  const gap = Math.max(4, Math.round(size * 0.32));
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap,
+      lineHeight: 0,
+    }}>
+      <KnotMark T={T} size={size}/>
+      <KnotWordmark T={T} size={wordHeight}/>
+    </div>
+  );
+}
+
 // Inject global CSS animations + scrollbar styles
 (function injectStyles() {
   if (document.getElementById('cb-styles')) return;
