@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.6 (C5) Claude Design UI 重构 — Foundation 第一刀
+
+> v0.5.5 cleanup（首个 Negative Delta）收官后第七刀：**Claude Design UI 重构第一刀 Foundation**。资深架构师拍板"以体验先行" + "1:1 复刻 demo 视觉与交互" — 但 demo 仓库 (`/Users/kk/Documents/knot_ui_demo/v0.5/`) 是**设计代理**（不进产品），目标是产品视觉按 demo 设计语言重构。
+>
+> **v0.5.x 序列第二次 Negative Delta -136 行**（仅次于 v0.5.5 -18）。Loop Protocol v3 **第 7 次**完整 PATCH 内施行。
+>
+> **strangler fig pattern**：v0.5.6 = Foundation **共存**重构（Shared.jsx / utils.jsx / App.css），**18 屏 0 修改**自动换皮；v0.5.7+ 1 屏 1 PATCH 渐进替换 18 个 artboards。
+
+### Changed — 视觉迁移到 Claude Design 设计语言
+
+**Shared.jsx 重构**（保 9 exports + I 36 names + buildTheme 25 字段 + dark prop 契约）：
+
+- `buildTheme(dark)` 25 字段值切 OKLCH：
+  - **brand 蓝青 195°**（dark `oklch(72% 0.17 195)` brand[400] / light `oklch(58% 0.17 195)` brand[600]）替代红色 `#FF4B4B`
+  - **ink 13 阶冷黑**（bg/content/sidebar/text/subtext/muted/borders/codes/inputs/chips 全切 ink hex 阶值）
+  - **R-167 语义色远离 brand 195°**：success 翠绿 145° / warn 琥珀 85° / error 朱红（toast）27°
+  - 字体切 `"HarmonyOS Sans SC", "PingFang SC", "Inter"` + mono `"JetBrains Mono", "Geist Mono"`
+- `iconBtn(T)` / `pillBtn(T, primary)` borderRadius 6 → 8 + transition + 保函数签名
+- `I` 36 names path 重绘 viewBox 24 + stroke 1.6（4 处显著差异修正：send 向上→向右 / check stroke 2.2→1.6 polyline / sparkle fill→stroke / more 显式 stroke="none"）
+- `CHART_COLORS` 8 色 OKLCH（**R-169 hue 45° 均匀分布** 195/240/285/330/15/60/105/150°）
+- `LineChart` / `BarChart` / `TypingDots` 默认色 `oklch(58% 0.17 195)` 蓝青
+- IIFE injectStyles 内 `.cb-grid-bg` + `button:focus-visible` 红 → 蓝青 OKLCH
+
+**utils.jsx 视觉重写**（保 8 exports 函数签名 + props）：
+
+- `toast`：hardcode '#FF4B4B'/'#09AB3B' → `oklch(62% 0.22 27)` 朱红 / `oklch(72% 0.18 145)` 翠绿
+- `Spinner`：默认 color `oklch(58% 0.17 195)` 蓝青；ring 用 `oklch(... / 0.18)` 透明
+- `Modal` / `ModalHeader` / `Input` / `Select`：用 `T.X` 自动换皮（R-159 契约保）
+
+**App.css 重构**（184 → 27 行 净 **-157**）：
+
+- 移除全部 Vite 模板残留（`.counter` / `.hero` / `.base` / `.framework` / `.vite` / `#center` / `#next-steps` / `#docs` / `#spacer` / `.ticks`）
+- `body` 字体：HarmonyOS / PingFang / Inter / system fallback
+- **R-168 抗锯齿**：`-webkit-font-smoothing: antialiased` + `-moz-osx-font-smoothing: grayscale` + `text-rendering: optimizeLegibility`（macOS / Windows / Linux 三平台）
+- **R-165 OKLCH fallback**：`:root` CSS Variables (`--knot-fallback-bg/text/brand` hex) + `@supports not (color: oklch(0% 0 0))` feature detect 兜底（仅 base styles，不渗透 buildTheme 25 字段，避免破坏 R-158 契约）
+- **R-160 守护**：`cb-sb` / `cb-fadein` className 不在 App.css（main 和 local 都 0 命中 — IIFE 注入）byte-equal ✓
+
+### Architecture（不增 contract / 18 屏 0 修改 / strangler fig pattern）
+
+7 import-linter contracts 全程 KEPT（R-155）。
+**R-156 18 屏 0 diff**：`git diff frontend/src/screens/` 输出 0 行 — Chat/Admin/SavedReports/Login/AdminAudit/AdminBudgets/AdminRecovery + chat/* 7 子模块 + admin/* 5 子模块共 18 个屏文件字面零修改。
+**R-157 5 核心非屏文件 byte-equal**：Shell.jsx / App.jsx / api.js / index.css / main.jsx 0 修改。
+**R-164 zero drift**：package.json / requirements.txt / pyproject.toml / .importlinter / vite.config.js / scripts 0 修改。
+
+> **Strangler fig pattern**：18 屏继续 import 现有 Shared.jsx + utils.jsx 路径 + 调用 `T = buildTheme()` + `<I.X>` + `iconBtn(T)` / `pillBtn(T)` 函数 — 屏代码 0 修改，但视觉自动换皮成蓝青 brand + PingFang 字体 + 新 Icon 风格。这给 v0.5.7+ 1 屏 1 PATCH 渐进替换铺路（屏内布局重构后 1.0 公测）。
+
+### Decisions Locked (D1-D7)
+
+| ID | 锁定 |
+|---|---|
+| **D1** Tokens 切换 | A Shared.jsx 内建（不新增 design/ 子目录） |
+| **D2** 颜色空间 | A 原生 OKLCH（现代浏览器；R-165 fallback 兜底） |
+| **D3** Brand 色相 | A 电青色 195°（demo 终态；signal/insight/decision） |
+| **D4** Icon 集合 | A 保全 36 + 部分重绘风格统一 |
+| **D5** App.css 范围 | A 仅切字体 + 清残留（保守不引新 class） |
+| **D6** utils.jsx 风格 | A 视觉重写保 8 exports 函数签名 |
+| **D7** className 字面 | A 强制 byte-equal cb-sb/cb-fadein |
+
+### Red-lines（R-154~R-169 共 16 条全部偿还）
+
+| ID | 来源 | 偿还方式 |
+|---|---|---|
+| **R-154** | 执行者 | backend 430 严格不变（前端纯改） |
+| **R-155** | 执行者 | 7 contracts KEPT, 0 broken |
+| **R-156** | 执行者 | 18 屏 0 修改（git diff frontend/src/screens/ = 0 行）|
+| **R-157** | 执行者 | Shell.jsx/App.jsx/api.js/index.css/main.jsx byte-equal |
+| **R-158** | 执行者 | Shared.jsx 契约：9 exports + I 36 names + buildTheme 25 字段 + dark prop ✓ |
+| **R-159** | 执行者 | utils.jsx 契约：8 exports（useTheme/usePersist/Spinner/toast/Modal/ModalHeader/Input/Select）✓ |
+| **R-160** | 执行者 | App.css cb-sb/cb-fadein 字面 byte-equal（main 和 local 都 0 命中）|
+| **R-161** | 执行者 | OKLCH + PingFang/HarmonyOS + Icon viewBox 24 stroke 1.6 |
+| **R-162** | 执行者 | npm run build 通过 |
+| **R-163** | 执行者 | routes=72 / version=0.5.6 |
+| **R-164** | 执行者 | package.json/requirements/pyproject/.importlinter/vite.config 0 修改 |
+| **R-165** | Stage 2 | App.css `:root` hex fallback + `@supports not (color: oklch(0% 0 0))` 兜底 |
+| **R-166** | Stage 2 | 待人测 — WCAG AA 对比度（brand 195° on bg / text on bg ≥ 4.5:1） |
+| **R-167** | Stage 3 | 语义色远离 brand 195°：success 145° / warn 85° / error 27°；故意触发后端错误手测 |
+| **R-168** | Stage 3 | App.css `body` 含 `-webkit-font-smoothing: antialiased` + `-moz-osx-font-smoothing: grayscale` |
+| **R-169** | Stage 3 | CHART_COLORS 8 色 hue 45° 均匀分布；lightness 65~70% chroma 0.16~0.20 |
+
+### Loop Protocol v3 — 第 7 次完整施行
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.6-claude-design-foundation.md](docs/plans/v0.5.6-claude-design-foundation.md)（D1-D7 + R-154~R-164 11 红线） |
+| Stage 2 | 资深架构师 + Codex | 7/7 决策一致 + R-165/R-166 新增（OKLCH fallback + WCAG AA） |
+| Stage 3 | v0.4 守护者 | 终审 GO + R-167/R-168/R-169 新增 + commit 1 子步骤 1→6 顺序锁死 + Stage 2 唯一成功标准"视觉变了，但逻辑和契约没变" |
+| Stage 4 | v0.5 执行者 | 3-commit 落地（C1 视觉重构子步骤 1→6 内嵌 / C2 version bump / C3 docs），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码；v0.3 远古守护者 dormant 未激活。
+
+**特别意义** — **v0.5.x 序列第二次 Negative Delta** + **Strangler fig pattern 起点**：v0.5.5 删 lark.py stub 是首个减法（-18）；v0.5.6 移除 Vite 模板残留 + Shared.jsx 视觉重构是第二个减法（-136）；同时是 Claude Design UI 重构 18 PATCH 系列的 Foundation 第一刀，给后续 v0.5.7~v0.5.x 1 屏 1 PATCH 渐进替换铺路。
+
+---
+
 ## [Unreleased] - v0.5.5 (Cn) Cleanup — 首个减法 PATCH（Negative Delta）
 
 > v0.5.4 Loop Protocol v3 路线图同步收官后第六刀：v0.5.x 序列**首个减法 PATCH**（Negative Delta -18 行）。**Loop Protocol v3 第 6 次完整 PATCH 内施行**。物理删 `lark.py` v0.3.2 stub + 8 处 sync LLM API docstring 标 `[DEPRECATED]`。
