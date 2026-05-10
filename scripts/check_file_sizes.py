@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""scripts/check_file_sizes.py — v0.5.2 D7 加码 CI 行数核验（R-94 落地）。
+"""scripts/check_file_sizes.py — D7 加码 CI 行数核验（v0.5.2 R-94 / v0.5.3 R-111 落地）。
 
-LOCKED 红线 R-94：4 主文件硬上限 + 8 个新建模块 ≤ 250。
-仅 query.py 经资深 ack 微调 220 → 310（SSE 协议样板代码不可消除）。
+v0.5.2 R-94：后端 4 主文件硬上限 + 8 个新建模块 ≤ 250；query.py 220 → 310（SSE 样板）。
+v0.5.3 R-111：前端 Chat.jsx ≤ 350 / Admin.jsx ≤ 360 / 子模块 ≤ 250；
+  ResultBlock.jsx 250 → 400（复合 UI 组件）+ Admin.jsx 250 → 360（状态容器）资深 ack 微调。
 """
 import sys
 from pathlib import Path
 
 LIMITS = {
-    # 4 主文件（v0.5.2 拆分目标）
+    # ── 后端 (v0.5.2 R-94) ───────────────────────────────────
+    # 4 主文件
     "knot/services/agents/sql_planner.py": 350,
     "knot/services/llm_client.py":         300,
     "knot/services/agents/orchestrator.py": 220,
-    "knot/api/query.py":                   310,  # R-94 微调（SSE 协议样板，资深 ack）
-    # 8 个新建模块
+    "knot/api/query.py":                   310,  # SSE 协议样板，资深 ack
+    # 9 个新建模块（v0.5.2）
     "knot/services/agents/sql_planner_prompts.py": 250,
     "knot/services/agents/sql_planner_tools.py":   250,
     "knot/services/agents/sql_planner_llm.py":     250,
@@ -23,6 +25,23 @@ LIMITS = {
     "knot/services/llm_prompt_builder.py":         250,
     "knot/services/_llm_invoke.py":                250,
     "knot/services/query_steps.py":                250,
+    # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
+    # 2 主文件
+    "frontend/src/screens/Chat.jsx":  350,
+    "frontend/src/screens/Admin.jsx": 360,  # 状态容器（14 handlers + 11 state + 7 tab dispatch），资深 ack
+    # 12 个新建模块（v0.5.3）
+    "frontend/src/screens/chat/intent_helpers.js":  80,
+    "frontend/src/screens/chat/sse_handler.js":    150,
+    "frontend/src/screens/chat/ResultBlock.jsx":   400,  # 复合 UI 组件 7 段 + 3 helpers，资深 ack
+    "frontend/src/screens/chat/ChatEmpty.jsx":     250,
+    "frontend/src/screens/chat/Conversation.jsx":  250,
+    "frontend/src/screens/chat/ThinkingCard.jsx":  250,
+    "frontend/src/screens/chat/Composer.jsx":      250,
+    "frontend/src/screens/admin/tab_access.jsx":   250,
+    "frontend/src/screens/admin/tab_resources.jsx": 250,
+    "frontend/src/screens/admin/tab_knowledge.jsx": 250,
+    "frontend/src/screens/admin/tab_system.jsx":   250,
+    "frontend/src/screens/admin/modals.jsx":       250,
 }
 
 repo = Path(__file__).resolve().parent.parent
