@@ -5,6 +5,103 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.5 (Cn) Cleanup — 首个减法 PATCH（Negative Delta）
+
+> v0.5.4 Loop Protocol v3 路线图同步收官后第六刀：v0.5.x 序列**首个减法 PATCH**（Negative Delta -18 行）。**Loop Protocol v3 第 6 次完整 PATCH 内施行**。物理删 `lark.py` v0.3.2 stub + 8 处 sync LLM API docstring 标 `[DEPRECATED]`。
+>
+> **范围最小化原则**：不删 sync API 实现（query_steps 非流式仍依赖，实际删留 v0.6.x）；不删 base.py + __init__.py（接口预留）；不动 frontend / scripts / 依赖文件。
+
+### Removed — lark.py stub 物理删除
+
+- **`knot/adapters/notification/lark.py`** [DELETE -29 行]：v0.3.2 占位 LarkAdapter，业务侧 0 调用
+- 接口契约（NotificationAdapter Protocol）保留在 base.py + __init__.py（**接口预留 — D3 A**），未来真接入飞书 / Slack 时直接加新 adapter 实现，不动调用方
+
+### Removed — Test Case 受控降级（R-151 显式存档）
+
+backend 测试基准受控降级 **432 → 430**（删 2 个 lark 测试 cases）：
+- `test_lark_satisfies_protocol`（位于 `tests/adapters/test_notification.py` L16）
+- `test_lark_send_raises_not_implemented`（位于 `tests/adapters/test_notification.py` L20）
+
+**保留**：`test_notification_dataclass_defaults`（L9） — Notification dataclass 契约测试
+
+> **R-151 存档目的**：防未来审计误判测试丢失；明确这 2 个测试是**有意删除**（lark stub 已删，测试无意义），不是遗失。
+
+### Changed — sync LLM API 8 处 docstring 标注 [DEPRECATED]
+
+R-152 锁定模板首行（**8 处字面 byte-equal**）：
+
+```
+[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead.
+```
+
+8 处分散在 7 个文件（**LOCKED §4 路径整合修正** — 原手册写"集中在 llm_client.py"实际分散）：
+
+| 文件 | 函数 | sync → async 替代 |
+|---|---|---|
+| `knot/services/llm_client.py` | `generate_sql` | `agenerate_sql` |
+| `knot/services/llm_client.py` | `fix_sql` | `afix_sql` |
+| `knot/services/_llm_invoke.py` | `_invoke_via_adapter` | `_ainvoke_via_adapter` |
+| `knot/services/agents/sql_planner.py` | `run_sql_agent` | `arun_sql_agent` |
+| `knot/services/agents/sql_planner_llm.py` | `_call_llm` | `_acall_llm` |
+| `knot/services/agents/clarifier.py` | `run_clarifier` | `arun_clarifier` |
+| `knot/services/agents/presenter.py` | `run_presenter` | `arun_presenter` |
+| `knot/services/agents/orchestrator.py` | `_llm` | `_allm` |
+
+**R-142 业务零变更**：8 处函数体 / 函数签名 / import / 数据结构 0 修改；仅添加 docstring 首行（+ 可选保留原 docstring 内容多行格式调整）。
+
+**D2 v1.0 删除目标**：query_steps.py 非流式路径（`run_generate_sql_with_fix_retry` + `run_agent_step_sync`）仍依赖 sync API；实际删除留 v0.6.x（query_steps 非流式迁 async 后才能做）。
+
+### Architecture（不增 contract / 0 frontend / 0 依赖）
+
+7 import-linter contracts 全程 KEPT（R-140；不动 .importlinter）。
+**R-145 zero drift**：frontend / requirements.txt / pyproject.toml / package.json / .importlinter / scripts/check_file_sizes.py 0 修改。
+**R-141 接口预留守护**：`notification/base.py` + `notification/__init__.py` 字面 byte-equal。
+
+### Decisions Locked (D1-D5)
+
+| ID | 锁定 |
+|---|---|
+| **D1** sync API 标注形式 | A docstring 仅注释（不加 runtime warning / 装饰器） |
+| **D2** sync API 删除时间表 | A v1.0 删除目标（query_steps 仍依赖） |
+| **D3** notification/ 目录残留 | A 保留 base + __init__（接口预留） |
+| **D4** 红线编号 | A 接续 R-139~R-153 |
+| **D5** Commit 序列 | A 3 commit 单文件单职责 |
+
+### Red-lines（R-139~R-153 共 15 条全部偿还）
+
+| ID | 来源 | 偿还方式 |
+|---|---|---|
+| **R-139** | 执行者 | backend tests 432 → 430 受控降级（删 2 lark 测试） |
+| **R-140** | 执行者 | 7 contracts KEPT, 0 broken |
+| **R-141** | 执行者 | notification/{base, __init__}.py 字面 byte-equal ✓ |
+| **R-142** | 执行者 | sync API 8 处函数体零修改（git diff 仅 docstring） |
+| **R-143** | 执行者 | 非流式路径继续工作（query_steps run_generate_sql_with_fix_retry + run_agent_step_sync） |
+| **R-144** | 执行者 | routes=72 / version=0.5.5 |
+| **R-145** | 执行者 | 0 修改 frontend / requirements.txt / package.json / pyproject.toml / .importlinter |
+| **R-146** | 执行者 | scripts/check_file_sizes.py LIMITS 不动 |
+| **R-147** | 执行者 | live LLM eval 不影响（重构性 cleanup 不动 SQL 生成行为） |
+| **R-148** | 执行者 | CLAUDE.md `lark.py(stub)` 字面去除（路径表更新为"通知接口抽象层"） |
+| **R-149** | Stage 2 | 幽灵扫描：grep `notification\.lark\|from \.lark\|import.*lark` knot/ tests/ → 0 命中 ✓ |
+| **R-150** | Stage 2 | 非 SSE 手测：8 处 sync API 模块 import + callable 全 True（0 IndentationError / 0 三引号闭合错） |
+| **R-151** | Stage 3 | CHANGELOG 显式列被删 2 测试名（`test_lark_satisfies_protocol` + `test_lark_send_raises_not_implemented`） |
+| **R-152** | Stage 3 | 8 处 docstring 首行字面 byte-equal `[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead.` ✓ |
+| **R-153** | Stage 3 | CLAUDE.md 关键路径表 notification 描述改"通知接口抽象层" ✓ |
+
+### Loop Protocol v3 — 第 6 次完整施行（首个 Negative Delta）
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.5-cleanup.md](docs/plans/v0.5.5-cleanup.md)（D1-D5 + R-139~R-148 10 红线） |
+| Stage 2 | 资深架构师 + Codex | 5/5 决策一致 + R-149/R-150 新增（幽灵扫描 + 非 SSE 手测） |
+| Stage 3 | v0.4 守护者 | 终审 GO + R-151/R-152/R-153 新增（测试名显式 + Deprecation 字面统一 + 路径描述修正）+ Negative Delta 里程碑指示 |
+| Stage 4 | v0.5 执行者 | 3-commit 落地（C1 lark 删 / C2 sync API docstring / C3 version + docs），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码；v0.3 远古守护者 dormant 未激活。
+
+**特别意义** — v0.5.x 序列**首个减法 PATCH**（Negative Delta -18 行）：v0.5.0~v0.5.4 全部是**加法 PATCH**（rename / SQL AST / 拆分 / 文档同步），v0.5.5 是序列首个**减法 PATCH**（删除遗留代码 + 标注废弃 API）。Cleanup 是 1.0 release 必经之路 — 给 v1.0 公测留一个干净的代码 baseline。
+
+---
+
 ## [Unreleased] - v0.5.4 (C4) Loop Protocol v3 路线图同步
 
 > v0.5.3 前端瘦身落地后第五刀：Loop Protocol v3 路线图同步至面向用户文档。**Loop Protocol v3 第 5 次完整 PATCH 内施行**（自我引用闭环 — 用 v3 协议同步 v3 协议）。docs-only PATCH（除 main.py version + R-72 smoke 字符串外严禁触碰任何 .py/.js/.jsx 逻辑行）。

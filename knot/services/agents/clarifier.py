@@ -134,6 +134,7 @@ def run_clarifier(
     api_key: str = "",
     openrouter_api_key: str = "",
 ) -> dict:
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead."""
     # R-106 方案 1：延迟 import 主文件 helpers
     from knot.services.agents.orchestrator import (
         _business_rules,

@@ -93,7 +93,10 @@ def _resolve(model_key: str, api_key: str = "", openrouter_api_key: str = ""):
 
 
 def _llm(model_key: str, key: str, cfg: dict, system: str, messages: list, max_tokens: int = 400):
-    """Single LLM call; returns (text, input_tokens, output_tokens, cost_usd)."""
+    """[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead.
+
+    Single LLM call; returns (text, input_tokens, output_tokens, cost_usd).
+    """
     provider = cfg["provider"]
     if provider == "anthropic":
         import anthropic
