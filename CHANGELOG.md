@@ -5,6 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.7 (C5+) Claude Design UI 重构 — Login 屏首屏复刻 pilot
+
+> v0.5.6 Foundation 落地后第八刀：**首屏 1:1 复刻 demo 视觉 — Login pilot**。资深架构师拍板"1 屏 1 PATCH"渐进替换 18 个 artboards，本 PATCH 建立的执行模板将服务于 v0.5.8+ Home / Shell / Thinking / Favorites / 9 admin tabs。
+>
+> Loop Protocol v3 **第 8 次**完整 PATCH 内施行。Shell.jsx 严格 0 改动（即使 KnotLogo 已可用 — R-186 抗诱惑守护）。
+
+### Added — Logo 三件套 + decor SVG 资产（v0.5.8+ 复用）
+
+**Shared.jsx 新增 3 export**（9 → 12，R-174 上限）：
+
+- `KnotMark({ T, size = 32 })` — 原子标记：3 椭圆轨道 (rotate 0/60/-60) + 中心核圆，viewBox 100×100（**Q2** Logo 与 Icon 语义不同，不与 I 24×24 共用）
+- `KnotWordmark({ T, size = 24 })` — Inter Black 字标 "KNOT"，letterSpacing -3.5 紧排
+- `KnotLogo({ T, size = 32 })` — 横向 lockup（Atom + Wordmark），gap 自适应 size×0.32
+
+**R-183 size props**：3 个组件均接 size 默认值（不写死像素常量）；调用处可覆盖（Login.jsx 用 size=22）。
+**Q4 T.dark boolean**：色值 `T.dark ? '#f4f6f8' : '#0d1014'`，全文 `theme === 'light'` 字串 0 命中。
+
+**frontend/src/decor/NarrativeMotif.jsx [NEW 112 行 ≤ 120 R-173]**（pure SVG func）：
+
+- 视觉隐喻：原子结构 motif — 3 椭圆轨道（rotate -22/22/0）+ 4 电子（1 brand-tinted）+ 核心 + 左侧 7 条 bezier 曲线（输入 → 收敛核心）
+- 故事：复杂需求 → K/N/O/T 三个专家 Agent → 核心可追溯洞察
+- **R-182 React.memo**：`export default memo(NarrativeMotif)` 防 Login state 变化（错误 / 主题切换）触发 SVG 巨量 path 重绘；Login.jsx T 引用稳定（App.jsx 既有 useMemo）则 memo 命中
+- **Q1 OKLCH color-mix**：`color-mix(in oklch, ${T.accent} 15%, transparent)` 替代 demo 原 brand[100] 浅色阶（**严禁扩 buildTheme 25 字段** — 守 R-158 契约）；用于 `radial-gradient(ellipse at 30% 20%, ${tint}, transparent 60%)` 包裹 SVG 外层 div
+- **Q4 T.dark boolean**：stroke / muted / node / orbitColor 全用 `T.dark ?` 分支
+
+### Changed — Login.jsx 视觉 1:1 复刻 demo（116 → 178 ≤ 200 R-175）
+
+**布局**：flex (1) + 420px → grid 1.05fr 1fr（demo 模式）+ 左面板 borderRight 分割。
+
+**左侧 narrative panel**：
+
+- `cb-grid-bg` 网格 → `<NarrativeMotif T={T}/>` 原子 motif 装饰（70% 宽，pointerEvents none）
+- 30px 圆角块 + sparkle → `<KnotLogo T={T} size={22}/>`（Atom + Wordmark lockup）
+- features list 3 行 → "Knowledge·Nexus·Objective·Trace" tagline (mono uppercase) + "复杂结于此，洞察始于此" 38px 标题 + KNOT Agent 协同描述段
+- 删除 "© 2026 KNOT · 内部系统" 页脚（迁右下版本号位）
+
+**右侧 form panel**：
+
+- 标题加 "sign in" mono 小字 → "欢迎回来" + "使用账号登录访问你的数据空间"
+- 输入用 Field box 风格（label + 44px 灰底框 + I.user/I.lock 内嵌 + I.eye toggle）
+- **新增** "7 天内自动登录" checkbox（D3 仅 UI + localStorage `knot_remember` flag）+ "忘记密码？" 占位（D4 无 handler 内部 admin 重置）
+- **D7** 主按钮 "登录" → "进入 KNOT" + I.send 右箭头
+- **D6** error banner 红色用 `oklch(62% 0.22 27)` + color-mix 12%/25% 浅底/边（语义色远离 brand）
+- **R-181** 页脚 "v0.5.7 · KNOT 内部系统" 左 + "knot.local" mono 右（与 main.py FastAPI version + smoke test 三处同步）
+
+**R-184 input focus 蓝青**：`focused` state tracker + `border: 1px solid ${focused === key ? T.accent : T.inputBorder}` + transition 0.15s — Tab 切换两个输入框边框显蓝青。
+
+**Q3 remember-me 防误导**：checkbox + label 双层 `title="目前仅作为偏好记录，Token 有效期受服务器策略控制"`。
+
+### Added — 守护测试
+
+**`tests/test_login_version_sync.py` [NEW 47 行]**（R-181 + R-185 合并）：
+
+- `test_R181_login_footer_version_synced_with_main`：grep `f"v{app.version}"` in Login.jsx — 三处同步漏一处即挂
+- `test_R185_login_renders_knot_logo`：grep `<KnotLogo|<KnotMark` in Login.jsx + 校验 Shared.jsx export KnotMark/KnotWordmark/KnotLogo — 防资产重构后"逻辑蒸发"
+
+### Changed — CI 守护扩展
+
+**`scripts/check_file_sizes.py` LIMITS 27 → 29 条（R-176）**：
+
+- `frontend/src/screens/Login.jsx`: 200（重构后 178 行）
+- `frontend/src/decor/NarrativeMotif.jsx`: 120（112 行）
+
+### Architecture（不增 contract / 17 屏 byte-equal / Shell.jsx 严守 0 改）
+
+7 import-linter contracts 全程 KEPT（R-177）。
+**R-178 17 屏 byte-equal**：`git diff frontend/src/screens/` 仅含 Login.jsx — Chat/Admin/Database/Knowledge/Conv/SavedReports/Catalog/SqlLab/Settings + 12 子模块共 17 屏字面零修改。
+**R-179 核心非屏文件 byte-equal**：App.jsx / api.js / index.css / main.jsx / utils.jsx / Shell.jsx 0 修改。
+**R-186 严格 1 屏限制**：Shell.jsx **0 行改动**（即使 KnotLogo 三件套已注入 Shared.jsx 可用 — 抗诱惑守护；Shell topbar Logo 留 v0.5.8+）。
+**R-164 zero drift**：package.json / requirements.txt / pyproject.toml / .importlinter / vite.config.js / .github/workflows 0 修改。
+
+### Loop Protocol v3 — 第 8 次完整 PATCH 内施行
+
+- **Stage 1**（v0.5 执行者）：Login.jsx 现状 vs demo login.jsx 视觉差距分析（116 vs 110 行 11 维度 diff），D1-D7 草案 + R-170~R-180 红线（11 条）；资深 ack 中补充"登录页版本号与当前版本一致" → D8 + R-181
+- **Stage 2**（资深 + Codex）：Q1-Q4 风险项（color-mix / SVG viewBox / 7 天 UX 防误导 / T.dark 强制） + 加 R-182（React.memo）+ R-183（size props 严禁写死像素）
+- **Stage 3**（v0.4 守护者）：加 R-184（焦点蓝青手测）+ R-185（DOM 哨兵测试）+ R-186（Shell.jsx 严守 0 改 — 抗诱惑红线）
+- **Stage 4**（执行者）：5 commit 落地，全程 0 修订；执行顺序严守 Stage 3 §2（Logo 注入 → Motif 创建 → Login 重构 → version+LIMITS → docs）
+
+12/12 决策（D1-D8 + Q1-Q4）与执行者 Stage 1 提议一致；新增 6 条红线（Stage 2: 2 + Stage 3: 3 + 资深 ack: 1）；红线总数 17（**R-170~R-186**）。
+
+### Migration
+
+- 客户端无任何 breaking change（LoginScreen export name + props + api.login + cb_token 链路 byte-equal）
+- 老用户登录 7 天偏好记录走 localStorage `knot_remember` flag — 仅 UI 偏好，Token TTL 仍受服务器策略控制（v0.6+ 评估 backend 动态 TTL）
+
+### Tests
+
+- backend：430 → **432 passed**（112 skipped 不变）— 仅新增 R-181 + R-185 守护测试，0 现有测试改动
+- frontend build：`npm run build` 0 警告 0 error；bundle hash `index-CCUVoYmE.js` → `index-CK2CIwDo.js`（+4 kB — NarrativeMotif + KnotLogo 三件套引入）
+
+### 验收标准
+
+- [x] backend tests 432 passed / 7 contracts KEPT / 72 routes / version 0.5.7
+- [x] check_file_sizes.py 29 条 LIMITS 通过
+- [x] R-181 + R-185 sync test 通过
+- [x] R-186 `git diff frontend/src/Shell.jsx` = 0 行
+- [x] Q4 grep `theme ===` = 0（decor + Shared 新增段 + Login 全文）
+- [ ] 手测：light + dark 双主题登录端到端（Tab 焦点蓝青 + remember 勾选 localStorage 写入 + "进入 KNOT" 提交）
+- [ ] 视觉对照 demo login.jsx：light + dark 各 1 张截图
+
+### v0.5.x 路线图更新
+
+- v0.5.7 (C5+) Claude Design UI 重构 — Login 屏首屏复刻 pilot ⏳ → ✅
+- v0.5.8+ (C5+) 1 屏 1 PATCH 渐进替换 17 屏（Home / Shell / Thinking / Favorites / 9 admin tabs）
+
+---
+
 ## [Unreleased] - v0.5.6 (C5) Claude Design UI 重构 — Foundation 第一刀
 
 > v0.5.5 cleanup（首个 Negative Delta）收官后第七刀：**Claude Design UI 重构第一刀 Foundation**。资深架构师拍板"以体验先行" + "1:1 复刻 demo 视觉与交互" — 但 demo 仓库 (`/Users/kk/Documents/knot_ui_demo/v0.5/`) 是**设计代理**（不进产品），目标是产品视觉按 demo 设计语言重构。
