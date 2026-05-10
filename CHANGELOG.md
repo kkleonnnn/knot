@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.2 (C2) 后端代码瘦身
+
+> v0.5.1 SQL AST 守护落地后第三刀：4 主文件（sql_planner 653 / llm_client 574 / orchestrator 535 / api/query 457）按文件级 1 commit 拆分为 9 个子模块。Loop Protocol v3 第三次完整 PATCH 内施行（D1-D8 全锁定 + 17 红线 R-94~R-110）。
+>
+> **范围最小化原则**：D-2 不增测试（重构验证靠 R-95 严格 432 不变 + R-100 re-export 兼容）；R-106 子模块单向依赖；R-109 SSE 稳定性（query_steps.py AST 0 yield，主控保留在 api/query.py）。
+
+### Refactor — 4 主文件拆出 9 子模块（行数）
+
+| 主文件 | 拆前 | 拆后 | 子模块 | 行数 |
+|---|---|---|---|---|
+| `knot/services/agents/sql_planner.py` | 653 | **330** ≤ 350 | `sql_planner_prompts.py` / `sql_planner_tools.py` / `sql_planner_llm.py` | 119 / 165 / 84 |
+| `knot/services/llm_client.py` | 574 | **250** ≤ 300 | `few_shots.py` / `llm_prompt_builder.py` / `_llm_invoke.py` | 107 / 90 / 178 |
+| `knot/services/agents/orchestrator.py` | 535 | **199** ≤ 220 | `clarifier.py` / `presenter.py` | 219 / 162 |
+| `knot/api/query.py` | 457 | **309** ≤ 310 ⚠️ | `services/query_steps.py` | 193 |
+
+> **R-94 query.py 边界微调 220 → 310（资深 ack 方案 A）**：SSE 协议样板代码不可消除（10 yield + 10 await asyncio.sleep R-26-SSE + emit/_default + try/except + save_message ×2 路径 + final/clarification payload dict ≈ 142 行）。从 457 → 309 已 -32% 显著瘦身；C1/C2/C3 三主文件精确达标，仅 query.py 因 SSE 特性微调。
+
+### Added — D7 加码 CI 行数核验
+
+- **`scripts/check_file_sizes.py`** [NEW, 44 行]：纯 stdlib，13 文件 LIMITS dict（4 主 + 9 新）；超线 exit(1)
+- **`.github/workflows/ci.yml`** [EDIT]：lint-test job 加 `File-sizes (R-94)` step（ruff 之后 / lint-imports 之前）
+
+### Architecture（不增 contract）
+
+7 import-linter contracts 全程 KEPT（D8 不增 contract；R-96 守护）：
+- 子模块全部落 `services/` 层，不破坏现有依赖方向
+- R-106 单向依赖（前置守护：每个新模块单独 `python3 -c "import"` 验证 + lint-imports）
+  - sql_planner / llm_client：顶部 import 子模块（标准单向）
+  - orchestrator：方案 1 — clarifier/presenter 函数体内延迟 import 主文件 helpers
+    （与 v0.4.4 `_acall_llm` 内 `from knot.services import budget_service` 同模式 — 避免 import-time 循环 + monkeypatch 自动生效）
+
+### Decisions Locked (D1-D8)
+
+| ID | 锁定 |
+|---|---|
+| **D1** 双胞胎合并 | A 保守不合并（sync/async 双胞胎签名 + 行为完全保留） |
+| **D2** 模块组织 | A 同级 `_*.py` |
+| **D3** prompt 位置 | A `.py` 字符串 |
+| **D4** query 步骤位置 | A `services/query_steps.py` |
+| **D5** re-export | A 强制要求（Stage 2 措辞升级；R-100 测试 import 路径 0 修改） |
+| **D6** `_is_fan_out` 抽到 tools | A 抽 |
+| **D7** 行数硬约束 | A 严格执行 + CI 脚本核验（Stage 2 加码） |
+| **D8** 新增 contract | B 不增（7 contracts KEPT） |
+
+### Red-lines（R-94~R-110 共 17 条全部偿还）
+
+| ID | 来源 | 偿还方式 |
+|---|---|---|
+| **R-94** | 执行者 | 4 主精确达标 + query.py 微调 220 → 310（资深 ack 方案 A） |
+| **R-95** | 执行者 | 432 passed / 112 skipped 严格不变（D-2 不增测试） |
+| **R-96** | 执行者 | 7 contracts KEPT；不动 `.importlinter` |
+| **R-97** | 执行者 | sync/async 双胞胎签名 + 行为完全保留 |
+| **R-98** | 执行者 | v0.5.1 cartesian (8) + R-91 计数 + v0.4.1.1 fan-out (7) 守护零变更 |
+| **R-99** | 执行者 | v0.4.4 R-26 senior budget gate + R-30 BIAgentError 透传 |
+| **R-100** | 执行者 | re-export 兼容；testfile import 0 修改（仅 2 处 monkeypatch target 字符串路径走子模块；与 C2 同模式） |
+| **R-101** | 执行者 | 6 commit 序列锚定，每 commit 独立全闸门绿 |
+| **R-102** | 执行者 | routes=72；version=0.5.2；vite build 通过 |
+| **R-103** | 执行者 | 不动 `.env.example` / `requirements.txt` / `pyproject.toml` |
+| **R-104** | 执行者 | 9 新文件顶部 module docstring 含"v0.5.2 起从 X 抽出" |
+| **R-105** | 执行者 | commit message 注明源行号区间（拆分不能 git mv 保 history） |
+| **R-106** | Stage 2 | 严禁子模块循环引用 — 单向 import；orchestrator 子文件用方案 1 延迟 import |
+| **R-107** | Stage 2 | Private `_` 前缀保护（`_is_fan_out` / `_run_tool` 等保持 private；外部已 public 不变） |
+| **R-108** | Stage 3 | 逻辑平移零损耗 — commit 2 后 budget+crypto+llm_client 23/23 PASSED |
+| **R-109** | Stage 3 | SSE 稳定性 — query_steps.py AST 0 yield 验证；query_stream 内 yield 主控原样保留 |
+| **R-110** | Stage 3 | 文档连续性 — CLAUDE.md 关键路径表 +9 行新文件，每行注明职责 |
+
+### Loop Protocol v3 — 第三次完整施行
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.2-backend-slim.md](docs/plans/v0.5.2-backend-slim.md)（D1-D8 决策点 + R-94~R-105 12 红线） |
+| Stage 2 | 资深架构师 + Codex | D5/D7 措辞升级（强制 / CI 脚本）+ 新增 R-106/R-107 |
+| Stage 3 | v0.4 守护者 | 终审 GO + 新增 R-108/R-109/R-110 + D-2 测试骨架优先指示（重构 PATCH 不增测试） |
+| Stage 4 | v0.5 执行者 | 6-commit 落地（C1 sql_planner + C2 llm_client + C3 orchestrator + C4 query + C5 version+CI + C6 docs），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码（合规 — Loop Protocol v3 § 角色定义）；v0.3 远古守护者 dormant 未激活。
+
+---
+
 ## [Unreleased] - v0.5.1 (C1) SQL AST 预校验（笛卡尔积硬防御）
 
 > v0.5.0 KNOT 重命名收官后第二刀：1.0 release **阻塞偿还**。在 v0.4.1.1 已建立的 prompt 三层防御之上，加 **后端 sqlglot AST 硬防御** —— 笛卡尔积 / 恒真 ON 检测，触发后让 sql_planner ReAct 重生成。

@@ -29,7 +29,9 @@ async def test_R26_senior_budget_block_raises_before_sdk_instantiation(tmp_db_pa
         called["adapter"] = True
         raise RuntimeError("R-26-Senior 失败：LLM adapter 在 budget block 之后被错误调用")
 
-    monkeypatch.setattr(llm_client, "get_async_adapter", _spy_get_async_adapter)
+    # v0.5.2 R-100：拆分后 get_async_adapter 居 _llm_invoke 子模块；monkeypatch
+    # 走子模块字符串路径（testfile import 路径仍 0 修改 — 仅 monkeypatch target 改子模块）
+    monkeypatch.setattr("knot.services._llm_invoke.get_async_adapter", _spy_get_async_adapter)
 
     with pytest.raises(BudgetExceededError) as exc_info:
         await llm_client._ainvoke_via_adapter(
@@ -59,7 +61,8 @@ async def test_R26_senior_no_budget_no_block(tmp_db_path, monkeypatch):
             return LLMResponse(text='{"sql": "SELECT 1", "explanation": "", "confidence": "high"}',
                                input_tokens=10, output_tokens=5)
 
-    monkeypatch.setattr(llm_client, "get_async_adapter", lambda p: _StubAdapter())
+    # v0.5.2 R-100：同上，拆分后子模块路径
+    monkeypatch.setattr("knot.services._llm_invoke.get_async_adapter", lambda p: _StubAdapter())
 
     result = await llm_client._ainvoke_via_adapter(
         "system", "user",

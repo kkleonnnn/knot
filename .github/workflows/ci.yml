@@ -27,6 +27,10 @@ jobs:
       - name: Ruff lint
         run: ruff check knot/
 
+      # v0.5.2 D7 加码：R-94 行数核验（13 文件硬上限不可超）
+      - name: File-sizes (R-94)
+        run: python3 scripts/check_file_sizes.py
+
       # 依赖 Install 步骤完成；7 contracts 不绕过即合入
       - name: Import-linter (7 contracts KEPT)
         run: lint-imports
