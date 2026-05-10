@@ -30,7 +30,8 @@ export function toast(msg, err = false) {
   el.textContent = msg;
   Object.assign(el.style, {
     position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-    background: err ? '#FF4B4B' : '#09AB3B', color: '#fff',
+    // v0.5.6 R-167 语义色：error 朱红 27° / success 翠绿 145°（远离 brand 195°）
+    background: err ? 'oklch(62% 0.22 27)' : 'oklch(72% 0.18 145)', color: '#fff',
     padding: '9px 18px', borderRadius: 8, fontSize: 13.5, fontFamily: 'inherit',
     boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 9999, animation: 'cb-fadein .3s ease',
   });
@@ -110,6 +111,7 @@ export function Select({ T, label, value, onChange, options }) {
   );
 }
 
-export function Spinner({ size = 16, color = '#FF4B4B' }) {
-  return <span style={{ display: 'inline-block', width: size, height: size, border: `2px solid ${color}30`, borderTopColor: color, borderRadius: '50%', animation: 'cb-spin 0.7s linear infinite' }}/>;
+export function Spinner({ size = 16, color = 'oklch(58% 0.17 195)' }) {
+  // v0.5.6 brand 蓝青；OKLCH 不支持 ${color}30 hex 透明语法 → 用 oklch( ... / 0.18) 的 ring
+  return <span style={{ display: 'inline-block', width: size, height: size, border: `2px solid oklch(58% 0.17 195 / 0.18)`, borderTopColor: color, borderRadius: '50%', animation: 'cb-spin 0.7s linear infinite' }}/>;
 }
