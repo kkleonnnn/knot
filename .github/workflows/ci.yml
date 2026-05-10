@@ -108,13 +108,17 @@ jobs:
               echo "neither path: fail-fast 正确 ✓"
               ;;
             *)
-              # 三个成功路径：title=KNOT, version=0.5.0, routes=72 不变
+              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 偿还
+              # v0.5.0 R-72 留下的硬编 bug）/ routes=72 不变
               python -c "
+          import re
+          src = open('knot/main.py').read()
+          expected = re.search(r'version=\"([\d.]+)\"', src).group(1)
           from knot.main import app
           assert app.title == 'KNOT', f'title={app.title}'
-          assert app.version == '0.5.0', f'version={app.version}'
+          assert app.version == expected, f'version={app.version} expected={expected}'
           assert len(app.routes) == 72, f'routes={len(app.routes)}'
-          print('boot smoke OK: title=KNOT version=0.5.0 routes=72')
+          print(f'boot smoke OK: title=KNOT version={app.version} routes=72')
           "
               ;;
           esac
