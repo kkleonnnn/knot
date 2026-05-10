@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.4 (C4) Loop Protocol v3 路线图同步
+
+> v0.5.3 前端瘦身落地后第五刀：Loop Protocol v3 路线图同步至面向用户文档。**Loop Protocol v3 第 5 次完整 PATCH 内施行**（自我引用闭环 — 用 v3 协议同步 v3 协议）。docs-only PATCH（除 main.py version + R-72 smoke 字符串外严禁触碰任何 .py/.js/.jsx 逻辑行）。
+>
+> **范围最小化原则**：D-2 backend 0 改动；R-138 docs-only zero drift；R-134 协议核心 4 段字面 byte-equal；R-132 README 既有 7 段 § 标题字面零修改。
+
+### Added — README.md 新增 § Loop Protocol v3 简介段
+
+- 1 段开场（v3 = 三阶段评审 + 4 级角色 + MINOR 滚动整体审核仪式）
+- **4 级角色简表**（执行者 / 守护者 / 远古守护者 / 辅助 AI 初审组 / 资深架构师）
+- **R-136 ASCII 三阶段流程图**（一行简版）：`执行者 (Stage 1 草案) → 辅助 AI 初审组 (Stage 2 Redline) → 守护者 (Stage 3 终审) → 执行者落地`
+- **R-137 角色滚动透明声明**：「角色按 MINOR 滚动 — 当前 MINOR 的执行者会在下一 MINOR 自动转为守护者，再下一 MINOR 转为远古守护者；强调"规则治权"而非"人治层级"，不存在不可动摇的技术层级」
+- MINOR 滚动整体审核仪式简介
+- **R-135 链接策略**：不带锚点直接指向 CLAUDE.md（避免 GitHub URL-encoded anchor 死链 + 锚点漂移）
+
+### Changed — CLAUDE.md L110-114 v3 协议施行历史段扩展
+
+5 行回顾摘要表（v0.5.0~v0.5.4）：
+
+| PATCH | 主题 | 红线 | 关键决策 / 施行特征 |
+|---|---|---|---|
+| v0.5.0 | KNOT rename + Foundation | R-67~R-79 (13) | 包名 / env 双源 / DB migration / Loop Protocol v3 **首次完整施行** |
+| v0.5.1 | SQL AST 笛卡尔积硬防御 | R-80~R-93 (14) | sqlglot AST + ReAct `__REJECT_CARTESIAN__` + R-91 计数器 |
+| v0.5.2 | 后端代码瘦身 | R-94~R-110 (17) | **27 文件行数压制**（4 主 ≤ 350/300/220/220 + 9 新建 ≤ 250 + scripts/check_file_sizes.py CI 核验）；sync/async 双胞胎保守不合并；orchestrator 方案 1 延迟 import 破单向依赖 |
+| v0.5.3 | 前端代码瘦身 | R-111~R-128 (18) | Chat.jsx 925 → ≤ 350；Admin tab 7→4 文件按职责合并；className 0 diff 守护；R-118 SSE handler 纯函数化 callbacks 注入 |
+| v0.5.4 | Loop Protocol v3 路线图同步 | R-129~R-138 (10) | docs-only；**第 5 次 v3 施行**（自我引用闭环）；README 加 protocol 简介对外公开治理 |
+
+> **Stage 3 §2 明确指示**：v0.5.2 行**显式提"27 文件行数压制"**字眼（已落地）。
+
+### Architecture（不增 contract / 0 修改 backend / frontend）
+
+7 import-linter contracts 全程 KEPT（R-130；不动 .importlinter）。
+**R-138 zero drift**：`git diff --ignore-space-change knot/ frontend/ tests/ scripts/ requirements.txt pyproject.toml .importlinter` → 仅 3 行（main.py version + test_rename_smoke docstring/assert smoke 字符串）；0 函数体 / 0 import / 0 数据结构变化。
+
+### Decisions Locked (D1-D5)
+
+| ID | 锁定 |
+|---|---|
+| **D1** README 形式 | A 内嵌轻量简介 + 指向 CLAUDE.md 深挖 |
+| **D2** 历史扩展粒度 | A 加 v0.5.0~v0.5.3 4 PATCH 回顾摘要表 |
+| **D3** README 简介深度 | A 4 级角色 + 三阶段 + 滚动规则 |
+| **D4** 红线编号 | A 接续 R-129~R-138 |
+| **D5** Commit 序列 | A 3 commit 单文件单职责 |
+
+### Red-lines（R-129~R-138 共 10 条全部偿还）
+
+| ID | 来源 | 偿还方式 |
+|---|---|---|
+| **R-129** | 执行者 | backend 432 passed / 112 skipped 严格不变 |
+| **R-130** | 执行者 | 7 contracts KEPT；不动 .importlinter |
+| **R-131** | 执行者 | 0 修改 backend / frontend / scripts / tests / 依赖文件（除 main.py version + R-72 smoke） |
+| **R-132** | 执行者 | README 既有 7 段标题（角色 / 3-Agent / 快速开始 / Docker / 部署 / 技术栈 / 项目结构 / 版本记录）字面零修改；grep 8/8 命中 |
+| **R-133** | 执行者 | CLAUDE.md v3 协议条款无矛盾（仅"施行历史"段扩展） |
+| **R-134** | Stage 2 | 协议核心 4 段（§ 角色定义 / § 三阶段评审 / § 角色滚动规则 / § 远古守护者激活原则）字面 md5 byte-equal ✓ |
+| **R-135** | Stage 2 | URI 完整性：README 2 个 CLAUDE.md 链接均不带锚点；0 死链风险 |
+| **R-136** | Stage 3 | README 含一行 ASCII 三阶段流程图（执行者 → 辅助 AI 初审组 → 守护者 → 执行者落地） |
+| **R-137** | Stage 3 | README 含"角色按 MINOR 自动滚动 — 不存在不可动摇的技术层级；强调规则治权"明确声明 |
+| **R-138** | Stage 3 | docs-only zero drift — git diff knot/frontend/tests/scripts/+依赖 仅 3 行（version + smoke），0 函数体改动 |
+
+### Loop Protocol v3 — 第 5 次完整施行（自我引用闭环）
+
+| Stage | 角色 | 产物 |
+|---|---|---|
+| Stage 1 | v0.5 执行者 | 草案 [docs/plans/v0.5.4-loop-protocol-sync.md](docs/plans/v0.5.4-loop-protocol-sync.md)（D1-D5 + R-129~R-133 5 红线） |
+| Stage 2 | 资深架构师 + Codex | 终审摘要 5/5 决策与执行者一致 + R-134/R-135 新增（协议核心字面守护 + URI 校验） |
+| Stage 3 | v0.4 守护者 | 终审 GO + R-136/R-137/R-138 新增（ASCII 流程图 + 角色滚动透明度 + zero drift） |
+| Stage 4 | v0.5 执行者 | 3-commit 落地（C1 README+CLAUDE.md / C2 version bump / C3 CHANGELOG+plan 归档），全闸门绿 |
+
+> v0.4 守护者全程**只读**未触碰代码（合规 — Loop Protocol v3 § 角色定义）；v0.3 远古守护者 dormant 未激活。
+
+---
+
 ## [Unreleased] - v0.5.3 (C3) 前端代码瘦身
 
 > v0.5.2 后端瘦身落地后第四刀：2 个前端主屏（Chat.jsx 925 / Admin.jsx 773）按 4-commit 节奏拆分为 13 个子组件。Loop Protocol v3 第四次完整 PATCH 内施行（D1-D7 全锁定 + 18 红线 R-111~R-128）。
