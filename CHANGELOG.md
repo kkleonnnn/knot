@@ -5,6 +5,157 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.16 (C5+) DataSources 屏复刻（tab_access Sources 部分）— 首个 admin tab 子模块复刻 + Inset 8% 三处闭环 + I.db 复用先例
+
+> **首个 admin tab 子模块复刻** — `tab_access.jsx` Sources 部分（L35-57）9 子步骤视觉重构；Users 部分（L9-33 含 `#ff7a3a` 渐变残留）字面零修改 **R-376 双重强制 out-of-scope**。
+>
+> **全站 Inset 8% 设计语言三处闭环** — `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面在三屏 byte-equal：
+> - v0.5.14 R-323 ResultBlock Observation card
+> - v0.5.15 R-372 SavedReports Quote inset
+> - **v0.5.16 R-386 DataSources Summary 卡 + thead + Name icon + Type chip**（4 处命中）
+>
+> **I.db 复用先例**（Q3 修订）— v0.5.x 第一次 Shared.jsx 资产复用；未来 Shared `I.*` 已有图标**优先复用** vs inline svg dict。
+>
+> Loop Protocol v3 **第 17 次施行** — 全 v3 三阶段评审。
+
+### Changed — tab_access.jsx Sources 部分视觉重构（60 → 88 行 ≤ R-387 110 行预算）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行：
+
+**Step 1 baseline diff 标定**（R-376 准备）：grep 确认 Users (L9-33) / Sources (L35-57) 边界；commit 1 收尾强制 L9-33 段 0 行 diff。
+
+**Step 2 Summary grid 4 卡片**（R-378/379/394 — Stage 2 Codex auto-fit 替代 media query）：
+- `gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'` 宽屏自动 4 列 / ≤720px 2 列 / ≤360px 1 列
+- "已连接" 卡 brandSoft 8% bg + brand color label + `sources.length` 实数
+- 3 placeholder 卡（总 schema/总表数/上次心跳）`—` mono + `title="后端数据对接中 (v0.6+)"` tooltip（**Q1 加码**）
+
+**Step 3 Table 容器 radius 12**（R-380）：10 → 12 与 Summary 卡 radius 10 形成层级。
+
+**Step 4 thead brandSoft + mono + 0.06em**（R-381）：
+- bg T.bg → `color-mix(in oklch, ${T.accent} 8%, transparent)`（R-386 第二处命中）
+- color T.muted → T.subtext
+- fontFamily T.mono；fontWeight 600 → 500；letterSpacing 0.03em → 0.06em
+- 保 uppercase（v0.5.14 R-327 thead 删 uppercase 决议仅对 ResultBlock；本 PATCH thead 重出 uppercase + mono 工业感）
+
+**Step 5 Grid 5→6 列 + 表数 placeholder**（R-382 + Q2）：
+- `gridTemplateColumns` 5 列 → 6 列：`1.2fr 0.8fr 1.4fr 0.6fr 0.8fr 80px`
+- 新增"表数"列 `—` placeholder + `title="后端数据对接中 (v0.6+)"` tooltip
+
+**Step 6 Name 28×28 brandSoft + I.db 复用**（R-383 + Q3 + R-397）：
+- **v0.5.x 资产复用首例** — 删除 inline svg dict 设想；直接 `<I.db width="14" height="14"/>` 复用 Shared.jsx 既有图标
+- 28×28 容器 `display: flex, alignItems: center, justifyContent: center` 绝对居中（R-397）
+- bg `color-mix(in oklch, ${T.accent} 8%, transparent)`（R-386 第三处命中）+ color T.accent
+- name span `fontFamily T.mono` + `overflow: hidden, textOverflow: ellipsis, whiteSpace: nowrap`
+
+**Step 7 Type inline chip**（R-384/395 — Stage 2 Codex 11px 工业感）：
+- `<span>` inline-block + padding `2px 8px` + borderRadius 999
+- bg `color-mix(in oklch, ${T.accent} 8%, transparent)`（R-386 第四处命中）+ color T.accent
+- fontSize 11 + letterSpacing 0.02em + fontFamily T.mono
+
+**Step 8 每列 min-width 0 + ellipsis 兜底**（R-396 — Stage 3 列宽稳定性）：
+- 5 处 `minWidth: 0` + 4 处 `textOverflow: 'ellipsis'`
+- 防超长主机名 / 状态文案 / 表数 / Name span 挤压操作按钮
+
+**Step 9 StatusDot 语义粘性**（R-398 — Stage 3）：
+- `s.status === 'online' ? T.success : T.warn` 颜色映射 byte-equal（origin/main 同字面）
+- StatusDot 6×6 圆 `flexShrink: 0` 防压缩
+- 文字 wrapper 加 ellipsis 兜底
+
+### Architecture — R-386 brandSoft inset 8% 全站设计语言三处闭环
+
+```jsx
+// ResultBlock.jsx v0.5.14 R-323 (Observation card)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// SavedReports.jsx v0.5.15 R-372 (Quote inset)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// tab_access.jsx v0.5.16 R-386 (Summary 卡 + thead + Name icon 28×28 + Type chip — 4 处命中)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**三处屏 + 字面 byte-equal** = Inset 8% 设计语言闭环里程碑。未来任何 inset 风格沿用此字面（v0.5.17+ 9 admin tabs + 6 业务屏 + v0.6 子组件拆分）。
+
+### Architecture — I.db 复用先例（Q3 修订 — Stage 1 推荐 B inline svg → Stage 2 推荐 A I.db 复用）
+
+```jsx
+// v0.5.13/14/15 模式（inline svg dict）：
+const SAVED_SVG = { bookmark: '...', pencil: '...', ... };
+<svg ...><path d={SAVED_SVG.pencil}/></svg>
+
+// v0.5.16 起新模式（Shared 资产复用）：
+import { I } from '../../Shared.jsx';
+<I.db width="14" height="14"/>
+```
+
+**架构判定**：v0.5.x 第一次资产复用先例；未来如 Shared.jsx I.* 已有图标**优先复用**（仅 Shared 缺失时才 inline svg dict）。
+
+### Architecture — R-376 Users out-of-scope 严守（Stage 2/3 双重强制）
+
+tab === 'users' 分支（L9-33）**字面零修改**：
+- `linear-gradient(135deg, ${T.accent}, #ff7a3a)` 渐变残留**保留**（hex 残留偿还推未来独立 admin/users PATCH）
+- avatar 26×26 + name + email + role chip + handlers 字面 byte-equal
+- 任何 inline style / className / props 传递字面 byte-equal
+
+`git diff` L9-33 段 0 行 ✓ — commit 1 强制验证。
+
+### Architecture — 契约守护
+
+**R-374 TabAccess 8 props 签名 byte-equal**（diff 仅 L34+ Sources 部分）。
+**R-375 users/sources 数据流 + 5 handlers + roleChip byte-equal**（onEditUser/onDeleteUser/onEditSource/onDeleteSource + 业务字段）。
+**R-377 Sources 业务字段 byte-equal**（s.name / s.db_type / s.db_host / s.db_port / s.db_database / s.status）。
+
+### Architecture — 范围守护
+
+- **R-389**：App/api/index.css/main/utils/Shared/Shell/decor/16 屏/Admin/SavedReports `git diff` = 0
+- **R-390**：admin/ 其他 4 子模块（tab_resources/knowledge/system/modals）0 改
+- **R-391**：chat/ 7 子模块 0 改
+- **R-393**：App.css 0 行 diff；KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 banner emoji 业务豁免**（⚠️/🔍/❌ — v0.5.13 sustained）
+- **R-227.5.1 装饰豁免延伸**：thead 中文 + Summary 卡片中文 label 保留；"OBSERVATION" 仅 ResultBlock Insight 容器（v0.5.14 sustained）
+
+### Loop Protocol v3 — 第 17 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-374~R-393（20 条）+ Q1-Q5 风险项；Q3 推荐 B（inline svg）
+- **Stage 2**（资深 + Codex）：**Q3 修订 → A I.db 复用**（v0.5.x 资产复用首例）+ Q1 加 tooltip + Q5 闭环叙事强制；新增 R-394（auto-fit 替代 media query）+ R-395（Type chip 11px + 0.02em）
+- **Stage 3**（v0.4 守护者）：D6 Users out-of-scope **双重强制**；新增 R-396（min-width 0 + ellipsis）+ R-397（28×28 居中）+ R-398（StatusDot 语义粘性）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（Q3 修订）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 25（**R-374~R-398**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-388 严格不变 — CI 验证；本地 worktree env 残留 BIAGENT_MASTER_KEY 与 DB 加密兼容性冲突 R-74 探针触发为预存在问题）
+- R-72 smoke 自动跟随 0.5.16 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.16 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（TabAccess 8 props + 5 handlers + roleChip + 业务字段 byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 Admin → 切 admin-sources tab → Summary grid + 6 列表 + db icon + type chip 视觉
+- [ ] 切 admin-users tab → 视觉**完全原始**（含橘色渐变残留 R-376）
+- [ ] 编辑 / 删除按钮调用 onEditSource / onDeleteSource
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）— Summary grid auto-fit 自适应换行
+- [ ] **超长主机名 ellipsis 兜底实测** — 不挤出操作按钮
+- [ ] 4 处 `title="后端数据对接中 (v0.6+)"` tooltip 悬停可见
+- [ ] **Quote inset 8% 全站三处视觉一致**（ResultBlock Observation / SavedReports Quote / DataSources Summary+thead+icon+chip）
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.15
+- ✅ **v0.5.16 (C5+) DataSources 屏复刻** — 首个 admin tab 子模块复刻 + Inset 8% 三处闭环 + I.db 复用先例
+- ⏳ v0.5.17+ (C5+) 剩余 10+ 屏（admin/users 独立 PATCH 含 #ff7a3a 偿还 / 8 admin tabs / 5 业务屏：database / knowledge / catalog / sql-lab / settings / conversations）
+
+---
+
 ## [Unreleased] - v0.5.15 (C5+) Favorites 屏复刻（SavedReports）— v0.5.x 首个新顶层屏 + brandSoft 8% 全站闭环
 
 > **v0.5.x 首个新顶层屏复刻**（v0.5.14 ResultBlock 维度收官后）— SavedReports 318→380 行视觉重构对齐 demo favorites.jsx。
