@@ -181,7 +181,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 64, right: 64,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v0.5.17 · KNOT 内部系统</span>
+          <span>v0.5.18 · KNOT 内部系统</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>

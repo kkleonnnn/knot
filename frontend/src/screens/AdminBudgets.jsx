@@ -4,6 +4,9 @@ import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
+// v0.4.3: AdminBudgets — 预算 CRUD UI（R-18 幂等响应 + R-21 legacy 守护 + R-23 实时查）
+// v0.5.18 视觉重构：Inset 8% 闭环第五处铁律化 (R-444) / Hero 部分聚合 (Q1) / WarnNote (D9) / R-461 progress transition / R-465 borderLeft 闭环
+
 const SCOPE_TYPES = ['user', 'agent_kind', 'global'];
 const BUDGET_TYPES = ['monthly_cost_usd', 'monthly_tokens', 'per_call_cost_usd'];
 const ACTIONS = ['warn', 'block'];
@@ -14,7 +17,53 @@ const SCOPE_HINT = {
   global: "固定填 'all'",
 };
 
-// v0.4.3: AdminBudgets — 预算 CRUD UI（R-18 幂等响应 + R-21 legacy 守护 + R-23 实时查）
+// R-445 BudgetActionChip — actionColor + color-mix 12% bg + padding/radius/fontWeight 三件套（v0.5.17 R-426 模式延伸）
+function BudgetActionChip({ T, action }) {
+  const color = action === 'block' ? T.warn : T.accent;
+  return (
+    <span style={{
+      color,
+      background: `color-mix(in oklch, ${color} 12%, transparent)`,
+      padding: '2px 8px',
+      borderRadius: 4,
+      fontWeight: 500,
+      fontSize: 11,
+      fontFamily: T.mono,
+    }}>{action}</span>
+  );
+}
+
+// R-446 EnabledChip — StatusDot pattern 6×6 圆 + currentColor + on/off 文字（v0.5.17 R-412 模式延伸）
+function EnabledChip({ T, enabled, onClick }) {
+  const color = enabled ? T.success : T.muted;
+  return (
+    <button onClick={onClick} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      color, fontSize: 11.5,
+      background: 'transparent', border: 'none', cursor: 'pointer',
+      fontFamily: 'inherit', padding: 0,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }}/>
+      {enabled ? '已启用' : '已停用'}
+    </button>
+  );
+}
+
+// R-448 WarnNote — D9 修订：warning emoji 偿还 → 14×14 inline svg 感叹号 + T.warn 文字
+function WarnNote({ T, children }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      color: T.warn, fontSize: 12, lineHeight: 1.4,
+    }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+        <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      {children}
+    </div>
+  );
+}
+
 export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,73 +132,114 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
     </button>
   );
 
+  // R-447 4 rules — brandSoft inset + R-465 borderLeft 3px 25%
+  const rules = [
+    { tag: 'R-16', body: 'user 级预算覆盖 global 预算（user 有独立预算时忽略 global）' },
+    { tag: 'R-23', body: 'admin 改完预算后下次查询立即生效（无 cache）' },
+    { tag: 'R-21', body: "'legacy' 是 v0.4.2 历史标记，不可作 agent_kind scope_value" },
+    { tag: 'block', body: "仅允许配 (agent_kind, per_call_cost_usd)，防 fix_sql 死循环；其他组合用 'warn'" },
+  ];
+
   return (
     <AppShell T={T} user={user} active="admin-budgets" sidebarContent={sidebarContent}
-              topbarTitle="💰 预算配置" onToggleTheme={onToggleTheme}
+              topbarTitle="预算配置" onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-          {/* 创建表单 */}
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: T.text, marginBottom: 12 }}>
-              {editingId ? '✏️ 编辑预算' : '➕ 新建预算'}
+          {/* R-440 Hero usage card — Q1 修订部分聚合：第 1 卡 budgets.length + 3 卡 — placeholder + tooltip */}
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24, marginBottom: 14 }}>
+              <div>
+                <div style={statLabelStyle(T)}>已配置预算项</div>
+                <div style={{ ...statValueStyle(T), color: T.text }}>{budgets.length}</div>
+              </div>
+              <div title="后端聚合 API 对接中 (v0.6+)">
+                <div style={statLabelStyle(T)}>本月已用 token</div>
+                <div style={statValueStyle(T)}>—</div>
+              </div>
+              <div title="后端聚合 API 对接中 (v0.6+)">
+                <div style={statLabelStyle(T)}>预计花费</div>
+                <div style={statValueStyle(T)}>—</div>
+              </div>
+              <div title="后端聚合 API 对接中 (v0.6+)">
+                <div style={statLabelStyle(T)}>本月使用率</div>
+                <div style={statValueStyle(T)}>—</div>
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <Field T={T} label="作用范围 (scope_type)">
+            {/* R-461 progress bar — transition 0.3s 动效预留（即使 0% 也含 transition） */}
+            <div style={{ height: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{
+                width: '0%', height: '100%',
+                background: T.accent,
+                transition: 'width 0.3s ease-in-out',
+                opacity: 0.5,
+              }}/>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.muted, marginTop: 8, fontFamily: T.mono }}>
+              <span>0</span><span>50%</span><span>100%</span>
+            </div>
+          </div>
+
+          {/* R-441/R-442/R-462 Form — D2 双兼 + gap 16 + minmax + 双按钮 */}
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: T.text, marginBottom: 12 }}>
+              {editingId ? '编辑预算' : '新建预算'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 12 }}>
+              <Field T={T} label="作用范围 (Scope Type)">
                 <select value={draft.scope_type} onChange={e => setDraft({ ...draft, scope_type: e.target.value })}
                         style={inputStyle(T)}>
                   {SCOPE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field T={T} label={`scope_value（${SCOPE_HINT[draft.scope_type]}）`}>
+              <Field T={T} label={`范围值 (Value) — ${SCOPE_HINT[draft.scope_type]}`}>
                 <input value={draft.scope_value} onChange={e => setDraft({ ...draft, scope_value: e.target.value })}
                        placeholder={draft.scope_type === 'global' ? 'all' : ''}
                        style={inputStyle(T)}/>
               </Field>
-              <Field T={T} label="预算类型">
+              <Field T={T} label="预算类型 (Budget Type)">
                 <select value={draft.budget_type} onChange={e => setDraft({ ...draft, budget_type: e.target.value })}
                         style={inputStyle(T)}>
                   {BUDGET_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field T={T} label="阈值">
+              <Field T={T} label="阈值 (Threshold)">
                 <input type="number" step="0.001" value={draft.threshold}
                        onChange={e => setDraft({ ...draft, threshold: parseFloat(e.target.value) || 0 })}
                        style={inputStyle(T)}/>
               </Field>
-              <Field T={T} label="超阈值动作">
+              <Field T={T} label="超阈值动作 (Action)">
                 <select value={draft.action} onChange={e => setDraft({ ...draft, action: e.target.value })}
                         style={inputStyle(T)}>
                   {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </Field>
             </div>
-            {/* R-21 客户端守护提示 */}
+            {/* R-448 WarnNote — D9 修订（warning emoji 偿还 → svg 感叹号 + T.warn） */}
             {isLegacyScope && (
-              <div style={{ fontSize: 12, color: T.accent, marginBottom: 8 }}>
-                ⚠️ R-21：'legacy' 是 v0.4.2 历史标记，不可设预算
+              <div style={{ marginBottom: 10 }}>
+                <WarnNote T={T}>R-21：'legacy' 是 v0.4.2 历史标记，不可设预算</WarnNote>
               </div>
             )}
             {isBlockMisuse && (
-              <div style={{ fontSize: 12, color: T.accent, marginBottom: 8 }}>
-                ⚠️ 'block' 仅允许配 (scope_type=agent_kind, budget_type=per_call_cost_usd)
+              <div style={{ marginBottom: 10 }}>
+                <WarnNote T={T}>'block' 仅允许配 (scope_type=agent_kind, budget_type=per_call_cost_usd)</WarnNote>
               </div>
             )}
-            <button onClick={handleSubmit} disabled={!canSubmit}
-                    style={{
-                      padding: '8px 16px', borderRadius: 6,
-                      border: `1px solid ${canSubmit ? T.accent : T.border}`,
-                      background: canSubmit ? T.accent : 'transparent',
-                      color: canSubmit ? '#fff' : T.muted,
-                      cursor: canSubmit ? 'pointer' : 'not-allowed',
-                      fontFamily: 'inherit', fontSize: 13,
-                    }}>
-              {editingId ? '更新' : '创建（R-18 幂等：相同 scope+type 三元组会覆盖）'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleSubmit} disabled={!canSubmit}
+                      style={primaryBtnStyle(T, canSubmit)}>
+                {editingId ? '更新' : '创建（R-18 幂等：相同 scope+type 三元组会覆盖）'}
+              </button>
+              <button onClick={() => setDraft({
+                scope_type: 'user', scope_value: '', budget_type: 'monthly_cost_usd',
+                threshold: 5, action: 'warn',
+              })} style={ghostBtnStyle(T)}>重置</button>
+            </div>
           </div>
 
-          {/* 列表 */}
+          {/* R-443 Table HTML → CSS Grid 7-col */}
           {loading ? (
             <div style={{ textAlign: 'center', padding: 32 }}><Spinner size={24} color={T.accent}/></div>
           ) : budgets.length === 0 ? (
@@ -157,52 +247,62 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               暂无预算。新建一条以开启成本监控。
             </div>
           ) : (
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                <thead>
-                  <tr style={{ background: T.bg }}>
-                    {['Scope', 'Value', '类型', '阈值', 'Action', 'Enabled', '操作'].map(c =>
-                      <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted,
-                                            fontWeight: 600, fontSize: 11, letterSpacing: '0.03em',
-                                            textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>{c}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {budgets.map(b => (
-                    <tr key={b.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                      <td style={cellStyle(T)}>{b.scope_type}</td>
-                      <td style={cellStyle(T)}>{b.scope_value}</td>
-                      <td style={{ ...cellStyle(T), fontFamily: T.mono, fontSize: 11.5 }}>{b.budget_type}</td>
-                      <td style={cellStyle(T)}>{b.threshold}</td>
-                      <td style={cellStyle(T)}>
-                        <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11,
-                                       background: b.action === 'block' ? '#FF990022' : T.accentSoft,
-                                       color: b.action === 'block' ? '#cc6600' : T.accent }}>
-                          {b.action}
-                        </span>
-                      </td>
-                      <td style={cellStyle(T)}>
-                        <button onClick={() => handleToggle(b)} style={{ ...iconBtn(T), fontSize: 11 }}>
-                          {b.enabled ? '✓ on' : '○ off'}
-                        </button>
-                      </td>
-                      <td style={cellStyle(T)}>
-                        <button onClick={() => handleDelete(b.id)} style={{ ...iconBtn(T), color: T.muted }} title="删除">
-                          <I.trash/>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+              {/* R-444 thead brandSoft 8% 闭环第五处 — 字面 byte-equal v0.5.14/15/16/17/18 */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '0.8fr 1fr 1.4fr 0.6fr 0.8fr 0.9fr 50px',
+                padding: '10px 18px',
+                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                borderBottom: `1px solid ${T.border}`,
+                fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+                <span>Scope</span><span>Value</span><span>类型</span><span>阈值</span><span>Action</span><span>Enabled</span><span></span>
+              </div>
+              {budgets.map((b, i) => (
+                <div key={b.id} style={{
+                  display: 'grid', gridTemplateColumns: '0.8fr 1fr 1.4fr 0.6fr 0.8fr 0.9fr 50px',
+                  padding: '11px 18px', alignItems: 'center', fontSize: 12.5,
+                  borderBottom: i === budgets.length - 1 ? 'none' : `1px solid ${T.borderSoft}`,
+                }}>
+                  <span style={{ color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.scope_type}</span>
+                  <span style={{ color: T.text, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.scope_value}</span>
+                  <span style={{ color: T.muted, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.budget_type}</span>
+                  <span style={{ color: T.text, fontFamily: T.mono, fontSize: 11.5, minWidth: 0 }}>{b.threshold}</span>
+                  {/* R-445 BudgetActionChip */}
+                  <span style={{ minWidth: 0, overflow: 'hidden' }}><BudgetActionChip T={T} action={b.action}/></span>
+                  {/* R-446 EnabledChip */}
+                  <span style={{ minWidth: 0 }}><EnabledChip T={T} enabled={b.enabled} onClick={() => handleToggle(b)}/></span>
+                  <span style={{ display: 'inline-flex', justifyContent: 'flex-end' }}>
+                    <button onClick={() => handleDelete(b.id)} style={iconBtn(T)} title="删除">
+                      <I.trash/>
+                    </button>
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
-          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>
-            <p>📌 <b>R-16 优先级</b>：user 级预算覆盖 global 预算（user 有独立预算时忽略 global）</p>
-            <p>📌 <b>R-23 实时</b>：admin 改完预算后下次查询立即生效（无 cache）</p>
-            <p>📌 <b>R-21 守护</b>：'legacy' 是 v0.4.2 历史标记，不可作 agent_kind scope_value</p>
-            <p>📌 <b>'block'</b>：仅允许配 (agent_kind, per_call_cost_usd)，防 fix_sql 死循环；其他组合用 'warn'</p>
+          {/* R-447/R-465 Rules note 4 条 — brandSoft inset + borderLeft 3px 25%（与 SavedReports R-356 字面 byte-equal）*/}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {rules.map((n, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '10px 14px',
+                borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                fontSize: 12, color: T.subtext, lineHeight: 1.55,
+              }}>
+                <span style={{
+                  padding: '2px 8px', borderRadius: 4,
+                  background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
+                  color: T.accent,
+                  fontSize: 11, fontWeight: 500, fontFamily: T.mono,
+                  flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
+                }}>{n.tag}</span>
+                <span>{n.body}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -212,8 +312,8 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
 function Field({ T, label, children }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{label}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
       {children}
     </div>
   );
@@ -221,12 +321,37 @@ function Field({ T, label, children }) {
 
 function inputStyle(T) {
   return {
-    width: '100%', padding: '6px 10px', borderRadius: 6,
-    border: `1px solid ${T.border}`, background: T.content, color: T.text,
-    fontSize: 13, fontFamily: 'inherit',
+    width: '100%', padding: '8px 10px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: T.inputBg, color: T.text,
+    fontSize: 13, fontFamily: 'inherit', outline: 'none',
   };
 }
 
-function cellStyle(T) {
-  return { padding: '8px 12px', color: T.text, whiteSpace: 'nowrap' };
+// R-450 primary btn — T.sendFg 替代 hex 白（严禁 'white' 字面 — v0.5.15 Q4 sustained）
+function primaryBtnStyle(T, enabled) {
+  return {
+    padding: '8px 16px', borderRadius: 6,
+    border: `1px solid ${enabled ? T.accent : T.border}`,
+    background: enabled ? T.accent : 'transparent',
+    color: enabled ? T.sendFg : T.muted,
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+  };
+}
+
+function ghostBtnStyle(T) {
+  return {
+    padding: '8px 16px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: 'transparent',
+    color: T.subtext, cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13,
+  };
+}
+
+function statLabelStyle(T) {
+  return { fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 };
+}
+
+function statValueStyle(T) {
+  return { fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono, letterSpacing: '-0.02em' };
 }
