@@ -5,6 +5,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.13 (C5+) ResultBlock 偿还 — hex 清理 + emoji 偿还 + 局部视觉微调
+
+> ResultBlock 是 chat 子模块**最复杂复合 UI**（381 行 7 段 + 3 helpers）— 完整视觉重构超单 PATCH scope。本 PATCH **受控**聚焦 3 类偿还 + 1 类微调（hex/emoji/token 偿还；table/chart/insight 视觉重构留 v0.5.14）。
+>
+> Loop Protocol v3 **第 14 次施行** — 全 v3 三阶段评审。**R-302.5 语义级 Emoji 业务豁免首次确立** — 字面分流体系第三条；**R-286 hex 全面禁止扩展至 ResultBlock** — v0.5.x 系列 hex 残留最重组件本 PATCH 收尾。
+
+### Changed — ResultBlock.jsx 偿还重构（381 → 420 行 = R-307 上限，资深 ack 微调 400→420）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行：
+
+**Step 1 getErrorKindMeta helper**（Q1 B 修订 — Stage 1 推荐 useMemo 改为 helper function 更解耦）：
+- 模块顶层保留 `const ERROR_KIND_ICONS = {...}` + `const ERROR_KIND_TITLES = {...}`（R-294 7 keys + icon/title byte-equal）
+- 函数 `getErrorKindMeta(T, kind)` 返回 `{ icon, title, color, bg }` — color/bg 用 T tokens + color-mix in oklch
+- isCritical 判定 budget_exceeded / sql_invalid / unknown → T.accent；其他 → T.warn
+
+**Step 2 RB_SVG path 字典 + SvgPath helper**（Q2 A）：
+- `const RB_SVG = { sparkle, search, wrench, chart, star, shield, triangle }` 7 path
+- `SvgPath` 组件 — `viewBox 24 + strokeWidth 1.6` 一致风格，不动 Shared.jsx（R-309 sustained）
+
+**Step 3 AGENT_KIND_EMOJI 偿还**（R-302）：
+- 字典名 + 4 keys byte-equal — 仅 emoji value（💡🔍🔧📊）→ svg path 引用
+
+**Step 4 收藏按钮 svg star 双态**（R-303 + R-314）：
+- ⭐🌟 → `<SvgPath d={RB_SVG.star} fill={pinned ? T.accent : 'none'}/>`
+- onPin API 调用 byte-equal；点击立即切换实心/描边
+
+**Step 5 BudgetBanner svg 偿还**（R-304）：
+- 🛑⚠️ → SvgPath shield/triangle size=16；border 用 T.warn + color-mix in oklch
+
+**Step 6 ErrorBanner 7 emoji 保留**（R-305 + R-302.5）：
+- 7 类业务状态 emoji 视觉锚点保留（icon 字段不动）
+- **R-302.5 字面分流体系第三条首次确立** — 语义级 Emoji 业务豁免
+
+**Step 7 Token meter pill chip**（R-306 + R-315）：
+- 行内 stat → TokenPill helper（`padding 2 8 / borderRadius 4 / T.borderSoft border / T.bg / T.mono`）
+- input_tokens / output_tokens / cost_usd / confidence / recovery_attempt 全 pill 风格
+- mono 纯度 — 数字等宽对齐
+
+**Step 8 全局 hex 清理**（R-298/299/300/301）：
+- 3 处 `${T.accent}30` hex+alpha 拼接 → `color-mix(in oklch, T.accent 19%, transparent)`
+- ERROR_KIND_META 4 处 `#cc6600 / #FF990022` → getErrorKindMeta helper 内 T tokens
+- BudgetBanner 3 处 `#FF990022 / #FF9900 / #cc6600` → T.warn + color-mix
+- chart selector `'#fff'` → T.sendFg
+- recovery `'#FF9900'` fallback → T.warn
+- agent_costs `'#0001'` fallback → T.bg
+
+**Step 9 rgba 边界 + msg 解构 byte-equal**（R-313 + R-316）：
+- grep `rgba(` ResultBlock = 0 命中（本 PATCH 0 boxShadow 使用）
+- msg 25 字段解构 `sed sql..msg` diff = 0 行（字段名 + 注释完全 byte-equal）
+
+### Architecture — 契约守护（守 Conversation.jsx 不崩溃 + 业务逻辑不破）
+
+**R-292 ResultBlock 7 props 签名 byte-equal**：diff vs origin/main 0 行。
+**R-293 msg 25 字段解构 byte-equal**：解构语句完整字面（含 v0.4.2/3/4 注释）。
+**R-294 ERROR_KIND 7 keys + 7 icons + 7 titles byte-equal**（R-127 sustained）。
+**R-295 7 layout 分支字面 byte-equal**（R-117 sustained — 14 处命中）。
+**R-296 resolveEffectiveHint / exportMessageCsv / MetricCard 业务逻辑 byte-equal**。
+**R-297 onCopy/onDownload/onFollowup/onPin/onRetry 5 handlers 调用方式 byte-equal**。
+
+### Architecture — 字面分流体系扩展（v0.5.x 第三条）
+
+| 红线 | 内容 | 实例 |
+|---|---|---|
+| **R-227.5** (v0.5.10) | 装饰小写豁免 | "knot · ready" |
+| **R-227.5.1** (v0.5.12) | 单字母装饰豁免 | K/N/O letter chip |
+| **R-302.5** (v0.5.13) | **语义级业务 Emoji 豁免** | ErrorBanner 7 emoji（业务状态唯一辨识符号且无对应 SVG 视觉标准） |
+
+### Architecture — R-286 hex 全面禁止扩展
+
+v0.5.9 R-211 残留色清理 → v0.5.12 R-286 ThinkingCard 全清 → **v0.5.13 ResultBlock 全清（收尾 v0.5.x 系列 hex 残留最重组件）**：
+- grep `#[0-9a-fA-F]{3,6}` ResultBlock.jsx | grep -v boxShadow = 0 命中 ✓
+- grep `T.accent}[0-9a-f]` hex+alpha 拼接 = 0 命中 ✓
+- **R-312 color-mix 精度** — 5 处 color-mix 命中全部含 `in oklch` ✓（is_clarification border + error border + BudgetBanner warn bg + ErrorBanner bg in getErrorKindMeta + followup chip border）
+- **R-313 rgba 边界** — rgba 0 命中（本 PATCH 0 boxShadow 使用，隐含 PASS）
+
+### Architecture — 范围守护
+
+- **R-309**：App / api / index.css / main / utils / Shared / Shell / decor / 17 屏 + App.css 0 改
+- **R-310**：chat/ 其他 6 子模块（ChatEmpty / Composer / Conversation / ThinkingCard / intent_helpers / sse_handler）0 改
+- **R-250/274**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+
+### Loop Protocol v3 — 第 14 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-292~R-311（20 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：Q1 修订 — useMemo → helper function；新增 R-302.5（语义级 Emoji 业务豁免）+ R-312（color-mix 精度）+ R-313（rgba 边界）
+- **Stage 3**（v0.4 守护者）：新增 R-314（收藏双态手测）+ R-315（Token Meter mono 纯度）+ R-316（msg 25 字段解构守护）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致；**Q1 唯一修订**（A→B helper function）；新增 6 条红线（Stage 2: 3 含 R-302.5 + Stage 3: 3）；红线总数 26（**R-292~R-316** 含 R-302.5）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-308 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.13 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无 breaking change（ResultBlock 7 props + msg 25 字段 + ERROR_KIND 7 keys + 7 layout + 5 handlers byte-equal）
+- Conversation.jsx 调用方 byte-equal — 视觉自动跟随（R-251 模式 sustained）
+
+### 验收（待人测）
+
+- [ ] 真实 SSE 提问 → 7 intent 全渲染（metric_card / line / bar / pie / rank_view / detail_table / retention_matrix）
+- [ ] 收藏按钮 svg star 实心/描边 双态切换 + onPin API（R-314）
+- [ ] ErrorBanner 7 类 kind emoji 保留渲染（R-302.5 业务豁免）
+- [ ] BudgetBanner svg shield/triangle 偿还（R-304）
+- [ ] Token meter pill chip mono 数字等宽对齐（R-315）
+- [ ] SQL 折叠 / followup / CSV 下载业务回归
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.12
+- ✅ **v0.5.13 (C5+) ResultBlock 偿还** — R-302.5 + R-286 扩展双红线确立
+- ⏳ v0.5.14+ (C5+) 剩余 12 屏 + ResultBlock 视觉重构（table/chart/insight inset/agent_costs chip）
+
+---
+
 ## [Unreleased] - v0.5.12 (C5+) Thinking 屏复刻（AgentThinkingPanel 右 rail）
 
 > 首个**右 rail 思考过程面板**复刻 PATCH。Demo thinking.jsx 是 337 行整屏 — 但 sidebar/topbar/composer/messages 已在 v0.5.9/11/10 完成，本 PATCH 真正 scope 是 ThinkingCard.jsx 110 → 160 行（含 ThinkingCard + AgentThinkingPanel 2 exports）。
