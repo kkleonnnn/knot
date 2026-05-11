@@ -29,7 +29,7 @@ from knot.scripts.migrate_db_rename_v050 import migrate_db_rename
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.5.23")
+app = FastAPI(title="KNOT", version="0.5.24")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # v0.5.0 R-69 / R-76：DB startup migration（bi_agent.db → knot.db）
