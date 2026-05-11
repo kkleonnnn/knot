@@ -5,6 +5,146 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.14 (C5+) ResultBlock 视觉大重构 — v0.5.x ResultBlock 维度收官之战
+
+> **三大设计先例同时落地**：① v0.5.13 R-306/315 TokenPill **红线撤回首例**（架构判定：严格复刻 > 局部推测性红线）② **R-341 v0.5 行数收官**（LIMIT 420→440 final ack；v0.6 必须开启子组件拆分）③ **R-227.5.1 装饰豁免延伸**（"OBSERVATION" 仅 ResultBlock Insight 容器）。
+>
+> Loop Protocol v3 **第 15 次施行** — 全 v3 三阶段评审。v0.5.x ResultBlock 维度从 v0.5.3（拆分提取）→ v0.5.13（hex 清理 + emoji 偿还）→ **v0.5.14（视觉大重构收官）** 三阶段完整闭环。
+
+### Changed — ResultBlock.jsx 视觉大重构（420 → 440 = R-332 上限，v0.5 final ack）
+
+按 Stage 3 §2 **7 子步骤**顺序锁死执行：
+
+**Step 1 Observation card brandSoft inset**（R-323/329 + Codex `color-mix 8%`）：
+- Insight 段 T.card neutral 风格 → brandSoft inset 风格
+- bg `color-mix(in oklch, T.accent 8%, transparent)` + border `color-mix(in oklch, T.accent 25%, transparent)`
+- 加 svg info icon (circle + line + dot) + "OBSERVATION" mono uppercase brand color
+- "洞察" 中文 label → "OBSERVATION" 英文 mono（**R-227.5.1 装饰豁免延伸** — 仅本容器；其他屏 "洞察" 保中文）
+
+**Step 2 Suggestion chips height 28 + chevron**（R-324/343 + R-342 conditional）：
+- borderRadius 20 → 14；T.accentSoft → T.content + T.border
+- 加 chevron svg icon + lineHeight 1 + align-items center + gap 8
+- **R-342 conditional rendering** — outer condition 加 `&& onFollowup`，SavedReports 内嵌无 onFollowup 时 chip 自动隐藏
+
+**Step 3 Token meter 反向修正**（R-325 — v0.5.13 R-306/315 受控撤回）：
+- **v0.5.x 序列红线撤回首例** — TokenPill helper 完全删除
+- 改 inline stat + svg ↑↓ arrow icon prefix + fontFamily T.mono + paddingLeft 2 + flexWrap
+- 与 demo thinking.jsx L177-195 1:1 对齐
+- 架构判定：**红线服从视觉真理；严格复刻 > 局部推测性红线**（设计先例）
+
+**Step 4 agent_costs chip pill 999**（R-326）：
+- borderRadius 10 → 999；padding `2 8` → `0 10`；height 24
+- svg icon 加 T.accent color 包裹
+
+**Step 5 Table thead 删 uppercase**（R-327 + Codex `letter-spacing: normal`）：
+- fontWeight 600 → 500；textTransform `uppercase` → 删
+- letterSpacing `0.03em` → `'normal'`（Codex 防 inherited 残留）
+
+**Step 6 SQL accordion `<>` + 时长右贴**（R-328/344 + Codex flex:1 text-align right）：
+- 加 `<>` text icon T.mono color T.text 装饰（R-344 几何对称 — `<` 与 `>` 等宽）
+- 时长 mono `flex: 1` + `text-align: right`（Codex — 不同容器宽度都贴右）
+
+**Step 7 grep 守护**（sustained 红线）：
+- R-330 hex 0 命中（v0.5.13 R-298 sustained）
+- R-331 emoji 业务豁免 sustained（ErrorBanner 7 emoji 保留）
+- R-338 KnotLogo R-199.5/222 sustained 仅 3 文件
+- R-339 color-mix 6 处全含 `in oklch`
+- R-340 rgba 0 命中（本 PATCH 0 boxShadow 使用）
+
+### Architecture — 三大设计先例首次确立
+
+**1. 红线撤回首例**（v0.5.13 R-306/315 TokenPill 受控撤回）：
+- v0.5.13 LOCKED 锁定的 TokenPill chip + R-315 mono 纯度红线，在 v0.5.14 严格对照 demo 时**反向校正**
+- 架构判定：**红线服从视觉真理** — 当复刻目标与既有红线冲突时，严格复刻优先
+- 未来 PATCH 沿用此判定：红线非"硬规则"，是"软约束"；视觉真理高于推测
+
+**2. R-341 v0.5 ResultBlock 行数收官**：
+- LIMIT 微调历程 250 → 400 → 420 → **440 final**
+- v0.5.x 序列对 ResultBlock 行数最后一次扩张
+- v0.6 必须开启子组件拆分（候选 `MetricCard.jsx` / `TableContainer.jsx` / `InsightCard.jsx` / `BudgetBanner.jsx` / `ErrorBanner.jsx` / `TokenMeter.jsx`）
+
+**3. R-227.5.1 装饰豁免延伸**：
+- 单字母装饰豁免（v0.5.12 K/N/O letter chip）→ 短英文 mono 装饰豁免（v0.5.14 OBSERVATION）
+- 边界：仅 ResultBlock Insight 容器；其他屏 "洞察" 中文严守
+- 字面分流体系第三条 R-302.5 + 第二条 R-227.5.1 共同覆盖
+
+### Architecture — 契约守护 sustained
+
+**R-317 ResultBlock 7 props 签名 byte-equal**（diff vs origin/main 0 行）。
+**R-318 msg 25 字段解构 byte-equal**（含 v0.4.2/3/4 注释字面完整）。
+**R-319 ERROR_KIND_META 7 keys + 7 icons + 7 titles byte-equal**（R-294/127 sustained）。
+**R-320 7 layout 分支字面 byte-equal**（R-117/R-295 sustained — 14 处命中）。
+**R-321 resolveEffectiveHint / exportMessageCsv / MetricCard 业务 byte-equal**。
+**R-322 5 handlers 调用方式 byte-equal**。
+
+### Architecture — R-342 SavedReports 守护（前置探查重新阐释）
+
+Stage 3 假设 SavedReports.jsx 内嵌渲染 ResultBlock — 前置探查发现**不直接 import**（仅 Conversation.jsx 真实 import）。R-342 守护转化为：
+- R-317 7 props 签名 byte-equal（已覆盖）
+- Suggestion chips outer condition `&& onFollowup`（本 PATCH 新加，R-342 落地）
+- 收藏 star 已有 `canPin` 条件（v0.4.1 既有）
+- ErrorBanner retry 已有 `is_retryable && onRetry` 条件（v0.4.4 既有）
+- SavedReports.jsx `git diff` = 0 行 ✓（视觉自动跟随无破坏）
+
+### Architecture — 范围守护
+
+- **R-334**：App / api / index.css / main / utils / Shared / Shell / decor / SavedReports / 16 屏 0 改
+- **R-335**：chat/ 其他 6 子模块（ChatEmpty / Composer / Conversation / ThinkingCard / intent_helpers / sse_handler）0 改
+- **R-337**：CSS 0 污染（App.css 0 行 diff）
+- **R-338**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+
+### Loop Protocol v3 — 第 15 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-317~R-340（24 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：D3 反向修正准许（红线撤回首例）+ D8 Final Ack + Codex 精确指令（color-mix 8% / letter-spacing normal / flex:1 text-align right）+ 新增 R-341（v0.5 行数收官）
+- **Stage 3**（v0.4 守护者）：新增 R-342（SavedReports 守护）+ R-343（Suggestion 高度锚点）+ R-344（`<>` T.mono 几何对称）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 7 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致 + Stage 2/3 加码 R-341/R-342/R-343/R-344；红线总数 28（**R-317~R-344**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-333 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.14 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无 breaking change（ResultBlock 7 props + msg 25 字段 + 7 kind + 7 layout + 5 handlers byte-equal）
+- v0.5.13 TokenPill chip → v0.5.14 inline stat 修正：视觉变化但**业务逻辑无变**（仍正确显示 input/output/cost/confidence/recovery_attempt）
+- Conversation.jsx 调用方 byte-equal — 视觉自动跟随（R-251 sustained）
+
+### 验收（待人测）
+
+- [ ] 真实 SSE 7 intent 全渲染（metric_card / line / bar / pie / rank_view / detail_table / retention_matrix）
+- [ ] Observation card 视觉对照 demo — brandSoft bg + svg info icon + "OBSERVATION" mono label
+- [ ] Suggestion chips height 28 + chevron svg + 点击 onFollowup
+- [ ] Token meter inline stat 1:1 像素对比 demo L177-195（Stage 3 §3）
+- [ ] agent_costs chip pill 999 + bgInset
+- [ ] Table thead natural case 视觉（不再 uppercase）
+- [ ] SQL accordion `<>` mono 等宽 + 时长右贴
+- [ ] **SavedReports 屏端到端可用**（R-342）
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.13
+- ✅ **v0.5.14 (C5+) ResultBlock 视觉大重构** — v0.5.x ResultBlock 维度收官之战 + 三大设计先例
+- ⏳ v0.5.15+ (C5+) 剩余 12 屏（favorites / 9 admin tabs / 6 业务屏）
+
+### v0.6 路线图新增承诺（R-341 锁定）
+
+**ResultBlock 子组件拆分**（v0.6 必须）：
+- `MetricCard.jsx` — 大数字卡片（metric intent 渲染；已是 helper function 拆出）
+- `TableContainer.jsx` — 表格容器（header + tbody + thead）
+- `InsightCard.jsx` — Observation inset 卡片
+- `BudgetBanner.jsx` — 预算告警 banner
+- `ErrorBanner.jsx` — 错误 banner（ERROR_KIND_META + getErrorKindMeta + 7 emoji 业务豁免）
+- `TokenMeter.jsx` — Token 行内 stat（svg ↑↓ icon + confidence + recovery_attempt）
+
+拆分后 ResultBlock.jsx 主文件应回到 ~200 行（仅业务编排 + 7 layout 分发）；6 子组件各 ~50-100 行；R-341 v0.5 行数收官承诺履行。
+
+---
+
 ## [Unreleased] - v0.5.13 (C5+) ResultBlock 偿还 — hex 清理 + emoji 偿还 + 局部视觉微调
 
 > ResultBlock 是 chat 子模块**最复杂复合 UI**（381 行 7 段 + 3 helpers）— 完整视觉重构超单 PATCH scope。本 PATCH **受控**聚焦 3 类偿还 + 1 类微调（hex/emoji/token 偿还；table/chart/insight 视觉重构留 v0.5.14）。
