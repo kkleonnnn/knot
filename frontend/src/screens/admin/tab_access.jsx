@@ -8,20 +8,22 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
     <>
       {tab === 'users' && (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 80px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+          {/* R-504/R-505 thead Inset 8% 闭环字面（与 Sources thead byte-equal）+ mono + 0.06em + uppercase + fontWeight 500 + T.subtext */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 80px', padding: '9px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.subtext, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
             <div>用户</div><div>账号</div><div>角色</div><div>状态</div><div></div>
           </div>
           {users.map((u, i) => (
             <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 80px', padding: '11px 16px', borderBottom: i < users.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${T.accent}, #ff7a3a)`, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 600, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, overflow: 'hidden' }}>
+                {/* R-500~R-503/R-516 Avatar 22 brandSoft 8% + T.accent + inline-flex + lineHeight:1 + fontSize:10.5（与 AdminAudit R-410 + AdminRecovery R-479 字面 byte-equal；R-376 hex 债务清偿）*/}
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 600, lineHeight: 1, flexShrink: 0 }}>
                   {(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}
                 </div>
-                <span style={{ color: T.text, fontWeight: 500 }}>{u.display_name || u.username}</span>
+                <span style={{ color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.display_name || u.username}</span>
               </div>
-              <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11.5 }}>{u.username}</div>
-              <div>{roleChip(u.role)}</div>
-              <div style={{ fontSize: 11.5, color: u.is_active ? T.success : T.muted }}>{u.is_active ? '正常' : '已停用'}</div>
+              <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</div>
+              <div style={{ minWidth: 0 }}>{roleChip(u.role)}</div>
+              <div style={{ fontSize: 11.5, color: u.is_active ? T.success : T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.is_active ? '正常' : '已停用'}</div>
               <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                 <button onClick={() => onEditUser(u)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
                 <button onClick={() => onDeleteUser(u.id)} style={iconBtn(T)} title="停用"><I.trash/></button>
