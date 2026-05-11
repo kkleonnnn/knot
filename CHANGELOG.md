@@ -5,6 +5,106 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.10 (C5+) Home 屏复刻（ChatEmpty empty state）
+
+> v0.5.7 Login + v0.5.9 Shell 后第三个屏复刻 PATCH。首个 chat 子模块屏复刻 — main area 的 empty state（产品 Home 屏 = `ChatEmpty.jsx`）。
+>
+> Loop Protocol v3 **第 11 次施行** — 全 v3 三阶段评审；R-227.5 KNOT 大小写字面分流红线首次确立。
+
+### Changed — ChatEmpty.jsx 视觉重构（40 → 80 行 = R-218 上限）
+
+按 Stage 3 §2 6 子步骤顺序锁死执行：
+
+**Step 1 容器**：padding `'24px 28px'` → `'0 80px'` + `paddingBottom: '10vh'` + center（R-239 垂直黄金分割，内容重心略上移）。
+
+**Step 2 brand-ready label**（R-229 + R-227.5 装饰小写）：
+- 顶部 "knot · ready" mono 小字 + brand dot + box-shadow ring
+- Q2 严格用 `color-mix(in oklch, ${T.accent} 13%, transparent)` — **严禁 hex alpha**（如 `T.accent22`）
+
+**Step 3 标题**（R-230 + R-224 + R-236 + Q1）：
+- "Hi {firstName}" → "Hi {firstName}，今天想`<span>解</span>`哪个结？"
+- 28px → 36px + letterSpacing -0.035em + line-height 1.15
+- "解" 字 brand color + `display: inline-block` + `min-width: 1.2em` 保视觉抓手
+- `word-break: keep-all` + `maxWidth: 640` 防中文逐字断行 / 超宽屏溢出
+- **KNOT 品牌"解结"双关** 首次在产品出现
+
+**Step 4 副标题**（R-231）：
+- "今天想了解哪部分业务数据？" → "描述你的业务问题，KNOT 会澄清意图 → 生成 SQL → 整理洞察"
+- KNOT 大写 byte-equal（R-127/R-227 sustained）
+
+**Step 5 suggestion chips**（R-232/233/235/238）：
+- suggestions 数组扩 `{icon, text}` 显式结构（不依赖 index 随机）
+- 4 种语义 icon 硬编码映射：默认 sparkle / 数据概览 chart / 用户画像 users / 数据库 db
+- chip 高度 44px + borderRadius 10 + gap 10
+- `display: flex; flex-wrap: wrap; justify-content: center` 防窄侧栏/移动端横向溢出（R-235）
+- text 字面 byte-equal（R-216 sustained — i18n 留 v0.6+）
+
+**Step 6 Footer**（R-234 + R-227 sustained）：
+- 字体 sans → T.mono + marginTop 28 + letterSpacing 0.04em
+- "KNOT 可能出错 · 关键结果请核对原始数据" 大写品牌字面 byte-equal（v0.5.3 R-126 sustained）
+
+### Architecture — 契约守护（守 Chat.jsx 不崩溃）
+
+**R-214 ChatEmpty 9 props 签名 byte-equal**：diff vs origin/main 0 行（签名块完全一致）。
+**R-215 firstName 计算逻辑 byte-equal**：`user?.display_name?.split(' ')[0] || user?.username || '你'`。
+**R-216 suggestions 4 中文 text 字面 byte-equal**（R-238 允许扩展数据结构加 icon 字段，但不改 text）。
+**R-217 Composer.jsx 0 改**（三方共识 + Stage 3 §3 强制守护）：
+- `git diff origin/main HEAD -- frontend/src/screens/chat/Composer.jsx` = 0 行
+- Composer 视觉重构留 v0.5.11+ 独立 PATCH（避免本 PATCH 层级断层）
+
+### Architecture — 范围守护
+
+**R-220 核心非屏文件 byte-equal**：App.jsx / api.js / index.css / main.jsx / utils.jsx / Shared.jsx / Shell.jsx / decor/NarrativeMotif.jsx 0 改。
+**R-222 KnotLogo 三件套范围 sustained**（v0.5.9 R-199.5）：grep 仍仅 3 文件命中（Shared/Login/Shell — 不蔓延 ChatEmpty）。
+**R-223 chat/ 其他 6 子模块 0 改**（Composer / Conversation / ResultBlock / ThinkingCard / intent_helpers / sse_handler）。
+**R-225 CSS 0 污染**：App.css 0 行 diff；ChatEmpty.jsx 0 新 className（全 inline style）。
+**R-226 17 屏 + 11 子模块 byte-equal**：`git diff origin/main HEAD -- frontend/src/screens/` 仅 Login.jsx 页脚 + ChatEmpty.jsx。
+
+### Architecture — R-227.5 KNOT 字面分流首次确立
+
+**首次明确"装饰 vs 声明"字面规则**：
+- **装饰元素允许小写**："knot · ready"（与 demo 设计语言一致；mono + dot 视觉装饰）
+- **品牌命名 + 声明文本必须大写**："KNOT 可能出错 · 关键结果请核对原始数据"（v0.5.3 R-126 sustained）
+- 两者**同 ChatEmpty.jsx** 共存（设计 anchor + 品牌严谨性兼容）
+- 未来屏复刻沿用此规则；其他屏 KNOT 字面 sustained 不变
+
+### Loop Protocol v3 — 第 11 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-214~R-234（21 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：D1/D8 **绝对同意** Composer 0 改；Q1 加 word-break keep-all + maxWidth；Q2 强制 color-mix 严禁 hex alpha；Q5 加 R-227.5 字面分流；新增 R-235 弹性布局 + R-236 "解"字隔离
+- **Stage 3**（v0.4 守护者）：新增 R-237 firstName 兜底三态 + R-238 icon 硬编码映射 + R-239 垂直黄金分割
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 6 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（0 修订）；新增 6 条红线（Stage 2: 3 含 R-227.5 + Stage 3: 3）；红线总数 27（**R-214~R-239** 含 R-227.5）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-219 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.10 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无任何 breaking change（ChatEmpty 9 props + suggestions text + firstName 计算 byte-equal）
+- Composer.jsx 0 改保证 Chat.jsx 非空状态（提问 → SQL → ResultBlock）端到端正常
+
+### 验收（待人测）
+
+- [ ] Chat 屏空对话状态视觉对照 demo（greeting / suggestion chips / footer）
+- [ ] **Composer 不破坏**：Chat.jsx 非空状态（提问 → SQL → ResultBlock）端到端正常
+- [ ] R-237 firstName 兜底三态手测：display_name / username / 匿名 → "Hi 你"
+- [ ] R-238 icon 语义对齐肉眼校验：sparkle 默认 / chart 数据概览 / users 用户画像 / db 数据库
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7 (C5+) Login pilot
+- ✅ v0.5.8 (Cn+) Chore — CI fix + Visual Replication Protocol
+- ✅ v0.5.9 (C5+) Shell 屏复刻（首个真正屏复刻）
+- ✅ **v0.5.10 (C5+) Home 屏复刻**（首个 chat 子模块屏复刻；R-227.5 字面分流首次确立）
+- ⏳ v0.5.11+ (C5+) Composer 重构（首选 — R-217 已 hold v0.5.10 视觉差距） + 剩余 15 屏
+
+---
+
 ## [Unreleased] - v0.5.9 (C5+) Shell 屏复刻 — 首个真正屏复刻 PATCH
 
 > v0.5.7 Login pilot + v0.5.8 Visual Replication Protocol 后第一个真正屏复刻 PATCH。Shell 是 18 屏的容器，**最高优先级守 R-192 AppShell 13 props 签名 byte-equal（宪法级）**。
