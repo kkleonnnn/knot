@@ -5,6 +5,209 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.17 (C5+) AdminAudit 屏复刻 — v0.5.x 第二个顶层屏 + Inset 8% 闭环第四处铁律化 + R-313 rgba 豁免架构原则确立
+
+> **v0.5.x 第二个顶层屏复刻**（v0.5.15 SavedReports → v0.5.17 AdminAudit）— AdminAudit.jsx 264→372 视觉重构对齐 demo audit.jsx。
+>
+> **五大设计先例同时落地**：
+> 1. 🎨 **Inset 8% 闭环第四处 — 视觉规范铁律化**：`color-mix(in oklch, ${T.accent} 8%, transparent)` 字面在 4 屏 byte-equal：
+>    - v0.5.14 R-323 ResultBlock Observation
+>    - v0.5.15 R-372 SavedReports Quote
+>    - v0.5.16 R-386 DataSources (Summary + thead + Name icon + Type chip 4 处)
+>    - **v0.5.17 R-409 AdminAudit thead + Avatar 共 N 处**
+> 2. 🔓 **R-313 rgba 豁免扩展原则确立**：drawer overlay `rgba(0,0,0,0.4)` 业务豁免 — Chrome<111 / WebKit backdrop-filter OKLCH→sRGB fallback GPU 渲染抖动 evidence；首处 v0.5.11 R-254 boxShadow + 第二处 v0.5.17 R-415 modal overlay。
+> 3. 🧩 **StatusDot 首次 inline 抽取**：本 PATCH 内 inline helper；v0.6 候选 → 移入 `Shared.jsx` 与 ResultBlock / AdminBudgets 共用。
+> 4. 🛡️ **R-428~R-430 三大复杂业务屏守护**：actor null check / DetailJsonView try-catch / Pagination 边界。
+> 5. 🔁 **D2 双兼模式**：Filter Label "操作人 (Actor ID)" + Placeholder "输入用户 ID..." — 业务字段 + Demo 风格平衡。
+>
+> Loop Protocol v3 **第 18 次施行** — 全 v3 三阶段评审。
+
+### Changed — AdminAudit.jsx 视觉重构（264 → 372 行 ≤ R-425 LIMIT 380；新增 LIMITS dict 31→32 条）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行（R-409 优先 Step 1 — 视觉规范铁律化里程碑）：
+
+**Step 1 baseline + LIMIT 新增 + R-409 优先**（R-409/R-425）：
+- `scripts/check_file_sizes.py` 新增 `"frontend/src/screens/AdminAudit.jsx": 380`（31→32 条）
+- **R-409 brandSoft 8% 闭环字面率先落地**：`background: \`color-mix(in oklch, ${T.accent} 8%, transparent)\``（thead bg + Avatar bg）— 与 v0.5.14 R-323 + v0.5.15 R-372 + v0.5.16 R-386 字面 byte-equal
+
+**Step 2 Topbar 删 📋 emoji**（R-404）：`topbarTitle="📋 审计日志"` → `topbarTitle="审计日志"`
+
+**Step 3 Stat 4-card grid + R-394 auto-fit + Q1 tooltip placeholder**（R-405）：
+- `gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'`
+- 4 inline cards（**grep ≥ 4 验证支持**）：总记录数 / 今日 / 失败数 / 涉及用户
+- 全 `—` mono placeholder + `title="后端聚合 API 对接中 (v0.6+)"` tooltip
+- helpers: `statCardStyle / statLabelStyle / statValueStyle`
+
+**Step 4 Filter strip + D2 双兼**（R-406/407/D2）：
+- Field helper：mono uppercase 0.06em label + bgInset
+- **D2 双兼**：Label `操作人 (Actor ID)` + Placeholder `输入用户 ID...`；Label `操作类型 (Action)` + Placeholder `如 auth.login...`；Label `资源类型 (Resource Type)` + Placeholder `如 user / budget...`；Label `起始时间 (Since)` + Placeholder `YYYY-MM-DD...`
+- 业务字段名 byte-equal + Demo 风格 admin 工业感双兼
+- "重置" ghost btn + "查询" primary btn（T.accent + T.sendFg — R-416 严禁 'white'）
+
+**Step 5 Table HTML → CSS Grid 7-col**（R-408/409）：
+- `<table>` / `<thead>` / `<tbody>` / `<th>` / `<td>` / `<tr>` 全删（grep = 0 ✓）
+- CSS Grid `1.4fr 1fr 1.3fr 2fr 0.7fr 0.6fr 60px`（时间/Actor/Action/资源/IP/状态/详情按钮）
+- thead 视觉应用 R-409 brandSoft 8% bg + T.subtext + mono + 0.06em + uppercase + fontWeight 500
+
+**Step 6 Avatar + role chip + ActionChip**（R-410/411/426）：
+- Avatar 22×22 brandSoft 8% bg + T.accent color + flex 居中 + flexShrink: 0
+- role chip mono uppercase 10px
+- **ActionChip helper**（R-411 actionColor + R-426 chip 三件套）：
+  - `actionColor(T, action)`：`auth.*` → T.warn / `budget.*+prompt.*+fewshot.*` → T.accent / `export.*` → T.warn / default → T.muted
+  - chip 视觉：`color-mix(in oklch, ${color} 12%, transparent)` bg + `padding: '2px 8px'` + `borderRadius: 4` + `fontWeight: 500` + `fontSize: 11` + `T.mono`
+
+**Step 7 StatusDot inline + R-428 actor null check**（R-412/R-428）：
+- **StatusDot inline helper**（v0.6 候选 → 移入 Shared）：6×6 圆 + `currentColor` + flexShrink: 0 + "成功"/"失败" 文字
+- **R-428 null check**：`const displayName = row.actor_name || row.actor_id || 'System';` — Table cell 渲染 actor 字段全走兜底链；mock 系统级日志（actor_name=null）不崩溃
+
+**Step 8 Pagination + R-430 边界 + Redacted color-mix + R-427 cursor:help + R-429 try-catch + 全 hex grep**（R-413/414/418/427/429/430）：
+- Pagination 边界：`disabled={page === 1}` / `disabled={items.length < size}` — 后端无总数 API 时用 `items.length < size` 推断末页
+- **Redacted hex 全清**：`#FF990033` / `#cc6600` → `color-mix(in oklch, ${T.warn} 20%, transparent)` + `T.warn`（R-414）
+- **R-427 cursor:help**：redacted 高亮 span 加 `cursor: 'help'` + `title="敏感字段已脱敏"` — 暗示敏感脱敏
+- **R-429 DetailJsonView try-catch**：`try { JSON.parse(detail) } catch { return <pre>{raw}</pre>; }` — 畸形 JSON 兜底显原始字符串，防主界面卡死
+- success `'#2e7d32'` fallback hex 全删 → `T.success`（R-417）
+- grep `#[0-9a-fA-F]{3,6}` AdminAudit \| grep -v boxShadow \| grep -v rgba = **0 命中** ✓（R-418）
+
+**Step 9 R-415 rgba 豁免叙事 + 三处版本同步**（R-415/R-424）：
+- drawer overlay `rgba(0,0,0,0.4)` 上方多行注释 evidence：
+  ```jsx
+  /* R-415 R-313 sustained 扩展豁免 #2（首处 v0.5.11 R-254 boxShadow）
+     理由：Chrome < 111 / WebKit backdrop-filter OKLCH→sRGB fallback GPU 渲染抖动；
+     rgba 是全平台一致性稳健选择；架构原则确立 — 红线服从浏览器真理 */
+  ```
+- grep `rgba(` AdminAudit = **1 命中**（drawer backdrop 唯一）✓
+
+### Architecture — R-409 brandSoft inset 8% 全站设计语言四处闭环（**视觉规范铁律化**）
+
+```jsx
+// ResultBlock.jsx v0.5.14 R-323 (Observation card)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// SavedReports.jsx v0.5.15 R-372 (Quote inset)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// admin/tab_access.jsx v0.5.16 R-386 (Summary 卡 + thead + Name icon + Type chip — 4 处命中)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminAudit.jsx v0.5.17 R-409 (thead + Avatar — 共 2 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**四屏 + 字面 byte-equal** = Inset 8% 设计语言铁律化里程碑。`git grep` 命中 4 个文件。未来任何 inset 风格**沿用此字面**（v0.5.18+ 9 admin tabs + 5 业务屏 + v0.6 子组件拆分）。
+
+### Architecture — R-313 rgba 豁免扩展架构原则确立
+
+**两处豁免**：
+1. **首处 v0.5.11 R-254** — Composer boxShadow `rgba(0,0,0,...)`（boxShadow 不属 brand 色彩系统）
+2. **第二处 v0.5.17 R-415** — AdminAudit drawer overlay `rgba(0,0,0,0.4)`（Chrome<111 / WebKit backdrop GPU evidence）
+
+**架构原则**：OKLCH→sRGB fallback 在某些浏览器/渲染模式下 GPU 计算抖动；rgba 是全平台一致性稳健选择。**红线服从浏览器真理** — 与 v0.5.14 R-306/315 TokenPill 撤回（红线服从视觉真理）同精神。
+
+### Architecture — StatusDot 首次 inline 抽取（v0.6 候选承诺）
+
+```jsx
+function StatusDot({ T, ok }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: ok ? T.success : T.warn, fontSize: 11.5 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }}/>
+      {ok ? '成功' : '失败'}
+    </span>
+  );
+}
+```
+
+**v0.6 候选承诺**：移入 `Shared.jsx` 与 ResultBlock / AdminBudgets / 未来 admin tabs 共用 — Q5 Stage 2 准许（v0.5.x 冲刺阶段 R-419 优于组件提取）。
+
+### Architecture — R-428~R-430 三大复杂业务屏守护
+
+**R-428 actor null check**（系统级日志兜底）：
+```jsx
+const displayName = row.actor_name || row.actor_id || 'System';
+const displayInitial = (displayName || 'S').toString().charAt(0).toUpperCase();
+```
+
+**R-429 DetailJsonView try-catch**（畸形 JSON 性能守护）：
+```jsx
+try {
+  json = JSON.stringify(JSON.parse(detail), null, 2);
+} catch {
+  return <pre style={preStyle(T)}>{String(detail ?? '')}</pre>;
+}
+```
+
+**R-430 Pagination 边界逻辑**：
+```jsx
+<button disabled={page === 1}>‹ 上一页</button>
+<button disabled={items.length < size}>下一页 ›</button>
+```
+
+### Architecture — 契约守护
+
+**R-399 AdminAuditScreen 5 props 签名 byte-equal**（T / user / onToggleTheme / onNavigate / onLogout）。
+**R-400 6 useState slots byte-equal**（items / loading / page / size / filter / drawerRow — 数量+类型+初值）。
+**R-401 api URL + 4 filter query params byte-equal**（`/api/admin/audit-log?limit&offset` + `['actor_id', 'action', 'resource_type', 'since']`）。
+**R-402 `_PAGE_SIZES = [50, 100, 200]` + `_REDACTED_RE = /••••redacted••••/g` 字面 byte-equal**。
+**R-403 row 13 字段访问 byte-equal**（id/created_at/actor_name/actor_role/actor_id/action/resource_type/resource_id/client_ip/user_agent/request_id/success/detail_json）。
+
+### Architecture — 范围守护
+
+- **R-419**：App/api/index.css/main/utils/Shared/Shell/decor/15 屏（不含 AdminAudit）/Admin/SavedReports/tab_access `git diff` = 0
+- **R-420**：admin/ 4 子模块（tab_resources/knowledge/system/modals）0 改
+- **R-421**：chat/ 7 子模块 0 改
+- **R-422**：App.css 0 行 diff；AdminAudit 0 新 className（除 `cb-sb` sustained）
+- **R-423**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 banner emoji 业务豁免**（drawer ✓/✗ Unicode 字符保留 — admin 信任标识）
+- **R-227.5.1 装饰豁免延伸**：thead 中文 + Filter Label 中英双兼（Actor ID 等）保留
+
+### Loop Protocol v3 — 第 18 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 27 条（R-399~R-425）+ 13 决策（D1-D8 + Q1-Q5）
+- **Stage 2**（资深 + Codex）：D2 强化双兼 + D6 evidence 补强（Chrome<111 / WebKit）+ Q5 inline 准许；新增 R-426（ActionChip padding/radius/fontWeight）+ R-427（cursor:help）
+- **Stage 3**（v0.4 守护者）：D2/D6 双重强制；新增 R-428（actor null check）+ R-429（DetailJsonView try-catch）+ R-430（Pagination 边界）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序 — R-409 优先 Step 1
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（D2/D6/Q5 修订强化）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 32（**R-399~R-430**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env 验证；本地 worktree env BIAGENT_MASTER_KEY 残留触发 R-74 探针为预存在问题）
+- R-72 smoke 自动跟随 0.5.17 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.17 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（AdminAuditScreen 5 props + 6 state + api URL + 13 row 字段 byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 admin → 切 admin-audit nav → loading → items 加载真后端数据
+- [ ] Filter 4 字段输入 → 查询；**D2 双兼**: Label `操作人 (Actor ID)` + Placeholder `输入用户 ID...` 视觉对齐
+- [ ] Filter "重置" → 4 字段清空 + 回到 page 1
+- [ ] **R-430 翻页边界**：page=1 上一页 disabled + items.length < size 下一页 disabled
+- [ ] 50/100/200 size 切换 + 回 page 1
+- [ ] eye 按钮 → drawer 打开 → 5 KV + DetailJsonView
+- [ ] **R-427 redacted cursor:help 实测**（悬停显帮助光标 + tooltip "敏感字段已脱敏"）
+- [ ] **R-429 畸形 JSON 兜底实测**（mock `detail_json = "not a json"`）— 显原始字符串不崩溃
+- [ ] **R-428 actor null check 实测**（mock `row.actor_name = null`）— 显 actor_id 或 'System'
+- [ ] Drawer click outside → 关闭（**R-415 rgba backdrop** 仍生效 + Chrome/WebKit 视觉一致）
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）— Stat grid + Filter strip auto-fit 自适应
+- [ ] **light + dark 双模式** — Stat / Filter / Table / Drawer 视觉一致
+- [ ] **Inset 8% 四屏视觉一致**（ResultBlock / SavedReports / DataSources / AdminAudit）
+- [ ] v0.5.0~v0.5.16 既有功能端到端正常
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.16
+- ✅ **v0.5.17 (C5+) AdminAudit 屏复刻** — v0.5.x 第二个顶层屏 + Inset 8% 闭环铁律化 + rgba 豁免架构原则
+- ⏳ v0.5.18+ (C5+) 剩余 9+ 屏（admin/users 独立 PATCH 含 #ff7a3a 偿还 / 8 admin tabs（api-model/budget/catalog/fewshot/knowledge/prompts/recovery/system）/ 5 业务屏：database / knowledge / catalog / sql-lab / settings / conversations）
+
+---
+
 ## [Unreleased] - v0.5.16 (C5+) DataSources 屏复刻（tab_access Sources 部分）— 首个 admin tab 子模块复刻 + Inset 8% 三处闭环 + I.db 复用先例
 
 > **首个 admin tab 子模块复刻** — `tab_access.jsx` Sources 部分（L35-57）9 子步骤视觉重构；Users 部分（L9-33 含 `#ff7a3a` 渐变残留）字面零修改 **R-376 双重强制 out-of-scope**。
