@@ -5,6 +5,230 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.18 (C5+) AdminBudgets 屏复刻 — v0.5.x 第三个顶层屏 + Inset 8% 闭环铁律化 100% 覆盖后端管理资产屏 + borderLeft 25% 第二处闭环 + 技术债登记
+
+> **KNOT 视觉铁律宣告**：Inset 8% 设计语言正式覆盖 **100% 后端管理资产屏** — 5 屏 `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面 byte-equal：ResultBlock (v0.5.14 R-323) / SavedReports (v0.5.15 R-372) / DataSources (v0.5.16 R-386) / AdminAudit (v0.5.17 R-409) / **AdminBudgets (v0.5.18 R-444)**。
+>
+> **v0.5.x 第三个顶层屏复刻**（v0.5.15 SavedReports → v0.5.17 AdminAudit → v0.5.18 AdminBudgets）— AdminBudgets.jsx 232→357 视觉重构对齐 demo budget.jsx；**业务模型不兼容裁定**：保 multi-scope CRUD（R-16/R-23/R-21 后端硬契约）+ 借 demo 视觉语言（D2 双兼模式延伸）。
+>
+> **五大设计先例同时落地**：
+> 1. 🏆 **Inset 8% 闭环第五处 — 视觉铁律化 100% 覆盖后端管理资产屏**（5 屏字面 byte-equal）
+> 2. 🔁 **borderLeft 3px 25% 第二处闭环**（R-465 与 SavedReports R-356 字面 byte-equal — 设计语言铁律第二维度）
+> 3. 💳 **技术债正式登记** — ActionChip + StatusDot + EnabledChip 累计第二次复用确认；v0.6.0 首个 PATCH 移入 Shared.jsx 偿还承诺（R-365 Shared 0 改动绝对红线 sustained）
+> 4. 📊 **Q1 部分聚合先例** — Hero placeholder 模式进化（v0.5.16/17 全 `—` → v0.5.18 1 真+3 占位）；第 1 卡 `budgets.length` 真实信息提升信息密度
+> 5. 🚨 **D9 WarnNote 模式** — warning emoji 偿还新通用方案（14×14 inline svg 感叹号 + T.warn 文字 + brandSoft Warn 内嵌）
+>
+> Loop Protocol v3 **第 19 次施行** — 全 v3 三阶段评审。
+
+### Changed — AdminBudgets.jsx 视觉重构（232 → 357 行 ≤ R-460 LIMIT 380；新增 LIMITS dict 32→33 条）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行（R-444 优先 Step 1 — 视觉铁律化覆盖里程碑）：
+
+**Step 1 baseline + LIMIT 新增 + R-444 优先**（R-444/R-460）：
+- `scripts/check_file_sizes.py` 新增 `"frontend/src/screens/AdminBudgets.jsx": 380`（32→33 条）
+- **R-444 brandSoft 8% 闭环字面率先落地**：`background: \`color-mix(in oklch, ${T.accent} 8%, transparent)\``（thead bg + Rules note bg + Tag chip）— 与 v0.5.14 R-323 + v0.5.15 R-372 + v0.5.16 R-386 + v0.5.17 R-409 字面 byte-equal
+
+**Step 2 Topbar 删 💰 emoji**（R-439）：`topbarTitle="💰 预算配置"` → `topbarTitle="预算配置"`
+
+**Step 3 Hero usage card 4-stat grid + Q1 修订部分聚合 + R-461 progress transition**（R-440/R-461）：
+- `gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'` + gap 24
+- **Q1 修订**：第 1 卡 `{budgets.length}` 真实聚合 + 3 卡 `—` mono placeholder + `title="后端聚合 API 对接中 (v0.6+)"` tooltip
+- 4 卡：已配置预算项 / 本月已用 token / 预计花费 / 本月使用率
+- helpers: `statLabelStyle / statValueStyle`
+- **R-461 progress bar transition**：即使 0% 也含 `transition: 'width 0.3s ease-in-out'` + opacity 0.5
+- 0/50%/100% mono ticks
+
+**Step 4 Form labels D2 双兼 + R-462 Form Grid + 双按钮**（R-441/R-442/R-453/R-462）：
+- Field helper：mono uppercase 0.06em label + bgInset
+- **D2 双兼**：Label `作用范围 (Scope Type)` / `范围值 (Value) — ${SCOPE_HINT[draft.scope_type]}` / `预算类型 (Budget Type)` / `阈值 (Threshold)` / `超阈值动作 (Action)`
+- 业务字段名 byte-equal + Demo 工业感双兼
+- **R-462**：`gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))'` + `gap: 16`（Threshold + Action 同行优先）
+- "重置" ghost btn + "更新/创建 R-18 幂等" primary btn（T.accent + T.sendFg — R-450 严禁 'white'）
+- emoji ✏️/➕ 删（"编辑预算"/"新建预算" 纯文字）
+
+**Step 5 Table HTML → CSS Grid 7-col**（R-443/R-444）：
+- `<table>` / `<thead>` / `<tbody>` / `<th>` / `<td>` / `<tr>` 全删（grep = 0 ✓）
+- CSS Grid `0.8fr 1fr 1.4fr 0.6fr 0.8fr 0.9fr 50px`（Scope/Value/类型/阈值/Action/Enabled/操作）
+- thead 视觉应用 R-444 brandSoft 8% bg + T.subtext + mono + 0.06em + uppercase + fontWeight 500
+
+**Step 6 BudgetActionChip inline helper**（R-445）：
+- v0.5.17 R-411/R-426 模式延伸
+- `action === 'block' ? T.warn : T.accent` 2 色映射
+- chip 三件套：`color-mix(in oklch, ${color} 12%, transparent)` bg + `padding: '2px 8px'` + `borderRadius: 4` + `fontWeight: 500` + fontSize 11 + T.mono
+
+**Step 7 EnabledChip inline helper**（R-446）：
+- StatusDot pattern（v0.5.17 R-412 模式延伸）
+- 6×6 圆 + `currentColor` + flexShrink: 0
+- `enabled ? T.success : T.muted` + "已启用"/"已停用" 文字
+- 内置 onClick={handleToggle} — 取代原 `✓ on / ○ off` emoji 按钮
+
+**Step 8 Rules note brandSoft inset + R-465 borderLeft + R-447 Tag chip + D9 修订 R-448 WarnNote + 全 hex grep**（R-447/R-448/R-451/R-452/R-465）：
+- 4 rules（R-16 / R-23 / R-21 / block）— 借鉴 demo
+- **R-465 borderLeft 3px 25% 闭环**：`borderLeft: \`3px solid color-mix(in oklch, ${T.accent} 25%, transparent)\`` — **与 SavedReports v0.5.15 R-356 字面 byte-equal**（设计语言铁律第二维度）
+- **R-444 bg 闭环**（本文件第三处命中）：`background: \`color-mix(in oklch, ${T.accent} 8%, transparent)\``
+- Tag chip：`color-mix(in oklch, ${T.accent} 12%, transparent)` bg + T.accent + padding 2px 8px + radius 4 + fontWeight 500 + mono + uppercase
+- 📌 emoji 删 → 纯 Tag chip
+- **D9 修订 R-448 WarnNote**：warning emoji（v0.4.3 原 `⚠️`）→ inline 14×14 svg 感叹号（path `M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z`）+ T.warn 文字 + brandSoft Warn 内嵌；用于 isLegacyScope + isBlockMisuse 双警告
+- grep `#[0-9a-fA-F]{3,6}` AdminBudgets \| grep -v boxShadow \| grep -v rgba = **0 命中** ✓（R-452）
+- grep `💰\|✏️\|➕\|⚠️\|📌\|○` AdminBudgets = **0 命中** ✓（R-453）
+
+**Step 9 三处版本同步 + grep 闭门**（R-459/R-463/R-464）：
+- R-459 三处同步 0.5.17→0.5.18（commit 2）
+- **R-463 R-21 守护手测**：scope_value='legacy' → WarnNote + Submit disabled；action='block' + scope_type='global' → WarnNote + Submit disabled
+- **R-464 CRUD 幂等手测**：相同三元组 → `'已更新'` toast；新三元组 → `'已创建'`；删除 → `'已删除'`
+- grep `rgba(` AdminBudgets = **0 命中** ✓（本 PATCH 无 modal/drawer）
+
+### Architecture — R-444 brandSoft inset 8% 全站设计语言五处闭环（KNOT 视觉铁律 100% 覆盖后端管理资产屏）
+
+```jsx
+// ResultBlock.jsx v0.5.14 R-323 (Observation card)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// SavedReports.jsx v0.5.15 R-372 (Quote inset)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// admin/tab_access.jsx v0.5.16 R-386 (Summary + thead + Name icon + Type chip — 4 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminAudit.jsx v0.5.17 R-409 (thead + Avatar — 2 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminBudgets.jsx v0.5.18 R-444 (thead + Rules note — 2 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**5 屏 + 字面 byte-equal** = KNOT 视觉铁律宣告：Inset 8% 设计语言正式覆盖 **100% 后端管理资产屏**。`git grep` 命中 5 个文件。未来任何 inset 风格**沿用此字面**（v0.5.19+ 剩余屏 + v0.6 子组件拆分）。
+
+### Architecture — R-465 borderLeft 3px 25% 设计语言铁律第二维度（第二处闭环）
+
+```jsx
+// SavedReports.jsx v0.5.15 R-356 (Original question quote)
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+
+// AdminBudgets.jsx v0.5.18 R-465 (Rules note)
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+```
+
+**2 屏 + 字面 byte-equal** = 设计语言铁律第二维度。与 R-444 8% bg 闭环（5 处）并列两大设计语言铁律。
+
+### Architecture — 技术债登记（v0.6.0 偿还承诺）
+
+**累计第二次复用确认**：
+- v0.5.17 ActionChip + StatusDot inline（首次抽取）
+- v0.5.18 BudgetActionChip + EnabledChip inline（**第二次复用确认**）
+
+**v0.6.0 首个 PATCH 偿还**：
+- `BudgetActionChip` + `EnabledChip` + `StatusDot` 三组件移入 `Shared.jsx`
+- 统一三处 inline 实现（AdminAudit StatusDot / AdminBudgets BudgetActionChip + EnabledChip）
+- 当前保留 inline 是 **R-365 (Shared 0 改动) 绝对红线 sustained** 所致
+- v0.6 起 Shared 解锁后即偿还
+
+### Architecture — Q1 部分聚合先例（Hero placeholder 模式进化）
+
+```jsx
+// v0.5.16/17 模式：全 placeholder
+const stats = [{ label: '...', value: '—' }];
+
+// v0.5.18 修订：1 真实聚合 + 3 占位
+<div>已配置预算项: {budgets.length}</div>   // ← Q1 修订：真实聚合
+<div title="...">本月已用 token: —</div>
+<div title="...">预计花费: —</div>
+<div title="...">本月使用率: —</div>
+```
+
+**架构判定**：第 1 卡提供有效信息（不误导）；其余 3 卡保后端契约预期；视觉信息密度提升；未来 PATCH 沿用此模式。
+
+### Architecture — D9 WarnNote 模式（emoji 偿还新通用方案）
+
+```jsx
+function WarnNote({ T, children }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.warn, fontSize: 12, lineHeight: 1.4 }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      {children}
+    </div>
+  );
+}
+```
+
+**用途**：R-21 legacy / R-21 block misuse 警告显示；取代 v0.4.3 原 `⚠️` emoji；未来全站 warning 文案沿用此模式。
+
+### Architecture — 契约守护
+
+**R-431 AdminBudgetsScreen 5 props 签名 byte-equal**（T / user / onToggleTheme / onNavigate / onLogout）。
+**R-432 4 useState slots byte-equal**（budgets / loading / draft / editingId — 数量+类型+初值）。
+**R-433 api 4 endpoint URL byte-equal**（GET `/api/admin/budgets` / POST `/api/admin/budgets` / PUT `/api/admin/budgets/{id}` / DELETE `/api/admin/budgets/{id}`）。
+**R-434 3 常量字面 byte-equal**（SCOPE_TYPES / BUDGET_TYPES / ACTIONS）。
+**R-435 SCOPE_HINT 3 keys byte-equal**（user/agent_kind/global 文案）。
+**R-436 budget 7 字段访问 + draft 5 字段 byte-equal**（id/scope_type/scope_value/budget_type/threshold/action/enabled + draft scope_type/scope_value/budget_type/threshold/action）。
+**R-437 isLegacyScope/isBlockMisuse/canSubmit 业务守护 byte-equal**（R-21 客户端守护逻辑视觉不可见）。
+**R-438 4 handlers byte-equal**（load/handleSubmit/handleDelete/handleToggle 调用方式 + 4 处 reload 调用 — R-23 实时性）。
+
+### Architecture — 范围守护
+
+- **R-454**：App/api/index.css/main/utils/Shared/Shell/decor/14 屏（不含 AdminBudgets）/Admin/SavedReports/tab_access/AdminAudit/AdminRecovery `git diff` = 0
+- **R-455**：admin/ 4 子模块 0 改
+- **R-456**：chat/ 7 子模块 0 改
+- **R-457**：App.css 0 行 diff；AdminBudgets 0 新 className（除 `cb-sb`）
+- **R-458**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 emoji 业务豁免**（本 PATCH 全清，无业务豁免 emoji 残留）
+- **R-227.5.1 装饰豁免延伸**：thead mono uppercase + Tag chip mono uppercase + Rules note 中文 sustained
+
+### Loop Protocol v3 — 第 19 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 30 条（R-431~R-460）+ 14 决策（D1-D9 + Q1-Q5）；Q1 推荐全 `—`、D9 推荐 emoji 删
+- **Stage 2**（资深 + Codex）：**Q1 修订部分聚合**（第 1 卡 budgets.length）+ **D9 修订 WarnNote 模式**（svg 感叹号 + T.warn）+ Q5 技术债正式登记；新增 R-461（progress transition）+ R-462（Form gap 16 + minmax）
+- **Stage 3**（v0.4 守护者）：D8 R-365 绝对红线 sustained；新增 R-463（R-21 守护手测）+ R-464（CRUD 幂等 toast 手测）+ R-465（borderLeft 3px 25% 闭环字面 byte-equal）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序 — R-444 优先 Step 1
+
+14/14 决策点（D1-D9 + Q1-Q5）一致（D8/D9/Q1/Q5 修订强化）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 35（**R-431~R-465**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env；本地 worktree env BIAGENT_MASTER_KEY 残留触发 R-74 预存在问题）
+- R-72 smoke 自动跟随 0.5.18 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.18 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（AdminBudgetsScreen 5 props + 4 state + api URL + 7+5 字段 byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 admin → 切 admin-budgets nav → loading → budgets 加载
+- [ ] Hero usage card：第 1 卡 `budgets.length` 真实数值 + 3 卡 `—` + tooltip + 进度条 0% transition 预留
+- [ ] Form D2 双兼 Label/Placeholder 显示正确
+- [ ] **R-463 R-21 'legacy' scope_value → WarnNote 显 + Submit disabled**
+- [ ] **R-463 'block' + scope_type='global' → WarnNote 显 + Submit disabled**
+- [ ] **R-464 创建 → '已创建' toast + list 更新**
+- [ ] **R-464 相同三元组覆盖 → '已更新' toast（R-18 幂等）**
+- [ ] **R-464 删除 → confirm → '已删除' toast + list 更新**
+- [ ] EnabledChip toggle → on/off 状态机切换 + 视觉反馈
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）— Hero grid + Form grid R-462 minmax 自适应
+- [ ] **light + dark 双模式** — Hero / Form / Table / Chip 视觉一致
+- [ ] **Inset 8% 5 屏视觉一致性肉眼校验**（ResultBlock / SavedReports / DataSources / AdminAudit / **AdminBudgets**）
+- [ ] **R-461 进度条动效预留**：dev tools 改 width → 平滑 transition 立即生效
+- [ ] v0.5.0~v0.5.17 既有功能端到端正常
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.17
+- ✅ **v0.5.18 (C5+) AdminBudgets 屏复刻** — v0.5.x 第三个顶层屏 + Inset 8% 闭环铁律化 100% 覆盖后端管理资产屏 + borderLeft 25% 第二处闭环 + 技术债登记
+- ⏳ v0.5.19+ (C5+) 剩余 8+ 屏（admin/users 独立 PATCH 含 #ff7a3a 偿还 / AdminRecovery 顶层屏 / 7 admin tabs（api-model/catalog/fewshot/knowledge/prompts/system）/ 5 业务屏：database / knowledge / catalog / sql-lab / settings / conversations）
+
+### v0.6 路线图新增
+
+- **ActionChip + StatusDot + EnabledChip 移入 Shared.jsx**（v0.5.17 R-412 + v0.5.18 R-445/R-446 累计第二次复用确认 — Q5 技术债偿还）
+
+---
+
 ## [Unreleased] - v0.5.17 (C5+) AdminAudit 屏复刻 — v0.5.x 第二个顶层屏 + Inset 8% 闭环第四处铁律化 + R-313 rgba 豁免架构原则确立
 
 > **v0.5.x 第二个顶层屏复刻**（v0.5.15 SavedReports → v0.5.17 AdminAudit）— AdminAudit.jsx 264→372 视觉重构对齐 demo audit.jsx。
