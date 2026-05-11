@@ -11,6 +11,7 @@ v0.5.11 R-260：chat/Composer.jsx 由 250 → 100 收紧（30 条不变，R-217 
 v0.5.12 R-285：chat/ThinkingCard.jsx 由 250 → 160 收紧（30 条不变，Thinking 屏复刻 PATCH）。
 v0.5.13 R-307：chat/ResultBlock.jsx 由 400 → 420 微调 ack（svg path 占行不可压；与 v0.5.3 R-111 同模式）。
 v0.5.14 R-341：chat/ResultBlock.jsx 由 420 → 440 v0.5 final ack（视觉大重构 svg + observation card；v0.6 必须开启子组件拆分）。
+v0.5.15 R-363：SavedReports.jsx 新增 LIMIT 380（30 → 31 条；首次纳入；Favorites 屏复刻）。
 """
 import sys
 from pathlib import Path
@@ -40,6 +41,7 @@ LIMITS = {
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
     "frontend/src/screens/chat/ResultBlock.jsx":   440,  # v0.5.14 R-341 final 420→440 (v0.5 收官；v0.6 必须子组件拆分)
+    "frontend/src/screens/SavedReports.jsx":       380,  # v0.5.15 R-363 新增 (Favorites 屏复刻)
     "frontend/src/screens/chat/ChatEmpty.jsx":      80,  # v0.5.10 R-218 收紧 250→80
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  160,  # v0.5.12 R-285 收紧 250→160
