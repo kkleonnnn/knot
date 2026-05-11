@@ -1,5 +1,7 @@
 // v0.5.3: extracted from Admin.jsx L571-773 (UserFormModal + SourceFormModal + FewShotModal)
 // 3 个 dumb modal 组件 — 接收 data + onClose + onSave 回调；state 由子文件管理（R-124 无全局状态）。
+// v0.5.24: 视觉重构 — Hex 偿还 4 处（白色字面 → T.sendFg）+ Checkbox svg check + R-365 Shared 0 改 sustained
+// v0.5.x 视觉重构收官 PATCH
 import { useState } from 'react';
 import { I, pillBtn } from '../../Shared.jsx';
 import { toast, Modal, ModalHeader, Input, Select, Spinner } from '../../utils.jsx';
@@ -69,8 +71,13 @@ export function UserFormModal({ T, data, sources, onClose, onSave }) {
                     background: checked ? T.accentSoft : T.content,
                     border: `1px solid ${checked ? T.accent : T.border}`,
                   }}>
+                    {/* v0.5.24 Checkbox svg check — 替代 unicode tick + 白色 hex 字面（R-484 sustained） */}
                     <span style={{ width: 15, height: 15, borderRadius: 3, flexShrink: 0, border: `1.5px solid ${checked ? T.accent : T.border}`, background: checked ? T.accent : 'transparent', display: 'grid', placeItems: 'center' }}>
-                      {checked && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                      {checked && (
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={T.sendFg} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      )}
                     </span>
                     <span style={{ fontSize: 13, color: T.text, flex: 1 }}>{s.name}</span>
                     <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{s.db_database}</span>
@@ -82,8 +89,9 @@ export function UserFormModal({ T, data, sources, onClose, onSave }) {
       </div>
       <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onClose} style={pillBtn(T)}>取消</button>
+        {/* v0.5.24 R-484 Spinner color hex 偿还 — 白色字面 → T.sendFg */}
         <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
-          {loading ? <Spinner size={12} color="#fff"/> : '保存'}
+          {loading ? <Spinner size={12} color={T.sendFg}/> : '保存'}
         </button>
       </div>
     </Modal>
@@ -142,6 +150,7 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
         <Input T={T} label="Password" value={form.db_password} onChange={v => set('db_password', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
         <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="mydb 或 ohx_ods,ohx_dwd" mono/>
         <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
+        {/* R-302.5 emoji 业务豁免 sustained — ✓/✗ 是 testResult 业务状态指示器 */}
         {testResult && (
           <div style={{ padding: '8px 12px', borderRadius: 6, background: testResult.connected ? T.successSoft : T.accentSoft, color: testResult.connected ? T.success : T.accent, fontSize: 12.5, marginBottom: 12 }}>
             {testResult.connected ? '✓ ' : '✗ '}{testResult.message}
@@ -153,8 +162,9 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
           {testing ? <><Spinner size={11}/> 测试中…</> : <><I.wifi/> 测试连接</>}
         </button>
         <button onClick={onClose} style={pillBtn(T)}>取消</button>
+        {/* v0.5.24 R-484 Spinner color hex 偿还 */}
         <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
-          {loading ? <Spinner size={12} color="#fff"/> : '保存'}
+          {loading ? <Spinner size={12} color={T.sendFg}/> : '保存'}
         </button>
       </div>
     </Modal>
@@ -201,8 +211,9 @@ export function FewShotModal({ T, data, onClose, onSave }) {
       </div>
       <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onClose} style={pillBtn(T)}>取消</button>
+        {/* v0.5.24 R-484 Spinner color hex 偿还 */}
         <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
-          {loading ? <Spinner size={12} color="#fff"/> : '保存'}
+          {loading ? <Spinner size={12} color={T.sendFg}/> : '保存'}
         </button>
       </div>
     </Modal>

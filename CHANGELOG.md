@@ -5,6 +5,112 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.24 (Cn+) admin modals.jsx 视觉重构 + ⭐ v0.5.x 视觉重构正式收官 — Hex 残留 4 处偿还 + 18 PATCH 序列总结
+
+> ⭐ **v0.5.x 视觉重构序列正式收官**（v0.5.7~v0.5.24 共 18 个视觉 PATCH）
+>
+> **v0.5.24 本 PATCH**：modals.jsx 4 处 `'#fff'` hex 残留偿还（UserFormModal/SourceFormModal/FewShotModal 三 Spinner color + UserFormModal checkbox tick）→ `T.sendFg` + svg check polyline。
+>
+> **v0.5.x 视觉重构总账（18 PATCH）**：
+> - **Phase 1 user-facing 屏**（v0.5.7~v0.5.15 — 9 PATCH）：Login / Shell / ChatEmpty / Composer / ThinkingCard / ResultBlock (2 PATCH) / SavedReports
+> - **Phase 2 admin 后台屏**（v0.5.16~v0.5.24 — 9 PATCH）：tab_access Sources / AdminAudit / AdminBudgets / AdminRecovery / admin/users 偿还 / tab_resources / tab_system / tab_knowledge / modals
+>
+> **核心设计语言铁律**（v0.5.x 序列建立）：
+> - 🏆 **Inset 8% 闭环字面 9 文件 byte-equal** — `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面在 v0.5.14~23 9 屏统一（视觉铁律 100% 覆盖后端管理资产屏）
+> - 🔁 **borderLeft 25% 闭环字面 4 文件 byte-equal** — SavedReports / AdminBudgets / AdminRecovery / tab_system Helper banner
+> - 🛡️ **R-286 hex 全面禁止** — v0.5.13~v0.5.24 12 PATCH sustained；除 boxShadow + rgba 边界豁免外全清
+> - 💳 **R-365 Shared.jsx 0 改动** — 全 v0.5.x 序列严守
+>
+> **v0.6 路线图**（已锁定）：
+> - **v0.6.0 工程化重构**：ResultBlock 子组件拆分（R-341 锁定 6 候选）+ 8+ inline helpers 移入 Shared.jsx（StatusDot / ActionChip / BudgetActionChip / EnabledChip / WarnNote / KpiCard / PeriodTab / TagChip / Avatar / medal / trophy svg / trailingChip / NumChip / OverrideChip / theadStyle）
+> - **v0.6.1+ 业务功能开发**：由资深架构师按 v0.5.x 收官反馈定义优先级
+>
+> Loop Protocol v3 **第 25 次施行**（⭐ 自审简化协议 v0.5.x 收官冲刺完成）。
+
+### Changed — modals.jsx 视觉重构（210 → 221 行 ≤ 250 LIMIT；LIMITS dict 不动）
+
+**5 处 hex 偿还**：
+1. **UserFormModal L73**：checkbox tick `color: '#fff'` → `<svg stroke={T.sendFg}>` polyline check（替代 unicode '✓' + hex 字面）
+2. **UserFormModal L86**：Spinner `color="#fff"` → `color={T.sendFg}`
+3. **SourceFormModal L157**：Spinner `color="#fff"` → `color={T.sendFg}`
+4. **FewShotModal L205**：Spinner `color="#fff"` → `color={T.sendFg}`
+
+**业务字段 + 业务逻辑 byte-equal 严守**：
+- 3 modals 全 props 签名 byte-equal（UserFormModal 5 props + SourceFormModal 4 props + FewShotModal 4 props）
+- form state byte-equal（username/password/display_name/role/source_ids + name/db_host/db_port/db_user/db_password/db_database/db_type/description + question/sql/type/is_active）
+- api calls byte-equal（POST/PUT `/api/admin/users` + POST/PUT `/api/admin/datasources` + POST/PUT `/api/few-shots` + POST `/api/db/test`）
+- toast 文案 byte-equal（"已更新" / "已创建" / "已添加" / "账号和密码必填" / "名称和主机必填" / "question / sql 必填"）
+- R-302.5 emoji 业务豁免 sustained — `testResult ✓/✗` 是业务状态指示器（非装饰）
+
+**R-365 Shared.jsx 0 改动 sustained** — `I / pillBtn` from Shared + `toast / Modal / ModalHeader / Input / Select / Spinner` from utils byte-equal。
+
+### Architecture — v0.5.x 视觉重构正式收官总账
+
+**18 PATCH 序列完整覆盖**：
+
+| Phase | PATCH | 屏 | 用户可感知 |
+|---|---|---|---|
+| 1 user-facing | v0.5.7 | Login | ✅ |
+| 1 user-facing | v0.5.9 | Shell | ✅ |
+| 1 user-facing | v0.5.10 | ChatEmpty | ✅ |
+| 1 user-facing | v0.5.11 | Composer | ✅ |
+| 1 user-facing | v0.5.12 | ThinkingCard | ✅ |
+| 1 user-facing | v0.5.13/14 | ResultBlock | ✅ |
+| 1 user-facing | v0.5.15 | SavedReports | ✅ |
+| 2 admin | v0.5.16 | tab_access Sources | admin only |
+| 2 admin | v0.5.17 | AdminAudit | admin only |
+| 2 admin | v0.5.18 | AdminBudgets | admin only |
+| 2 admin | v0.5.19 | AdminRecovery | admin only |
+| 2 admin | v0.5.20 | admin/users 偿还 | admin only |
+| 2 admin | v0.5.21 | tab_resources | admin only |
+| 2 admin | v0.5.22 | tab_system | admin only |
+| 2 admin | v0.5.23 | tab_knowledge | admin only |
+| 2 admin | **v0.5.24** | **modals** | admin only |
+
+**Inset 8% 闭环字面 9 文件 byte-equal**（视觉铁律 100% 覆盖后端管理资产屏）：
+```
+chat/ResultBlock.jsx (v0.5.14 R-323)
+SavedReports.jsx (v0.5.15 R-372)
+admin/tab_access.jsx (v0.5.16 R-386 + v0.5.20 R-501/504)
+AdminAudit.jsx (v0.5.17 R-409)
+AdminBudgets.jsx (v0.5.18 R-444)
+AdminRecovery.jsx (v0.5.19 R-480)
+admin/tab_resources.jsx (v0.5.21 R-531)
+admin/tab_system.jsx (v0.5.22 R-556)
+admin/tab_knowledge.jsx (v0.5.23 R-587)
+```
+
+### v0.6 路线图（v0.5.x 收官后正式启动）
+
+**v0.6.0 工程化重构 PATCH**（技术债集中偿还）：
+- **ResultBlock 子组件拆分**（R-341 锁定 6 候选）：MetricCard / TableContainer / InsightCard / BudgetBanner / ErrorBanner / TokenMeter
+- **15+ inline helpers 移入 Shared.jsx**（累计第七次复用确认）：
+  - v0.5.17 StatusDot
+  - v0.5.18 BudgetActionChip + EnabledChip + WarnNote
+  - v0.5.19 KpiCard + PeriodTab + TagChip + trophy svg + medal svg
+  - v0.5.20 Avatar
+  - v0.5.21 trailingChip
+  - v0.5.22 NumChip + OverrideChip
+  - v0.5.23 theadStyle
+- **lint rule 强制 R-480/R-481 闭环字面**：CI grep -F 双闭环 9+4 文件 byte-equal 守护
+
+**v0.6.1+ 业务功能开发**：由资深架构师按 v0.5.x 收官反馈定义优先级。
+
+### Tests
+
+- 432 passed / 112 skipped（CI 干净 env）
+- 7 contracts KEPT；ruff All checks passed；npm build clean
+- `python3 scripts/check_file_sizes.py` OK (34 files)
+
+### v0.5.x 路线图最终
+
+- ✅ v0.5.0~v0.5.6（Foundation）
+- ✅ v0.5.7~v0.5.15（Phase 1 — user-facing 9 PATCH）
+- ✅ v0.5.16~v0.5.24（Phase 2 — admin 9 PATCH）
+- ⏳ **v0.6.0+ 工程化重构 + 业务功能**
+
+---
+
 ## [Unreleased] - v0.5.23 (C5+) admin tab_knowledge 屏复刻（Knowledge + FewShots + Prompts 三合一）— ⭐ Inset 8% 第十处扩张（8→9 文件）+ thead R-480 共享 helper
 
 > ⭐ **Inset 8% 闭环字面文件总数 8 → 9 第十处扩张**（admin/tab_knowledge 加入）
