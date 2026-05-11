@@ -1,4 +1,4 @@
-// v0.5.13 (C5+) ResultBlock 偿还 — R-302.5 ErrorBanner 业务 emoji 豁免 + R-286 hex 全清扩展
+// v0.5.13/14 (C5+) ResultBlock 偿还 + 视觉重构 — R-227.5.1/R-286/R-302.5 字面分流体系
 import { useState } from 'react';
 import { I, iconBtn, LineChart, BarChart, PieChart } from '../../Shared.jsx';
 import { toast } from '../../utils.jsx';
@@ -11,18 +11,20 @@ const SvgPath = ({ d, size = 14, fill = 'none' }) => (
        strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
 );
 
-// RB_SVG path 字典（R-302/303/304）— 偿还 emoji
 const RB_SVG = {
-  sparkle:    'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z',
-  search:     'M11 11m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0M20 20l-3.5-3.5',
-  wrench:     'M14.7 6.3a4 4 0 1 1-5.4 5.4l-5.6 5.6 1.4 1.4 5.6-5.6a4 4 0 0 1 5.4-5.4l-2.8 2.8 1.4 1.4 2.8-2.8z',
-  chart:      'M3 20h18M4 16l5-6 4 3 7-8',
-  star:       'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
-  shield:     'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
-  triangle:   'M12 3L2 21h20L12 3zM12 10v6M12 18v.01',
+  sparkle:      'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z',
+  search:       'M11 11m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0M20 20l-3.5-3.5',
+  wrench:       'M14.7 6.3a4 4 0 1 1-5.4 5.4l-5.6 5.6 1.4 1.4 5.6-5.6a4 4 0 0 1 5.4-5.4l-2.8 2.8 1.4 1.4 2.8-2.8z',
+  chart:        'M3 20h18M4 16l5-6 4 3 7-8',
+  star:         'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
+  shield:       'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  triangle:     'M12 3L2 21h20L12 3zM12 10v6M12 18v.01',
+  info:         'M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0M12 8v4M12 16h.01',
+  chevronRight: 'M9 18l6-6-6-6',
+  arrowUp:      'M12 19V5M5 12l7-7 7 7',
+  arrowDown:    'M12 5v14M19 12l-7 7-7-7',
 };
 
-// R-302 AGENT_KIND_EMOJI 偿还为 svg path（key 字面 byte-equal）
 const AGENT_KIND_EMOJI = {
   clarifier:   RB_SVG.sparkle,
   sql_planner: RB_SVG.search,
@@ -30,7 +32,6 @@ const AGENT_KIND_EMOJI = {
   presenter:   RB_SVG.chart,
 };
 
-// R-294 ERROR_KIND_META 7 kind icon/title byte-equal sustained（R-305 + R-302.5 业务 emoji 豁免）
 const ERROR_KIND_ICONS = {
   budget_exceeded: '🛑', config_missing: '🔧', llm_failed: '🤖',
   sql_invalid: '🚫', sql_exec_failed: '⚠️', data_unavailable: '📡', unknown: '❌',
@@ -41,7 +42,6 @@ const ERROR_KIND_TITLES = {
   data_unavailable: '数据源不可用', unknown: '系统错误',
 };
 
-// Q1 修订 — getErrorKindMeta helper（解耦 T；R-300 + R-312 color-mix in oklch）
 const getErrorKindMeta = (T, kind) => {
   const isCritical = kind === 'budget_exceeded' || kind === 'sql_invalid' || kind === 'unknown';
   const baseColor = isCritical ? T.accent : T.warn;
@@ -94,7 +94,6 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
   // v0.4.1 R-S4 三级优先级链：display_hint > INTENT_TO_HINT[intent] > inferIntentFromShape
-  // R-295 7 layout 分支字面 byte-equal sustained
   const layoutHint = resolveEffectiveHint(msg, rows, cols);
   const isMetric = layoutHint === 'metric_card';
   const isDetail = layoutHint === 'detail_table';
@@ -132,7 +131,6 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
   ];
 
   // v0.4.1 ⭐ 收藏按钮（仅当有 sql + msg.id 是真实数字 + 非 saved_report 内嵌渲染）
-  // R-303 + R-314: emoji → svg star 实心/描边双态 + onPin API 绑定
   const canPin = !!(sql && Number.isInteger(msg.id) && !msg.is_saved_report);
 
   const handlePin = async () => {
@@ -265,7 +263,7 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
                   <tr style={{ background: T.bg }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 11, letterSpacing: 'normal', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -282,21 +280,37 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
       )}
 
       {insight && (
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 16px' }}>
-          <div style={{ fontSize: 11, color: T.accent, fontWeight: 600, marginBottom: 6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>洞察</div>
-          <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.7 }}>{insight}</div>
+        <div style={{
+          background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+          borderRadius: 10, padding: '12px 14px',
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ marginTop: 1, color: T.accent, flexShrink: 0 }}>
+            <SvgPath d={RB_SVG.info} size={14}/>
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontFamily: T.mono, color: T.accent, fontWeight: 600,
+                          letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>OBSERVATION</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{insight}</div>
+          </div>
         </div>
       )}
 
-      {suggested_followups && suggested_followups.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {suggested_followups && suggested_followups.length > 0 && onFollowup && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {suggested_followups.map((q, i) => (
             <button key={i} onClick={() => onFollowup && onFollowup(q)} style={{
-              padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
-              background: T.accentSoft, color: T.accent,
-              border: `1px solid color-mix(in oklch, ${T.accent} 19%, transparent)`,
-              transition: 'all .15s',
-            }}>{q}</button>
+              height: 28, padding: '0 12px',
+              background: T.content, border: `1px solid ${T.border}`, borderRadius: 14,
+              fontSize: 12, color: T.text, cursor: 'pointer', fontFamily: 'inherit',
+              display: 'inline-flex', alignItems: 'center', gap: 8, lineHeight: 1,
+            }}>
+              <span style={{ color: T.accent, display: 'inline-flex', flexShrink: 0 }}>
+                <SvgPath d={RB_SVG.chevronRight} size={11}/>
+              </span>
+              {q}
+            </button>
           ))}
         </div>
       )}
@@ -307,8 +321,10 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
             cursor: 'pointer', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,
             color: T.subtext, fontSize: 12.5,
           }}>
-            <I.sql/> <span>查看 SQL</span>
-            <span style={{ marginLeft: 'auto', color: T.muted, fontSize: 11, fontFamily: T.mono }}>
+            <I.sql/>
+            <span style={{ fontFamily: T.mono, color: T.text }}>{'<>'}</span>
+            <span>查看 SQL</span>
+            <span style={{ flex: 1, textAlign: 'right', color: T.muted, fontSize: 11, fontFamily: T.mono }}>
               {query_time_ms ? `${query_time_ms}ms` : ''}
               {retry_count > 0 ? ` · ${retry_count}次重试` : ''}
             </span>
@@ -323,15 +339,27 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
         </div>
       )}
 
-      {/* R-306 + R-315: Token meter 行内 stat → mono pill chip + mono 纯度 */}
       {(input_tokens > 0 || output_tokens > 0) && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <TokenPill T={T}>↑ {input_tokens?.toLocaleString()} tok</TokenPill>
-          <TokenPill T={T}>↓ {output_tokens?.toLocaleString()} tok</TokenPill>
-          {cost_usd > 0 && <TokenPill T={T}>$ {cost_usd?.toFixed(5)}</TokenPill>}
-          {confidence && <TokenPill T={T} color={confidence === 'high' ? T.success : confidence === 'medium' ? T.warn : T.accent}>{confidence}</TokenPill>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, fontFamily: T.mono, color: T.muted, paddingLeft: 2, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <SvgPath d={RB_SVG.arrowUp} size={10}/> {input_tokens?.toLocaleString()} tok
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <SvgPath d={RB_SVG.arrowDown} size={10}/> {output_tokens?.toLocaleString()} tok
+          </span>
+          {cost_usd > 0 && <span>$ {cost_usd?.toFixed(5)}</span>}
+          {confidence && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4,
+                           color: confidence === 'high' ? T.success : confidence === 'medium' ? T.warn : T.accent }}>
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }}/>
+              {confidence}
+            </span>
+          )}
           {recovery_attempt > 0 && (
-            <TokenPill T={T} color={T.warn} title="自纠正次数（fan-out reject + fix_sql retry）">↻ {recovery_attempt}</TokenPill>
+            <span title="自纠正次数（fan-out reject + fix_sql retry）"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: T.warn }}>
+              ↻ {recovery_attempt}
+            </span>
           )}
         </div>
       )}
@@ -344,30 +372,22 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
             .map(([kind, b]) => (
               <span key={kind} title={`${kind}: $${b.cost?.toFixed(5) || 0} / ${b.tokens || 0} tok`}
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '2px 8px', borderRadius: 10,
-                      background: T.bg, color: T.muted,
-                      border: `1px solid ${T.borderSoft || T.border}`,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      height: 24, padding: '0 10px',
+                      background: T.bg, border: `1px solid ${T.border}`, borderRadius: 999,
+                      fontSize: 11, fontFamily: T.mono, color: T.muted,
                     }}>
-                {AGENT_KIND_EMOJI[kind] && <SvgPath d={AGENT_KIND_EMOJI[kind]} size={11}/>}
+                {AGENT_KIND_EMOJI[kind] && (
+                  <span style={{ color: T.accent, display: 'inline-flex' }}>
+                    <SvgPath d={AGENT_KIND_EMOJI[kind]} size={11}/>
+                  </span>
+                )}
                 {kind}: ${b.cost?.toFixed(5) || '0.00000'}
               </span>
             ))}
         </div>
       )}
     </div>
-  );
-}
-
-// R-306 + R-315: Token Pill Chip helper（mono 纯度 + borderRadius 4 + T.borderSoft）
-function TokenPill({ T, color, children, title }) {
-  return (
-    <span title={title} style={{
-      padding: '2px 8px', borderRadius: 4, fontSize: 11,
-      fontFamily: T.mono, color: color || T.muted,
-      background: T.bg,
-      border: `1px solid ${T.borderSoft || T.border}`,
-    }}>{children}</span>
   );
 }
 
