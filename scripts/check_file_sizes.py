@@ -9,6 +9,7 @@ v0.5.9 R-205：Shell.jsx ≤ 220（29 → 30 条 LIMITS）。
 v0.5.10 R-218：chat/ChatEmpty.jsx 由 250 → 80 收紧（30 条 LIMITS 不变，仅 cap 收紧）。
 v0.5.11 R-260：chat/Composer.jsx 由 250 → 100 收紧（30 条不变，R-217 清偿 PATCH）。
 v0.5.12 R-285：chat/ThinkingCard.jsx 由 250 → 160 收紧（30 条不变，Thinking 屏复刻 PATCH）。
+v0.5.13 R-307：chat/ResultBlock.jsx 由 400 → 420 微调 ack（svg path 占行不可压；与 v0.5.3 R-111 同模式）。
 """
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ LIMITS = {
     # 12 个新建模块（v0.5.3）
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
-    "frontend/src/screens/chat/ResultBlock.jsx":   400,  # 复合 UI 组件 7 段 + 3 helpers，资深 ack
+    "frontend/src/screens/chat/ResultBlock.jsx":   420,  # v0.5.13 R-307 微调 400→420 (svg path 占行)
     "frontend/src/screens/chat/ChatEmpty.jsx":      80,  # v0.5.10 R-218 收紧 250→80
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  160,  # v0.5.12 R-285 收紧 250→160
