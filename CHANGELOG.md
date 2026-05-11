@@ -5,6 +5,189 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.21 (C5+) admin tab_resources 屏复刻 — ⭐ 视觉闭环扩张：Inset 8% 铁律覆盖 tab_resources，项目单色化一致性进入 80% 深度
+
+> ⭐ **视觉闭环扩张：Inset 8% 铁律成功覆盖 admin/tab_resources，项目单色化一致性进入 80% 深度**
+>
+> **Inset 8% 铁律从"防御性稳固"转向"进攻性扩张"** — v0.5.20 R-511 "6 文件恒定" → v0.5.21 R-539 "文件总数 6→7 正式扩张"。
+>
+> **六大里程碑同时落地**：
+> 1. ⭐ **Inset 8% 铁律从"防御性稳固"转向"进攻性扩张"** — `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面 7 屏 byte-equal（ResultBlock / SavedReports / DataSources / AdminAudit / AdminBudgets / AdminRecovery / **tab_resources**）
+> 2. ⭐ **项目单色化一致性进入 80% 深度** — Stage 3 §3 里程碑宣告
+> 3. 🏆 **v0.5.x 第二个 admin tab 子模块复刻** — v0.5.16 tab_access + **v0.5.21 tab_resources**
+> 4. 🛡️ **R-484 'white' 字面残留偿还** — Spinner `color="#fff"` 2 处 → `color={T.sendFg}`
+> 5. 🔒 **R-546/547/548/549/550 五大守护立约** — Model ID Mono / API Key 安全感 / 核爆级 props / 价格业务标签 / borderBottom byte-equal
+> 6. 💳 **Card/TagChip + trailingChip helpers 第六次复用 sustained** — v0.6 Shared 移植承诺加强（累计 8+ inline helpers）
+>
+> Loop Protocol v3 **第 22 次施行** — 全 v3 三阶段评审。
+
+### Changed — tab_resources.jsx 视觉重构（85 → 110 行 ≤ 250 LIMIT；LIMITS dict 不动）
+
+按 Stage 3 §2 **5 子步骤**顺序锁死执行（R-548 前置 + R-531 优先 + R-539 收尾）：
+
+**Step 1 baseline + R-548 props 签名核爆守护 + R-531 R-480 字面落地 + R-537 hex 余效**（R-531/R-537/R-539/R-548）：
+- **R-548 核爆级 props 守护**：grep `export function TabResources` + grep `<TabResources` Admin.jsx 挂载点 — 12 props 顺序 byte-equal
+- **R-531 thead bg** 替换：`T.bg` → `color-mix(in oklch, ${T.accent} 8%, transparent)` — **铁律进攻性扩张第八处（文件总数 6 → 7）**
+- **R-537 R-518 hex 余效 grep** baseline = 2 处 `color="#fff"`（Step 5 偿还）
+
+**Step 2 API Keys Card padding/radius + R-529 KeyInput mono trailing + R-547 安全感**（R-527/R-528/R-529/R-547）：
+- Card padding `'16px 20px'` → `'20px 22px'`；radius `10 → 12`
+- Card header `fontSize 12.5 + fontWeight 600` → `fontSize 14 + fontWeight 600 + letterSpacing: '-0.01em'`
+- Card desc `marginBottom 12` → `marginBottom 14 + lineHeight 1.55`
+- **R-529 trailingChip helper**：`fontSize: 10 + fontFamily: T.mono + letterSpacing: '0.06em' + textTransform: 'uppercase'` — "已填写"/"未填写" 工业感
+- **R-547 安全感** — Input from utils.jsx 支持 `type='password' + trailing`；password 遮罩与 trailing 共存清晰
+
+**Step 3 Agent allocation Card padding/radius + 3-col grid + D4 plain span**（R-530/D4）：
+- Card padding/radius 升级（与 API Keys Card 一致）
+- 3-col grid `'120px 1fr 80px'` → `'120px 1fr 90px'`（与 demo 一致）
+- **D4 plain span hint byte-equal** — 管理端指导文案可读性优先；不引入 TagChip
+
+**Step 4 Models Table thead mono + Row ellipsis + R-546 Model ID Mono + R-549 价格 + R-550 borderBottom**（R-532/R-533/R-546/R-549/R-550）：
+- thead `color T.muted → T.subtext` + `fontFamily T.mono` + `letterSpacing 0.03em → 0.06em` + `fontWeight 600 → 500`
+- Row 5 字段列加 `minWidth: 0 + overflow: hidden + textOverflow: 'ellipsis' + whiteSpace: 'nowrap'` 兜底
+- **R-546 Model ID Mono** — `fontFamily: T.mono`（技术元数据识别度；与 name sans 字体对比）
+- **R-549 价格业务标签 $ 单位保留** — `${m.input_price}/{m.output_price}` byte-equal（严禁删 $ 或单位）
+- **R-550 borderBottom byte-equal** — `1px solid ${T.border}` 字面与 tab_access.jsx / tab_knowledge.jsx 一致（设计语言铁律第三维度候选）
+
+**Step 5 Hex 偿还 + 三处版本同步 + R-540/R-550 字面严防 + R-539 7 文件验证**（R-536/R-538/R-540/R-545/R-550）：
+- **R-536 Spinner color hex 偿还**：`color="#fff"` 2 处 → `color={T.sendFg}`（R-484 sustained）
+- R-545 三处版本同步 0.5.20→0.5.21（commit 2）
+- **R-539 7 文件验证 ⭐**：`git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/` — **7 文件命中**（铁律进攻性扩张第八处）
+
+### Architecture — R-539 Inset 8% 铁律从"防御性稳固"转向"进攻性扩张"
+
+```jsx
+// v0.5.20 R-511 "6 文件恒定" 防御性稳固
+//   git grep -F: 6 文件（无新增）
+
+// v0.5.21 R-539 "文件总数 6→7" 进攻性扩张
+//   git grep -F: 7 文件命中
+//   chat/ResultBlock.jsx (v0.5.14 R-323)
+//   SavedReports.jsx (v0.5.15 R-372)
+//   admin/tab_access.jsx (v0.5.16 R-386 + v0.5.20 R-501/504)
+//   AdminAudit.jsx (v0.5.17 R-409)
+//   AdminBudgets.jsx (v0.5.18 R-444)
+//   AdminRecovery.jsx (v0.5.19 R-480)
+//   admin/tab_resources.jsx (v0.5.21 R-531) ← 新增第 7 文件
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**架构判定**：v0.5.x 视觉治理进入新阶段 — 从守护"已覆盖屏不漂移"转向"主动扩张到剩余屏"；铁律从墙变成箭头。
+
+### Architecture — R-550 borderBottom byte-equal 闭环（设计语言铁律第三维度候选）
+
+```jsx
+// admin/tab_access.jsx (v0.5.16 + v0.5.20)
+borderBottom: `1px solid ${T.border}`,
+
+// admin/tab_knowledge.jsx (现有)
+borderBottom: `1px solid ${T.border}`,
+
+// admin/tab_resources.jsx (v0.5.21 R-550)
+borderBottom: `1px solid ${T.border}`,
+```
+
+**3 文件命中**（admin/ 子模块内部）；与 R-480 brandSoft 8% bg（7 文件）+ R-481 borderLeft 25% / 3px（3 文件）并列三大设计语言铁律候选。
+
+### Architecture — R-548 12 Props 核爆级守护
+
+```jsx
+// tab_resources.jsx (字面 byte-equal — 严禁参数顺序调整)
+export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, onSaveApiKeys,
+                              agentCfg, setAgentCfg, agentSaving, onSaveAgentCfg,
+                              onToggleModel, onSetDefaultModel }) {
+```
+
+**Admin.jsx 内 `<TabResources` 挂载点 git diff = 0**；核爆级守护通过。
+
+### Architecture — R-546 Model ID Mono 守护
+
+```jsx
+// 技术元数据识别度 — mono vs name sans 字体对比
+<div style={{
+  fontFamily: T.mono, fontSize: 11, color: T.muted,
+  minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+}}>{m.model_id}</div>
+```
+
+### Architecture — R-547 API Key 输入框安全感
+
+`Input from utils.jsx` 已支持 `type='password' + trailing` props（R-525 R-365 sustained 不动）。trailing "已填写" 文字在 password 遮罩下**可见**（trailing 独立于 input 字符遮罩）— 用户无需点开遮罩感知配置态。
+
+### Architecture — R-549 价格业务标签保留
+
+```jsx
+// $ 单位 byte-equal — 严禁为视觉简洁删 $ 或单位
+<div>${m.input_price}/{m.output_price}</div>
+```
+
+### Architecture — 契约守护
+
+**R-521 TabResources 12 props 签名 byte-equal**（T/models/apiKeys/setApiKeys/apiKeysSaving/onSaveApiKeys/agentCfg/setAgentCfg/agentSaving/onSaveAgentCfg/onToggleModel/onSetDefaultModel）。
+**R-522 apiKeys 2 keys byte-equal**（openrouter_api_key / embedding_api_key）。
+**R-523 agentCfg 3 keys byte-equal**（clarifier / sql_planner / presenter）。
+**R-524 model 8 字段 byte-equal**（id / name / provider / model_id / input_price / output_price / enabled / is_default）。
+**R-525 Input from utils.jsx 调用 byte-equal**（R-365 sustained — type/placeholder/mono/trailing/label/value/onChange）。
+**R-526 pillBtn from Shared.jsx 调用 byte-equal**（R-365 sustained — `{ ...pillBtn(T, true), padding: '6px 14px' }`）。
+
+### Architecture — 范围守护
+
+- **R-541**：App/api/index.css/main/utils/Shared/Shell/decor/18 屏 + Admin/SavedReports/AdminAudit/AdminBudgets/AdminRecovery `git diff` = 0
+- **R-542**：admin/ 其他 3 子模块（tab_access/tab_knowledge/tab_system + modals）+ chat/ 7 子模块 0 改
+- **R-543**：App.css 0 行 diff；tab_resources 0 新 className
+- **R-544**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+- **R-548 sustained**：Admin.jsx 内 `<TabResources` 挂载点 `git diff` = 0 ✓
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 emoji 业务豁免**（本 PATCH 无 emoji）
+- **R-227.5.1 装饰豁免延伸**：thead 中文 + KeyInput trailing mono uppercase + Card header 中文
+
+### Loop Protocol v3 — 第 22 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 25 条（R-521~R-545）+ 13 决策（D1-D8 + Q1-Q5）；D4 plain span 保守 + D6 默认 chip 保 T.accentSoft
+- **Stage 2**（资深 + Codex）：D2 绝对支持 + D5 强制执行；新增 R-546（Model ID Mono）+ R-547（API Key 安全感）
+- **Stage 3**（v0.4 守护者）：新增 R-548（核爆级 props 守护）+ R-549（价格业务标签保留）+ R-550（borderBottom byte-equal 闭环）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 5 子步骤严守顺序 — R-548 前置 + R-531 优先 + R-539 收尾
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（D2/D4/D5/Q1/Q2/Q5 强化）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 30（**R-521~R-550**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env；本地 worktree env BIAGENT_MASTER_KEY 残留触发 R-74 预存在问题）
+- R-72 smoke 自动跟随 0.5.21 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.21 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（TabResources 12 props + apiKeys 2 keys + agentCfg 3 keys + model 8 字段 byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 admin → 切 models tab → tab_resources 加载
+- [ ] **API Keys**：OpenRouter + Embedding 双 KeyInput + R-529 trailing "已填写/未填写" mono uppercase 0.06em + R-547 遮罩+trailing 共存 + 保存
+- [ ] **3 个 Agent 模型分配**：clarifier/sql_planner/presenter 各选模型 + D4 hint plain span + 保存
+- [ ] **Models Table**：R-531 thead R-480 闭环 + R-532 mono 0.06em + 5 字段列 + **R-546 Model ID Mono** + **R-549 价格 $ 单位** + R-534 默认 chip + R-535 启用/禁用 + 操作按钮（设默认 + 切换启用）
+- [ ] **R-536 Spinner 偿还**：保存按钮 loading 状态 Spinner 视觉清晰（T.sendFg 替代 #fff）
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）— Card grid 自适应
+- [ ] **light + dark 双模式** — API Keys / Agent / Models / Spinner 视觉一致
+- [ ] **⭐ Inset 8% 7 文件视觉一致性肉眼校验**（v0.5.14~20 + tab_resources）
+- [ ] v0.5.0~v0.5.20 既有功能（Shell/Login/ChatEmpty/Composer/ThinkingCard/ResultBlock/SavedReports/DataSources/AdminAudit/AdminBudgets/AdminRecovery/admin-users）端到端正常
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.20
+- ✅ **v0.5.21 (C5+) admin tab_resources 屏复刻** — ⭐ Inset 8% 铁律进攻性扩张第八处（文件总数 6→7）+ 80% 深度宣告
+- ⏳ v0.5.22+ (C5+) 剩余 5+ 屏（5 admin tabs：catalog/fewshot/knowledge/prompts/system；业务屏当前不存在为独立屏 — Chat.jsx 内部路由或概念占位）
+
+### v0.6 路线图加强承诺
+
+- **8+ inline helpers 移入 Shared.jsx**（StatusDot/ActionChip/BudgetActionChip/EnabledChip/WarnNote/KpiCard/PeriodTab/TagChip/Avatar/medal/trophy/**trailingChip**）— 累计第六次复用确认；偿还承诺**加强**
+
+---
+
 ## [Unreleased] - v0.5.20 (Cn+) admin/users 视觉偿还 — ⭐ R-376 hex 债务正式清偿 + TabAccess 模块进入全 OKLCH/T-System 时代 + Inset 8% 闭环第七处扩展（6 文件恒定深耕）
 
 > ⭐ **KNOT 管理端视觉治理：TabAccess 模块正式进入全 OKLCH/T-System 时代**
