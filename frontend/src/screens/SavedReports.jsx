@@ -4,15 +4,38 @@ import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
-// v0.4.1: intent → 头像 emoji（与 INTENT_TO_HINT 对齐）
+const SvgPath = ({ d, size = 14, fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
+       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+);
+
+const SAVED_SVG = {
+  bookmark:   'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
+  chevronL:   'M15 18l-6-6 6-6',
+  pencil:     'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z',
+  refresh:    'M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5',
+  download:   'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+  table:      'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18',
+};
+
+// R-348 INTENT_EMOJI 字典名 + 7 keys byte-equal；R-351 value 偿还为 svg path
 const INTENT_EMOJI = {
-  metric: '📊',
-  trend: '📈',
-  compare: '⚖️',
-  rank: '🏆',
-  distribution: '🥧',
-  retention: '🗓️',
-  detail: '📋',
+  metric:       'M3 20h18M4 16l5-6 4 3 7-8',
+  trend:        'M3 17l6-6 4 4 8-8M22 7h-5v5',
+  compare:      'M3 6h18M6 6v15M18 6v15M3 21h18',
+  rank:         'M8 21h8M12 17v4M17 4h3v4a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4h3M7 4H4v4a5 5 0 0 0 5 5',
+  distribution: 'M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z',
+  retention:    'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18',
+  detail:       'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8',
+};
+
+// R-373 time formatter "YYYY.MM.DD"
+const formatTime = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  } catch { return ''; }
 };
 
 export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
@@ -50,6 +73,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
   const active = reports.find(r => r.id === activeId);
 
+  // R-353 Sidebar header T.mono + 删 📌；R-354 SavedItem bookmark + brandSoft + time mono
   const sidebarContent = (
     <>
       <button onClick={() => onNavigate('chat')} style={{
@@ -58,35 +82,42 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
         color: T.muted, border: `1px solid ${T.border}`,
         fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
       }}>
-        <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+        <SvgPath d={SAVED_SVG.chevronL} size={12}/> 返回对话
       </button>
       <div style={{
-        padding: '10px 10px 4px', fontSize: 10.5, color: T.muted,
-        letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600,
-      }}>📌 收藏报表（{reports.length}）</div>
-      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {reports.map(r => (
-          <div key={r.id} onClick={() => setActiveId(r.id)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
-            borderRadius: 6, cursor: 'pointer',
-            background: r.id === activeId ? T.accentSoft : 'transparent',
-            color: r.id === activeId ? T.accent : T.subtext, fontSize: 12.5,
-            borderLeft: r.id === activeId ? `2px solid ${T.accent}` : '2px solid transparent',
-            paddingLeft: r.id === activeId ? 8 : 10,
-            fontWeight: r.id === activeId ? 500 : 400,
-          }}>
-            <span style={{ fontSize: 13, flexShrink: 0 }}>{INTENT_EMOJI[r.intent] || '📋'}</span>
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title || '未命名报表'}</span>
-            <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
-          </div>
-        ))}
+        padding: '10px 10px 4px', fontSize: 10, color: T.muted,
+        fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
+      }}>收藏报表 <span style={{ color: T.muted, fontWeight: 600 }}>{reports.length}</span></div>
+      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {reports.map(r => {
+          const isActive = r.id === activeId;
+          return (
+            <div key={r.id} onClick={() => setActiveId(r.id)} style={{
+              margin: '0 8px', padding: '8px 10px',
+              borderRadius: 6, cursor: 'pointer',
+              background: isActive ? T.accentSoft : 'transparent',
+              border: `1px solid ${isActive ? `color-mix(in oklch, ${T.accent} 25%, transparent)` : 'transparent'}`,
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ color: isActive ? T.accent : T.muted, flexShrink: 0, marginTop: 1 }}>
+                <SvgPath d={SAVED_SVG.bookmark} size={14} fill={isActive ? T.accent : 'none'}/>
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: isActive ? 500 : 400, color: isActive ? T.accent : T.text,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.35 }}>{r.title || '未命名报表'}</div>
+                <div style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', marginTop: 2 }}>{formatTime(r.updated_at || r.created_at)}</div>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
+            </div>
+          );
+        })}
       </div>
     </>
   );
 
   return (
     <AppShell T={T} user={user} active="saved-reports" sidebarContent={sidebarContent}
-              topbarTitle={active ? active.title : '📌 收藏报表'} hideSidebarNewChat
+              topbarTitle={active ? active.title : '收藏报表'} hideSidebarNewChat
               onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
       {loading
@@ -102,7 +133,9 @@ function EmptyView({ T, onBack }) {
   return (
     <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 32 }}>
       <div style={{ textAlign: 'center', maxWidth: 320 }}>
-        <div style={{ fontSize: 38, marginBottom: 8 }}>📌</div>
+        <div style={{ color: T.muted, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+          <SvgPath d={SAVED_SVG.bookmark} size={36}/>
+        </div>
         <div style={{ fontSize: 15, color: T.text, marginBottom: 4 }}>还没有收藏报表</div>
         <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16 }}>
           在对话里点 ⭐ 把任意结果钉成报表，下次直接重跑。
@@ -119,7 +152,7 @@ function EmptyView({ T, onBack }) {
 
 function DetailView({ T, report, onChanged }) {
   const [running, setRunning] = useState(false);
-  const [runResult, setRunResult] = useState(null);  // { rows, error, warning, last_run_ms, last_run_at, truncated }
+  const [runResult, setRunResult] = useState(null);
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(report.title);
   const [noteDraft, setNoteDraft] = useState(report.pin_note || '');
@@ -156,13 +189,12 @@ function DetailView({ T, report, onChanged }) {
     }
   }
 
-  async function handleExport(format /* 'csv' | 'xlsx' */) {
+  async function handleExport(format) {
     try {
       const r = await fetch(`/api/saved-reports/${report.id}/export.${format}`, {
         headers: { Authorization: `Bearer ${api._token()}` },
       });
       if (!r.ok) { toast(`导出失败: ${r.status}`, true); return; }
-      // v0.4.2 R-S7：xlsx 截断时通过响应头 X-Export-Truncated 通知
       const truncated = r.headers.get('x-export-truncated') === 'true';
       const total = r.headers.get('x-export-total-rows');
       const exported = r.headers.get('x-export-returned-rows');
@@ -171,15 +203,12 @@ function DetailView({ T, report, onChanged }) {
       a.href = URL.createObjectURL(blob);
       a.download = `saved_report_${report.id}.${format}`;
       document.body.appendChild(a); a.click(); a.remove();
-      if (truncated) {
-        toast(`已截断至 ${exported} 行（共 ${total} 行）。如需全量请联系 admin。`, true);
-      }
+      if (truncated) toast(`已截断至 ${exported} 行（共 ${total} 行）。如需全量请联系 admin。`, true);
     } catch (e) {
       toast(`导出失败: ${e.message}`, true);
     }
   }
 
-  // 优先用重跑结果，否则用 last_run_rows_json 快照
   const rowsSource = runResult?.rows ?? safeParseRows(report.last_run_rows_json);
   const truncated = runResult ? runResult.truncated : (report.last_run_truncated === 1);
   const cols = rowsSource && rowsSource.length > 0 ? Object.keys(rowsSource[0]) : [];
@@ -191,16 +220,32 @@ function DetailView({ T, report, onChanged }) {
     <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
       <div style={{ maxWidth: 880, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* 顶栏：title + 编辑 / 重跑 / 导出 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {/* Title block: 22px + meta │ + StatusDot frozen (R-355/370/Q5) */}
+        <div>
           {editing ? (
             <input value={titleDraft} onChange={e => setTitleDraft(e.target.value)}
-                   style={{ flex: 1, minWidth: 200, padding: '6px 10px', borderRadius: 6,
+                   style={{ width: '100%', padding: '8px 12px', borderRadius: 6,
                             border: `1px solid ${T.border}`, background: T.content, color: T.text,
-                            fontSize: 14, fontFamily: 'inherit' }}/>
+                            fontSize: 22, fontWeight: 600, fontFamily: 'inherit' }}/>
           ) : (
-            <div style={{ flex: 1, fontSize: 16, fontWeight: 500, color: T.text }}>{report.title}</div>
+            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.3 }}>{report.title}</div>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 12, color: T.muted, fontFamily: T.mono, letterSpacing: '0.02em', flexWrap: 'wrap' }}>
+            <span>intent · <span style={{ color: T.text }}>{report.intent || 'detail'}</span></span>
+            <span style={{ color: T.muted }}>│</span>
+            <span>layout · <span style={{ color: T.text }}>{report.display_hint || 'detail_table'}</span></span>
+            {lastRunAt && <><span style={{ color: T.muted }}>│</span><span>last_run · <span style={{ color: T.text }}>{lastRunAt}</span></span></>}
+            {lastRunMs > 0 && <><span style={{ color: T.muted }}>│</span><span>{lastRunMs}ms</span></>}
+            <span style={{ color: T.muted }}>│</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: T.muted }}/>
+              frozen
+            </span>
+          </div>
+        </div>
+
+        {/* 按钮行 (R-352 emoji→svg; R-371 hover state via pillBtn helper) */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {editing ? (
             <>
               <button onClick={handleSaveEdit} style={pillBtn(T, true)}>保存</button>
@@ -208,44 +253,42 @@ function DetailView({ T, report, onChanged }) {
             </>
           ) : (
             <>
-              <button onClick={() => setEditing(true)} style={pillBtn(T)} title="改名 / 备注">✏️ 编辑</button>
-              <button onClick={handleRun} disabled={running} style={pillBtn(T, true)}>
-                {running ? '运行中…' : '🔄 重跑一遍'}
+              <button onClick={() => setEditing(true)} style={pillBtn(T)} title="改名 / 备注">
+                <SvgPath d={SAVED_SVG.pencil} size={12}/> 编辑
               </button>
-              <button onClick={() => handleExport('csv')} style={pillBtn(T)} title="导出 CSV">📥 CSV</button>
-              <button onClick={() => handleExport('xlsx')} style={pillBtn(T)} title="导出 Excel xlsx（5000 行硬限）">📊 Excel</button>
+              <button onClick={handleRun} disabled={running} style={pillBtn(T, true)}>
+                <SvgPath d={SAVED_SVG.refresh} size={12}/> {running ? '运行中…' : '重跑'}
+              </button>
+              <button onClick={() => handleExport('csv')} style={pillBtn(T)} title="导出 CSV">
+                <SvgPath d={SAVED_SVG.download} size={12}/> CSV
+              </button>
+              <button onClick={() => handleExport('xlsx')} style={pillBtn(T)} title="导出 Excel xlsx（5000 行硬限）">
+                <SvgPath d={SAVED_SVG.table} size={12}/> Excel
+              </button>
             </>
           )}
         </div>
 
-        {/* meta 行 */}
-        <div style={{ display: 'flex', gap: 12, fontSize: 11.5, color: T.muted, fontFamily: T.mono, flexWrap: 'wrap' }}>
-          <span>intent: {report.intent || 'detail'}</span>
-          <span>layout: {report.display_hint || 'detail_table'}</span>
-          {lastRunAt && <span>上次重跑: {lastRunAt}</span>}
-          {lastRunMs > 0 && <span>{lastRunMs}ms</span>}
-        </div>
-
-        {/* warning banner（R-S2 fallback） */}
+        {/* warning banner — R-360 hex 清理 → T.warn + color-mix；R-362 ⚠️ 保留 */}
         {warning && (
-          <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FF990022',
-                        border: `1px solid #FF9900`, color: '#cc6600', fontSize: 12.5 }}>
+          <div style={{ padding: '10px 14px', borderRadius: 8,
+                        background: `color-mix(in oklch, ${T.warn} 13%, transparent)`,
+                        border: `1px solid ${T.warn}`, color: T.warn, fontSize: 12.5 }}>
             ⚠️ {warning}
           </div>
         )}
         {truncated && (
           <div style={{ padding: '8px 12px', borderRadius: 6, background: T.accentSoft, color: T.accent, fontSize: 12 }}>
-            🔍 仅展示前 200 行预览（完整结果请点 📥 CSV 导出）
+            🔍 仅展示前 200 行预览（完整结果请点 CSV 导出）
           </div>
         )}
         {runResult?.error && (
           <div style={{ padding: '10px 14px', borderRadius: 8, background: T.accentSoft,
-                        border: `1px solid ${T.accent}30`, color: T.accent, fontSize: 12.5 }}>
+                        border: `1px solid color-mix(in oklch, ${T.accent} 19%, transparent)`, color: T.accent, fontSize: 12.5 }}>
             ❌ {runResult.error}
           </div>
         )}
 
-        {/* 编辑模式：备注输入 */}
         {editing && (
           <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)}
                     placeholder="备注（可选）..." rows={3}
@@ -254,17 +297,21 @@ function DetailView({ T, report, onChanged }) {
                              fontFamily: 'inherit', resize: 'vertical' }}/>
         )}
 
-        {/* 表格预览 */}
         {rowsSource && rowsSource.length > 0 ? (
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
               <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rowsSource.length} 行 · {cols.length} 列</span>
+              {INTENT_EMOJI[report.intent] && (
+                <span style={{ color: T.muted }}>
+                  <SvgPath d={INTENT_EMOJI[report.intent]} size={13}/>
+                </span>
+              )}
             </div>
             <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 480 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
                   <tr style={{ background: T.bg }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 11, letterSpacing: 'normal', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -279,24 +326,37 @@ function DetailView({ T, report, onChanged }) {
           </div>
         ) : (
           <div style={{ padding: 24, textAlign: 'center', color: T.muted, fontSize: 13 }}>
-            暂无数据 — 点上方"🔄 重跑一遍"
+            暂无数据 — 点上方"重跑"
           </div>
         )}
 
-        {/* 原始问题 + 备注 + SQL 折叠 */}
-        <div style={{ padding: '12px 16px', background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 12.5, color: T.subtext }}>
-          <div style={{ marginBottom: 4 }}><span style={{ color: T.muted }}>原始问题：</span>{report.question || '(无)'}</div>
-          {report.pin_note && <div style={{ marginBottom: 4 }}><span style={{ color: T.muted }}>备注：</span>{report.pin_note}</div>}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: 'pointer', color: T.subtext, fontSize: 12 }}>查看冻结 SQL</summary>
-            <pre style={{ margin: '6px 0 0', padding: '8px 10px', background: T.codeBg,
-                          color: T.codeText, fontFamily: T.mono, fontSize: 11.5,
-                          borderRadius: 6, overflowX: 'auto' }}>{report.sql_text}</pre>
-          </details>
-          <div style={{ fontSize: 11, color: T.muted, marginTop: 8 }}>
-            注：本报表执行收藏时的快照 SQL，如需最新时间口径请重新发起对话。
-          </div>
+        {/* Original question quote — R-356/372 inset color-mix 8% 闭环 v0.5.14 R-323 */}
+        <div style={{
+          padding: '12px 14px',
+          borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+          background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+          borderRadius: 6, fontSize: 12.5, color: T.subtext, lineHeight: 1.6,
+        }}>
+          <div style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em',
+                        textTransform: 'uppercase', marginBottom: 4 }}>原始问题</div>
+          {report.question || '(无)'}
+          {report.pin_note && <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid color-mix(in oklch, ${T.accent} 15%, transparent)` }}>
+            <span style={{ color: T.muted, fontSize: 10, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase' }}>备注 · </span>{report.pin_note}
+          </div>}
         </div>
+
+        {/* SQL details */}
+        <details style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <summary style={{ cursor: 'pointer', padding: '10px 14px', color: T.subtext, fontSize: 12, fontFamily: T.mono, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SvgPath d={SAVED_SVG.chevronL} size={11}/>
+            <span style={{ color: T.text }}>{'<>'}</span>
+            查看冻结 SQL
+            <span style={{ marginLeft: 'auto', color: T.muted, fontSize: 10 }}>注 · 收藏时的快照 SQL</span>
+          </summary>
+          <pre style={{ margin: 0, padding: '10px 16px 14px', borderTop: `1px solid ${T.border}`,
+                        fontFamily: T.mono, fontSize: 11.5, color: T.codeText,
+                        background: T.codeBg, overflowX: 'auto' }}>{report.sql_text}</pre>
+        </details>
       </div>
     </div>
   );
@@ -307,12 +367,14 @@ function safeParseRows(json) {
   try { return JSON.parse(json); } catch { return []; }
 }
 
+// R-361 pillBtn primary color → T.sendFg
 function pillBtn(T, primary = false) {
   return {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
     padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
     border: `1px solid ${primary ? T.accent : T.border}`,
     background: primary ? T.accent : 'transparent',
-    color: primary ? '#fff' : T.text,
+    color: primary ? T.sendFg : T.text,
     cursor: 'pointer', fontFamily: 'inherit',
   };
 }

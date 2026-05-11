@@ -5,6 +5,144 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.15 (C5+) Favorites 屏复刻（SavedReports）— v0.5.x 首个新顶层屏 + brandSoft 8% 全站闭环
+
+> **v0.5.x 首个新顶层屏复刻**（v0.5.14 ResultBlock 维度收官后）— SavedReports 318→380 行视觉重构对齐 demo favorites.jsx。
+>
+> **R-372 brandSoft inset 8% 全站设计语言闭环** — Quote inset 与 v0.5.14 R-323 ResultBlock Insight 字面 byte-equal；未来全站 inset 风格沿用此字面。
+>
+> Loop Protocol v3 **第 16 次施行** — 全 v3 三阶段评审。D6 Shell 13 props 契约严守 + 视觉补偿在 Title block 加倍。
+
+### Changed — SavedReports.jsx 视觉重构（318 → 380 行 = R-363 上限正好）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行：
+
+**Step 1 Q3 LIMIT dict 起手验证**：前置 grep 确认 SavedReports 未在 check_file_sizes dict → 新增 380（30→31 条）。
+
+**Step 2 5 处 hex 全清**（R-286 sustained 扩展，v0.5.13/14/15 三 PATCH 三处守护）：
+- pillBtn `'#fff'` → `T.sendFg`（**Q4 严禁 'white' 字面**）
+- Warning banner `#FF990022` → `color-mix(in oklch, ${T.warn} 13%, transparent)`
+- Warning banner `#FF9900` → `T.warn`
+- Warning banner `#cc6600` → `T.warn`
+- Error banner `${T.accent}30` hex+alpha → `color-mix(in oklch, ${T.accent} 19%, transparent)`
+
+**Step 3 SVG dict 字典**（R-351/352）：
+- `SAVED_SVG = { bookmark, chevronL, pencil, refresh, download, table }` 6 path
+- `INTENT_EMOJI` 字典名 + 7 keys (metric/trend/compare/rank/distribution/retention/detail) byte-equal — **仅 value 偿还为 svg path**（R-348 sustained）
+- `SvgPath` helper 局部 inline（不动 Shared.jsx）
+
+**Step 4 Sidebar header**（R-353/D4）：
+- 删除 📌 emoji
+- 字体改 `T.mono` + uppercase + letterSpacing 0.08em
+- "收藏报表 N" 文案
+
+**Step 5 Sidebar SavedItem 重构**（R-354/369/373）：
+- bookmark svg 14×14 + gap 10px（R-369 Codex 精度）
+- brandSoft bg + `color-mix(in oklch, T.accent 25%, transparent)` border
+- 删 borderLeft 2px
+- time mono 9px `T.muted` "YYYY.MM.DD"（R-373 formatTime helper）
+
+**Step 6 Title block + meta 行**（R-355/370/Q5 — D6 视觉补偿）：
+- 22px fontWeight 600 + letterSpacing -0.01em
+- meta 行 mono + `│` (U+2502) separator（R-370 字符精度）
+- StatusDot **frozen** 视觉装饰硬编码（Q5 不依赖业务字段）
+
+**Step 7 Original question quote inset**（R-356/372 **brandSoft 8% 全站闭环**）：
+- borderLeft 3px `color-mix(in oklch, T.accent 25%, transparent)`
+- background `color-mix(in oklch, ${T.accent} 8%, transparent)` — **与 v0.5.14 R-323 ResultBlock Insight 字面 byte-equal**
+- "原始问题" mono uppercase label
+- pin_note 内嵌（合并入 quote inset 避免散乱）
+
+**Step 8 Table thead 删 uppercase**（R-357 — v0.5.14 R-327 sustained）：
+- fontWeight 600→500
+- textTransform 删
+- letterSpacing 删
+
+**Step 9 4 按钮 emoji 偿还**（R-352/371）：
+- ✏️ → SvgPath pencil
+- 🔄 → SvgPath refresh
+- 📥 → SvgPath download
+- 📊 → SvgPath table
+- pillBtn helper 保 disabled/loading 状态机
+
+### Architecture — D6 Shell 13 props 契约严守
+
+Topbar topbarTitle 仍传简单 string（`active.title` 或 `'收藏报表'`）；**视觉补偿全部在 Title block (R-355)**：
+- 22px fontWeight 600
+- meta 行 mono `│` separator + StatusDot frozen
+- "极简感"作为 D6 不动 Shell 13 props 的代价
+
+### Architecture — R-372 brandSoft inset 8% 全站设计语言闭环
+
+```jsx
+// ResultBlock.jsx v0.5.14 R-323 (Insight)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// SavedReports.jsx v0.5.15 R-372 (Quote inset) — 字面 byte-equal
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**未来全站 brandSoft inset 沿用此字面**（v0.5.16+ 任何 inset 风格）。
+
+### Architecture — 契约守护
+
+**R-345 SavedReportsScreen 5 props 签名 byte-equal**（diff vs origin/main 0 行）。
+**R-346 4 helpers 业务逻辑 byte-equal**（EmptyView/DetailView/safeParseRows/pillBtn — 仅 hex value 偿还允许）。
+**R-347 5 handlers 调用方式 byte-equal**（loadReports/handleDelete/handleRun/handleSaveEdit/handleExport）。
+**R-348 INTENT_EMOJI 字典名 + 7 keys 字面 byte-equal**（仅 value 偿还 emoji → svg path）。
+**R-349 AppShell 调用 props byte-equal**（active="saved-reports" + topbarTitle + hideSidebarNewChat + 5 callbacks — R-192 sustained）。
+**R-350 api 5 endpoint URL 字面 byte-equal**（/api/saved-reports + /${id} + /run + /export.${format}）。
+
+### Architecture — 范围守护
+
+- **R-365**：App/api/index.css/main/utils/Shared/Shell/decor/16 屏/chat 7 子模块 `git diff` = 0
+- **R-367**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+- **R-368**：App.css 0 行 diff；SavedReports.jsx 0 新 className（除已有 cb-sb）
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 banner emoji 业务豁免**（⚠️/🔍/❌ 4 命中保留 — v0.5.13 sustained）
+- **R-227.5.1 装饰豁免延伸**："原始问题" mono uppercase 装饰 + INTENT_EMOJI 字典名保留 emoji-style key naming
+
+### Loop Protocol v3 — 第 16 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-345~R-368（24 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：D6 强化 Shell 契约 + Q4 严禁 white 字面 + Q5 frozen 硬编 + 新增 R-369（Sidebar 14×14 gap 10）+ R-370（U+2502 精度）
+- **Stage 3**（v0.4 守护者）：新增 R-371（4 按钮 hover state）+ R-372（brandSoft 8% 闭环）+ R-373（time YYYY.MM.DD 9px）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 29（**R-345~R-373**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-364 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.15 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无 breaking change（SavedReportsScreen 5 props + 4 helpers + 5 handlers + INTENT_EMOJI 7 keys + AppShell + api byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 SavedReports 屏 → loading → reports 加载
+- [ ] 点击 SavedItem 切换 active + brandSoft bg 视觉
+- [ ] 编辑保存 title/note → API put → 列表更新
+- [ ] 重跑 → API post → 显示新结果（4 按钮 svg + 状态机）
+- [ ] CSV/xlsx 导出
+- [ ] 删除确认 + 列表更新
+- [ ] EmptyView 空状态（bookmark svg + 文案）
+- [ ] **light + dark 双模式 Title block 极简感**（Stage 3 §3 D6 视觉补偿验证）
+- [ ] **Quote inset 与 ResultBlock Insight brandSoft 视觉闭环**（R-372）
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.14
+- ✅ **v0.5.15 (C5+) Favorites 屏复刻** — 首个新顶层屏 + brandSoft 8% 全站设计语言闭环
+- ⏳ v0.5.16+ (C5+) 剩余 11 屏（9 admin tabs / 6 业务屏中的 5 屏：database / knowledge / catalog / sql-lab / settings / conversations）
+
+---
+
 ## [Unreleased] - v0.5.14 (C5+) ResultBlock 视觉大重构 — v0.5.x ResultBlock 维度收官之战
 
 > **三大设计先例同时落地**：① v0.5.13 R-306/315 TokenPill **红线撤回首例**（架构判定：严格复刻 > 局部推测性红线）② **R-341 v0.5 行数收官**（LIMIT 420→440 final ack；v0.6 必须开启子组件拆分）③ **R-227.5.1 装饰豁免延伸**（"OBSERVATION" 仅 ResultBlock Insight 容器）。
