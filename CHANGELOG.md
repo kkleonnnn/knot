@@ -5,6 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.11 (C5+) Composer 重构 — R-217 清偿里程碑
+
+> **R-217 三方共识自 v0.5.10 hold 至今正式清偿**。Composer.jsx 是 chat 子模块组件复用，本 PATCH 改动**惠及 ChatEmpty (Home) + Conversation (非空对话) 两屏自动跟随**（ChatEmpty + Conversation 0 行 diff，git hash 字节对齐校验 R-264 证明）。
+>
+> Loop Protocol v3 **第 12 次施行** — 全 v3 三阶段评审。**R-251 视觉自动跟随设计模式首次确立**：组件复用 + 调用方 byte-equal = 改一处惠及多屏，无代价。
+
+### Changed — Composer.jsx 视觉重构（71 → 100 行 = R-260 上限）
+
+按 Stage 3 §2 7 子步骤顺序锁死执行：
+
+**Step 1 boxShadow 双模式**（R-254 + Q2 rgba 豁免）：
+- light: `0 1px 3px rgba(15,30,45,0.04), 0 8px 32px rgba(15,30,45,0.06)`
+- dark: `0 1px 3px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.5)`
+- T.dark boolean 切换；boxShadow 用 rgba 是 Q2 豁免（不属 UI 品牌色彩系统）
+
+**Step 2 容器背景**（R-252 + D1）：`T.inputBg` → `T.content`（demo bgElev 等价物，**不扩 25 字段契约**保 R-158）。
+
+**Step 3 布局解耦**（R-253 + D5/Q3 修订）：
+- padding `'12px 14px'` → `16` 四边
+- **Composer `width: 100%`**（严禁硬编 720px；max-width 由 ChatEmpty/Conversation 父容器决定 — 组件化最佳实践）
+
+**Step 4 textarea 调整**（R-257 + R-263）：minHeight 24 → 48；wrapper 调整确保 1/3/10 行自动生长 icon 对齐。
+
+**Step 5 Submit 升级**（R-256 + R-262）：
+- 30×30 → 32×32（更易点击 + 视觉对齐 demo）
+- disabled 状态 `opacity: 0.5`（用户明确"可点击性"预期）
+
+**Step 6 Footer hint**（R-255 + Q4 去 Unicode 修订）：
+- 新增 "Enter 发送 · Shift+Enter 换行" mono 小字 + brand dot
+- **严禁** Unicode ↵ 字符（全平台字体兼容性）
+
+**Step 7 focus-within 焦点状态**（R-261）：
+- React state `isFocused` + textarea `onFocus`/`onBlur` 切换（inline style 无 `:focus-within` 伪类支持）
+- focus 态：border `T.accentSoft` + boxShadow 微放大（外加 `0 0 0 3px color-mix(in oklch, T.accent 15%, transparent)`）
+- `transition: 'border-color 200ms, box-shadow 200ms'` 平滑过渡
+
+### Architecture — 契约守护（守 ChatEmpty + Conversation 双调用方 byte-equal）
+
+**R-240 Composer 9 props 签名 byte-equal**：diff vs origin/main 0 行。
+**R-241~R-246 6 项业务逻辑 byte-equal**：placeholder / activeUpload chip / onSubmit/onKeyDown/onChange handlers / disabled 条件 / textarea autoresize / File 上传（.csv/.xlsx + e.target.value 重置）。
+
+### Architecture — R-251 视觉自动跟随设计模式首次确立
+
+**Composer 重构惠及双屏，调用方 byte-equal**：
+- R-264 git hash 字节对齐校验：`git diff --stat origin/main HEAD -- frontend/src/screens/chat/ChatEmpty.jsx frontend/src/screens/chat/Conversation.jsx` = **0 files changed**
+- 视觉自动跟随**无代价**（不需要修改调用方屏）
+- 模式确立：未来 chat / admin / 其他 子模块组件复用 PATCH 均可采用
+
+### Architecture — 范围守护
+
+**R-248 8 核心非屏文件 byte-equal**：App / api / index.css / main / utils / Shared / Shell / NarrativeMotif 0 改。
+**R-250 KnotLogo R-199.5/222 sustained**：仅 Shared + Login + Shell 三文件命中。
+**R-251 chat/ 其他 6 子模块 0 改**：ChatEmpty + Conversation + ResultBlock + ThinkingCard + intent_helpers + sse_handler。
+**R-258 CSS 0 污染**：App.css 0 行 diff；Composer.jsx 0 新 className（全 inline style）。
+**R-259 R-217 解禁范围限定**：解禁仅限 Composer.jsx 一处。
+
+### Loop Protocol v3 — 第 12 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-240~R-260（21 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：**D5/Q3 修订** — Composer 严禁硬编 720px，width 100% 解耦；**Q4 修订** — 去 Unicode "Enter 发送 · Shift+Enter 换行"；新增 R-261 focus-within React state + R-262 disabled opacity 反馈
+- **Stage 3**（v0.4 守护者）：新增 R-263 垂直生长 + R-264 git hash 0 漂移强制 + R-265 黄金间距 32-48px
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 7 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（**3 处修订** — D5/Q3 + Q4 + R-255）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 26（**R-240~R-265**）。
+
+### R-217 清偿里程碑（自 v0.5.10 hold 至今）
+
+- v0.5.10 LOCKED：R-217 Composer.jsx **0 改**三方共识 — 留 v0.5.11+ 独立 PATCH 避免层级断层
+- v0.5.11 LOCKED：R-217 解禁，R-259 限定"仅 Composer.jsx 一处"防蔓延
+- 实施结果：Composer 视觉重构 + ChatEmpty + Conversation 0 行 diff，**视觉自动跟随设计模式确立**
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-247 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.11 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无任何 breaking change（Composer 9 props + 6 业务逻辑 byte-equal）
+- ChatEmpty + Conversation 调用方 byte-equal，2 屏视觉自动跟随
+
+### 验收（待人测）
+
+- [ ] Chat 屏空对话状态（ChatEmpty）— Composer 视觉对照 demo
+- [ ] **实际提问触发 SQL** → 非空对话状态（Conversation）— Composer 视觉一致 + maxWidth 解耦无布局错位
+- [ ] R-263 三档行高：1 / 3 / 10 行（触发 maxHeight 120 overflow auto）icon 对齐
+- [ ] R-261 focus-within 焦点反馈：Tab/Click textarea → border 蓝青 + shadow 微放大平滑过渡
+- [ ] R-262 disabled 视觉：空输入 + loading 时 submit opacity 0.5
+- [ ] R-265 黄金间距：ChatEmpty brand-ready → Composer 32-48px
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7 (C5+) Login pilot
+- ✅ v0.5.8 (Cn+) Chore — CI fix + Visual Replication Protocol
+- ✅ v0.5.9 (C5+) Shell 屏复刻
+- ✅ v0.5.10 (C5+) Home 屏复刻
+- ✅ **v0.5.11 (C5+) Composer 重构 — R-217 清偿里程碑 + 视觉自动跟随模式确立**
+- ⏳ v0.5.12+ (C5+) 剩余 14 屏（thinking / favorites / 9 admin tabs / 5 业务屏）
+
+---
+
 ## [Unreleased] - v0.5.10 (C5+) Home 屏复刻（ChatEmpty empty state）
 
 > v0.5.7 Login + v0.5.9 Shell 后第三个屏复刻 PATCH。首个 chat 子模块屏复刻 — main area 的 empty state（产品 Home 屏 = `ChatEmpty.jsx`）。
