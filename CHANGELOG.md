@@ -5,6 +5,127 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.12 (C5+) Thinking 屏复刻（AgentThinkingPanel 右 rail）
+
+> 首个**右 rail 思考过程面板**复刻 PATCH。Demo thinking.jsx 是 337 行整屏 — 但 sidebar/topbar/composer/messages 已在 v0.5.9/11/10 完成，本 PATCH 真正 scope 是 ThinkingCard.jsx 110 → 160 行（含 ThinkingCard + AgentThinkingPanel 2 exports）。
+>
+> Loop Protocol v3 **第 13 次施行** — 全 v3 三阶段评审。**R-227.5.1 单字母装饰豁免首次确立** + **R-286 hex 全面禁止** + **R-287 transition cubic-bezier 动效** + **R-288 响应式契约**四条核心红线。
+
+### Changed — ThinkingCard.jsx 视觉重构（110 → 160 行 = R-270 上限）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行：
+
+**Step 1 letter chip helper**（R-277 + R-289）：
+- 新增 `LetterChip({ T, letter })` — K/N/O 22×22 + brand bg + Inter 800 + flex 居中
+- 跨浏览器视觉重心一致；inline `display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter', system-ui, ...", fontWeight: 800`
+
+**Step 2 emoji → letter chip + name 字面**（R-277 + R-278 + R-227.5.1）：
+- AGENTS 数组扩 `{ key, label, letter, name }`：
+  - clarifier → K Knowledge
+  - sql_planner → N Nexus
+  - presenter → O Objective
+- emoji 字段（💡/🔍/📊）移除（v0.5.9 R-202 同模式偿还）
+- name 字面 mono uppercase + `letter-spacing: 0.08em`
+
+**Step 3 Panel 272 → 320**（R-276 + R-288）：
+- R-288 前置探查 — `grep marginRight|272|320 Conversation.jsx` = 0 命中
+- 方案 A 适用（Conversation flex 布局自适应），不动 Conversation.jsx
+
+**Step 4 卡片 bg + radius + padding**（R-279 + R-283）：
+- bg `T.card` → `T.content`（v0.5.11 同模式）
+- radius 8 → 10；padding `'10px 12px'` → 12 四边
+- ThinkingCard 行内卡片 radius 10 sustained
+
+**Step 5 Header step count + transition**（R-280 + R-287）：
+- `doneCount = AGENTS.filter(getStatus === 'done').length`
+- "N/3 STEPS" mono 右侧 + `transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'` 平滑无闪
+
+**Step 6 done svg checkmark**（R-281）：
+- 新增 `DoneCheck({ T })` — 11×11 stroke 2.5 + T.success polyline checkmark
+- 保 TypingDots（thinking 态）+ ○ 字符（pending 态）
+
+**Step 7 substeps tag chip + slice 80→120 + ellipsis**（R-282 + D8）：
+- sqlSteps 渲染：S1/S2/S3 tag chip + `T.accentSoft` bg + brand color + 16h
+- thought slice 阈值 80 → 120（信息量 +50%）
+- `textOverflow: 'ellipsis'` 兜底防溢出
+
+**Step 8 hex 全面清理**（R-286）：
+- `'#09AB3B'` fallback → 直接 `T.success`（v0.5.6 brand 切换残留偿还）
+- `T.accent + '60'` hex alpha 拼接 → `color-mix(in oklch, T.accent 38%, transparent)`
+- `'#FF990022'` / `'#FF9900'` → `color-mix(in oklch, T.warn 13%, transparent)` / `T.warn`
+- grep `#[0-9a-fA-F]{3,6}` ThinkingCard.jsx = **0 命中**
+
+**Step 9 SSE 鲁棒性兜底**（R-290）：
+- `Array.isArray(events) ? events : []` 兜底空/异常
+- 全 `?.` optional chaining — events 数组项 `?.type` `?.agent` `?.thought` `?.step` `?.action`
+- `output?.refined_question` / `output?.approach` / `output?.confidence` 字段访问
+
+### Architecture — 契约守护（守 Conversation.jsx 不崩溃）
+
+**R-266 2 exports 签名 byte-equal**：ThinkingCard + AgentThinkingPanel — diff vs origin/main 0 行。
+**R-267 AGENTS 3 keys + AGENT_LABELS 3 标签字面 byte-equal**（clarifier/sql_planner/presenter）。
+**R-268 业务逻辑 byte-equal**：getStatus / getDoneOutput / sqlSteps 数据流（仅加 optional chaining 兜底）。
+**R-269 output 字段访问 byte-equal**：refined_question / approach / insight / confidence。
+
+### Architecture — 字面分流体系扩展
+
+**R-227.5.1 单字母装饰豁免首次确立**：
+- K/N/O letter chip = 导航标识/图标替代物，**不构成完整 KNOT 字面**
+- 豁免 R-126/R-227 全大写规则
+- 与 v0.5.10 R-227.5（"knot · ready" 装饰小写 vs "KNOT 可能出错" 声明大写）共属字面分流体系
+- 未来完整 "KNOT" 字面仍守 R-126
+
+### Architecture — R-286 hex 全面禁止
+
+v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
+- grep `#[0-9a-fA-F]{3,6}` ThinkingCard.jsx = 0 命中 ✓
+- v0.5.6 brand 切换前残留 hex（#09AB3B / #FF9900 / hex+alpha 拼接）全部清
+- boxShadow rgba() 例外（v0.5.11 Q2 豁免延续）
+
+### Architecture — 范围守护
+
+- **R-272**：App / api / index.css / main / utils / Shared / Shell / NarrativeMotif `git diff` = 0
+- **R-274**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件命中
+- **R-275/R-291**：Conversation.jsx + chat/ 其他 5 子模块 0 行 diff（视觉自动跟随模式 sustained — v0.5.11 R-251 设计模式扩展）
+- **R-284**：CSS 0 污染（App.css 0 行 diff + 仅 cb-sb v0.5.6 IIFE 注入 className）
+
+### Loop Protocol v3 — 第 13 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 D1-D8 + R-266~R-285（20 条）+ Q1-Q5 风险项
+- **Stage 2**（资深 + Codex）：D4/D5/D8 + Q1/Q4/Q5 全面加码 → 4 新红线 R-227.5.1 / R-286 / R-287 / R-288
+- **Stage 3**（v0.4 守护者）：3 新红线 R-289（跨浏览器）+ R-290（SSE 鲁棒性）+ R-291（调用点字节码）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序
+
+13/13 决策点（D1-D8 + Q1-Q5）一致（0 修订）；新增 7 条红线（Stage 2: 4 含 R-227.5.1 + Stage 3: 3）；红线总数 27（**R-266~R-291** 含 R-227.5.1）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（R-271 严格不变）
+- R-181 + R-185 sync test 自动跟随 0.5.12 PASS
+- frontend build：`npm run build` 0 警告 0 error
+
+### Migration
+
+- 客户端无任何 breaking change（ThinkingCard + AgentThinkingPanel 2 exports + 业务逻辑 byte-equal）
+- Conversation.jsx 调用方 byte-equal — 视觉自动跟随
+
+### 验收（待人测）
+
+- [ ] 真实 SSE 提问触发 → 3 agent (K/N/O) 顺序 pending → thinking (TypingDots) → done (svg checkmark)
+- [ ] Step count "0/3 STEPS" → "1/3" → "2/3" → "3/3" R-287 transition 平滑无闪
+- [ ] sqlSteps S1/S2/S3 tag chip + 120 字符 + ellipsis 兜底
+- [ ] R-288 1280/1440/1920 三档窗宽 — main 区无横向滚动 + Composer 居中
+- [ ] R-289 跨浏览器 letter chip K/N/O 视觉重心一致
+- [ ] R-290 SSE 三场景（空 events / 中断 / 字段缺失）无崩溃
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.11
+- ✅ **v0.5.12 (C5+) Thinking 屏复刻 — R-227.5.1 单字母装饰豁免 + R-286 hex 全面禁止首次确立**
+- ⏳ v0.5.13+ (C5+) 剩余 13 屏（favorites / 9 admin tabs / 5 业务屏 + ResultBlock 视觉重构）
+
+---
+
 ## [Unreleased] - v0.5.11 (C5+) Composer 重构 — R-217 清偿里程碑
 
 > **R-217 三方共识自 v0.5.10 hold 至今正式清偿**。Composer.jsx 是 chat 子模块组件复用，本 PATCH 改动**惠及 ChatEmpty (Home) + Conversation (非空对话) 两屏自动跟随**（ChatEmpty + Conversation 0 行 diff，git hash 字节对齐校验 R-264 证明）。
