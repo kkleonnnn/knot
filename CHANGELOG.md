@@ -5,6 +5,120 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.22 (C5+) admin tab_system 屏复刻（Catalog）— ⭐ Inset 8% 第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
+
+> ⭐ **Inset 8% 闭环字面文件总数 7 → 8 持续进攻性扩张第九处**（admin/tab_system 加入）
+> ⭐ **borderLeft 25% 闭环字面第四处扩张** — 4 文件 byte-equal（设计语言铁律第二维度持续）
+>
+> **v0.5.x 第三个 admin tab 子模块复刻**（v0.5.16 tab_access + v0.5.21 tab_resources + **v0.5.22 tab_system**）
+>
+> **四大里程碑同时落地**：
+> 1. ⭐ **Inset 8% 闭环字面第九处扩张** — 文件总数 7 → 8（tab_system 加入）
+> 2. ⭐ **borderLeft 25% 第四处闭环扩张** — SavedReports + AdminBudgets + AdminRecovery + **tab_system Helper banner** 4 文件 byte-equal
+> 3. 🛡️ **R-484 'white' + R-286 蓝色 hex 双残留偿还** — `rgba(43,127,255,0.12)` + `#2B7FFF`（DB 覆盖中 chip）+ `color="#fff"`（Spinner）三 hex 清零；v0.5.16~21 蓝色 hex 唯一残留正式清零
+> 4. 💳 **NumChip + OverrideChip helpers inline 第七次复用 sustained** — 累计 8+ inline helpers v0.6 Shared 移植承诺加强
+>
+> Loop Protocol v3 **第 23 次施行**（⭐ 自审简化协议 — 资深 ack 授权 v0.5.x 收官冲刺）。
+
+### Changed — tab_system.jsx 视觉重构（53 → 102 行 ≤ 250 LIMIT；LIMITS dict 不动）
+
+按 5 子步骤顺序锁死执行（R-580 前置 + R-556 优先 + R-571 收尾）：
+
+**Step 1 baseline + R-580 核爆守护 + R-556 Helper banner R-480/R-481 双闭环 + R-568 hex 余效**（R-556/R-568/R-571/R-580）：
+- **R-580 起手前置**：grep `export function TabSystem` + Admin.jsx 内 `<TabSystem` 挂载点 byte-equal
+- **R-556 Helper banner brand inset**：bg `color-mix(in oklch, ${T.accent} 8%, transparent)`（**R-480 第九处扩张**）+ borderLeft 3px 25%（**R-481 第四处扩张**）+ info svg 14×14
+- **R-568 R-518 hex 余效 grep** baseline = 2 处（DB 覆盖中 chip + Spinner）
+
+**Step 2 NumChip 22×22 inline helper + Section header**（R-557/R-558）：
+- NumChip helper：22×22 + brandSoft 8% bg + T.accent + mono + fontWeight 600 + letterSpacing 0.04em + 01/02/03 数字
+- Section header flex layout：number chip + title + OverrideChip + flex spacer + actions（恢复默认 + 保存）
+
+**Step 3 Section radius 12 + padding 升级 + textarea byte-equal**（R-559/R-561/R-562）：
+- radius 10 → 12（与 v0.5.21 Card 一致）
+- padding `'14px 18px'`（header）+ `'12px 18px 6px'`（helper text）+ `'0 18px 16px'`（textarea wrapper）
+- textarea 业务字段 byte-equal — minHeight 220/180 + T.mono/sans + T.inputBg + radius 7
+
+**Step 4 OverrideChip + Hex 双残留偿还**（R-560/R-566/R-567）：
+- OverrideChip helper：brandSoft 12% bg + T.accent + mono + uppercase
+- **R-566** `rgba(43,127,255,0.12)` → `color-mix(in oklch, ${T.accent} 12%, transparent)`
+- **R-567** `#2B7FFF` → `T.accent`
+- **v0.5.x 蓝色 hex 唯一残留正式清零**
+
+**Step 5 Spinner #fff → T.sendFg + 三处版本同步 + grep 闭门 + 8/4 文件验证**（R-564/R-568~571/R-572/R-579）：
+- **R-564** `Spinner color="#fff"` → `color={T.sendFg}`（R-484 sustained — 严禁 'white' 字面）
+- R-579 三处同步 0.5.21→0.5.22（commit 2）
+- **R-571 ⭐ 8 文件验证**：`git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/` — **8 文件命中**
+- **R-572 ⭐ 4 文件验证**：`git grep -F "3px solid color-mix(in oklch, \${T.accent} 25%, transparent)"` — **4 文件命中**
+
+### Architecture — R-571 Inset 8% 闭环字面文件总数 7 → 8 持续进攻性扩张第九处
+
+```bash
+git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/
+# 8 文件命中（v0.5.21 7 → v0.5.22 8）：
+#   chat/ResultBlock.jsx (v0.5.14 R-323)
+#   SavedReports.jsx (v0.5.15 R-372)
+#   admin/tab_access.jsx (v0.5.16 R-386 + v0.5.20 R-501/504)
+#   AdminAudit.jsx (v0.5.17 R-409)
+#   AdminBudgets.jsx (v0.5.18 R-444)
+#   AdminRecovery.jsx (v0.5.19 R-480)
+#   admin/tab_resources.jsx (v0.5.21 R-531)
+#   admin/tab_system.jsx (v0.5.22 R-556) ← 新增第 8 文件
+```
+
+### Architecture — R-572 borderLeft 25% 闭环 4 文件 byte-equal（设计语言铁律第二维度持续）
+
+```jsx
+// 4 文件命中：
+// SavedReports.jsx (v0.5.15 R-356 Original quote)
+// AdminBudgets.jsx (v0.5.18 R-465 Rules note)
+// AdminRecovery.jsx (v0.5.19 R-481 Rules note)
+// admin/tab_system.jsx (v0.5.22 R-572 Helper banner) ← 新增第 4 文件
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+```
+
+### Architecture — 蓝色 hex 双残留偿还（v0.5.x 唯一残留正式清零）
+
+```jsx
+// 前 (v0.5.x 蓝色 hex 唯一残留 — 自 v0.5.16 起持续未偿还)
+background: 'rgba(43,127,255,0.12)', color: '#2B7FFF'
+
+// 后 (v0.5.22 R-566/R-567 偿还)
+background: `color-mix(in oklch, ${T.accent} 12%, transparent)`, color: T.accent
+```
+
+### Architecture — 契约守护
+
+**R-551 TabSystem 6 props 签名 byte-equal**（T / catalog / setCatalog / catalogSaving / onSaveCatalogField / onResetCatalogField）。
+**R-552 catalog 5 字段 byte-equal**（source / tables / lexicon / business_rules / overrides）。
+**R-553 3 sections keys byte-equal**（tables / lexicon / business_rules）。
+**R-554 catalog.overrides?.[key] 业务逻辑 byte-equal**。
+**R-555 pillBtn/Spinner 调用 byte-equal**（R-365 sustained）。
+**R-580 Admin.jsx 内 `<TabSystem` 挂载点 0 改 + 签名行 byte-equal**（R-548 sustained 扩展）。
+
+### Loop Protocol v3 — 第 23 次施行（⭐ 自审简化协议）
+
+- **Stage 1**（v0.5 执行者）：草案 25 条（R-551~R-575）+ 11 决策（D1-D6 + Q1-Q5）；2 条 Stage 2 候选（R-576/577）+ 3 条 Stage 3 候选（R-578/579/580）一并在 Stage 1 草案预纳入（自审）
+- **⭐ Stage 2/3 简化**（资深 ack 授权 v0.5.x 收官冲刺）— 执行者自审 LOCK；红线 30 条 R-551~R-580
+- **Stage 4**（执行者）：3 commit 落地；5 子步骤严守顺序
+
+13/13 决策点（D1-D6 + Q1-Q5）锁定；红线总数 30（**R-551~R-580**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env）
+- R-72 smoke 自动跟随 0.5.22 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.21
+- ✅ **v0.5.22 (C5+) tab_system 屏复刻** — Inset 8% 第九处 + borderLeft 25% 第四处 + 蓝色 hex 偿还
+- ⏳ **v0.5.23 tab_knowledge 3 sub-tabs 合一 PATCH**（knowledge + fewshot + prompts）
+- ⏳ **v0.5.24 modals.jsx + v0.5.x 收官**
+
+---
+
 ## [Unreleased] - v0.5.21 (C5+) admin tab_resources 屏复刻 — ⭐ 视觉闭环扩张：Inset 8% 铁律覆盖 tab_resources，项目单色化一致性进入 80% 深度
 
 > ⭐ **视觉闭环扩张：Inset 8% 铁律成功覆盖 admin/tab_resources，项目单色化一致性进入 80% 深度**
