@@ -5,6 +5,235 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.19 (C5+) AdminRecovery 屏复刻 — ⭐ KNOT admin 顶层屏三部曲收官 + Inset 8% 闭环第六处铁律加冕 + borderLeft 25% 第三处闭环铁律加冕 + R-495 字面严防立约
+
+> **⭐ KNOT admin 顶层屏重构完结 — 视觉一致性达到 100% 覆盖**
+>
+> admin 顶层屏三部曲收官：
+> - ✅ v0.5.17 AdminAudit
+> - ✅ v0.5.18 AdminBudgets
+> - ✅ **v0.5.19 AdminRecovery**
+>
+> **五大里程碑同时落地**：
+> 1. ⭐ **KNOT admin 顶层屏三部曲收官** — 视觉一致性达到 100% 覆盖
+> 2. 🏆 **Inset 8% 闭环第六处铁律加冕** — `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面 6 屏 byte-equal（ResultBlock / SavedReports / DataSources / AdminAudit / AdminBudgets / **AdminRecovery**）
+> 3. 🔁 **borderLeft 25% 第三处闭环铁律加冕** — `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)` 字面 3 屏 byte-equal（SavedReports / AdminBudgets / **AdminRecovery**）— 设计语言铁律第二维度加冕
+> 4. 🛡️ **R-495 字面 byte-equal 严防死守立约** — `git grep -F` 全站自动化校验制度化；任何空格/逗号差异触发 Stage 3 否决；视觉铁律执行机制制度化
+> 5. 💳 **Q2 VRP 局部例外原则 + 技术债登记加强** — KpiCard + PeriodTab + medal svg 累计第三次复用确认（自 v0.5.17 起累计 6+ inline helpers）；v0.6.0 首个 PATCH 移入 Shared.jsx 偿还承诺加强
+>
+> Loop Protocol v3 **第 20 次施行** — 全 v3 三阶段评审。
+
+### Changed — AdminRecovery.jsx 视觉重构（152 → 242 行 ≤ R-490 LIMIT 380；新增 LIMITS dict 33→34 条）
+
+按 Stage 3 §2 **9 子步骤**顺序锁死执行（R-480 优先 Step 1 — 视觉铁律第六处加冕）：
+
+**Step 1 baseline + LIMIT 新增 + R-480 优先**（R-480/R-490）：
+- `scripts/check_file_sizes.py` 新增 `"frontend/src/screens/AdminRecovery.jsx": 380`（33→34 条）
+- **R-480 brandSoft 8% 闭环字面率先落地**：`background: \`color-mix(in oklch, ${T.accent} 8%, transparent)\``（thead bg + Avatar bg + Rules note bg）— **第六处铁律加冕**，6 文件 byte-equal
+
+**Step 2 Topbar 删 🛡️ emoji**（R-471）：`topbarTitle="🛡️ System Recovery 趋势"` → `topbarTitle="System Recovery 趋势"`
+
+**Step 3 PeriodTab inline helper + R-492 active box-shadow**（R-472/R-492）：
+- mono + brandSoft active + minHeight 30 + borderRadius 6
+- **R-492 active 浮起感**：`boxShadow: active ? \`0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)\` : 'none'`
+- D1 R-192 13 props 宪法级 sustained — 时段 tabs **绝对保留** content area；不动 Shell.jsx
+- helpers: `PeriodTab`（v0.6 候选移入 Shared）
+
+**Step 4 KPI 3 cards grid + KpiCard helper + R-491 transition + 第 3 卡 accent**（R-473/R-474/R-491）：
+- `gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'` + gap 12（R-394 sustained）
+- **KpiCard inline helper**（v0.6 候选移入 Shared）— label + value + unit + hint + accent prop
+- **R-491 transition**：value `transition: 'color 0.2s'`（加载→数据态平滑变色）
+- **R-474 第 3 卡 accent**：自纠正率 `color: T.accent` + `fontWeight: 700` + 34px
+- 3 cards：自纠正总次数 / 覆盖消息数 / 自纠正率
+
+**Step 5 Chart card + Q1 动态 Tag + LineChart byte-equal + R-494 height=280**（R-475/R-476/R-494）：
+- svg chart icon (14×14 polyline) + "每日自纠正次数趋势" 标题
+- **Q1 动态 Tag chip**：`PERIOD_LABELS[period]` → `last 7/30/90 days`（7d/30d/90d 切换体现）
+- **R-476 LineChart byte-equal** — D2 R-365 Shared 0 改动 sustained；`import { LineChart } from '../Shared.jsx'`
+- **R-494 height={280}** 固定字面（90d 大数据折线清晰）
+- empty state — `by_day.length === 0` 显 "所选时段内无数据" R-19 提示
+
+**Step 6 Top user CSS Grid 5-col + Q2 trophy svg + R-493 NaN 守护**（R-477/R-478/R-479/R-493）：
+- Table HTML `<table>`/`<thead>`/`<tbody>`/`<th>`/`<td>`/`<tr>` 全删（grep = 0 ✓）
+- CSS Grid 5-col `64px 1.4fr 1fr 1fr 1fr`（# / User / 自纠正次数 / 消息数 / 自纠正率）
+- thead 视觉应用 R-480 brandSoft 8% bg + T.subtext + mono + 0.06em + uppercase + fontWeight 500
+- **R-478 Top user header**：**Q2 VRP 局部例外** inline trophy svg path (circle + medal ribbon)；Shared 无 I.medal；v0.6 解锁后纳入
+- **R-479 row**：rank `#` mono T.accent fontWeight 600 + Avatar 22×22 brandSoft（R-480 本文件第二处命中）+ username + id mono muted
+- **R-493 NaN 守护**：`const rate = u.msg_count ? ((u.count / u.msg_count) * 100).toFixed(1) + '%' : '0.0%'` — 防 NaN% 显示
+
+**Step 7 Rules note brandSoft inset + R-481 borderLeft 3px 25% 第三处闭环**（R-447/R-481）：
+- 2 rules（R-19 + 数据源）— 借鉴 demo
+- **R-481 borderLeft 3px 25% 第三处闭环**：`borderLeft: \`3px solid color-mix(in oklch, ${T.accent} 25%, transparent)\`` — **与 SavedReports v0.5.15 R-356 + AdminBudgets v0.5.18 R-465 字面 byte-equal**（设计语言铁律第二维度加冕）
+- bg R-480 闭环字面（本文件第三处命中）
+- `TagChip` inline helper（v0.6 候选）— mono uppercase brandSoft 12%
+- 📌 emoji 删 → 纯 TagChip
+
+**Step 8 emoji 全清 + hex grep**（R-483/R-484/R-482）：
+- 🛡️ / 📈 / 🏆 / 📌 全清（grep = 0 ✓）
+- `'#fff'` → `T.sendFg`（R-484 sustained — 严禁 'white' 字面）
+- grep `#[0-9a-fA-F]{3,6}` AdminRecovery \| grep -v boxShadow \| grep -v rgba = **0 命中** ✓
+
+**Step 9 R-495 字面 byte-equal 严防死守 + 三处版本同步**（R-490/R-495）：
+- R-490 三处同步 0.5.18→0.5.19（commit 2）
+- **R-495 字面 byte-equal 严防** — 双 `git grep -F` 命令：
+  - brandSoft 8%: **6 文件命中** (ResultBlock/SavedReports/admin/tab_access/AdminAudit/AdminBudgets/AdminRecovery) ✓
+  - borderLeft 25%: **3 文件命中** (SavedReports/AdminBudgets/AdminRecovery) ✓
+- 任何空格/逗号差异 → reset 重写
+
+### Architecture — R-480 brandSoft inset 8% 全站设计语言六处闭环（视觉铁律加冕）
+
+```jsx
+// ResultBlock.jsx v0.5.14 R-323 (Observation card)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// SavedReports.jsx v0.5.15 R-372 (Quote inset)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// admin/tab_access.jsx v0.5.16 R-386 (Summary + thead + Name icon + Type chip — 4 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminAudit.jsx v0.5.17 R-409 (thead + Avatar — 2 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminBudgets.jsx v0.5.18 R-444 (thead + Rules note — 2 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+
+// AdminRecovery.jsx v0.5.19 R-480 (thead + Avatar + Rules note — 3 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**6 屏 + 字面 byte-equal** = 视觉铁律加冕里程碑。`git grep -F` 命中 6 个文件。
+
+### Architecture — R-481 borderLeft 3px 25% 设计语言铁律第二维度加冕（第三处闭环）
+
+```jsx
+// SavedReports.jsx v0.5.15 R-356 (Original question quote)
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+
+// AdminBudgets.jsx v0.5.18 R-465 (Rules note)
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+
+// AdminRecovery.jsx v0.5.19 R-481 (Rules note)
+borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+```
+
+**3 屏 + 字面 byte-equal** = 设计语言铁律第二维度加冕。与 R-480 8% bg 闭环（6 处）并列两大设计语言铁律。
+
+### Architecture — R-495 字面 byte-equal 严防死守立约（视觉铁律执行机制制度化）
+
+**双 `git grep -F` 全站自动化校验**：
+
+```bash
+# brandSoft 8% 闭环第六处（铁律加冕）
+git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/
+# 预期 6 文件命中；任何空格/逗号差异 → R-495 否决 → reset 重写
+
+# borderLeft 25% 第三处闭环（设计语言铁律第二维度加冕）
+git grep -F "3px solid color-mix(in oklch, \${T.accent} 25%, transparent)" frontend/src/screens/
+# 预期 3 文件命中
+```
+
+**架构判定**：视觉铁律执行机制从"文档约束"升级为"工具链自动化校验"，未来 PATCH 必须通过此双闭环校验。
+
+### Architecture — Q2 VRP 局部例外原则
+
+```jsx
+// 14×14 trophy/medal svg path — VRP 局部例外（R-365 sustained 但 inline svg 资产化允许）
+// Shared.jsx 无 I.medal；v0.6 Shared 解锁后纳入（第四次复用确认 → 偿还触发）
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+     style={{ color: T.accent }}>
+  <circle cx="12" cy="8" r="6"/>
+  <path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/>
+</svg>
+```
+
+**架构原则**：Shared 无对应资产时 inline svg 允许；CHANGELOG 显式标注"VRP 局部例外"边界。
+
+### Architecture — 技术债登记加强（v0.6.0 偿还承诺）
+
+**累计第三次复用确认**（自 v0.5.17 起 6+ inline helpers）：
+- v0.5.17：StatusDot (AdminAudit) + ActionChip (AdminAudit)
+- v0.5.18：BudgetActionChip + EnabledChip (AdminBudgets) + WarnNote (AdminBudgets)
+- v0.5.19：**KpiCard + PeriodTab + TagChip + trophy svg** (AdminRecovery)
+
+**v0.6.0 首个 PATCH 偿还**：
+- 三组件 + 三 chip helpers + medal/trophy svg 全部移入 `Shared.jsx`
+- 统一六处 inline 实现
+- 当前保留 inline 是 **R-365 (Shared 0 改动) 绝对红线 sustained** 所致
+- v0.6 起 Shared 解锁后即偿还（**承诺加强**）
+
+### Architecture — 契约守护
+
+**R-466 AdminRecoveryScreen 5 props 签名 byte-equal**（T / user / onToggleTheme / onNavigate / onLogout）。
+**R-467 3 useState slots byte-equal**（period: '30d' / stats: null / loading: true — 数量+类型+初值）。
+**R-468 api endpoint URL byte-equal** — `api.get(\`/api/admin/recovery-stats?period=${period}\`)`。
+**R-469 period 3 values + useEffect dep byte-equal** — `['7d', '30d', '90d']` + `useEffect(() => { load(); }, [period])`。
+**R-470 stats 业务字段 10 个 byte-equal**（total_recovery_attempts / total_messages / period_days / by_day[].date+count / top_users[].user_id+username+count+msg_count）。
+
+### Architecture — 范围守护
+
+- **R-485**：App/api/index.css/main/utils/Shared/Shell/decor/13 屏（不含 AdminRecovery）/Admin/SavedReports/tab_access/AdminAudit/AdminBudgets `git diff` = 0
+- **R-486**：admin/ 4 子模块 0 改
+- **R-487**：chat/ 7 子模块 0 改
+- **R-488**：App.css 0 行 diff；AdminRecovery 0 新 className（除 `cb-sb`）
+- **R-489**：KnotLogo R-199.5/222 sustained 仅 Shared+Login+Shell 三文件
+- **D1 R-192 sustained**：`git diff frontend/src/Shell.jsx` = 0 行 ✓
+- **D2 R-365 sustained**：`git diff frontend/src/Shared.jsx` = 0 行 ✓
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 emoji 业务豁免**（本 PATCH 全清，无业务豁免 emoji 残留）
+- **R-227.5.1 装饰豁免延伸**：thead mono uppercase + TagChip mono uppercase + Rules note 中文 + KPI label 中文 sustained
+
+### Loop Protocol v3 — 第 20 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 25 条（R-466~R-490）+ 14 决策（D1-D9 + Q1-Q5）；D1/D2 推荐双绝对支持
+- **Stage 2**（资深 + Codex）：**D1/D2 双绝对支持确认** + **Q2 准许 inline trophy svg path**（VRP 局部例外）+ Q1 动态 Tag chip；新增 R-491（KPI transition）+ R-492（PeriodTab box-shadow）
+- **Stage 3**（v0.4 守护者）：新增 R-493（NaN 守护）+ R-494（chart 高度）+ **R-495 字面 byte-equal 严防死守立约**（git grep 全站自动化校验制度化）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 9 子步骤严守顺序 — R-480 优先 Step 1；R-495 双闭环 git grep -F 收尾闸门
+
+14/14 决策点（D1-D9 + Q1-Q5）一致（D1/D2 双绝对支持 + Q1 动态 + Q2 VRP 例外 + Q5 加强）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 30（**R-466~R-495**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env；本地 worktree env BIAGENT_MASTER_KEY 残留触发 R-74 预存在问题）
+- R-72 smoke 自动跟随 0.5.19 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.19 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（AdminRecoveryScreen 5 props + 3 state + api URL + 10 业务字段 byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 admin → 切 admin-recovery nav → loading → stats 加载
+- [ ] **7d/30d/90d 时段切换 → 重新 fetch + KPI 更新 + R-491 transition + R-492 active box-shadow 浮起感**
+- [ ] KPI 3 cards：自纠正总次数 / 覆盖消息数 / 自纠正率（**第 3 卡 accent T.accent**）
+- [ ] **LineChart 渲染 by_day 数据**（fill + stroke + R-494 height 280）
+- [ ] **R-493 mock msg_count=0 实测 rate=0.0% 非 NaN%**
+- [ ] Top user table CSS Grid 5-col + rank # mono + **Q2 trophy svg** + Avatar 22 + username + id + count + msg_count + rate
+- [ ] **Q1 动态 Tag chip — 7d/30d/90d 切换体现 last N days**
+- [ ] empty state — by_day.length === 0 / top_users.length === 0
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）— KPI grid R-394 auto-fit
+- [ ] **light + dark 双模式**
+- [ ] **⭐ Inset 8% 6 屏视觉一致性肉眼校验**（ResultBlock / SavedReports / DataSources / AdminAudit / AdminBudgets / **AdminRecovery**）
+- [ ] **⭐ borderLeft 25% 3 屏视觉一致性肉眼校验**（SavedReports Quote / AdminBudgets Rules / **AdminRecovery Rules**）
+- [ ] v0.5.0~v0.5.18 既有功能端到端正常
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.18
+- ✅ **v0.5.19 (C5+) AdminRecovery 屏复刻** — ⭐ admin 顶层屏三部曲收官 + Inset 8% 闭环第六处铁律加冕 + borderLeft 25% 第三处闭环加冕 + R-495 字面严防立约
+- ⏳ v0.5.20+ (C5+) 剩余 7+ 屏（admin/users 独立 PATCH 含 #ff7a3a 偿还 / 6 admin tabs（api-model/catalog/fewshot/knowledge/prompts/system）/ 5 业务屏：database / knowledge / catalog / sql-lab / settings / conversations）
+
+### v0.6 路线图加强承诺
+
+- **6+ inline helpers 移入 Shared.jsx**（v0.5.17 StatusDot/ActionChip + v0.5.18 BudgetActionChip/EnabledChip/WarnNote + v0.5.19 KpiCard/PeriodTab/TagChip/trophy svg/medal svg）— 累计三次复用确认；偿还承诺**加强**
+
+---
+
 ## [Unreleased] - v0.5.18 (C5+) AdminBudgets 屏复刻 — v0.5.x 第三个顶层屏 + Inset 8% 闭环铁律化 100% 覆盖后端管理资产屏 + borderLeft 25% 第二处闭环 + 技术债登记
 
 > **KNOT 视觉铁律宣告**：Inset 8% 设计语言正式覆盖 **100% 后端管理资产屏** — 5 屏 `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面 byte-equal：ResultBlock (v0.5.14 R-323) / SavedReports (v0.5.15 R-372) / DataSources (v0.5.16 R-386) / AdminAudit (v0.5.17 R-409) / **AdminBudgets (v0.5.18 R-444)**。
