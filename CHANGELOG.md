@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.23 (C5+) admin tab_knowledge 屏复刻（Knowledge + FewShots + Prompts 三合一）— ⭐ Inset 8% 第十处扩张（8→9 文件）+ thead R-480 共享 helper
+
+> ⭐ **Inset 8% 闭环字面文件总数 8 → 9 第十处扩张**（admin/tab_knowledge 加入）
+>
+> **v0.5.x 第四个 admin 子模块复刻**（含 3 sub-tabs — knowledge / fewshots / prompts）
+>
+> **三大里程碑**：
+> 1. ⭐ **Inset 8% 第十处扩张** — 文件总数 8 → 9（admin/tab_knowledge 加入）
+> 2. 🏗️ **theadStyle helper inline 模式** — knowledge/fewshots 两 thead 共享 style helper（v0.5.x 首次 admin/* 子模块 style helper 复用）
+> 3. 🛡️ **R-484 Spinner #fff 偿还** sustained（prompts section save btn）
+>
+> Loop Protocol v3 **第 24 次施行**（⭐ 自审简化协议 v0.5.x 收官冲刺 continues）。
+
+### Changed — tab_knowledge.jsx 视觉重构（107 → 124 行 ≤ 250 LIMIT；LIMITS dict 不动）
+
+5 子步骤执行：
+
+**Step 1** baseline + R-607 核爆守护 + R-587/R-588 双 thead R-480 闭环字面落地（第十处扩张）
+
+**Step 2** theadStyle inline helper — knowledge + fewshots 两 thead 共享 style（brandSoft 8% + mono + 0.06em + uppercase + fontWeight 500 + T.subtext）
+
+**Step 3** Row 5 字段 minWidth: 0 + ellipsis 兜底（knowledge docs + fewshots 双 table）
+
+**Step 4** Prompts Section radius 10→12 + padding 升级 + header 14/600/-0.01em + textarea byte-equal + helper text lineHeight 1.55
+
+**Step 5** R-596 Spinner #fff → T.sendFg + 三处版本同步 + R-599 ⭐ 9 文件验证
+
+### Architecture — R-599 Inset 8% 闭环字面文件总数 8 → 9 第十处扩张
+
+```bash
+git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/
+# 9 文件命中（v0.5.22 8 → v0.5.23 9）：
+#   chat/ResultBlock.jsx + SavedReports.jsx + AdminAudit/Budgets/Recovery.jsx
+#   admin/tab_access.jsx + admin/tab_resources.jsx + admin/tab_system.jsx
+#   admin/tab_knowledge.jsx ← 新增第 9 文件
+```
+
+### Architecture — theadStyle inline helper（v0.5.x 首次 admin/* style helper 复用）
+
+```jsx
+// knowledge + fewshots 两 thead 共享 — 减少视觉风格漂移
+const theadStyle = (T) => ({
+  background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+  borderBottom: `1px solid ${T.border}`,
+  fontSize: 11, color: T.subtext, fontFamily: T.mono,
+  fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+});
+```
+
+### 契约守护
+
+- R-581 TabKnowledge 11 props 签名 byte-equal
+- R-582 tab 3 values byte-equal（'knowledge' / 'fewshots' / 'prompts'）
+- R-583/584/585 业务字段 byte-equal（knowledgeDocs 5 字段 + fewShots 5 字段 + prompts 3 keys）
+- R-586 I/iconBtn/pillBtn/Spinner from Shared/utils byte-equal（R-365 sustained）
+
+### 范围守护
+
+- R-601 App/api/Shell/Shared/decor/Admin/SavedReports/AdminAudit/Budgets/Recovery/tab_access/resources/system 0 改
+- R-602 admin/ 其他子模块 + modals 0 改
+- R-603 chat/ 7 子模块 0 改
+- R-604 App.css 0 行 diff
+- R-607 Admin.jsx 内 `<TabKnowledge` 挂载点 0 改
+
+### Tests
+
+- 432 passed / 112 skipped（CI 干净 env）
+- 7 contracts KEPT；ruff All checks passed；npm build clean
+- `python3 scripts/check_file_sizes.py` OK (34 files)
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.22
+- ✅ **v0.5.23 (C5+) tab_knowledge 屏复刻**
+- ⏳ **v0.5.24 modals.jsx 视觉重构 + v0.5.x 正式收官**
+
+---
+
 ## [Unreleased] - v0.5.22 (C5+) admin tab_system 屏复刻（Catalog）— ⭐ Inset 8% 第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
 
 > ⭐ **Inset 8% 闭环字面文件总数 7 → 8 持续进攻性扩张第九处**（admin/tab_system 加入）
