@@ -5,6 +5,167 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.20 (Cn+) admin/users 视觉偿还 — ⭐ R-376 hex 债务正式清偿 + TabAccess 模块进入全 OKLCH/T-System 时代 + Inset 8% 闭环第七处扩展（6 文件恒定深耕）
+
+> ⭐ **KNOT 管理端视觉治理：TabAccess 模块正式进入全 OKLCH/T-System 时代**
+>
+> v0.5.x 序列**最长 hold 红线偿还**（R-376 自 v0.5.16 hold 4 PATCH — 历史性纪录）：
+> - `linear-gradient(135deg, ${T.accent}, #ff7a3a)` 橘色渐变 → `color-mix(in oklch, ${T.accent} 8%, transparent)` brandSoft
+> - `color: '#fff'` 白 → `color: T.accent` brand 单色和谐
+>
+> **四大里程碑同时落地**：
+> 1. ⭐ **R-376 hex 债务正式清偿**（v0.5.16 hold 4 PATCH 偿还 — v0.5.x 最长 hold 历史性纪录）
+> 2. ⭐ **TabAccess 模块正式进入全 OKLCH/T-System 时代**（Stage 3 §3 里程碑宣告）
+> 3. 🏆 **Inset 8% 闭环字面第七处扩展** — 6 文件恒定深耕（tab_access 内部命中数 1 → 3：Sources thead + Users Avatar + Users thead）
+> 4. 🛡️ **R-518/519/520 守护立约**：
+>    - R-518 R-376 余效验证（v0.5.x 视觉治理硬指标制度化）
+>    - R-519 Sources 绝对零度（IDE format-on-save 关闭纪律）
+>    - R-520 roleChip 装饰豁免界限（业务字段不动红线延续）
+>
+> Loop Protocol v3 **第 21 次施行** — 全 v3 三阶段评审。
+
+### Changed — tab_access.jsx Users 部分视觉偿还（88 → 90 行 ≤ 250 LIMIT；LIMITS dict 不动）
+
+按 Stage 3 §2 **4 子步骤**顺序锁死执行（R-501/R-504 优先 Step 1）：
+
+**Step 1 baseline + R-501 Avatar brandSoft 8% 字面落地 + R-504 thead bg 升级 + R-518 余效 grep**（R-501/R-504/R-518）：
+- **R-501 Avatar bg** 替换：`linear-gradient(135deg, ${T.accent}, #ff7a3a)` → `color-mix(in oklch, ${T.accent} 8%, transparent)`
+- **R-504 thead bg** 升级：`T.bg` → `color-mix(in oklch, ${T.accent} 8%, transparent)`（与 Sources thead 字面 byte-equal）
+- **R-518 R-376 余效 grep 立即执行**：`grep -rE "#[0-9a-fA-F]{3,6}" tab_access.jsx = 0` ✓（R-376 hex 债务正式清偿）
+
+**Step 2 Avatar 22×22 + T.accent + inline-flex + R-516 lineHeight:1**（R-500/R-502/R-503/R-516）：
+- Avatar **26×26 → 22×22**（与 v0.5.17 AdminAudit R-410 + v0.5.19 AdminRecovery R-479 字面 byte-equal）
+- 字母 color `'#fff'` → `T.accent`
+- display `grid + placeItems: center` → `inline-flex + alignItems: center + justifyContent: center`
+- **R-516 字母居中精度三件套**：`fontSize: 10.5` + `fontWeight: 600` + `lineHeight: 1` + `flexShrink: 0`
+
+**Step 3 thead mono + Row ellipsis + R-517 hover 场景判定**（R-505/R-506/R-517）：
+- thead `color T.muted → T.subtext` + `fontFamily T.mono` + `letterSpacing 0.03em → 0.06em` + `fontWeight 600 → 500`
+- Row 5 列加 `minWidth: 0 + overflow: hidden + textOverflow: 'ellipsis' + whiteSpace: 'nowrap'` 兜底（R-506）
+- **R-517 hover 场景 B 确认**：起手 grep Sources 行 hover 实现 = 0 命中 → Users 也不引入 hover（避免不对称）
+
+**Step 4 三处版本同步 + R-511/512/519/520 守护严防**（R-515/R-508~511/R-519/R-520）：
+- R-511 **6 文件恒定**：`git grep -F "color-mix(in oklch, \${T.accent} 8%, transparent)" frontend/src/screens/` — 6 文件命中（无新增）
+- R-512 + R-519 **Sources 绝对零度**：`md5(Sources 段)` origin/main vs HEAD = `3593b6b0edfca69eb28b39c628f62d74`（字节完全相同）
+- R-520 **roleChip 边界严守**：`{roleChip(u.role)}` 调用 byte-equal；Admin.jsx 内 roleChip 定义未触碰
+
+### Architecture — R-501 Inset 8% 全站设计语言七处扩展（视觉铁律加冕延续）
+
+```jsx
+// 6 文件恒定深耕 — tab_access 内部命中数从 1 → 3
+// ResultBlock.jsx v0.5.14 R-323 (Observation card)
+// SavedReports.jsx v0.5.15 R-372 (Quote inset)
+// admin/tab_access.jsx 内部 3 处：
+//   - Sources Summary 4 卡 / Name icon 28×28 / Type chip / Sources thead (v0.5.16 R-386)
+//   - Users Avatar 22×22 (v0.5.20 R-501) ← 新增
+//   - Users thead (v0.5.20 R-504) ← 新增
+// AdminAudit.jsx v0.5.17 R-409 (thead + Avatar — 2 处)
+// AdminBudgets.jsx v0.5.18 R-444 (thead + Rules note — 2 处)
+// AdminRecovery.jsx v0.5.19 R-480 (thead + Avatar + Rules note — 3 处)
+background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+```
+
+**6 文件 + 字面 byte-equal** = 视觉铁律持续深耕。`git grep -F` 命中文件总数恒定 6；tab_access 内部命中数扩张体现细致治理。
+
+### Architecture — R-376 hex 债务清偿（v0.5.x 最长 hold 历史性纪录）
+
+**Hold 历程**：
+- **v0.5.16**（首次 hold）：DataSources 屏复刻时识别 Users 部分 `#ff7a3a` + `'#fff'` 残留；R-376 决议"out-of-scope 留独立 PATCH"
+- **v0.5.17/18/19**（持续 hold）：AdminAudit/Budgets/Recovery 期间 R-376 sustained
+- **v0.5.20**（正式偿还）：本 PATCH 清偿 — hold 4 PATCH 历时偿还
+
+**架构判定**：R-376 是 v0.5.x 序列**最长 hold 历史性纪录**；偿还过程通过完整 Loop Protocol v3 三阶段评审（非简化协议）— 体现"重要历史偿还需完整治理流程"原则。
+
+### Architecture — R-518/519/520 守护立约（v0.5.x 视觉治理硬指标制度化）
+
+**R-518 R-376 余效验证立约**：未来涉及 hex 偿还的 PATCH **必须**在 commit 1 Step 1 后立即执行 hex grep = 0 验证；任何残留 = 债务未清偿 = Stage 3 守护者否决。
+
+**R-519 Sources 绝对零度立约**：编辑多段共存文件时**必须** IDE format-on-save 关闭 + ESLint auto-fix 关闭 + `git diff --unified=0` 验证未变段区间 0 改动（含空格/缩进）。
+
+**R-520 roleChip 装饰豁免界限立约**：父屏 props 函数（如 `roleChip`）的**调用**允许重构，**定义**严禁触碰；维持 v0.5.16 "业务字段不动" 红线 sustained。
+
+### Architecture — R-516 Avatar 跨浏览器居中精度
+
+```jsx
+<div style={{
+  width: 22, height: 22, borderRadius: '50%',
+  background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+  color: T.accent,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 10.5, fontWeight: 600, lineHeight: 1, flexShrink: 0,
+}}>{...}</div>
+```
+
+**架构原则**：inline-flex 模式下 `lineHeight: 1` 抹平 T.sans 跨系统渲染差异（Chrome/Safari/Firefox）；`fontSize: 10.5` Retina 屏锐利无锯齿。与 AdminAudit/AdminRecovery 字面 byte-equal。
+
+### Architecture — 契约守护
+
+**R-496 TabAccess 9 props 签名 byte-equal**（T / tab / users / sources / onEditUser / onDeleteUser / onEditSource / onDeleteSource / roleChip）。
+**R-497 u 5 字段访问 byte-equal**（id / display_name / username / role / is_active）。
+**R-498 roleChip(u.role) 调用 byte-equal**。
+**R-499 onEditUser(u) / onDeleteUser(u.id) 调用 byte-equal**。
+
+### Architecture — 范围守护
+
+- **R-512 + R-519 双重 Sources 严守**：md5(Sources 段) byte-equal `3593b6b0edfca69eb28b39c628f62d74`
+- **R-513**：App/api/index.css/main/utils/Shared/Shell/decor/17 屏 + Admin/SavedReports/AdminAudit/AdminBudgets/AdminRecovery `git diff` = 0
+- **R-514**：admin/ 其他 4 子模块 + chat/ 7 子模块 0 改
+- **R-520**：Admin.jsx 内 roleChip 定义 `git diff` = 0
+
+### Architecture — 字面分流体系 sustained
+
+- **R-302.5 emoji 业务豁免**（本 PATCH 无 emoji）
+- **R-227.5.1 装饰豁免延伸**：thead 中文（用户/账号/角色/状态）+ roleChip 装饰
+
+### Loop Protocol v3 — 第 21 次施行（全 v3 三阶段）
+
+- **Stage 1**（v0.5 执行者）：草案 20 条（R-496~R-515）+ 11 决策（D1-D6 + Q1-Q5）；D1 推荐含 thead 视觉对齐 + 5-col 几何守恒
+- **Stage 2**（资深 + Codex）：D1 准许（防 UI 破窗）+ D5 5-col 几何守恒确认；新增 R-516（Avatar 居中精度）+ R-517（Row hover 场景判定）
+- **Stage 3**（v0.4 守护者）：新增 R-518（R-376 余效验证立约）+ R-519（Sources 绝对零度 IDE format 关闭）+ R-520（roleChip 装饰豁免界限）
+- **Stage 4**（执行者）：3 commit 落地，0 修订；commit 1 内 4 子步骤严守顺序 — R-501/R-504 优先 + R-518/R-519 双闸门收尾
+
+11/11 决策点（D1-D6 + Q1-Q5）一致（D1/D5/Q5 强化）；新增 5 条红线（Stage 2: 2 + Stage 3: 3）；红线总数 25（**R-496~R-520**）。
+
+### Tests
+
+- backend：**432 passed** / 112 skipped（CI 干净 env；本地 worktree env BIAGENT_MASTER_KEY 残留触发 R-74 预存在问题）
+- R-72 smoke 自动跟随 0.5.20 PASS
+- R-181 + R-185 Login sync test 自动跟随 0.5.20 PASS
+- frontend build：`npm run build` 0 警告 0 error
+- `lint-imports` 7 contracts KEPT；`ruff check knot/` All checks passed
+
+### Migration
+
+- 客户端无 breaking change（TabAccess 9 props + 5 字段 + roleChip + 2 handlers byte-equal）
+
+### 验收（待人测）
+
+- [ ] 进 admin → 切 admin-users tab → users 加载
+- [ ] **Avatar 22 brandSoft 8% + T.accent 字母 lineHeight:1 居中**（与 AdminAudit/AdminRecovery 视觉一致）
+- [ ] **长 username / display_name 不挤出操作按钮**（R-506 ellipsis 兜底）
+- [ ] 编辑按钮 → 调 onEditUser(u)
+- [ ] 停用按钮 → 调 onDeleteUser(u.id)
+- [ ] is_active 切换 → "正常" / "已停用" + color byte-equal（业务字段不动）
+- [ ] roleChip(u.role) → role 装饰渲染（R-520 不动定义）
+- [ ] **三档窗宽实测**（1024 / 1280 / 1920）
+- [ ] **light + dark 双模式** — Avatar / thead / row 视觉一致
+- [ ] **切 Sources tab → 视觉完全 byte-equal**（R-512 + R-519 sustained — md5 字节相同）
+- [ ] **⭐ Inset 8% 7 屏 sustained 视觉一致**（v0.5.14/15/16/17/18/19/20 — 6 文件恒定 + tab_access 本文件深耕）
+- [ ] **⭐ Retina 屏 Avatar 22×22 清晰度校验**（Stage 3 §3 验收关键）
+- [ ] v0.5.0~v0.5.19 既有功能端到端正常
+
+### v0.5.x 路线图更新
+
+- ✅ v0.5.7~v0.5.19
+- ✅ **v0.5.20 (Cn+) admin/users 视觉偿还** — ⭐ R-376 hex 债务正式清偿 + TabAccess 全 OKLCH/T-System 时代 + Inset 8% 第七处扩展
+- ⏳ v0.5.21+ (C5+) 剩余 6+ 屏（6 admin tabs：api-model/catalog/fewshot/knowledge/prompts/system + database / knowledge / catalog / sql-lab / settings / conversations 5 业务屏）
+
+### v0.6 路线图加强承诺
+
+- **7+ inline helpers 移入 Shared.jsx**（StatusDot/ActionChip/BudgetActionChip/EnabledChip/WarnNote/KpiCard/PeriodTab/TagChip/trophy/medal svg/**Avatar**）— 累计第四次复用确认；偿还承诺**加强**
+
+---
+
 ## [Unreleased] - v0.5.19 (C5+) AdminRecovery 屏复刻 — ⭐ KNOT admin 顶层屏三部曲收官 + Inset 8% 闭环第六处铁律加冕 + borderLeft 25% 第三处闭环铁律加冕 + R-495 字面严防立约
 
 > **⭐ KNOT admin 顶层屏重构完结 — 视觉一致性达到 100% 覆盖**
