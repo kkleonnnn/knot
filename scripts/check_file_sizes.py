@@ -8,6 +8,7 @@ v0.5.7 R-176：Login.jsx ≤ 200 + decor/NarrativeMotif.jsx ≤ 120（27 → 29 
 v0.5.9 R-205：Shell.jsx ≤ 220（29 → 30 条 LIMITS）。
 v0.5.10 R-218：chat/ChatEmpty.jsx 由 250 → 80 收紧（30 条 LIMITS 不变，仅 cap 收紧）。
 v0.5.11 R-260：chat/Composer.jsx 由 250 → 100 收紧（30 条不变，R-217 清偿 PATCH）。
+v0.5.12 R-285：chat/ThinkingCard.jsx 由 250 → 160 收紧（30 条不变，Thinking 屏复刻 PATCH）。
 """
 import sys
 from pathlib import Path
@@ -39,7 +40,7 @@ LIMITS = {
     "frontend/src/screens/chat/ResultBlock.jsx":   400,  # 复合 UI 组件 7 段 + 3 helpers，资深 ack
     "frontend/src/screens/chat/ChatEmpty.jsx":      80,  # v0.5.10 R-218 收紧 250→80
     "frontend/src/screens/chat/Conversation.jsx":  250,
-    "frontend/src/screens/chat/ThinkingCard.jsx":  250,
+    "frontend/src/screens/chat/ThinkingCard.jsx":  160,  # v0.5.12 R-285 收紧 250→160
     "frontend/src/screens/chat/Composer.jsx":      100,  # v0.5.11 R-260 收紧 250→100
     "frontend/src/screens/admin/tab_access.jsx":   250,
     "frontend/src/screens/admin/tab_resources.jsx": 250,
