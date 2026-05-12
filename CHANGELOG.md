@@ -5,7 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.41 (UX) topbar buttons 字体统一 + 整理洞察换行 + 版号 letterSpacing
+## [Unreleased] - v0.5.42 (Backend+UX) 预算页 demo 重构 — 多 scope CRUD → 单 global config
+
+> 资深架构师反馈"预算这个功能要改"。AdminBudgets 从 v0.4.3 multi-scope CRUD 模型重构为 demo `budget.jsx` 单 global config 模式（5 字段单次保存）。
+
+### Added (Backend)
+
+#### `GET /api/admin/budget-config` (admin only)
+
+返回 5 字段全局预算配置（从 `app_settings` KV 读取，缺失走默认）：
+
+```json
+{
+  "monthly_token_cap": 500000,      // 月度 token 上限
+  "per_conv_token_cap": 40000,      // 单次对话上限
+  "warn_pct": 80,                   // 告警阈值 %
+  "default_model": "claude-haiku-4-5",
+  "rate_limit_per_min": 20          // 单用户限流
+}
+```
+
+#### `PUT /api/admin/budget-config` (admin only)
+
+更新 5 字段，写入 `app_settings` KV。校验：
+- 数值字段 ≥ 1
+- warn_pct 0-100
+- audit log `budget.config_update`
+
+#### `/api/admin/budgets-stats` cap 来源调整
+
+之前从 `budgets` 表读 enabled global monthly_tokens budget — 改为从 `app_settings.budget_monthly_token_cap` 读（与新 PUT endpoint 一致）。
+
+### Changed (Frontend)
+
+#### AdminBudgets.jsx 完整重写
+
+之前 v0.4.3 multi-scope CRUD UI（form + table + 4 rules）→ demo `budget.jsx` 风格：
+
+- **Hero usage card 保留**（4-block 横向 flex + progress bar）
+- **5 字段 single-form**: Row helper (180px label + hint + input)
+  - 月度 token 上限 (tokens / 月)
+  - 单次对话上限 (tokens)
+  - 告警阈值 (%)
+  - 默认模型 (select from /api/admin/agent-models)
+  - 限流策略 (req / min · 用户)
+- **保存配置 + 重置** primary/ghost buttons
+- **2 条 Rules note**（R-16 优先级 / R-23 实时；保留 borderLeft 2px brandSoftBorder）
+- 删除 multi-scope: SCOPE_TYPES / BUDGET_TYPES / ACTIONS / draft state / table 7-col / WarnNote / BudgetActionChip / EnabledChip 全部移除
+
+### Backward compat
+
+后端 multi-scope budgets endpoints `/api/admin/budgets` (GET/POST/PUT/DELETE) **保留向后兼容**（budget_service 业务逻辑不动）。新 single-config UI 只用 `app_settings` KV，互不冲突。
+
+### Routes count 75 → 77
+
+v0.5.42 +2: `GET/PUT /api/admin/budget-config`。smoke test 同步。
+
+### 版本同步
+
+- main.py 0.5.42 + smoke 字面 + Login 页脚 build `20260513` + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.41 (UX) topbar buttons 字体统一 + 整理洞察换行 + 版号 letterSpacing
 
 > 资深架构师 v0.5.x 收尾 sweep 续：topbar 字体/图标统一 + 3 处微调。
 

@@ -456,16 +456,12 @@ async def admin_budgets_stats(admin=Depends(require_admin)):
     ).fetchone()
     tokens_used = row[0] or 0
     cost_usd = row[1] or 0.0
-    # 使用率 from global monthly_tokens budget（取 enabled threshold）
-    cap_row = conn.execute(
-        """
-        SELECT threshold FROM budgets
-        WHERE scope_type = 'global' AND budget_type = 'monthly_tokens' AND enabled = 1
-        LIMIT 1
-        """
-    ).fetchone()
     conn.close()
-    cap = (cap_row[0] if cap_row else None)
+    # v0.5.42 — 使用率 from app_settings budget_monthly_token_cap（demo 单 global config 模式）
+    try:
+        cap = int(settings_repo.get_app_setting("budget_monthly_token_cap", "500000"))
+    except (ValueError, TypeError):
+        cap = None
     usage_pct = (tokens_used / cap * 100) if (cap and cap > 0) else None
     return {
         "tokens_used": tokens_used,
@@ -506,3 +502,50 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
         "total_tables": tables_total,
         "last_heartbeat": last_heartbeat,
     }
+
+
+# ─── v0.5.42 预算 demo 重构 — 单 global config（5 字段 app_settings KV）──────
+
+class BudgetConfigRequest(BaseModel):
+    monthly_token_cap: int      # 月度 token 上限（单组织全局）
+    per_conv_token_cap: int     # 单次对话 token 上限（防 SQL planner 死循环）
+    warn_pct: int               # 告警阈值百分比（0-100）
+    default_model: str          # 默认模型
+    rate_limit_per_min: int     # 单用户每分钟请求数限制
+
+
+_BUDGET_DEFAULTS = {
+    "budget_monthly_token_cap": "500000",
+    "budget_per_conv_token_cap": "40000",
+    "budget_warn_pct": "80",
+    "budget_default_model": "claude-haiku-4-5",
+    "budget_rate_limit_per_min": "20",
+}
+
+
+@router.get("/api/admin/budget-config")
+async def admin_get_budget_config(admin=Depends(require_admin)):
+    """v0.5.42 — 单 global 预算配置 5 字段（demo budget.jsx 模式）。"""
+    return {
+        "monthly_token_cap":   int(settings_repo.get_app_setting("budget_monthly_token_cap",   _BUDGET_DEFAULTS["budget_monthly_token_cap"])),
+        "per_conv_token_cap":  int(settings_repo.get_app_setting("budget_per_conv_token_cap",  _BUDGET_DEFAULTS["budget_per_conv_token_cap"])),
+        "warn_pct":            int(settings_repo.get_app_setting("budget_warn_pct",            _BUDGET_DEFAULTS["budget_warn_pct"])),
+        "default_model":       settings_repo.get_app_setting("budget_default_model",            _BUDGET_DEFAULTS["budget_default_model"]),
+        "rate_limit_per_min":  int(settings_repo.get_app_setting("budget_rate_limit_per_min",  _BUDGET_DEFAULTS["budget_rate_limit_per_min"])),
+    }
+
+
+@router.put("/api/admin/budget-config")
+async def admin_update_budget_config(req: BudgetConfigRequest, request: Request, admin=Depends(require_admin)):
+    """v0.5.42 — 保存 5 字段（app_settings KV upsert）。"""
+    if req.monthly_token_cap < 1 or req.per_conv_token_cap < 1 or req.rate_limit_per_min < 1:
+        raise HTTPException(status_code=400, detail="数值字段必须 ≥ 1")
+    if req.warn_pct < 0 or req.warn_pct > 100:
+        raise HTTPException(status_code=400, detail="告警阈值 0-100")
+    settings_repo.set_app_setting("budget_monthly_token_cap",  str(req.monthly_token_cap))
+    settings_repo.set_app_setting("budget_per_conv_token_cap", str(req.per_conv_token_cap))
+    settings_repo.set_app_setting("budget_warn_pct",           str(req.warn_pct))
+    settings_repo.set_app_setting("budget_default_model",      req.default_model)
+    settings_repo.set_app_setting("budget_rate_limit_per_min", str(req.rate_limit_per_min))
+    audit(request, "budget.config_update", "app_settings", "budget_config", success=True, detail=req.dict())
+    return {"ok": True}

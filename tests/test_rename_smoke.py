@@ -144,16 +144,16 @@ def test_R79_no_old_brand_literal_in_business_code():
 # ─── R-72 FastAPI 元数据 + 路由数 ────────────────────────────────────
 
 def test_R72_app_title_and_version():
-    """FastAPI title=KNOT version=0.5.41（v0.5.0 R-72 守护，每 PATCH 同步）。"""
+    """FastAPI title=KNOT version=0.5.42（v0.5.0 R-72 守护，每 PATCH 同步）。"""
     from knot.main import app
     assert app.title == "KNOT", f"title 应改 KNOT；实际：{app.title}"
-    assert app.version == "0.5.41", f"version 应 0.5.41；实际：{app.version}"
+    assert app.version == "0.5.42", f"version 应 0.5.42；实际：{app.version}"
 
 
 def test_R72_routes_count_unchanged():
-    """路由数 = 75（v0.5.40 +3：audit-stats / budgets-stats / datasources-stats）。"""
+    """路由数 = 77（v0.5.40 +3 stats / v0.5.42 +2 budget-config GET/PUT）。"""
     from knot.main import app
-    assert len(app.routes) == 75, f"路由数应为 75；实际：{len(app.routes)}"
+    assert len(app.routes) == 77, f"路由数应为 77；实际：{len(app.routes)}"
 
 
 def test_R72_import_knot_main_succeeds():
