@@ -310,8 +310,9 @@ function DetailView({ T, report, onChanged }) {
             <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 480 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
-                  <tr style={{ background: T.bg }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 11, letterSpacing: 'normal', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                  {/* v0.5.27 #24 全站表头统一 — brandSoft 8% bg + mono + 0.06em + uppercase + T.subtext（与 admin 屏 R-480/R-444/R-409/R-504 字面 byte-equal）*/}
+                  <tr style={{ background: `color-mix(in oklch, ${T.accent} 8%, transparent)` }}>
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.subtext, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>

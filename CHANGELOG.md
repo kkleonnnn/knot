@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.26 (UX) Sidebar 高亮 + 设置页图标 — 资深架构师反馈 #11/17/18 偿还
+## [Unreleased] - v0.5.27 (UX) 全站表头统一 — 资深架构师反馈 #24 偿还
+
+> 资深架构师 v0.5.x 收官测试反馈 #24：表头风格全站不一致。
+
+### Changed
+
+#### #24 SavedReports + ResultBlock 表头风格统一
+
+`SavedReports.jsx:314` + `chat/ResultBlock.jsx:266` 两处 HTML 表头是 v0.5.x 视觉重构唯二**未对齐** brandSoft 8% mono uppercase 模式的表头（admin 屏 7 个表头已全部统一）：
+
+- `<tr>` bg `T.bg` → `color-mix(in oklch, ${T.accent} 8%, transparent)`
+- `<th>` color `T.muted` → `T.subtext`
+- `<th>` 新加 `fontFamily: T.mono`
+- `<th>` 新加 `textTransform: 'uppercase'`
+- `<th>` letterSpacing `'normal'` → `'0.06em'`
+- 其他保持: padding 8 12 / textAlign left / fontWeight 500 / fontSize 11 / borderBottom / whiteSpace nowrap
+
+**第二次红线撤回**（v0.5.x 第一次为 v0.5.14 R-325 TokenPill）— v0.5.14 R-327 + v0.5.15 R-357 当时**故意**删 uppercase，资深 #24 反馈认为表头风格全站应一致，撤回该决议对齐 admin 屏铁律。
+
+与 admin 屏字面 byte-equal（R-480/R-444/R-409/R-504 sustained），brandSoft 8% **闭环字面文件数仍为 9**（thead 在两文件已有命中，无新文件加入）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.27"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.27 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / Composer/ChatEmpty/Conversation/ThinkingCard/Admin/16 屏视觉 byte-equal（仅 SavedReports.jsx + ResultBlock.jsx 表头 4 行调整）。
+
+---
+
+## v0.5.26 (UX) Sidebar 高亮 + 设置页图标 — 资深架构师反馈 #11/17/18 偿还
 
 > 资深架构师 v0.5.x 收官测试反馈 #11/17/18：sidebar 高亮 + 配置图标问题。
 
