@@ -5,7 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.28 (UX) DataSources 视觉优化 — 资深架构师反馈 #19/23/24 偿还
+## [Unreleased] - v0.5.29 (UX) 业务目录 视觉优化 — 资深架构师反馈 #25/26/27 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #25/26/27：业务目录 (Catalog) 子模块视觉对照 demo 优化。
+
+### Changed
+
+#### #25 Helper banner info icon — 精确对齐 demo path
+
+`tab_system.jsx:53-57` info icon SVG path 改为 demo `ui.jsx` `info` 字面 byte-equal：
+
+- 圆 r `10 → 9`（更精致）
+- 主线 y `12 → 11`（更长，覆盖到中段）
+- 顶部点 `<line x1=12 y1=8 x2=12.01 y2=8>` → `<circle cx=12 cy=8 r=0.6 fill=T.accent>`（filled 圆点，**视觉无歧义为 "i" 信息符**，撤回资深"感叹号"误读）
+
+#### #26 Helper banner borderLeft 移除
+
+`tab_system.jsx:49` 删除 `borderLeft: '3px solid color-mix(in oklch, T.accent 25%, transparent)'`（资深反馈"莫名其妙的深色边边"）。
+
+**v0.5.22 R-481 borderLeft 25% 闭环第四处局部撤回** — 仅 catalog Helper banner 一处；SavedReports + AdminBudgets + AdminRecovery 三处保留（这三处是 Rules note 多条规则上下文，borderLeft 有信息分组语义；Helper banner 单条说明无此需求）。
+
+#### #27 Section source — neutral tag 替代字面拼接
+
+`tab_system.jsx` sections 数组结构调整：
+
+- 移除 title 内 `(TABLES)/(LEXICON)/(BUSINESS_RULES)` 字面拼接
+- 新加 `source` 字段（'tables'/'lexicon'/'business_rules'）
+- 新加 `SourceTag` inline helper（neutral 风格 — T.bg bg + T.subtext color + T.mono uppercase + T.border + radius 4）
+- 标题渲染：title（粗体）+ SourceTag（neutral chip）+ OverrideChip（brand chip — 若有覆盖）
+
+与 demo `catalog.jsx:48` `<Tag tone="neutral">{source}</Tag>` byte-equal；neutral SourceTag 与 brand OverrideChip 视觉分离（前者 = 元数据 / 后者 = 状态）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.29"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.29 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 17 屏视觉 byte-equal（仅 tab_system.jsx Catalog Section 重构）。
+
+---
+
+## v0.5.28 (UX) DataSources 视觉优化 — 资深架构师反馈 #19/23/24 偿还
 
 > 资深架构师 v0.5.x 收官反馈 #19/23/24：DataSources Sources 子模块视觉对照 demo 优化。
 

@@ -31,29 +31,45 @@ function OverrideChip({ T }) {
   );
 }
 
+// v0.5.29 #27 SourceTag — section 标题后的源标识（demo `<Tag tone="neutral">` byte-equal）
+// neutral 风格：T.bg bg + T.subtext color + T.mono uppercase；与 brand OverrideChip 视觉分离
+function SourceTag({ T, children }) {
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 4,
+      background: T.bg, color: T.subtext,
+      fontSize: 10.5, fontWeight: 500,
+      fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.04em',
+      border: `1px solid ${T.border}`,
+    }}>{children}</span>
+  );
+}
+
 export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField }) {
+  // v0.5.29 #27 — title 与 source 分离（demo catalog.jsx L119-127 byte-equal）；
+  // source 走 SourceTag neutral chip 替代之前 "(TABLES)" 字面拼接
   const sections = [
-    { num: '01', key: 'tables', title: '表目录 (TABLES)', hint: 'JSON 数组：[{db, table, topics:[], summary}]，给 schema_filter 做主题加分。', mono: true },
-    { num: '02', key: 'lexicon', title: '业务词典 (LEXICON)', hint: 'JSON 对象：{业务词: [表全名优先级]}。问题命中词 → 把列表里的表加分入选。', mono: true },
-    { num: '03', key: 'business_rules', title: '业务规则 (BUSINESS_RULES)', hint: '纯文本/Markdown，注入到 Clarifier、SQL Planner、Presenter 的 system prompt。', mono: false },
+    { num: '01', key: 'tables', title: '表目录', source: 'tables', hint: 'JSON 数组：[{db, table, topics:[], summary}]，给 schema_filter 做主题加分。', mono: true },
+    { num: '02', key: 'lexicon', title: '业务词典', source: 'lexicon', hint: 'JSON 对象：{业务词: [表全名优先级]}。问题命中词 → 把列表里的表加分入选。', mono: true },
+    { num: '03', key: 'business_rules', title: '业务规则', source: 'business_rules', hint: '纯文本/Markdown，注入到 Clarifier、SQL Planner、Presenter 的 system prompt。', mono: false },
   ];
 
   return (
     <div>
-      {/* R-556 Helper banner brand inset — R-480 第九处闭环字面 + R-481 第四处闭环 + info svg */}
+      {/* v0.5.29 #25/26 — info icon path 改 demo byte-equal（filled dot + 更清晰 i 形）；
+          borderLeft 25% 移除（资深反馈"莫名其妙的深色边边"；v0.5.22 R-481 第四处闭环局部撤回 — 仅 catalog Helper） */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 10,
         padding: '12px 14px',
         background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
         border: `1px solid ${T.border}`,
-        borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
         borderRadius: 8,
         fontSize: 12, color: T.subtext, lineHeight: 1.55, marginBottom: 16,
       }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 2 }}>
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
+          <circle cx="12" cy="12" r="9"/>
+          <line x1="12" y1="11" x2="12" y2="16"/>
+          <circle cx="12" cy="8" r="0.6" fill={T.accent}/>
         </svg>
         <div>
           业务目录注入到 schema 检索 + 3 个 Agent prompt。优先级：DB（本面板编辑）→ 仓库 ohx_catalog.py（部署方填）→ ohx_catalog.example.py（仓库默认）。
@@ -61,13 +77,15 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
         </div>
       </div>
 
-      {sections.map(({ num, key, title, hint, mono }) => (
+      {sections.map(({ num, key, title, source, hint, mono }) => (
         // R-559 Section radius 12 + padding 升级（与 v0.5.21 Card 一致）
         <div key={key} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 14, overflow: 'hidden' }}>
-          {/* R-558 Section header — number chip + title + actions 右对齐 */}
+          {/* R-558 Section header — number chip + title + source neutral tag + override chip + actions 右对齐 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: `1px solid ${T.border}` }}>
             <NumChip T={T} num={num}/>
             <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{title}</div>
+            {/* v0.5.29 #27 source neutral tag — demo `<Tag tone="neutral">` byte-equal */}
+            <SourceTag T={T}>{source}</SourceTag>
             {catalog.overrides?.[key] && <OverrideChip T={T}/>}
             <div style={{ flex: 1 }}/>
             <div style={{ display: 'flex', gap: 8 }}>
