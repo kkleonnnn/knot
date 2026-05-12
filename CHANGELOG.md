@@ -5,7 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.43 (Backend) sql_planner prompt 专家身份框定 — 笛卡尔积第 5 层防御
+## [Unreleased] - v0.5.44 (Backend+UX) RELATIONS 业务目录 UI — 笛卡尔积根因解
+
+> 资深"⭐⭐ 业务目录加 RELATIONS 配置入口"。catalog DB 第 4 键落地（之前仅 .py 文件维护，gitignored ohx_catalog.py 普通 admin 不可见 → agent 无 JOIN key 指引 → 瞎猜笛卡尔积根因）。
+
+### Changed (Backend)
+
+#### `catalog.py` `_load_from_db` 加 relations
+
+之前返回 4 项 (lex/tables/rules/found)，改为返回 **5 项** (lex/tables/rules/relations/found)：
+
+- 新 DB 键 `catalog.relations`（JSON list of `[left_t, left_c, right_t, right_c, semantics?]`）
+- 解析时过滤 len < 4 的无效条目
+- found_any 判定加入 relations
+
+#### `catalog.py` `reload()` 4 键合并
+
+之前 RELATIONS 仅 file 来源（注释明示"db 暂无 UI"）→ 现 **DB 覆盖优先 + file fallback**（与 LEXICON/TABLES/BUSINESS_RULES 一致）。
+
+#### `catalog.py` `get_defaults_from_files()` 返 relations
+
+新加 `relations: [list(r) for r in f_relations]`（tuple → list JSON-friendly）。
+
+#### `/api/admin/catalog` GET 加 relations
+
+- `current.relations`
+- `defaults.relations`
+- `db_overrides.relations`
+
+#### `/api/admin/catalog` PUT 加 relations 验证
+
+- 必须 `list of [≥4 元素]` tuple
+- 空 array → 清除 DB 覆盖回退 file
+- audit log
+
+#### `/api/admin/catalog/reset` 4 字段全清
+
+`valid` 集合加 'relations'；fields 缺省扩展。
+
+### Changed (Frontend)
+
+#### `tab_system.jsx` 加第 4 section
+
+`sections` 数组 3 → 4：
+
+```js
+{ num: '04', key: 'relations', title: '表关系', source: 'relations',
+  hint: 'JSON 数组：[[left_table, left_col, right_table, right_col, semantics?]]。多表 JOIN ON 关联键来源，sql_planner 必读防笛卡尔积。', mono: true }
+```
+
+#### `Admin.jsx` state + load 加 relations
+
+- `catalog` initialState 加 `relations: ''` + `defaults.relations: []` + `overrides.relations: false`
+- catalog tab load 时 setCatalog 加 `relations: JSON.stringify(d.current.relations || [], null, 2)`
+
+#### `Admin.jsx` saveCatalogField 加 relations 校验
+
+- 默认空数组 (与 tables 同)
+- 必须 Array
+- 每项必须 ≥4 元素 tuple
+
+### 防笛卡尔积 6 层防御完整链路
+
+| 层 | 位置 | 落地版本 |
+|---|---|---|
+| 1 | catalog RELATIONS 注入 | v0.4.1.1 |
+| 2 | prompt JOIN 硬约束 | v0.4.1.1 |
+| 3 | sql_validator AST C1-C4 | v0.5.1 |
+| 4 | R-91 retry counter | v0.5.1 |
+| 5 | prompt 专家身份 + ✓/✗ 对照 | v0.5.43 |
+| **6** | **RELATIONS admin UI（根因解）** | **v0.5.44** |
+
+### 版本同步
+
+- main.py 0.5.44 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+- routes count 77 不变（catalog 3 endpoints 字段扩展，无新路由）
+
+---
+
+## v0.5.43 (Backend) sql_planner prompt 专家身份框定 — 笛卡尔积第 5 层防御
 
 > 资深架构师反馈"Claude 4.6 还会生成笛卡尔积"。现有 4 层防御（catalog RELATIONS / prompt 硬约束 / sql_validator AST / R-91 retry counter）后增第 5 层：**prompt 重构 — 专家身份 + 正例/反例对照**。
 

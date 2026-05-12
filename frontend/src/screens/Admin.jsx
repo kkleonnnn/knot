@@ -44,11 +44,11 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const [promptsSaving, setPromptsSaving] = useState({});
   const [pmUploading, setPmUploading] = useState(false);
   const pmFileRef = useRef(null);
-  // v0.2.5: catalog tab
+  // v0.2.5: catalog tab; v0.5.44 加 relations 字段
   const [catalog, setCatalog] = useState({
-    tables: '', lexicon: '', business_rules: '',
-    source: '', defaults: { tables: [], lexicon: {}, business_rules: '', source: '' },
-    overrides: { tables: false, lexicon: false, business_rules: false },
+    tables: '', lexicon: '', business_rules: '', relations: '',
+    source: '', defaults: { tables: [], lexicon: {}, business_rules: '', relations: [], source: '' },
+    overrides: { tables: false, lexicon: false, business_rules: false, relations: false },
   });
   const [catalogSaving, setCatalogSaving] = useState({});
 
@@ -89,9 +89,10 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
             tables: JSON.stringify(d.current.tables || [], null, 2),
             lexicon: JSON.stringify(d.current.lexicon || {}, null, 2),
             business_rules: d.current.business_rules || '',
+            relations: JSON.stringify(d.current.relations || [], null, 2),  // v0.5.44
             source: d.source || '',
-            defaults: d.defaults || { tables: [], lexicon: {}, business_rules: '', source: '' },
-            overrides: d.db_overrides || { tables: false, lexicon: false, business_rules: false },
+            defaults: d.defaults || { tables: [], lexicon: {}, business_rules: '', relations: [], source: '' },
+            overrides: d.db_overrides || { tables: false, lexicon: false, business_rules: false, relations: false },
           });
         }
       }
@@ -228,14 +229,22 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
       if (field === 'business_rules') {
         value = catalog.business_rules;
       } else {
+        // v0.5.44 — relations 默认空数组（与 tables 同）
+        const defaultEmpty = (field === 'tables' || field === 'relations') ? '[]' : '{}';
         try {
-          value = JSON.parse(catalog[field] || (field === 'tables' ? '[]' : '{}'));
+          value = JSON.parse(catalog[field] || defaultEmpty);
         } catch (e) {
           toast(`${field} 不是合法 JSON: ${e.message}`, true);
           return;
         }
         if (field === 'tables' && !Array.isArray(value)) { toast('tables 必须是数组', true); return; }
         if (field === 'lexicon' && (typeof value !== 'object' || Array.isArray(value))) { toast('lexicon 必须是对象', true); return; }
+        if (field === 'relations') {
+          if (!Array.isArray(value)) { toast('relations 必须是数组', true); return; }
+          for (const r of value) {
+            if (!Array.isArray(r) || r.length < 4) { toast('relations 每项必须 ≥4 元素 [left_t, left_c, right_t, right_c, semantics?]', true); return; }
+          }
+        }
       }
       const r = await api.put('/api/admin/catalog', { [field]: value });
       toast(`已保存（生效来源：${r.source}）`);

@@ -46,12 +46,12 @@ function SourceTag({ T, children }) {
 }
 
 export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField }) {
-  // v0.5.29 #27 — title 与 source 分离（demo catalog.jsx L119-127 byte-equal）；
-  // source 走 SourceTag neutral chip 替代之前 "(TABLES)" 字面拼接
+  // v0.5.44 — 加第 4 section 表关系（RELATIONS）— 笛卡尔积根因解 (admin UI 替代 gitignored .py)
   const sections = [
     { num: '01', key: 'tables', title: '表目录', source: 'tables', hint: 'JSON 数组：[{db, table, topics:[], summary}]，给 schema_filter 做主题加分。', mono: true },
     { num: '02', key: 'lexicon', title: '业务词典', source: 'lexicon', hint: 'JSON 对象：{业务词: [表全名优先级]}。问题命中词 → 把列表里的表加分入选。', mono: true },
     { num: '03', key: 'business_rules', title: '业务规则', source: 'business_rules', hint: '纯文本/Markdown，注入到 Clarifier、SQL Planner、Presenter 的 system prompt。', mono: false },
+    { num: '04', key: 'relations', title: '表关系', source: 'relations', hint: 'JSON 数组：[[left_table, left_col, right_table, right_col, semantics?]]。多表 JOIN ON 关联键来源，sql_planner 必读防笛卡尔积。', mono: true },
   ];
 
   return (
