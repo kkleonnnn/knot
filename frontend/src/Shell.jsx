@@ -51,23 +51,27 @@ export function AppShell({
                             onClick={() => onNavigate('admin-sources')}/>
                 <SideNavRow T={T} icon={<I.users/>} label="用户" active={active === 'admin-users'}
                             onClick={() => onNavigate('admin-users')}/>
-                <SideNavRow T={T} icon={<I.sparkle/>} label="API &amp; 模型" active={active === 'admin-models'}
+                {/* v0.5.26 #18 API & 模型 icon sparkle → zap (lightning bolt — demo 风格) */}
+                <SideNavRow T={T} icon={<I.zap/>} label="API &amp; 模型" active={active === 'admin-models'}
                             onClick={() => onNavigate('admin-models')}/>
                 <SideNavRow T={T} icon={<I.book/>} label="知识库" active={active === 'admin-knowledge'}
                             onClick={() => onNavigate('admin-knowledge')}/>
-                <SideNavRow T={T} icon={<I.zap/>} label="Few-shot 示例" active={active === 'admin-fewshots'}
+                {/* v0.5.26 #18 Few-shot icon zap → flask (Q2 VRP 局部例外 — Shared 无 I.flask) */}
+                <SideNavRow T={T} icon={<FlaskIcon/>} label="Few-shot 示例" active={active === 'admin-fewshots'}
                             onClick={() => onNavigate('admin-fewshots')}/>
                 <SideNavRow T={T} icon={<I.pencil/>} label="Prompt 模板" active={active === 'admin-prompts'}
                             onClick={() => onNavigate('admin-prompts')}/>
-                <SideNavRow T={T} icon={<I.gear/>} label="业务目录" active={active === 'admin-catalog'}
+                {/* v0.5.26 #18 业务目录 icon gear → folder-tree (Q2 VRP) */}
+                <SideNavRow T={T} icon={<FolderIcon/>} label="业务目录" active={active === 'admin-catalog'}
                             onClick={() => onNavigate('admin-catalog')}/>
                 {/* admin 看板（R-202: emoji 前缀 → SVG icon 统一） */}
-                <SideNavRow T={T} icon={<I.zap/>} label="预算" active={active === 'admin-budgets'}
+                {/* v0.5.26 #18 预算 icon zap → wallet (Q2 VRP) */}
+                <SideNavRow T={T} icon={<WalletIcon/>} label="预算" active={active === 'admin-budgets'}
                             onClick={() => onNavigate('admin-budgets')}/>
                 <SideNavRow T={T} icon={<I.shield/>} label="Recovery" active={active === 'admin-recovery'}
                             onClick={() => onNavigate('admin-recovery')}/>
-                {/* v0.4.6 D3 落地：审计日志 */}
-                <SideNavRow T={T} icon={<I.book/>} label="审计日志" active={active === 'admin-audit'}
+                {/* v0.5.26 #18 审计日志 icon book → clipboard-check (Q2 VRP) */}
+                <SideNavRow T={T} icon={<ClipboardCheckIcon/>} label="审计日志" active={active === 'admin-audit'}
                             onClick={() => onNavigate('admin-audit')}/>
               </>
             )}
@@ -157,25 +161,24 @@ export function SideHeading({ T, children }) {
   );
 }
 
+// v0.5.26 #18 — 4 inline svg icons（Q2 VRP 局部例外 — Shared 无 flask/folder/wallet/clipboard）
+const FlaskIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M9 2h6m-5 0v6L4 20a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 20l-6-12V2"/></svg>;
+const FolderIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>;
+const WalletIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
+const ClipboardCheckIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
+
 export function SideNavRow({ T, icon, label, active, onClick }) {
-  // R-203 + Q4: active 指示改 absolute span 2px brand bar 右侧（避 overflow:hidden 裁切）
-  // Q2 加码: Label ellipsis 防 224px 宽度下中文长 label 溢出
+  // v0.5.26 #11/#17 — active 指示纯 bg 填充 color-mix 12%
+  // （删 R-203 absolute span 3px brand bar — 资深反馈"边边很丑"，bg 填充已足够辨识）
   return (
     <div onClick={onClick} style={{
-      position: 'relative',
       display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
-      margin: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-      background: active ? T.accentSoft : 'transparent',
+      margin: '0 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+      background: active ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
       color: active ? T.accent : T.subtext,
       fontWeight: active ? 500 : 400,
       marginBottom: 1,
     }}>
-      {active && <span style={{
-        position: 'absolute', right: 0, top: '50%',
-        transform: 'translateY(-50%)',
-        width: 2, height: '60%',
-        background: T.accent, borderRadius: 2,
-      }}/>}
       <span style={{ display: 'inline-flex', flexShrink: 0 }}>{icon}</span>
       <span style={{
         flex: 1, minWidth: 0,
