@@ -5,7 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.35 (UX) Knowledge tab 完整 UI — demo 重写第 4/6 板块
+## [Unreleased] - v0.5.36 (UX) Few-shot tab 完整 UI — demo 重写第 5/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 5 张 Few-shot tab。当前 UI 仅 5-col 简表，本 PATCH 重做为 card-based layout 对照 demo `fewshot.jsx`。
+
+### Added
+
+#### Intro banner（demo `fewshot.jsx:L85-89` byte-equal）
+
+- `sql_planner` Tag + borderLeft 2px brandSoftBorder + 检索说明文案
+- 文案"检索 top-k(=3) 相似问题并拼到 prompt 之前。命中越多说明示例越通用..."
+
+#### Count + type filter row（demo L92-100 byte-equal）
+
+- "共 N 条示例"（N mono fontWeight 600）
+- 动态 type tag list（neutral chip — T.bg + T.subtext + border + mono uppercase）
+- 从 `fewShots` 自动提取唯一 type 值
+
+#### Example card layout（demo L103-145 重设计）
+
+替代原 5-col 表 → 每个 example 一个 card：
+
+| 元素 | 字段 | 备注 |
+|---|---|---|
+| Flask icon avatar | inline svg | Q2 VRP 局部例外（Shared 无 I.flask） |
+| Question | `f.question` bold | demo byte-equal |
+| Meta line | `fs.{f.id}` + 启用/停用 | demo "更新于 X" deferred 后端无 updated_at |
+| Type tag | `f.type` neutral chip | demo byte-equal |
+| Hits placeholder | `—` + chart icon + HITS label | 推 v0.5.38 后端 hit 计数 |
+| Actions | 编辑 / 删除 | 复用 onEdit / onDelete handlers |
+| SQL block | mono + T.bg + pre + max-height 240 | demo byte-equal |
+
+### Deferred
+
+- 真实 hit 计数 → v0.5.38 后端 `fewshot.hit_count` 列
+- 更新时间 → v0.5.38 后端 `fewshot.updated_at` 列
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ Admin.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_knowledge.jsx fewshots 段重写）。
+
+### 版本同步
+
+- main.py 0.5.36 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.35 (UX) Knowledge tab 完整 UI — demo 重写第 4/6 板块
 
 > 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 4 张 Knowledge tab。当前 UI 仅"暂无文档"占位，本 PATCH 添加完整 UI 对照 demo `knowledge.jsx`。
 

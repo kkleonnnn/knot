@@ -159,34 +159,108 @@ export function TabKnowledge({ T, tab, knowledgeDocs, onDeleteKbDoc, onUploadKb,
       )}
 
       {tab === 'fewshots' && (
-        <div>
-          <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 14, lineHeight: 1.55 }}>
-            管理 SQL Agent 的 few-shot 示例。DB 为空时自动回退到内置 yaml；上传 xlsx 可批量导入（列：question / sql / type / is_active）。
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* v0.5.36 intro banner — demo fewshot.jsx L85-89 byte-equal（sql_planner Tag + borderLeft 2px brandSoftBorder + 文案） */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            padding: '10px 14px',
+            borderLeft: `2px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
+            fontSize: 12, color: T.subtext, lineHeight: 1.55,
+          }}>
+            <span style={{
+              padding: '2px 8px', borderRadius: 4,
+              background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
+              color: T.accent,
+              fontSize: 11, fontWeight: 500, fontFamily: T.mono,
+              textTransform: 'uppercase', letterSpacing: '0.02em',
+              flexShrink: 0,
+            }}>sql_planner</span>
+            <span>检索 top-k(=3) 相似问题并拼到 prompt 之前。命中越多说明示例越通用，可以适当下沉到 system prompt</span>
           </div>
+
+          {/* v0.5.36 count + type filter row — demo L92-100 byte-equal（共 N 条示例 + 动态 type 标签）*/}
+          {fewShots.length > 0 && (() => {
+            const types = [...new Set(fewShots.map(f => f.type).filter(Boolean))];
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                <span style={{ color: T.muted }}>共</span>
+                <span style={{ fontFamily: T.mono, fontWeight: 600, color: T.text }}>{fewShots.length}</span>
+                <span style={{ color: T.muted }}>条示例</span>
+                <div style={{ flex: 1 }}/>
+                {types.map(tg => (
+                  <span key={tg} style={{
+                    padding: '2px 8px', borderRadius: 4,
+                    background: T.bg, color: T.subtext,
+                    fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                    border: `1px solid ${T.border}`,
+                  }}>{tg}</span>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* v0.5.36 example cards — demo L103-145 byte-equal（flask icon + question + id/upd + tags + hits + actions + SQL block）*/}
           {fewShots.length === 0 ? (
             <div style={{ padding: '40px 24px', textAlign: 'center', color: T.muted, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>
               暂无示例 · 点击右上角「新建」或上传 xlsx
             </div>
           ) : (
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-              {/* R-588 thead R-480 闭环字面本文件第二处命中 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 0.8fr 0.6fr 80px', padding: '9px 16px', ...theadStyle(T) }}>
-                <div>问题</div><div>SQL</div><div>类型</div><div>状态</div><div></div>
-              </div>
-              {fewShots.map((f, i) => (
-                <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 0.8fr 0.6fr 80px', padding: '11px 16px', borderBottom: i < fewShots.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5 }}>
-                  {/* R-590 Row 5 字段 minWidth: 0 + ellipsis 兜底 */}
-                  <div style={{ color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.question}</div>
-                  <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.sql}</div>
-                  <div style={{ color: T.subtext, fontSize: 11.5, fontFamily: T.mono, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.type || '—'}</div>
-                  <div style={{ fontSize: 11.5, color: f.is_active ? T.success : T.muted, minWidth: 0 }}>{f.is_active ? '启用' : '禁用'}</div>
-                  <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            fewShots.map(f => (
+              <div key={f.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: `1px solid ${T.border}` }}>
+                  {/* flask icon avatar (Q2 VRP — Shared 无 I.flask 走 inline svg) */}
+                  <span style={{
+                    width: 30, height: 30, borderRadius: 8,
+                    background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                    color: T.accent,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 2h6m-5 0v6L4 20a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 20l-6-12V2"/>
+                    </svg>
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.question}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>fs.{f.id}</span>
+                      <span style={{ fontSize: 10, color: T.muted }}>·</span>
+                      <span style={{ fontSize: 11, color: f.is_active ? T.success : T.muted }}>{f.is_active ? '启用中' : '已停用'}</span>
+                    </div>
+                  </div>
+                  {/* type tag */}
+                  {f.type && (
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 4,
+                      background: T.bg, color: T.subtext,
+                      fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                      border: `1px solid ${T.border}`,
+                    }}>{f.type}</span>
+                  )}
+                  {/* hits placeholder — 后端无 hit 计数，推 v0.5.38 */}
+                  <div title="后端命中计数对接中 (v0.5.38)" style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6, fontSize: 12, color: T.muted }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 20h18M4 16l5-6 4 3 7-8"/>
+                    </svg>
+                    <span style={{ fontFamily: T.mono }}>—</span>
+                    <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em' }}>HITS</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
                     <button onClick={() => onEditFewShot(f)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
                     <button onClick={() => onDeleteFewShot(f.id)} style={iconBtn(T)} title="删除"><I.trash/></button>
                   </div>
                 </div>
-              ))}
-            </div>
+                {/* SQL block — bgInset + mono + pre */}
+                <div style={{
+                  padding: '12px 18px',
+                  fontFamily: T.mono, fontSize: 12, lineHeight: 1.6,
+                  color: T.subtext, background: T.bg,
+                  whiteSpace: 'pre', overflowX: 'auto',
+                  maxHeight: 240,
+                }}>{f.sql}</div>
+              </div>
+            ))
           )}
         </div>
       )}
