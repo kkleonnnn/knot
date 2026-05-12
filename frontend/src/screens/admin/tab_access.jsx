@@ -1,9 +1,29 @@
 // v0.5.3: extracted from Admin.jsx L295-343 (Users + Sources tab JSX dumb renderer)
 // D4 mapping: Access (Users + Sources) — 访问与连接
+// v0.5.40: Sources Hero card 真数据 from /api/admin/datasources-stats
+import { useEffect, useState } from 'react';
 import { I, iconBtn } from '../../Shared.jsx';
+import { api } from '../../api.js';
+
+// v0.5.40 — 上次心跳 relative time helper
+function _heartbeatRelative(iso) {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return '—';
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if (sec < 60) return `${sec}s 前`;
+  if (sec < 3600) return `${Math.floor(sec / 60)} 分钟前`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)} 小时前`;
+  return `${Math.floor(sec / 86400)} 天前`;
+}
 
 export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
                           onEditSource, onDeleteSource, roleChip }) {
+  // v0.5.40 — DataSources Hero stats（仅 sources tab 激活时 fetch）
+  const [dsStats, setDsStats] = useState(null);
+  useEffect(() => {
+    if (tab === 'sources') api.get('/api/admin/datasources-stats').then(setDsStats).catch(() => {});
+  }, [tab]);
   return (
     <>
       {tab === 'users' && (
@@ -43,17 +63,18 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>已连接</div>
               <div style={{ fontSize: 22, fontWeight: 600, color: T.success, letterSpacing: '-0.01em' }}>{sources.length}</div>
             </div>
-            <div title="后端数据对接中 (v0.6+)" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
+            {/* v0.5.40 — 真数据 from /api/admin/datasources-stats */}
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总 schema</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono }}>—</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? dsStats.total_schemas : '—'}</div>
             </div>
-            <div title="后端数据对接中 (v0.6+)" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总表数</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono }}>—</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? dsStats.total_tables : '—'}</div>
             </div>
-            <div title="后端数据对接中 (v0.6+)" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>上次心跳</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono }}>—</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? _heartbeatRelative(dsStats.last_heartbeat) : '—'}</div>
             </div>
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>

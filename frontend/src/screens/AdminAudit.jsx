@@ -84,8 +84,11 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
   // v0.5.32 — 加 sincePreset state（demo 24h/7d/30d 下拉 + 客户端转 since ISO）；resource_kw 替代 resource_type 字面（保后端字段名）
   const [filter, setFilter] = useState({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' });
   const [drawerRow, setDrawerRow] = useState(null);  // 详情抽屉
+  const [stats, setStats] = useState(null);  // v0.5.40 — { total, today, failed, distinct_users }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, size]);
+  // v0.5.40 — load stats once on mount
+  useEffect(() => { api.get('/api/admin/audit-stats').then(setStats).catch(() => {}); }, []);
 
   async function load() {
     setLoading(true);
@@ -128,23 +131,25 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* R-405 Stat 4-card grid + R-394 auto-fit + Q1 tooltip placeholder (4 inline cards for grep ≥4) */}
+          {/* v0.5.40 Stat 4-card grid — 真数据 from /api/admin/audit-stats（{total, today, failed, distinct_users}）*/}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>总记录数</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.total.toLocaleString() : '—'}</span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>今日</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.today.toLocaleString() : '—'}</span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>失败数</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={{ ...statValueStyle(T), color: stats && stats.failed > 0 ? T.warn : T.text }}>
+                {stats ? stats.failed.toLocaleString() : '—'}
+              </span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>涉及用户</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.distinct_users.toLocaleString() : '—'}</span>
             </div>
           </div>
 

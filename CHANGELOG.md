@@ -5,7 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.39 (UX) Trace agent 4th step — 思考过程 K→N→O→T 收齐
+## [Unreleased] - v0.5.40 (Backend) 真数据收尾 — Audit / Budget / DataSources 3 stats endpoints
+
+> 资深架构师 v0.5.x 收官最后一项后端 PATCH。3 个 stats 聚合 endpoint 补齐前端 Hero / Stats card 中的 `—` placeholder。
+
+### Added (Backend)
+
+#### `GET /api/admin/audit-stats` (admin only)
+
+聚合 `audit_log` 表，返回：
+
+```json
+{ "total": int, "today": int, "failed": int, "distinct_users": int }
+```
+
+SQL: 单 query 同时 SUM (CASE WHEN ...) 4 个聚合字段，无 N+1。
+
+#### `GET /api/admin/budgets-stats` (admin only)
+
+聚合 `messages` 表当月数据 + 取 global monthly_tokens budget cap：
+
+```json
+{ "tokens_used": int, "cost_usd": float, "usage_pct": float|null, "cap": int|null }
+```
+
+- `tokens_used`: SUM(input_tokens + output_tokens) WHERE strftime('%Y-%m', created_at) = current month
+- `cost_usd`: SUM(cost_usd) 同条件
+- `cap`: 取 enabled global monthly_tokens budget threshold（无配置 null）
+- `usage_pct`: tokens_used / cap × 100（无 cap null）
+
+#### `GET /api/admin/datasources-stats` (admin only)
+
+聚合 `data_sources` + `semantic_layer`：
+
+```json
+{ "total_schemas": int, "total_tables": int, "last_heartbeat": ISO string|null }
+```
+
+- `total_schemas`: COUNT(DISTINCT db_database) WHERE is_active = 1
+- `total_tables`: SUM of `###` 分隔块 in semantic_layer.schema_text（与 `/api/db/status` tables 字段约定一致）
+- `last_heartbeat`: MAX(created_at) of active data_sources（创建时间近似；真实 heartbeat 推 v0.6+）
+
+### Wired Frontend (3 屏 stats 真值)
+
+| 屏 | placeholder | → 真值 |
+|---|---|---|
+| AdminAudit | 4 Stat cards (总记录数/今日/失败数/涉及用户) | useEffect fetch + render |
+| AdminBudgets | Hero 4-block (本月已用/预计花费/使用率) + progress bar | useEffect + width binding |
+| tab_access Sources | Hero 4 cards (总 schema/总表数/上次心跳) + 相对时间 helper | useEffect on tab='sources' + `_heartbeatRelative` |
+
+### Deferred (推 v0.5.41+)
+
+- Knowledge file_size 列扩展（schema migration）
+- Few-shot hit_count + updated_at 列扩展
+- Prompt version_log 表 + GET endpoint
+- 真实 source heartbeat（独立 endpoint 测每 source test_connection）
+
+### 版本同步
+
+- main.py 0.5.40 + smoke 字面 + **routes count 72 → 75**（v0.4.6 锚点首次扩张）
+- Login.jsx 页脚 + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.39 (UX) Trace agent 4th step — 思考过程 K→N→O→T 收齐
 
 > 资深架构师 #41 / 本批最后一项追溯链路偿还。前端推导信任度 + 4th agent T 卡片渲染（demo `thinking.jsx` 4-STEPS byte-equal）。
 

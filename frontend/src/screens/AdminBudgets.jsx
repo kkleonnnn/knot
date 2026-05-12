@@ -72,8 +72,11 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
     threshold: 5, action: 'warn',
   });
   const [editingId, setEditingId] = useState(null);
+  const [bstats, setBstats] = useState(null);  // v0.5.40 — { tokens_used, cost_usd, usage_pct, cap }
 
   useEffect(() => { load(); }, []);
+  // v0.5.40 — Hero card 真数据
+  useEffect(() => { api.get('/api/admin/budgets-stats').then(setBstats).catch(() => {}); }, []);
 
   async function load() {
     setLoading(true);
@@ -143,17 +146,28 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               （部分聚合 sustained：本月已用/预计花费/使用率 placeholder，待 v0.5.38 后端聚合 endpoint） */}
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginBottom: 14, flexWrap: 'wrap' }}>
-              <div title="后端聚合 API 对接中 (v0.5.38)" style={{ minWidth: 0 }}>
+              {/* v0.5.40 Hero 真数据 from /api/admin/budgets-stats */}
+              <div style={{ minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>本月已用 token</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', fontFamily: T.sans, lineHeight: 1, color: T.text }}>—</span>
-                  <span style={{ fontSize: 14, color: T.muted }}>/ —</span>
-                  <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 12%, transparent)`, color: T.accent, fontSize: 11, fontWeight: 500, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.02em' }}>—%</span>
+                  <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', fontFamily: T.sans, lineHeight: 1, color: T.text }}>
+                    {bstats ? bstats.tokens_used.toLocaleString() : '—'}
+                  </span>
+                  <span style={{ fontSize: 14, color: T.muted }}>
+                    {bstats && bstats.cap ? `/ ${bstats.cap.toLocaleString()}` : '/ —'}
+                  </span>
+                  {bstats && bstats.usage_pct !== null && (
+                    <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 12%, transparent)`, color: T.accent, fontSize: 11, fontWeight: 500, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      {bstats.usage_pct}%
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ flex: 1, borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>预计花费</div>
-                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.sans, marginTop: 4, color: T.text }}>—</div>
+                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.sans, marginTop: 4, color: T.text }}>
+                  {bstats ? `$ ${bstats.cost_usd.toFixed(4)}` : '—'}
+                </div>
               </div>
               <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>已配置预算项</div>
@@ -166,13 +180,14 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
                 </div>
               </div>
             </div>
-            {/* R-461 progress bar — transition 0.3s 动效预留（即使 0% 也含 transition） */}
+            {/* v0.5.40 progress bar — width from usage_pct（无 cap 时 0% 占位）*/}
             <div style={{ height: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 99, overflow: 'hidden' }}>
               <div style={{
-                width: '0%', height: '100%',
+                width: bstats && bstats.usage_pct !== null ? `${Math.min(100, bstats.usage_pct)}%` : '0%',
+                height: '100%',
                 background: T.accent,
                 transition: 'width 0.3s ease-in-out',
-                opacity: 0.5,
+                opacity: bstats && bstats.usage_pct !== null ? 1 : 0.5,
               }}/>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.muted, marginTop: 8, fontFamily: T.mono }}>

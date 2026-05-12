@@ -407,3 +407,102 @@ async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)
     elif s.isdigit():
         days = max(1, int(s))
     return budget_service.get_recovery_trend(period_days=days)
+
+
+# ─── v0.5.40 后端真数据 stats endpoints ──────────────────────────────────
+
+@router.get("/api/admin/audit-stats")
+async def admin_audit_stats(admin=Depends(require_admin)):
+    """v0.5.40 — 审计日志聚合 stats（总记录数/今日/失败数/涉及用户）。"""
+    from knot.repositories import get_conn
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN date(created_at) = date('now', 'localtime') THEN 1 ELSE 0 END) AS today,
+          SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failed,
+          COUNT(DISTINCT actor_id) AS distinct_users
+        FROM audit_log
+        """
+    ).fetchone()
+    conn.close()
+    return {
+        "total": row[0] or 0,
+        "today": row[1] or 0,
+        "failed": row[2] or 0,
+        "distinct_users": row[3] or 0,
+    }
+
+
+@router.get("/api/admin/budgets-stats")
+async def admin_budgets_stats(admin=Depends(require_admin)):
+    """v0.5.40 — 预算 Hero card 聚合 stats（本月已用 token / 预计花费 / 使用率）。
+
+    本月已用 token: SUM(input_tokens + output_tokens) 当月 messages
+    预计花费: SUM(cost_usd) 当月 messages
+    使用率: 若有 global monthly_tokens budget 配置 → tokens_used / threshold
+    """
+    from knot.repositories import get_conn
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT
+          COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens_used,
+          COALESCE(SUM(cost_usd), 0) AS cost_usd
+        FROM messages
+        WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')
+        """
+    ).fetchone()
+    tokens_used = row[0] or 0
+    cost_usd = row[1] or 0.0
+    # 使用率 from global monthly_tokens budget（取 enabled threshold）
+    cap_row = conn.execute(
+        """
+        SELECT threshold FROM budgets
+        WHERE scope_type = 'global' AND budget_type = 'monthly_tokens' AND enabled = 1
+        LIMIT 1
+        """
+    ).fetchone()
+    conn.close()
+    cap = (cap_row[0] if cap_row else None)
+    usage_pct = (tokens_used / cap * 100) if (cap and cap > 0) else None
+    return {
+        "tokens_used": tokens_used,
+        "cost_usd": round(cost_usd, 4),
+        "usage_pct": round(usage_pct, 1) if usage_pct is not None else None,
+        "cap": cap,
+    }
+
+
+@router.get("/api/admin/datasources-stats")
+async def admin_datasources_stats(admin=Depends(require_admin)):
+    """v0.5.40 — DataSources Hero card 聚合 stats（总 schema / 总表数 / 上次心跳）。
+
+    总 schema: 已配置 datasources 中 distinct db_database 数（一个 source = 一个 schema）
+    总表数: 从 semantic_layer 缓存（每 source 的 schema_json 中 ### 分隔表数 sum）
+    上次心跳: 最近一次 datasources 心跳测试 = 最近 created_at 相对时间（近似实现）
+    """
+    from knot.repositories import get_conn
+    conn = get_conn()
+    schemas = conn.execute(
+        "SELECT COUNT(DISTINCT db_database) FROM data_sources WHERE is_active = 1"
+    ).fetchone()[0] or 0
+    # 总表数: 从 semantic_layer schema_json 中数 ### 分隔块
+    tables_total = 0
+    sem_rows = conn.execute("SELECT schema_text FROM semantic_layer").fetchall()
+    for r in sem_rows:
+        s = r[0] or ""
+        # 每个 ### 标记一张表（与 db/status endpoint 的 tables 字段一致约定）
+        tables_total += s.count("###")
+    # 上次心跳: data_sources 表最新 created_at（暂以创建时间近似；真实 heartbeat 推 v0.6+）
+    hb_row = conn.execute(
+        "SELECT MAX(created_at) FROM data_sources WHERE is_active = 1"
+    ).fetchone()
+    conn.close()
+    last_heartbeat = hb_row[0] if hb_row and hb_row[0] else None
+    return {
+        "total_schemas": schemas,
+        "total_tables": tables_total,
+        "last_heartbeat": last_heartbeat,
+    }
