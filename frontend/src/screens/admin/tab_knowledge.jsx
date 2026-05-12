@@ -266,41 +266,151 @@ export function TabKnowledge({ T, tab, knowledgeDocs, onDeleteKbDoc, onUploadKb,
       )}
 
       {tab === 'prompts' && (
-        <div>
-          <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 14, lineHeight: 1.55 }}>
-            覆盖 3 个 Agent 的 system prompt。留空则使用内置默认（不影响现有行为）。可使用占位符：clarifier 支持 {'{tables}'} {'{history}'}；sql_planner 支持 {'{max_steps}'} {'{db_env}'} {'{schema}'} {'{business_ctx}'}；presenter 支持 {'{today}'}。
-          </div>
-          {[
-            { key: 'clarifier',   label: 'Clarifier · 理解问题' },
-            { key: 'sql_planner', label: 'SQL Planner · 生成 SQL' },
-            { key: 'presenter',   label: 'Presenter · 整理洞察 + 质量检查' },
-          ].map(({ key, label }) => (
-            // R-592 Section radius 10→12 + padding 升级（与 v0.5.21/22 Card 一致）
-            <div key={key} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                {/* R-593 Section header — fontSize 14 + fontWeight 600 + letterSpacing -0.01em */}
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{label}</div>
-                {/* R-596 Spinner color hex 偿还 — 白色字面 → T.sendFg（R-484 sustained） */}
-                <button onClick={() => onSavePrompt(key)} disabled={promptsSaving[key]} style={{ ...pillBtn(T, true), padding: '4px 10px', fontSize: 11.5 }}>
-                  {promptsSaving[key] ? <><Spinner size={10} color={T.sendFg}/> 保存中</> : '保存'}
-                </button>
-              </div>
-              {/* R-594 textarea byte-equal — minHeight 140 + T.mono + T.inputBg + radius 7 */}
-              <textarea
-                value={prompts[key]}
-                onChange={e => setPrompts(p => ({ ...p, [key]: e.target.value }))}
-                placeholder="留空使用内置默认 prompt"
-                style={{
-                  width: '100%', minHeight: 140, resize: 'vertical',
-                  background: T.inputBg, color: T.text, fontFamily: T.mono, fontSize: 12,
-                  border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '8px 10px',
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          ))}
-        </div>
+        <PromptsView T={T} prompts={prompts} setPrompts={setPrompts}
+                     promptsSaving={promptsSaving} onSavePrompt={onSavePrompt}/>
       )}
     </>
+  );
+}
+
+// v0.5.37 PromptsView — demo prompts.jsx 重设计：3 agent tabs + editor + sidebar（注入变量 + 版本历史）
+const _AGENTS = [
+  { key: 'clarifier',   letter: 'K', desc: '澄清意图', vars: [
+    { name: '{tables}',  desc: '当前对话允许访问的表/列白名单' },
+    { name: '{history}', desc: '本对话的历史轮次摘要' },
+  ]},
+  { key: 'sql_planner', letter: 'N', desc: '生成 SQL', vars: [
+    { name: '{max_steps}',    desc: 'ReAct 最大步数（默认 6）' },
+    { name: '{db_env}',       desc: '当前用户的数据库环境（doris/mysql）' },
+    { name: '{schema}',       desc: '通过 schema_filter 圈定的表列' },
+    { name: '{business_ctx}', desc: '业务目录 lexicon + business_rules 注入' },
+  ]},
+  { key: 'presenter',   letter: 'T', desc: '整理洞察', vars: [
+    { name: '{today}', desc: '当前日期（UTC+8）' },
+  ]},
+];
+
+function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
+  const [activeKey, setActiveKey] = useState('clarifier');
+  const active = _AGENTS.find(a => a.key === activeKey);
+  const text = prompts[activeKey] || '';
+  const estTokens = Math.max(1, Math.round(text.length / 4)).toLocaleString();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* v0.5.37 agent tabs — demo prompts.jsx L83-105 byte-equal (letter chip + name mono + desc) */}
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, borderBottom: `1px solid ${T.border}`, marginBottom: 0 }}>
+        {_AGENTS.map(a => {
+          const isActive = a.key === activeKey;
+          return (
+            <button key={a.key} onClick={() => setActiveKey(a.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '14px 18px',
+              background: 'transparent', border: 'none',
+              borderBottom: `2px solid ${isActive ? T.accent : 'transparent'}`,
+              color: isActive ? T.text : T.muted,
+              cursor: 'pointer', fontFamily: T.sans, fontSize: 13,
+              marginBottom: -1,
+            }}>
+              <span style={{
+                width: 22, height: 22, borderRadius: 5,
+                background: isActive ? T.accent : T.bg,
+                color: isActive ? T.sendFg : T.muted,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, fontFamily: T.mono, letterSpacing: '0.04em',
+              }}>{a.letter}</span>
+              <span style={{ fontWeight: isActive ? 600 : 500, fontFamily: T.mono, fontSize: 12 }}>{a.key}</span>
+              <span style={{ fontSize: 11, color: T.muted }}>· {a.desc}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* v0.5.37 2-col grid: editor (1fr) + sidebar 320px */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 0, flex: 1, minHeight: 0, marginTop: 16, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden', background: T.card }}>
+        {/* editor */}
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* editor header (demo L110-121 byte-equal) */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 18px', borderBottom: `1px solid ${T.border}`,
+            fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}>
+            <I.pencil width="12" height="12"/>
+            <span>SYSTEM PROMPT · {active.key}</span>
+            {/* version tag — current 版本字面，真版本历史推 v0.5.38 */}
+            <span style={{
+              padding: '2px 8px', borderRadius: 4,
+              background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
+              color: T.accent, fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+              textTransform: 'uppercase', letterSpacing: '0.02em',
+            }}>v current</span>
+            <div style={{ flex: 1 }}/>
+            <span style={{ textTransform: 'none', letterSpacing: 0, fontSize: 11, color: T.muted }}>~{estTokens} tokens</span>
+            <button onClick={() => onSavePrompt(activeKey)} disabled={promptsSaving[activeKey]}
+                    style={{ ...pillBtn(T, true), padding: '4px 10px', fontSize: 11.5, textTransform: 'none', letterSpacing: 0 }}>
+              {promptsSaving[activeKey] ? <><Spinner size={10} color={T.sendFg}/> 保存中</> : '保存'}
+            </button>
+          </div>
+          {/* textarea (full-flex) */}
+          <textarea
+            value={text}
+            onChange={e => setPrompts(p => ({ ...p, [activeKey]: e.target.value }))}
+            placeholder="留空使用内置默认 prompt"
+            style={{
+              flex: 1, minHeight: 360, resize: 'none',
+              padding: '18px 20px',
+              fontFamily: T.mono, fontSize: 12.5, lineHeight: 1.7,
+              color: T.text, background: T.bg,
+              border: 'none', outline: 'none',
+              whiteSpace: 'pre',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* sidebar */}
+        <div style={{
+          borderLeft: `1px solid ${T.border}`,
+          background: T.card,
+          overflow: 'auto', padding: 18,
+          display: 'flex', flexDirection: 'column', gap: 18,
+        }}>
+          {/* 注入变量 (demo L138-153 byte-equal) */}
+          <div>
+            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+              注入变量
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {active.vars.map(v => (
+                <div key={v.name} style={{
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                  padding: '8px 10px',
+                  background: T.bg, borderRadius: 6,
+                  border: `1px solid ${T.border}`,
+                }}>
+                  <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, fontWeight: 500 }}>{v.name}</span>
+                  <span style={{ fontSize: 11, color: T.muted, lineHeight: 1.4 }}>{v.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 版本历史 (demo L155-180) — 真版本历史推 v0.5.38 后端 prompts.version_log */}
+          <div>
+            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+              版本历史
+            </div>
+            <div style={{
+              fontSize: 11.5, color: T.muted, lineHeight: 1.5,
+              padding: '10px 12px', background: T.bg,
+              borderRadius: 6, border: `1px solid ${T.border}`,
+            }}>
+              版本快照功能将在 v0.5.38+ 后端 prompts.version_log 落地。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

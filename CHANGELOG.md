@@ -5,7 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.36 (UX) Few-shot tab 完整 UI — demo 重写第 5/6 板块
+## [Unreleased] - v0.5.37 (UX) Prompt tab 重设计 — demo 重写第 6/6 板块（v0.5.x 6-demo 重写收官）
+
+> 资深架构师 v0.5.x 收官 6 demo 重写最后一张 Prompt tab。当前 3 sections 纵向堆叠 → demo `prompts.jsx` 标准 prompt editor 风格（tabs + editor + sidebar）。
+
+### Changed
+
+#### 3 sections 纵向 → 3 agent tabs 横向 + 2-col editor + sidebar
+
+新组件 `PromptsView`（同文件内）取代原 3 个 Card 堆叠渲染：
+
+**Layout（demo `prompts.jsx:L83-180` byte-equal）**：
+
+1. **Agent tabs row** (横向)
+   - 3 tabs: clarifier(K) / sql_planner(N) / presenter(T)
+   - Active tab: borderBottom 2px brand + letter chip brand bg
+   - Inactive: letter chip T.bg
+   - Format: `<letter chip> <name mono> · <desc>`
+
+2. **Editor (1fr)**
+   - Header: `<pencil> SYSTEM PROMPT · {key} <v current chip>` + token count + 保存 button (右侧)
+   - Textarea: 全 flex 高度 + T.mono 12.5px + line-height 1.7 + T.bg
+
+3. **Sidebar (320px)**
+   - **注入变量**: per-agent vars list（actual 后端字段 byte-equal — clarifier {tables}{history} / sql_planner {max_steps}{db_env}{schema}{business_ctx} / presenter {today}）
+   - **版本历史**: placeholder（推 v0.5.38 后端 prompts.version_log）
+
+### Computed
+
+- Token count: `Math.round(text.length / 4)` 启发式估算
+- Active agent state: local `useState('clarifier')`
+
+### Deferred
+
+- 真实版本历史 → v0.5.38 后端 prompts.version_log 表 + GET endpoint
+- 精确 token count → v0.5.38 后端 tiktoken-based 计算
+
+### v0.5.x 6-demo 重写收官
+
+| # | PATCH | demo 板块 | Status |
+|---|---|---|---|
+| 1 | v0.5.32 | audit.jsx | ✓ |
+| 2 | v0.5.33 | recovery.jsx | ✓ |
+| 3 | v0.5.34 | budget.jsx | ✓ |
+| 4 | v0.5.35 | knowledge.jsx | ✓ |
+| 5 | v0.5.36 | fewshot.jsx | ✓ |
+| 6 | v0.5.37 | prompts.jsx | ✓ |
+
+后续 v0.5.38 收尾后端 + trace 4th step。
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ Admin.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_knowledge.jsx prompts 段重写）。
+
+### 版本同步
+
+- main.py 0.5.37 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.36 (UX) Few-shot tab 完整 UI — demo 重写第 5/6 板块
 
 > 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 5 张 Few-shot tab。当前 UI 仅 5-col 简表，本 PATCH 重做为 card-based layout 对照 demo `fewshot.jsx`。
 
