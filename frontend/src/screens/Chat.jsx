@@ -191,13 +191,12 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   };
 
   const convList = convs.map(c => (
+    // v0.5.26 #11 — 移除 ugly borderLeft 2px + paddingLeft 抖动；改 brandSoft 12% + radius 8
     <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
-      borderRadius: 6, cursor: 'pointer',
-      background: c.id === activeConvId ? T.accentSoft : 'transparent',
+      borderRadius: 8, cursor: 'pointer',
+      background: c.id === activeConvId ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
       color: c.id === activeConvId ? T.accent : T.subtext, fontSize: 12.5,
-      borderLeft: c.id === activeConvId ? `2px solid ${T.accent}` : '2px solid transparent',
-      paddingLeft: c.id === activeConvId ? 8 : 10,
       fontWeight: c.id === activeConvId ? 500 : 400,
     }}>
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
