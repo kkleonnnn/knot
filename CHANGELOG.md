@@ -5,7 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.34 (UX) AdminBudgets visual改 — demo 重写第 3/6 板块
+## [Unreleased] - v0.5.35 (UX) Knowledge tab 完整 UI — demo 重写第 4/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 4 张 Knowledge tab。当前 UI 仅"暂无文档"占位，本 PATCH 添加完整 UI 对照 demo `knowledge.jsx`。
+
+### Added
+
+#### 4 stats 卡片（demo `knowledge.jsx:L58-75` byte-equal）
+
+- **文档数**: `knowledgeDocs.length` 真值
+- **总大小**: placeholder `—`（后端无 file_size 字段；推 v0.5.38）
+- **索引状态**: `indexedCount / total`（基于 `chunk_count > 0` 启发式）
+- **上次更新**: 相对时间（"X 小时前 / 昨天 / X 天前 / X 周前 / 上月"）
+
+#### Drag-drop upload zone（demo L77-95 byte-equal）
+
+- 1.5px dashed border + brandSoft bg
+- onDragOver / onDragLeave / onDrop 全 wired
+- 复用 Admin.jsx 现有 `handleKbUpload` 走 `/api/knowledge/upload`
+- dragOver 状态 transition 0.2s（25% → 50% border，8% → 12% bg）
+
+新 prop `onUploadKb` 注入 TabKnowledge 组件签名。
+
+#### 8-col 文档列表（demo L98-141 重设计）
+
+| 列 | 字段 | 来源 |
+|---|---|---|
+| File icon | filename ext (PDF warn / 其他 brand) | FileIcon helper |
+| 文档名 | `d.name` | 真值 |
+| 类型 | filename ext 推断 chip | brandSoft 8% chip |
+| 大小 | `—` | placeholder (v0.5.38) |
+| 更新 | 相对时间 | `_relativeTime(created_at)` |
+| 命中 | `chunk_count` | 真值（demo: 实际命中数，本地用分块数替代） |
+| 状态 | `chunk_count > 0 ? '已索引' : '待索引'` | 启发式 |
+| 操作 | 删除 button | 真值 |
+
+### Helpers added
+
+- `FileIcon({ T, type })` — demo L39-47 byte-equal 双色样式
+- `_relativeTime(iso)` — 6 档相对时间映射
+
+### Deferred
+
+- 真实文件大小 / 真实命中数 / 重建索引 button → **v0.5.38 后端扩展**
+- 文档 download button → 同上
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ 16 屏视觉 byte-equal（仅 tab_knowledge.jsx + Admin.jsx 一行 prop 注入）。
+
+### 版本同步
+
+- main.py 0.5.35 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.34 (UX) AdminBudgets visual改 — demo 重写第 3/6 板块
 
 > 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 3 张 AdminBudgets。demo 用单一 global config 模型，本 PATCH 保留 multi-scope CRUD 但视觉对齐 demo Hero 卡片 + Rules note 风格。
 

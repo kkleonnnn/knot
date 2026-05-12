@@ -328,7 +328,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
 
         {(tab === 'knowledge' || tab === 'fewshots' || tab === 'prompts') && (
           <TabKnowledge T={T} tab={tab}
-                        knowledgeDocs={knowledgeDocs} onDeleteKbDoc={deleteKbDoc}
+                        knowledgeDocs={knowledgeDocs} onDeleteKbDoc={deleteKbDoc} onUploadKb={handleKbUpload}
                         fewShots={fewShots}
                         onEditFewShot={(f) => setModal({ type: 'fewshot', data: f })}
                         onDeleteFewShot={deleteFewShot}
