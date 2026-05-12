@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.25 (UX) Login 视觉优化 — 资深架构师反馈 #1/2/3 偿还
+
+> 资深架构师 v0.5.x 收官测试反馈 #1/2/3：Login 页面视觉问题。
+
+### Changed
+
+- **#1 NarrativeMotif 原子图缩小到 demo 比例**：`width 540×height 630` → `width 380×height 440`；`maxWidth 85%/maxHeight 90%` → `60%/65%`
+- **#2 左右 panel 中间灰线删除**：Login.jsx Left panel `borderRight: \`1px solid ${T.border}\`` → 删除
+- **#3 页脚文案更新**：`v0.5.24 · KNOT 内部系统` → `v0.5.25 · build 20260512`（match demo 格式 `v{version} · build {YYYYMMDD}`）
+
+### 版本同步（R-72/R-181/R-185 sustained）
+
+- knot/main.py: version "0.5.25"
+- tests/test_rename_smoke.py: smoke 守护字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚字面 build 20260512
+
+### 自审简化协议持续（v0.5.22 起授权）
+
+后端 0 改 / Shared.jsx 0 改 / 18 屏字面 byte-equal 全 sustained.
+
+---
+
 ## [Unreleased] - v0.5.24 (Cn+) admin modals.jsx 视觉重构 + ⭐ v0.5.x 视觉重构正式收官 — Hex 残留 4 处偿还 + 18 PATCH 序列总结
 
 > ⭐ **v0.5.x 视觉重构序列正式收官**（v0.5.7~v0.5.24 共 18 个视觉 PATCH）

@@ -64,14 +64,14 @@ function NarrativeMotif({ T }) {
       width: '100%', height: '100%', position: 'relative',
       background: `radial-gradient(ellipse at 30% 30%, ${tint}, transparent 60%)`,
     }}>
-      {/* SVG absolute 定位 — left:65% 让 motif 中心偏右 15%（match demo 比例） */}
+      {/* SVG absolute 定位 — left:65% 让 motif 中心偏右 15%（match demo 比例）；v0.5.25 缩小尺寸到 demo 比例 */}
       <svg viewBox="0 0 600 700" preserveAspectRatio="xMidYMid meet"
            style={{
              position: 'absolute',
              left: '65%', top: '50%',
              transform: 'translate(-50%, -50%)',
-             width: 540, height: 630,
-             maxWidth: '85%', maxHeight: '90%',
+             width: 380, height: 440,
+             maxWidth: '60%', maxHeight: '65%',
              display: 'block',
            }}>
         <defs>

@@ -65,13 +65,12 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
         display: 'grid', placeItems: 'center', cursor: 'pointer',
       }}>{T.dark ? <I.sun/> : <I.moon/>}</button>
 
-      {/* Left narrative panel — 占满 viewport 左半，内容贴 viewport 边角 */}
+      {/* Left narrative panel — 占满 viewport 左半，内容贴 viewport 边角；v0.5.25 删除 borderRight 灰线分隔 */}
       <div style={{
         position: 'relative', overflow: 'hidden',
         background: T.bg,
         padding: '48px 60px',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        borderRight: `1px solid ${T.border}`,
       }}>
         {/* motif 铺满 left panel — radial-gradient 蔓延到边缘；SVG 内部居中固定尺寸 */}
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -181,7 +180,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 64, right: 64,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v0.5.24 · KNOT 内部系统</span>
+          <span>v0.5.25 · build 20260512</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>
