@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.5.26 (UX) Sidebar 高亮 + 设置页图标 — 资深架构师反馈 #11/17/18 偿还
+
+> 资深架构师 v0.5.x 收官测试反馈 #11/17/18：sidebar 高亮 + 配置图标问题。
+
+### Changed
+
+#### #11 Chat sidebar 当前对话高亮（Chat.jsx convList）
+
+- 移除 ugly `borderLeft: 2px solid T.accent`（active 时左侧深色边）
+- 移除 `paddingLeft` 抖动（active 8 / inactive 10）
+- bg `T.accentSoft` → `color-mix(in oklch, ${T.accent} 12%, transparent)`（demo 主题色框更明显）
+- borderRadius 6 → 8（更圆润）
+
+#### #17 Settings sidebar 当前配置板块高亮（Shell.jsx SideNavRow）
+
+- active 指示 span 从 **右侧** (`right: 0`) → **左侧** (`left: 0`)（demo 优雅左贴）
+- span 高度 60% → 100%（`top: 0, bottom: 0`），宽度 2px → 3px
+- span borderRadius `2` → `0 2px 2px 0`（贴边圆角）
+- bg `T.accentSoft` → `color-mix(in oklch, ${T.accent} 12%, transparent)`（更明显）
+- 主 div borderRadius 6 → 8
+- `overflow: hidden` 加固防止 active span 溢出
+
+#### #18 设置页 5 个 nav icon 替换 demo 风格（Q2 VRP 局部例外）
+
+- API & 模型: `I.sparkle` ✨ → `I.zap` ⚡（lightning bolt — demo 风格 + 已有 Shared 资产复用）
+- Few-shot 示例: `I.zap` → **FlaskIcon**（inline svg — flask）
+- 业务目录: `I.gear` → **FolderIcon**（inline svg — folder-tree）
+- 预算: `I.zap` → **WalletIcon**（inline svg — wallet）
+- 审计日志: `I.book` → **ClipboardCheckIcon**（inline svg — clipboard with check）
+
+4 个 inline svg icons（Q2 VRP 局部例外）— Shared.jsx 0 改动 sustained。
+
+### 版本同步
+
+- knot/main.py: version "0.5.26"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.26 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 18 屏视觉 byte-equal（仅 Chat.jsx + Shell.jsx 视觉调整）。
+
+---
+
 ## [Unreleased] - v0.5.25 (UX) Login 视觉优化 — 资深架构师反馈 #1/2/3 偿还
 
 > 资深架构师 v0.5.x 收官测试反馈 #1/2/3：Login 页面视觉问题。
