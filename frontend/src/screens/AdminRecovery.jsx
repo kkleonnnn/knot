@@ -96,20 +96,24 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
     { tag: '数据源', body: 'messages.recovery_attempt 列（v0.4.2 引入），含 fan-out reject + fix_sql retry' },
   ];
 
+  // v0.5.33 — PeriodTab 移到 topbar 右侧（demo recovery.jsx L76-82 byte-equal）
+  const periodTabs = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 12, color: T.muted, marginRight: 4 }}>时段</span>
+      {['7d', '30d', '90d'].map(p => (
+        <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
+      ))}
+    </div>
+  );
+
   return (
     <AppShell T={T} user={user} active="admin-recovery" sidebarContent={sidebarContent}
               topbarTitle="System Recovery 趋势" onToggleTheme={onToggleTheme}
+              topbarTrailing={periodTabs}
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* R-472 时段切换 — content area 保留 (R-192 sustained) + PeriodTab + R-492 active 浮起感 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginRight: 4 }}>时段</span>
-            {['7d', '30d', '90d'].map(p => (
-              <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
-            ))}
-          </div>
+        {/* v0.5.33 — maxWidth 960 → 1200（与 demo recovery.jsx chartW 1140 接近）；删除原 inline period tabs（已移至 topbar） */}
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: 32 }}><Spinner size={24} color={T.accent}/></div>
@@ -152,7 +156,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                   <LineChart
                     data={stats.by_day.map(d => ({ date: d.date.slice(5), count: d.count }))}
                     stroke={T.accent} fill labelColor={T.muted}
-                    gridColor={T.borderSoft} width={880} height={280}
+                    gridColor={T.borderSoft} width={1100} height={240}
                   />
                 )}
               </div>
@@ -218,14 +222,13 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                 )}
               </div>
 
-              {/* R-447/R-481 Rules note 2 条 — brandSoft inset + borderLeft 3px 25% 第三处闭环铁律加冕 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* v0.5.33 — Rules note 改 demo recovery.jsx L161-172 byte-equal：删 brandSoft 8% bg + borderLeft 3px → 2px brandSoftBorder（更 subtle，对齐资深"深色边边"反馈方向） */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {rules.map((n, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 14px',
-                    borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
-                    background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                    borderLeft: `2px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
                     fontSize: 12, color: T.subtext, lineHeight: 1.55,
                   }}>
                     <TagChip T={T}>{n.tag}</TagChip>

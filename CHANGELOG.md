@@ -5,7 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.32 (UX) AdminAudit polish — 资深架构师 demo 重写第 1/6 板块
+## [Unreleased] - v0.5.33 (UX) AdminRecovery polish — demo 重写第 2/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 2 张 AdminRecovery。v0.5.19 已基本对齐 demo，本 PATCH 微调 3 项。
+
+### Changed
+
+#### 时段切换 tabs 移至 topbar
+
+`AdminRecovery.jsx` PeriodTab 7d/30d/90d 从 content area 顶部移到 `AppShell.topbarTrailing`（demo `recovery.jsx:L76-82` byte-equal）。
+
+让出 content 顶部 16px 高度给 KPI cards；视觉密度更紧凑。
+
+#### Chart 加宽 + maxWidth 升级
+
+- `LineChart width: 880 → 1100`（demo chartW 1140 接近）
+- `LineChart height: 280 → 240`（demo aspect ratio 更扁）
+- container `maxWidth: 960 → 1200`
+
+#### Rules note borderLeft 3px → 2px + 删 brandSoft 8% bg
+
+对齐 demo `recovery.jsx:L161-172`：
+
+- borderLeft `3px → 2px`（更 subtle，对齐资深"深色边边"反馈方向）
+- 删 `brandSoft 8% bg`（仅保 borderLeft 视觉分组）
+
+**v0.5.22 R-481 borderLeft 25% 闭环第三处局部微调** — width 减小但字面 25% color-mix 保留（不影响其他 3 处文件 SavedReports/AdminBudgets/AdminRecovery byte-equal）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.33"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- Login.jsx 页脚 + Shell.jsx logoArea: v0.5.33（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面） / 16 屏视觉 byte-equal（仅 AdminRecovery.jsx 改）。
+
+---
+
+## v0.5.32 (UX) AdminAudit polish — 资深架构师 demo 重写第 1/6 板块
 
 > 资深架构师 v0.5.x 收官最后一批 6 demo 重写板块 — 本 PATCH 首张 AdminAudit。对照 demo `audit.jsx` 优化筛选/表格/topbar/分页。
 

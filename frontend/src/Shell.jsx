@@ -40,7 +40,7 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.1em',
-          }}>v0.5.32</span>
+          }}>v0.5.33</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0' }}>
