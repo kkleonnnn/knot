@@ -5,7 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.31 (UX) Chat + Thinking 视觉续 — 资深架构师反馈 #34/35/37~40 偿还
+## [Unreleased] - v0.5.32 (UX) AdminAudit polish — 资深架构师 demo 重写第 1/6 板块
+
+> 资深架构师 v0.5.x 收官最后一批 6 demo 重写板块 — 本 PATCH 首张 AdminAudit。对照 demo `audit.jsx` 优化筛选/表格/topbar/分页。
+
+### Changed
+
+#### 筛选 strip 重做 — 时段下拉 + 单短标签 + 横向 flex
+
+- 删除 4 字段 grid 布局（auto-fit minmax 180px）+ D2 双兼标签 "操作人 (Actor ID)"
+- 改为 demo `audit.jsx:L69-92` 横向 flex 布局
+- **时段 dropdown** 新加（24h / 7d / 30d / 全部）→ 客户端转 `since` ISO 字符串 → 后端 `since` 参数 byte-equal
+- **用户 ID / 动作 / 资源关键词** 单短标签 mono uppercase
+- 删除 "起始时间 (Since)" 文本输入（被时段下拉替代）
+- 重置 / 查询 按钮右对齐
+- Field helper 上移至文件头（demo `audit.jsx:L30-35` byte-equal）
+
+#### 导出 CSV — 顶栏按钮
+
+`AppShell.topbarTrailing` 新加 "导出 CSV" 按钮（demo `audit.jsx:L64` byte-equal）：
+
+- 客户端 CSV 生成（utf-8 BOM + 9 字段 + 引号转义）
+- 文件名 `knot-audit-{timestamp}.csv`
+- 空 items 时 disabled
+
+#### ActionChip 简化 — 删 bg/padding/radius
+
+`ActionChip` 改 demo `audit.jsx:L135` byte-equal：
+
+- 删除 `color-mix(in oklch, ${color} 12%, transparent)` bg
+- 删除 `padding: 2px 8px` + `borderRadius: 4`
+- 仅保 `actionColor` + `T.mono` + `fontWeight: 500`
+- 视觉更简洁，颜色辨识度不变
+
+#### 分页 — "1 - N" 简洁字面
+
+对齐 demo `audit.jsx:L149-154`：
+
+- 字面 `第 X 页（每页 Y）` → `(page-1)*size+1 - (page-1)*size+items.length`（mono）
+- 左 range / 右 size 切换 + 上一页 / 下一页（demo 顺序 byte-equal）
+
+### Deferred
+
+- **总记录数 / 今日 / 失败数 / 涉及用户** 真值 — 需要后端聚合 endpoint `/api/admin/audit-stats`，推至 v0.5.38 收尾 PATCH（与 DataSources 真数据 + 连接 pill count 一起）
+- **总记录数显示 "1 - 8 / 12,408"** 中的 total — 同上 deferred
+
+### 版本同步
+
+- knot/main.py: version "0.5.32"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 v0.5.32
+- frontend/src/Shell.jsx: logoArea v0.5.32（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 17 屏视觉 byte-equal（仅 AdminAudit.jsx 改）。
+
+---
+
+## v0.5.31 (UX) Chat + Thinking 视觉续 — 资深架构师反馈 #34/35/37~40 偿还
 
 > 资深架构师 v0.5.x 收官反馈 #34/35/37~40：Chat sidebar + Conversation + ThinkingPanel 6 项视觉对照 demo `thinking.jsx` 优化。
 
