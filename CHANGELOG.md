@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.30 (UX) Chat 屏视觉优化 — 资深架构师反馈 #28~33 偿还
+## [Unreleased] - v0.5.31 (UX) Chat + Thinking 视觉续 — 资深架构师反馈 #34/35/37~40 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #34/35/37~40：Chat sidebar + Conversation + ThinkingPanel 6 项视觉对照 demo `thinking.jsx` 优化。
+
+### Changed
+
+#### #34 sidebar logo 区版本号
+
+`Shell.jsx:38` logoArea 加版本号显示（KnotLogo 右侧 marginLeft auto），对齐 demo `thinking.jsx:L28` `<span>v1.4</span>` 字面 byte-equal：
+
+- fontSize 11, T.mono, T.muted, letterSpacing 0.1em
+- 内容: `v0.5.31`
+
+**R-181 三处同步 → 四处同步**：main.py + smoke + Login + **Shell.jsx logoArea**。
+
+#### #35 active conv 高亮 — brandSoft 8% + brandSoftBorder + T.text
+
+`Chat.jsx` convRow 改 demo `thinking.jsx:L281-291` `ChatItem` byte-equal：
+
+- bg: `brandSoft 12% → brandSoft 8%`（更淡）
+- border: 加 `1px solid brandSoftBorder 25%`（视觉"框"感）
+- color: `T.accent → T.text`
+- inactive border: `1px solid transparent`（防 layout shift）
+- borderRadius: `8 → 6`
+
+**撤回 v0.5.26 高亮决议（"框比例不对 + 左侧深色边"反馈）**。
+
+#### #37 agent message avatar → KnotMark
+
+`Conversation.jsx` agent 消息头像改 demo `thinking.jsx:L91-93` byte-equal：
+
+- 删 26×26 T.accent bg + I.sparkle 14×14
+- 改 `<KnotMark T={T} size={26}/>`（原子 logo 直渲）
+- marginTop: 2（与文字基线对齐）
+
+#### #38 agent_costs chip icons — bulb / magnify / bars
+
+`ResultBlock.jsx` AGENT_KIND_EMOJI 改 demo `thinking.jsx:L199-202` 字面 byte-equal：
+
+- clarifier: `sparkle → bulb`（灯泡 — 理解 / 启发）
+- sql_planner: `search → magnify`（放大镜 — 查询）
+- presenter: `chart → bars`（柱状图 — 整理 / 呈现）
+- fix_sql: `wrench`（保持，demo 无对应）
+
+RB_SVG dict 新加 bulb / magnify / bars / bookmark 4 paths（compound multi-element 走单 path 字符串）。
+
+#### #39 收藏按钮 star → bookmark
+
+`ResultBlock.jsx` 收藏按钮 icon 改 demo `thinking.jsx:L82` byte-equal：
+
+- `RB_SVG.star → RB_SVG.bookmark`
+- fill 双态保留（pinned: T.accent / 非 pinned: 'none' 描边）
+
+#### #40 思考过程 panel 永显
+
+`Conversation.jsx:50` 删 `showPanel && ...` 条件渲染，改 `visible={true}` 始终渲染（demo `thinking.jsx:L21` grid 208/1fr/320 三列永久布局 byte-equal）。
+
+空 events 时 AgentThinkingPanel 内部已渲染 3 个 pending 状态卡片（opacity 0.45）作为占位。
+
+### Deferred
+
+#41 思考过程 4th step Trace agent — 涉及推导信任度（source_tables count / SQL count / JOIN regex / 聚合函数 regex），需要后端 metadata 或前端 SQL parser；**推至 v0.5.35 trace agent 专门 PATCH**。
+
+### 版本同步
+
+- knot/main.py: version "0.5.31"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.31 · build 20260512`
+- **frontend/src/Shell.jsx: logoArea 版本号 byte-equal**（R-181 三处 → 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 13 屏视觉 byte-equal（Shell.jsx + Chat.jsx + Conversation.jsx + ResultBlock.jsx 4 文件改）。
+
+---
+
+## v0.5.30 (UX) Chat 屏视觉优化 — 资深架构师反馈 #28~33 偿还
 
 > 资深架构师 v0.5.x 收官反馈 #28~33：Chat 主屏（sidebar + topbar + 默认问题）对照 demo `home.jsx` 优化。
 

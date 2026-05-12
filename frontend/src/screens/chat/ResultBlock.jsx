@@ -19,17 +19,23 @@ const RB_SVG = {
   star:         'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
   shield:       'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   triangle:     'M12 3L2 21h20L12 3zM12 10v6M12 18v.01',
+  // v0.5.31 #38/#39 — demo thinking.jsx 字面 byte-equal（agent_costs chip icons + 收藏按钮）
+  bookmark:     'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
+  bulb:         'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V15h7v-1.1A6 6 0 0 0 12 3z',
+  magnify:      'M17 11a6 6 0 1 1-12 0 6 6 0 0 1 12 0zM15.5 15.5L20 20',
+  bars:         'M3 20h18M6 11h3v9h-3zM11 6h3v14h-3zM16 14h3v6h-3z',
   info:         'M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0M12 8v4M12 16h.01',
   chevronRight: 'M9 18l6-6-6-6',
   arrowUp:      'M12 19V5M5 12l7-7 7 7',
   arrowDown:    'M12 5v14M19 12l-7 7-7-7',
 };
 
+// v0.5.31 #38 — agent_costs chip icons 对齐 demo thinking.jsx L199-202（bulb/magnify/bars byte-equal）
 const AGENT_KIND_EMOJI = {
-  clarifier:   RB_SVG.sparkle,
-  sql_planner: RB_SVG.search,
+  clarifier:   RB_SVG.bulb,
+  sql_planner: RB_SVG.magnify,
   fix_sql:     RB_SVG.wrench,
-  presenter:   RB_SVG.chart,
+  presenter:   RB_SVG.bars,
 };
 
 const ERROR_KIND_ICONS = {
@@ -194,7 +200,9 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
                 color: pinned ? T.accent : T.muted,
                 cursor: pinned ? 'default' : 'pointer',
               }}>
-              <SvgPath d={RB_SVG.star} size={15} fill={pinned ? T.accent : 'none'}/>
+              {/* v0.5.31 #39 — 收藏按钮 star → bookmark（demo thinking.jsx L82 byte-equal）；
+                  fill 双态保留（pinned T.accent / 非 pinned 'none' 描边） */}
+              <SvgPath d={RB_SVG.bookmark} size={15} fill={pinned ? T.accent : 'none'}/>
             </button>
           )}
         </div>

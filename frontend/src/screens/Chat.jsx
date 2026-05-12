@@ -196,20 +196,26 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const recentConvs = convs.filter(c => _NOW - new Date(c.updated_at).getTime() < _WEEK_MS);
   const olderConvs  = convs.filter(c => _NOW - new Date(c.updated_at).getTime() >= _WEEK_MS);
 
-  const convRow = (c) => (
-    // v0.5.26 #11 — 移除 ugly borderLeft 2px + paddingLeft 抖动；改 brandSoft 12% + radius 8
-    <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
-      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
-      margin: '0 8px',
-      borderRadius: 8, cursor: 'pointer',
-      background: c.id === activeConvId ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
-      color: c.id === activeConvId ? T.accent : T.subtext, fontSize: 12.5,
-      fontWeight: c.id === activeConvId ? 500 : 400,
-    }}>
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
-      <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
-    </div>
-  );
+  const convRow = (c) => {
+    // v0.5.31 #35 — active conv 高亮 demo byte-equal（thinking.jsx ChatItem L281-291）：
+    // brandSoft 8% bg + brandSoftBorder 25% + T.text；inactive 加 transparent 1px border 防 layout shift；
+    // 撤回 v0.5.26 brandSoft 12% bg + T.accent text（资深"框比例不对 + 左侧深色边"反馈）
+    const isActive = c.id === activeConvId;
+    return (
+      <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
+        margin: '0 8px',
+        borderRadius: 6, cursor: 'pointer',
+        background: isActive ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent',
+        border: isActive ? `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)` : '1px solid transparent',
+        color: isActive ? T.text : T.subtext, fontSize: 12.5,
+        fontWeight: isActive ? 500 : 400,
+      }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
+        <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
+      </div>
+    );
+  };
 
   const sidebarContent = (
     <>

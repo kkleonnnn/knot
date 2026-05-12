@@ -28,13 +28,19 @@ export function AppShell({
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand 区 — R-199 KnotLogo size=20（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
-            v0.5.30 #28 logoArea 56 → 52 — 与 main header 52 字节对齐（资深"左上角线没对齐"反馈；R-200 修订） */}
+            v0.5.30 #28 logoArea 56 → 52 — 与 main header 52 字节对齐
+            v0.5.31 #34 — KnotLogo 右侧加版本号（demo thinking.jsx L28 byte-equal；R-181 三处同步 → 四处同步） */}
         <div style={{
           height: 52, padding: '0 16px', flexShrink: 0,
           display: 'flex', alignItems: 'center',
           borderBottom: `1px solid ${T.border}`,
         }}>
           <KnotLogo T={T} size={20}/>
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: 11, fontFamily: T.mono, color: T.muted,
+            letterSpacing: '0.1em',
+          }}>v0.5.31</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0' }}>
