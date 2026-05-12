@@ -5,7 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.33 (UX) AdminRecovery polish — demo 重写第 2/6 板块
+## [Unreleased] - v0.5.34 (UX) AdminBudgets visual改 — demo 重写第 3/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 3 张 AdminBudgets。demo 用单一 global config 模型，本 PATCH 保留 multi-scope CRUD 但视觉对齐 demo Hero 卡片 + Rules note 风格。
+
+### Changed
+
+#### Hero card 4-grid → 3-block 横向 flex + borderLeft separator
+
+对照 demo `budget.jsx:L57-87`：
+
+- 删除 `gridTemplateColumns: repeat(auto-fit, minmax(180px, 1fr))` 4 卡片
+- 改 `display: flex, alignItems: flex-end, gap: 32, flexWrap: wrap` 横向
+- 4 个 block 分别用 `borderLeft: 1px solid T.border + paddingLeft: 24` 分隔（demo byte-equal）
+- **本月已用 token**: 大数字 36px fontWeight 700 + `/ —` muted + brand chip `%`（demo 完整字面布局）
+- **预计花费**: 24px fontWeight 600
+- **已配置预算项**: budgets.length 真值（保留功能性数据）
+- **结算日**: 自动计算下月 1 号 MM-DD（demo `06-01` byte-equal 结构）
+
+Progress bar + 0/50/100% mono labels sustained。
+
+#### Rules note borderLeft 3px → 2px + 删 brandSoft 8% bg
+
+对照 demo `budget.jsx:L128-140`（与 v0.5.33 AdminRecovery 一致）：
+
+- borderLeft 3px → 2px（更 subtle）
+- 删 brandSoft 8% bg（仅保 borderLeft 视觉分组）
+
+**v0.5.18 R-465 borderLeft 25% 闭环第二处 width 微调** — 仍保 color-mix 25% literal（不影响 SavedReports 同字面 byte-equal）。
+
+### Deferred
+
+- 本月已用 token / 预计花费 / 本月使用率 真值 → **v0.5.38 后端 `/api/admin/budgets/stats` 聚合 endpoint**
+- 进度条 width 0% → 真实 pct → 同上
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / multi-scope CRUD 业务逻辑 0 改 / 16 屏视觉 byte-equal（仅 AdminBudgets.jsx 改）。
+
+### 版本同步
+
+- main.py 0.5.34 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.33 (UX) AdminRecovery polish — demo 重写第 2/6 板块
 
 > 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 2 张 AdminRecovery。v0.5.19 已基本对齐 demo，本 PATCH 微调 3 项。
 

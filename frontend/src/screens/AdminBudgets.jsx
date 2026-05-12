@@ -147,24 +147,31 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-          {/* R-440 Hero usage card — Q1 修订部分聚合：第 1 卡 budgets.length + 3 卡 — placeholder + tooltip */}
+          {/* v0.5.34 Hero usage card 对照 demo budget.jsx L57-87 — 横向 flex 3 block + borderLeft separator + 进度条
+              （部分聚合 sustained：本月已用/预计花费/使用率 placeholder，待 v0.5.38 后端聚合 endpoint） */}
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24, marginBottom: 14 }}>
-              <div>
-                <div style={statLabelStyle(T)}>已配置预算项</div>
-                <div style={{ ...statValueStyle(T), color: T.text }}>{budgets.length}</div>
-              </div>
-              <div title="后端聚合 API 对接中 (v0.6+)">
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginBottom: 14, flexWrap: 'wrap' }}>
+              <div title="后端聚合 API 对接中 (v0.5.38)" style={{ minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>本月已用 token</div>
-                <div style={statValueStyle(T)}>—</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', fontFamily: T.sans, lineHeight: 1, color: T.text }}>—</span>
+                  <span style={{ fontSize: 14, color: T.muted }}>/ —</span>
+                  <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 12%, transparent)`, color: T.accent, fontSize: 11, fontWeight: 500, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.02em' }}>—%</span>
+                </div>
               </div>
-              <div title="后端聚合 API 对接中 (v0.6+)">
+              <div style={{ flex: 1, borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>预计花费</div>
-                <div style={statValueStyle(T)}>—</div>
+                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.sans, marginTop: 4, color: T.text }}>—</div>
               </div>
-              <div title="后端聚合 API 对接中 (v0.6+)">
-                <div style={statLabelStyle(T)}>本月使用率</div>
-                <div style={statValueStyle(T)}>—</div>
+              <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
+                <div style={statLabelStyle(T)}>已配置预算项</div>
+                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.sans, marginTop: 4, color: T.text }}>{budgets.length}</div>
+              </div>
+              <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
+                <div style={statLabelStyle(T)}>结算日</div>
+                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.mono, marginTop: 4, color: T.text }}>
+                  {(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); d.setDate(1); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()}
+                </div>
               </div>
             </div>
             {/* R-461 progress bar — transition 0.3s 动效预留（即使 0% 也含 transition） */}
@@ -283,14 +290,13 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
             </div>
           )}
 
-          {/* R-447/R-465 Rules note 4 条 — brandSoft inset + borderLeft 3px 25%（与 SavedReports R-356 字面 byte-equal）*/}
+          {/* v0.5.34 Rules note 改 demo budget.jsx L128-140 byte-equal — borderLeft 3px→2px + 删 brandSoft 8% bg（更 subtle，与 v0.5.33 AdminRecovery 一致）*/}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {rules.map((n, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
                 padding: '10px 14px',
-                borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
-                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                borderLeft: `2px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
                 fontSize: 12, color: T.subtext, lineHeight: 1.55,
               }}>
                 <span style={{
