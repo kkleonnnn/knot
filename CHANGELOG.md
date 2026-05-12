@@ -5,7 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.27 (UX) 全站表头统一 — 资深架构师反馈 #24 偿还
+## [Unreleased] - v0.5.28 (UX) DataSources 视觉优化 — 资深架构师反馈 #19/23/24 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #19/23/24：DataSources Sources 子模块视觉对照 demo 优化。
+
+### Changed
+
+#### #19 "已连接" 统计卡片 — 移除莫名其妙的高亮
+
+`tab_access.jsx:40` 已连接卡片之前 brandSoft 8% bg + brand 文字 + brand label，在 4 卡 grid 里突兀。对照 demo `datasources.jsx:L57-63`：
+
+- 卡片 bg `brandSoft 8% → T.card`（与其他 3 卡同 plain 风格）
+- 卡片 border `brandSoftBorder 25% → T.border`
+- Label color `T.accent → T.muted`
+- Value color `T.text → T.success`（demo `s.tone === 'ok' ? T.ok : t.text` byte-equal）
+
+视觉效果：4 卡 grid 完全平等，"已连接" 唯一区别是 value 走 T.success 绿色（语义增强 — 绿 = 在线/健康）。
+
+#### #23 thead 字体色 → T.muted
+
+`tab_access.jsx:58` thead font color `T.subtext → T.muted`（demo `t.textFaint` byte-equal）。保 brandSoft 8% bg 维持 v0.5.27 #24 全站表头一致性。
+
+#### #24 db icon borderRadius 8 → 6
+
+`tab_access.jsx:64` db icon borderRadius `8 → 6`（demo `datasources.jsx:L96` byte-equal）。Type chip 保 brandSoft 8% pill 不动（demo `<Tag tone="brand">` 同 brand 系统色）。
+
+### Deferred
+
+#21 总 schema / 总表数 / 上次心跳 真数据 — 保留 `—` placeholder + tooltip "后端数据对接中 (v0.6+)"；真数据实现需要后端 endpoint + 心跳采集，推至 **v0.5.34 DataSources 真数据 PATCH**。
+
+### 版本同步
+
+- knot/main.py: version "0.5.28"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.28 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_access.jsx Sources 段 3 行 + 版本 3 处）。
+
+---
+
+## v0.5.27 (UX) 全站表头统一 — 资深架构师反馈 #24 偿还
 
 > 资深架构师 v0.5.x 收官测试反馈 #24：表头风格全站不一致。
 
