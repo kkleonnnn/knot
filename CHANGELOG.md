@@ -5,7 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.40 (Backend) 真数据收尾 — Audit / Budget / DataSources 3 stats endpoints
+## [Unreleased] - v0.5.41 (UX) topbar buttons 字体统一 + 整理洞察换行 + 版号 letterSpacing
+
+> 资深架构师 v0.5.x 收尾 sweep 续：topbar 字体/图标统一 + 3 处微调。
+
+### Changed
+
+#### topbar trailing buttons 字体/图标统一
+
+- `AdminAudit.jsx` "导出 CSV" button: inline style → `pillBtn(T)` ghost（与 Admin tabs "下载模板"/"上传文档" 一致）
+- `AdminRecovery.jsx` `PeriodTab` 字体: `fontSize 12 + T.mono` → `fontSize 12.5 + inherit + fontWeight 500 + letterSpacing -0.005em`（与 pillBtn helper byte-equal）
+- 全 admin 屏 topbar buttons 现在统一走 pillBtn 风格
+
+#### API & 模型 "整理洞察 + 质量检查" 换行修复
+
+`tab_resources.jsx:54` Agent 模型分配 grid：
+- `gridTemplateColumns: '120px 1fr 90px'` → `'160px 1fr 80px'`
+- label span 加 `whiteSpace: 'nowrap'`
+
+#### 对话页版号 letterSpacing 收紧
+
+`Shell.jsx:42` logoArea version span: `letterSpacing: '0.1em'` → `'0.02em'`（资深反馈"字体间隔小一点才好看"）。
+
+### 版本同步
+
+- main.py 0.5.41 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 17 屏视觉 byte-equal。
+
+---
+
+## v0.5.40 (Backend) 真数据收尾 — Audit / Budget / DataSources 3 stats endpoints
 
 > 资深架构师 v0.5.x 收官最后一项后端 PATCH。3 个 stats 聚合 endpoint 补齐前端 Hero / Stats card 中的 `—` placeholder。
 

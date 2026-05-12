@@ -51,8 +51,9 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
           { key: 'sql_planner', label: '生成 SQL',   hint: '推荐最强' },
           { key: 'presenter',   label: '整理洞察 + 质量检查', hint: '推荐中等' },
         ].map(({ key, label, hint }) => (
-          <div key={key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 90px', gap: 12, alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{label}</span>
+          // v0.5.41 — label 列 120 → 160 防 "整理洞察 + 质量检查" 换行；select 列 flex 1（resp 压缩）；hint 列 80 收紧
+          <div key={key} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 80px', gap: 12, alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, color: T.text, fontWeight: 500, whiteSpace: 'nowrap' }}>{label}</span>
             <select value={agentCfg[key] || ''} onChange={e => setAgentCfg(p => ({ ...p, [key]: e.target.value }))}
               style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '6px 10px', fontSize: 12, color: T.text, fontFamily: T.sans, cursor: 'pointer', outline: 'none' }}>
               <option value="">默认</option>

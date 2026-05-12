@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn } from '../Shared.jsx';
+import { I, iconBtn, pillBtn } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -116,15 +116,10 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
     <AppShell T={T} user={user} active="admin-audit" sidebarContent={sidebarContent}
               topbarTitle="审计日志" onToggleTheme={onToggleTheme}
               topbarTrailing={
-                <button onClick={() => exportAuditCsv(items)} disabled={items.length === 0} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '6px 12px', borderRadius: 6,
-                  border: `1px solid ${T.border}`, background: 'transparent',
-                  color: items.length === 0 ? T.muted : T.text,
-                  fontFamily: 'inherit', fontSize: 12.5,
-                  cursor: items.length === 0 ? 'not-allowed' : 'pointer',
-                }}>
-                  <I.dl width="14" height="14"/> 导出 CSV
+                /* v0.5.41 — 用 pillBtn(T) helper 统一 topbar button 字体/图标（与 Admin tabs 新建账号等一致）*/
+                <button onClick={() => exportAuditCsv(items)} disabled={items.length === 0}
+                        style={{ ...pillBtn(T), opacity: items.length === 0 ? 0.5 : 1, cursor: items.length === 0 ? 'not-allowed' : 'pointer' }}>
+                  <I.dl width="13" height="13"/> 导出 CSV
                 </button>
               }
               onNavigate={onNavigate} onLogout={onLogout}>

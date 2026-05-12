@@ -33,16 +33,17 @@ function KpiCard({ T, label, value, unit, hint, accent }) {
   );
 }
 
-// R-472/R-492 PeriodTab inline helper — active box-shadow color-mix 20% 选中浮起感（v0.6 候选移入 Shared）
+// v0.5.41 PeriodTab — 字体对齐 pillBtn helper（fontSize 12.5 / inherit / fontWeight 500 / letterSpacing -0.005em）；
+// 与 Audit "导出 CSV" + Admin tabs "新建账号" 等 topbar button 一致
 function PeriodTab({ T, label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      height: 30, padding: '0 14px',
+      height: 30, padding: '0 12px',
       background: active ? T.accent : 'transparent',
-      color: active ? T.sendFg : T.muted,
+      color: active ? T.sendFg : T.subtext,
       border: `1px solid ${active ? T.accent : T.border}`,
-      borderRadius: 6, fontSize: 12, fontFamily: T.mono,
-      fontWeight: 500, cursor: 'pointer',
+      borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit',
+      fontWeight: 500, letterSpacing: '-0.005em', cursor: 'pointer',
       boxShadow: active ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
     }}>{label}</button>
   );
