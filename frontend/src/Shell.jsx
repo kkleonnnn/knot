@@ -28,9 +28,9 @@ export function AppShell({
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand 区 — R-199 KnotLogo size=20（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
-            R-200 logoArea 56px + borderBottom（与 main header 52px 视觉对齐） */}
+            v0.5.30 #28 logoArea 56 → 52 — 与 main header 52 字节对齐（资深"左上角线没对齐"反馈；R-200 修订） */}
         <div style={{
-          height: 56, padding: '0 16px', flexShrink: 0,
+          height: 52, padding: '0 16px', flexShrink: 0,
           display: 'flex', alignItems: 'center',
           borderBottom: `1px solid ${T.border}`,
         }}>
@@ -134,7 +134,8 @@ export function AppShell({
                   background: connectionOk ? T.success : T.warn,
                   boxShadow: connectionOk ? `0 0 0 2px ${T.successSoft}` : `0 0 0 2px rgba(255,164,33,0.18)`,
                 }}/>
-                {connectionOk ? '数据库已连接' : '未连接数据库'}
+                {/* v0.5.30 #32 — 字面对齐 demo "数据源 · 已连接"（count 受限于后端 endpoint，并入 v0.5.34 真数实现）*/}
+                {connectionOk ? '数据源 · 已连接' : '数据源 · 未连接'}
               </div>
             )}
             {topbarTrailing}

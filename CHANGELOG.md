@@ -5,7 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.29 (UX) 业务目录 视觉优化 — 资深架构师反馈 #25/26/27 偿还
+## [Unreleased] - v0.5.30 (UX) Chat 屏视觉优化 — 资深架构师反馈 #28~33 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #28~33：Chat 主屏（sidebar + topbar + 默认问题）对照 demo `home.jsx` 优化。
+
+### Changed
+
+#### #28 左上角线对齐 — Shell.jsx logoArea 56 → 52
+
+资深反馈"左上角的线没对齐" — sidebar logoArea borderBottom 与 main header borderBottom 在 y=56 vs y=52 有 4px 错位（v0.5.9 R-200 当时为视觉对称选 56；现修订对齐 main header 52）。
+
+#### #29 新建对话 按钮 — 比例升级
+
+`Chat.jsx:209` 按钮风格对照 demo `Btn variant="default" size="md"`：
+
+- justifyContent `center → flex-start`（demo 左对齐 + icon 在左）
+- padding `9px 10px → 10px 14px`（更高更宽，比例更稳）
+- gap `8 → 10`
+- bg `transparent → T.card`（subtle elevation）
+- margin 8 → 抽到 wrapper div 中（统一 layout）
+
+#### #30 收藏报表 → 收藏查询 + bookmark svg + 右箭头
+
+`Chat.jsx:218` sidebar 收藏入口重做：
+
+- 删 📌 emoji
+- 左 inline bookmark svg（Q2 VRP — Shared 无 I.bookmark）
+- 文案 "收藏报表" → "收藏查询"
+- 右 I.chev rotated -90deg（指明点击跳转语义）
+- 整体提升点击 affordance
+
+同步 SavedReports.jsx 一致性：page title + sidebar header + delete confirm + empty state 4 处 "收藏报表" → "收藏查询"。
+
+#### #31 最近 / 更早 历史对话分组
+
+`Chat.jsx` sidebar 按 `updated_at` 切分两组：
+
+- 最近：≤ 7 天内（demo home.jsx L14-29 byte-equal）
+- 更早：> 7 天
+
+使用 Shell.jsx 已 exported 的 `SideHeading` 渲染分组标题（与 admin "管理员" SideHeading 风格统一）。
+
+空组隐藏 SideHeading（仅有"最近"或仅有"更早"时不显示空组）。
+
+#### #32 连接 pill 字面 — "数据源 · 已连接"
+
+`Shell.jsx:137` connection pill label：
+
+- ok: `'数据库已连接' → '数据源 · 已连接'`
+- error: `'未连接数据库' → '数据源 · 未连接'`
+
+**部分实现** — demo 完整字面为 "数据源 · X 已连接"（含 count），count 需要 `/api/db/status` 新加 `source_count` 字段；**deferred 至 v0.5.34 DataSources 真数据 PATCH**（同步实现 总schema/总表数/上次心跳 真数）。
+
+#### #33 默认问题图标 — demo spark + flow
+
+`ChatEmpty.jsx` 4 个 suggestion chips icon 改 demo `home.jsx` byte-equal：
+
+- 今天的订单总量是多少 — `I.sparkle` → `SparkIcon`（inline svg 简洁十字；demo `ui.jsx` spark path byte-equal）
+- 最近 7 天 GMV 趋势 — `I.chart` → `FlowIcon`（inline svg 3 圆 + 连线；demo flow path byte-equal）
+- 新用户注册 — `I.users`（保）
+- 查看数据库 — `I.db`（保）
+
+Q2 VRP 局部例外（Shared 无 spark/flow）— inline svg 第 9/10 处 helper（累计待 v0.6 Shared.jsx 移入承诺）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.30"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.30 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 14 屏视觉 byte-equal（Shell.jsx + Chat.jsx + ChatEmpty.jsx + SavedReports.jsx 4 文件改）。
+
+---
+
+## v0.5.29 (UX) 业务目录 视觉优化 — 资深架构师反馈 #25/26/27 偿还
 
 > 资深架构师 v0.5.x 收官反馈 #25/26/27：业务目录 (Catalog) 子模块视觉对照 demo 优化。
 

@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { I, iconBtn } from '../Shared.jsx';
 import { usePersist, toast } from '../utils.jsx';
-import { AppShell } from '../Shell.jsx';
+import { AppShell, SideHeading } from '../Shell.jsx';
 import { api } from '../api.js';
 import { ChatEmpty } from './chat/ChatEmpty.jsx';
 import { ChatConversation } from './chat/Conversation.jsx';
@@ -190,10 +190,17 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     } catch (e) { toast(`上传失败: ${e.message}`, true); }
   };
 
-  const convList = convs.map(c => (
+  // v0.5.30 #31 — 历史对话按 updated_at 切 最近(7d内) / 更早 两组（demo home.jsx L14-35 byte-equal）
+  const _NOW = Date.now();
+  const _WEEK_MS = 7 * 24 * 3600 * 1000;
+  const recentConvs = convs.filter(c => _NOW - new Date(c.updated_at).getTime() < _WEEK_MS);
+  const olderConvs  = convs.filter(c => _NOW - new Date(c.updated_at).getTime() >= _WEEK_MS);
+
+  const convRow = (c) => (
     // v0.5.26 #11 — 移除 ugly borderLeft 2px + paddingLeft 抖动；改 brandSoft 12% + radius 8
     <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
+      margin: '0 8px',
       borderRadius: 8, cursor: 'pointer',
       background: c.id === activeConvId ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
       color: c.id === activeConvId ? T.accent : T.subtext, fontSize: 12.5,
@@ -202,28 +209,51 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
       <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
     </div>
-  ));
+  );
 
   const sidebarContent = (
     <>
-      <button onClick={newChat} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-        padding: '9px 10px', borderRadius: 8, background: 'transparent',
-        color: T.text, border: `1px solid ${T.border}`,
-        fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer', marginBottom: 8,
-      }}>
-        <I.plus width="14" height="14"/> 新建对话
-      </button>
-      {/* v0.4.1: 收藏报表入口 */}
-      <button onClick={() => onNavigate('saved-reports')} style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-        padding: '7px 10px', borderRadius: 6, background: 'transparent',
-        color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
-        cursor: 'pointer', marginBottom: 6,
-      }}>
-        <span>📌</span> 收藏报表
-      </button>
-      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
+      {/* v0.5.30 #29 — 新建对话 button: justify left-start + padding 升级 + gap 10（demo Btn variant=default size=md byte-equal）*/}
+      <div style={{ padding: '0 8px 8px' }}>
+        <button onClick={newChat} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
+          padding: '10px 14px', borderRadius: 8, background: T.card,
+          color: T.text, border: `1px solid ${T.border}`,
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+        }}>
+          <I.plus width="14" height="14"/> 新建对话
+        </button>
+      </div>
+      {/* v0.5.30 #30 — 收藏报表 → 收藏查询；删 📌；左 bookmark svg + 右 chev 右箭头（指明跳转）*/}
+      <div style={{ padding: '0 8px 8px' }}>
+        <button onClick={() => onNavigate('saved-reports')} style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          padding: '8px 14px', borderRadius: 8, background: 'transparent',
+          color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
+          cursor: 'pointer',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style={{ flex: 1, textAlign: 'left' }}>收藏查询</span>
+          <I.chev style={{ transform: 'rotate(-90deg)', flexShrink: 0, opacity: 0.6 }}/>
+        </button>
+      </div>
+      {/* v0.5.30 #31 — 最近 / 更早 分组 + SideHeading（demo home.jsx byte-equal）*/}
+      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {recentConvs.length > 0 && (
+          <>
+            <SideHeading T={T}>最近</SideHeading>
+            {recentConvs.map(convRow)}
+          </>
+        )}
+        {olderConvs.length > 0 && (
+          <>
+            <SideHeading T={T}>更早</SideHeading>
+            {olderConvs.map(convRow)}
+          </>
+        )}
+      </div>
     </>
   );
 
