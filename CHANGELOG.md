@@ -5,7 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.38 (UX) 字体层级统一 + 视觉细节 sweep — 资深架构师反馈批量偿还
+## [Unreleased] - v0.5.39 (UX) Trace agent 4th step — 思考过程 K→N→O→T 收齐
+
+> 资深架构师 #41 / 本批最后一项追溯链路偿还。前端推导信任度 + 4th agent T 卡片渲染（demo `thinking.jsx` 4-STEPS byte-equal）。
+
+### Added
+
+#### `_deriveTrace(sql, confidence)` helper — frontend 推导
+
+`ThinkingCard.jsx` 顶部 inline helper：
+
+- **源表数**: regex `/\\b(?:FROM|JOIN)\\s+([a-zA-Z_][\\w.]*)/gi` 抓取并去重
+- **SQL 数**: 固定 1（KNOT 每查询生成 1 条 final SQL）
+- **JOIN 判定**: `/\\bJOIN\\b/i`
+- **聚合判定**: `/\\b(COUNT|SUM|AVG|MAX|MIN|GROUP\\s+BY)\\b/i`
+- **信任度**: 从 `presenter.output.confidence` 透传
+
+输出字面对照 demo `thinking.jsx:L270` byte-equal：
+`本次结果由 N 张原表生成，→ 1 条 SQL，[含/无] JOIN，[含/无] 聚合函数。`
+
+#### 4th agent T (Trace) 卡片
+
+`AGENTS` 数组 3 → 4 条：
+
+| Letter | Name | Label |
+|---|---|---|
+| K | Knowledge | 理解问题 |
+| N | Nexus | 生成 SQL |
+| O | Objective | 整理洞察 |
+| **T** | **Trace** | **追溯链路** |
+
+`getStatus('trace')` 派生逻辑：
+- presenter 未启动 → `pending`
+- presenter 启动未完成 → `thinking`
+- presenter 完成 → `done`（自动触发 trace 渲染）
+
+Trace card body：
+- 信任度 chip（high → T.success / medium / low → T.warn）
+- 推导文本 from `_deriveTrace`
+- demo `thinking.jsx:L268-271` 视觉 byte-equal
+
+### 数据流
+
+```
+sql_planner agent_done.output.sql
+              ↓
+        _deriveTrace(sql, confidence)
+              ↓
+presenter agent_done.output.confidence
+              ↓
+       Trace card 渲染 (auto)
+```
+
+### 自审简化协议持续
+
+后端 0 改（sql + confidence 已 emit）/ Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ 16 屏视觉 byte-equal（仅 ThinkingCard.jsx 改）。
+
+### 版本同步
+
+- main.py 0.5.39 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.38 (UX) 字体层级统一 + 视觉细节 sweep — 资深架构师反馈批量偿还
 
 > 资深架构师 v0.5.x 收官前端 sweep。本批反馈 7 项中 6 项前端可直接落地，1 项（DataSources 真数据 + Connection count + 各 stats）推 v0.5.40 后端 PATCH；Trace 4th step 推 v0.5.39。
 
