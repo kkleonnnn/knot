@@ -121,16 +121,8 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
     }
   }
 
-  const sidebarContent = (
-    <button onClick={() => onNavigate('chat')} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '9px 10px', borderRadius: 8, background: 'transparent',
-      color: T.muted, border: `1px solid ${T.border}`,
-      fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-    }}>
-      <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-    </button>
-  );
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）
+  const sidebarContent = null;
 
   // R-447 4 rules — brandSoft inset + R-465 borderLeft 3px 25%
   const rules = [
@@ -255,13 +247,13 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
             </div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-              {/* R-444 thead brandSoft 8% 闭环第五处 — 字面 byte-equal v0.5.14/15/16/17/18 */}
+              {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
               <div style={{
                 display: 'grid', gridTemplateColumns: '0.8fr 1fr 1.4fr 0.6fr 0.8fr 0.9fr 50px',
                 padding: '10px 18px',
-                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                background: T.bg,
                 borderBottom: `1px solid ${T.border}`,
-                fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                fontSize: 11, color: T.muted, fontFamily: T.mono,
                 fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
               }}>
                 <span>Scope</span><span>Value</span><span>类型</span><span>阈值</span><span>Action</span><span>Enabled</span><span></span>

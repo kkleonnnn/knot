@@ -8,8 +8,8 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
     <>
       {tab === 'users' && (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-          {/* R-504/R-505 thead Inset 8% 闭环字面（与 Sources thead byte-equal）+ mono + 0.06em + uppercase + fontWeight 500 + T.subtext */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 80px', padding: '9px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.subtext, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+          {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 80px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
             <div>用户</div><div>账号</div><div>角色</div><div>状态</div><div></div>
           </div>
           {users.map((u, i) => (
@@ -57,8 +57,8 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
             </div>
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-            {/* v0.5.28 #23 — thead 字体 T.subtext → T.muted（demo bgInset+textFaint；保 brandSoft 8% bg 维持 v0.5.27 #24 全站一致）*/}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.4fr 0.6fr 0.8fr 80px', padding: '9px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+            {/* v0.5.38 thead bg brandSoft 8% → T.bg gray（v0.5.28 #23 局部撤回 — 资深"底色改成灰色"）*/}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.4fr 0.6fr 0.8fr 80px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
               <div>名称</div><div>类型</div><div>主机</div><div>表数</div><div>状态</div><div></div>
             </div>
             {sources.map((s, i) => (

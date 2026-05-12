@@ -8,6 +8,7 @@ export function AppShell({
   T, user, active = 'chat', sidebarContent,
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
+  connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
   hideSidebarNewChat = false,
   onToggleTheme, onNewChat, onNavigate, onLogout,
   children,
@@ -40,10 +41,10 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.1em',
-          }}>v0.5.37</span>
+          }}>v0.5.38</span>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
         {!active.startsWith('admin-') ? (
           <>
             {sidebarContent}
@@ -81,17 +82,19 @@ export function AppShell({
                             onClick={() => onNavigate('admin-audit')}/>
               </>
             )}
-            <div style={{ flex: 1 }}/>
-            <div style={{ padding: '10px 10px 6px' }}>
-              <button onClick={() => onNavigate('chat')} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'none', border: 'none', color: T.muted,
-                fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer', padding: 0,
-              }}>
-                <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-              </button>
-            </div>
           </>
+        )}
+        {/* v0.5.38 — 全屏统一「返回对话」底部位置 + 图标（demo 各屏 sidebar 底部 chev 左 byte-equal）；非 chat 屏自动渲染 */}
+        {active !== 'chat' && onNavigate && (
+          <div style={{ marginTop: 'auto', padding: '10px 16px', flexShrink: 0 }}>
+            <button onClick={() => onNavigate('chat')} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', color: T.muted,
+              fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer', padding: 0,
+            }}>
+              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+            </button>
+          </div>
         )}
 
         </div>
@@ -130,19 +133,20 @@ export function AppShell({
           <div style={{ fontSize: 14, color: T.text, fontWeight: 500 }}>{topbarTitle}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showConnectionPill && (
-              <div style={{
+              /* v0.5.38 — 删 framed pill（border + bg + radius 999）→ inline dot + text；字面 "数据源 · N 已连接" */
+              <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '5px 10px', borderRadius: 999,
-                border: `1px solid ${T.border}`, background: T.content, color: T.subtext, fontSize: 11.5,
+                color: T.muted, fontSize: 12,
               }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%',
                   background: connectionOk ? T.success : T.warn,
-                  boxShadow: connectionOk ? `0 0 0 2px ${T.successSoft}` : `0 0 0 2px rgba(255,164,33,0.18)`,
+                  flexShrink: 0,
                 }}/>
-                {/* v0.5.30 #32 — 字面对齐 demo "数据源 · 已连接"（count 受限于后端 endpoint，并入 v0.5.34 真数实现）*/}
-                {connectionOk ? '数据源 · 已连接' : '数据源 · 未连接'}
-              </div>
+                <span>数据源 · {connectionOk
+                  ? (connectedCount != null ? `${connectedCount} 已连接` : '已连接')
+                  : '未连接'}</span>
+              </span>
             )}
             {topbarTrailing}
             <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">

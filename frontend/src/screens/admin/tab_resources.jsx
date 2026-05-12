@@ -72,13 +72,13 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
         </div>
       </div>
 
-      {/* R-531/R-532 Models Table — thead R-480 闭环字面第八处扩展（文件总数 6→7）+ mono + 0.06em + uppercase + fontWeight 500 + T.subtext */}
+      {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.7fr 100px',
           padding: '9px 16px',
-          background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-          fontSize: 11, color: T.subtext, fontFamily: T.mono,
+          background: T.bg,
+          fontSize: 11, color: T.muted, fontFamily: T.mono,
           fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
           borderBottom: `1px solid ${T.border}`,
         }}>

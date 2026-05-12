@@ -5,7 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.37 (UX) Prompt tab 重设计 — demo 重写第 6/6 板块（v0.5.x 6-demo 重写收官）
+## [Unreleased] - v0.5.38 (UX) 字体层级统一 + 视觉细节 sweep — 资深架构师反馈批量偿还
+
+> 资深架构师 v0.5.x 收官前端 sweep。本批反馈 7 项中 6 项前端可直接落地，1 项（DataSources 真数据 + Connection count + 各 stats）推 v0.5.40 后端 PATCH；Trace 4th step 推 v0.5.39。
+
+### Changed
+
+#### 连接 pill 简化 + "N 已连接" 字面
+
+`Shell.jsx` connection pill 删 framed 样式：
+
+- 删除 `border + bg T.content + radius 999` 框
+- 改为 inline `dot + text` 简洁风格（demo 字面 byte-equal）
+- 新加 `connectedCount` prop（null → 不显示数字 / N → "N 已连接"）
+- 文案: `数据源 · ${connectedCount} 已连接` / `数据源 · 未连接`
+
+`Chat.jsx` 新加 `sourceCount` state：
+- admin 用户: 通过 `/api/admin/sources` 实时计算 online count
+- 普通用户: dbOk ? 1 : 0 fallback（普通 user 通常 1 个 active source）
+- 真后端 source_count endpoint 推 v0.5.40
+
+#### 「返回对话」全屏统一位置 + 图标（Shell.jsx 自动渲染）
+
+`Shell.jsx` sidebar 加自动渲染（条件 `active !== 'chat' && onNavigate`）：
+
+- 位置: sidebar 底部 marginTop auto
+- 图标: `I.chev style transform rotate 90deg`（左箭头）
+- 字体: fontSize 12.5, T.muted, inherit fontFamily
+
+各 page sidebarContent 中"返回对话" button 全部移除：
+- `AdminAudit.jsx` sidebarContent → null
+- `AdminRecovery.jsx` sidebarContent → null
+- `AdminBudgets.jsx` sidebarContent → null
+- `SavedReports.jsx` 删除顶部 button（保留 SideHeading 收藏查询）
+
+#### 全站表头底色 brandSoft 8% → T.bg gray + 字体 T.subtext → T.muted
+
+资深反馈"底色改成灰色 + 字体统一"。
+
+**v0.5.19 R-480 brandSoft 8% 闭环铁律加冕局部撤回** — 仅 thead bg；Avatar / chip / icon container 等 brand 8% bg 保留（语义元素 vs 表头分组装饰）。
+
+7 处 thead 改 `T.bg` + color `T.muted`:
+- `tab_access.jsx` × 2 (Users + Sources thead)
+- `tab_resources.jsx` × 1 (Models thead)
+- `tab_knowledge.jsx` theadStyle helper × 1 (Knowledge 文档列表)
+- `AdminAudit.jsx` × 1 (审计日志 thead)
+- `AdminBudgets.jsx` × 1 (Budgets thead)
+- `AdminRecovery.jsx` × 1 (Top users thead)
+- `SavedReports.jsx` × 1 (Report 表 thead)
+- `chat/ResultBlock.jsx` × 1 (查询结果 thead)
+
+总 9 处 thead 一致性字面 byte-equal：`{ background: T.bg, color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }`。
+
+#### 用户气泡圆角统一
+
+`Conversation.jsx` 删 `borderTopRightRadius: 4`（与其他三角 12 一致）— 资深反馈"右上和其他三个角不一致"。
+
+#### Recovery PeriodTab 字体统一
+
+`AdminRecovery.jsx` periodTabs wrapper：
+
+- fontSize 12.5（与 Audit "导出 CSV" button 一致）
+- fontFamily inherit T.sans
+- 删除 "时段" mono + uppercase + letterSpacing（改 plain）
+
+### Deferred
+
+- **Trace agent 4th step** → v0.5.39 PATCH（前端推导信任度 from sql/rows）
+- **真数据全收尾** → v0.5.40 PATCH（DataSources stats + Audit stats + Budget stats + Knowledge file_size + Few-shot hits + Connection count）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 整体视觉一致性扫描。
+
+### 版本同步
+
+- main.py 0.5.38 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.37 (UX) Prompt tab 重设计 — demo 重写第 6/6 板块（v0.5.x 6-demo 重写收官）
 
 > 资深架构师 v0.5.x 收官 6 demo 重写最后一张 Prompt tab。当前 3 sections 纵向堆叠 → demo `prompts.jsx` 标准 prompt editor 风格（tabs + editor + sidebar）。
 

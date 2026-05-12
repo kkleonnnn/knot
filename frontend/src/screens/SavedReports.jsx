@@ -73,17 +73,9 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
   const active = reports.find(r => r.id === activeId);
 
-  // R-353 Sidebar header T.mono + 删 📌；R-354 SavedItem bookmark + brandSoft + time mono
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）；R-353 Sidebar header sustained
   const sidebarContent = (
     <>
-      <button onClick={() => onNavigate('chat')} style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-        padding: '9px 10px', borderRadius: 8, background: 'transparent',
-        color: T.muted, border: `1px solid ${T.border}`,
-        fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-      }}>
-        <SvgPath d={SAVED_SVG.chevronL} size={12}/> 返回对话
-      </button>
       <div style={{
         padding: '10px 10px 4px', fontSize: 10, color: T.muted,
         fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
@@ -310,9 +302,9 @@ function DetailView({ T, report, onChanged }) {
             <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 480 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
-                  {/* v0.5.27 #24 全站表头统一 — brandSoft 8% bg + mono + 0.06em + uppercase + T.subtext（与 admin 屏 R-480/R-444/R-409/R-504 字面 byte-equal）*/}
-                  <tr style={{ background: `color-mix(in oklch, ${T.accent} 8%, transparent)` }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.subtext, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                  {/* v0.5.38 全站表头底色 brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；与 admin 屏一致）*/}
+                  <tr style={{ background: T.bg }}>
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>

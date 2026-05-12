@@ -15,9 +15,10 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
           {messages.map((msg, i) => (
             <div key={msg.id || i} className="cb-fadein">
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                {/* v0.5.38 — borderTopRightRadius 4 → 12 统一四角（资深反馈"右上和其他三个角不一致"）*/}
                 <div style={{
                   background: T.chipBg, border: `1px solid ${T.chipBorder}`, color: T.text,
-                  padding: '10px 14px', borderRadius: 12, borderTopRightRadius: 4,
+                  padding: '10px 14px', borderRadius: 12,
                   fontSize: 14, maxWidth: 520,
                 }}>{msg.question}</div>
               </div>

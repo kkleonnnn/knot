@@ -6,11 +6,12 @@ import { useRef, useState } from 'react';
 import { I, iconBtn, pillBtn } from '../../Shared.jsx';
 import { Spinner } from '../../utils.jsx';
 
-// R-587/R-588 共享 thead style — brandSoft 8% + mono + 0.06em + uppercase + fontWeight 500 + T.subtext
+// v0.5.38 — 共享 thead style：bg brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；
+// v0.5.19 R-480 brandSoft 8% 第六处铁律加冕局部撤回 — 仅 thead bg；Avatar/chip/icon brand bg 保留）
 const theadStyle = (T) => ({
-  background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+  background: T.bg,
   borderBottom: `1px solid ${T.border}`,
-  fontSize: 11, color: T.subtext, fontFamily: T.mono,
+  fontSize: 11, color: T.muted, fontFamily: T.mono,
   fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
 });
 

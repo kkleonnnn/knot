@@ -22,6 +22,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbOk, setDbOk] = useState(null);
+  const [sourceCount, setSourceCount] = useState(null);  // v0.5.38 — 已连接数据源数（admin fetch real / 普通 user 走 dbOk ? 1 : 0）
   const [agentEvents, setAgentEvents] = useState([]);
   const [activeUpload, setActiveUpload] = useState(null);
   const scrollRef = useRef(null);
@@ -43,6 +44,10 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   };
   const checkDb = async () => {
     try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
+    // v0.5.38 — admin user fetch sources count（普通 user 走默认 1 if dbOk）；真数据 endpoint 推 v0.5.40
+    if (user?.role === 'admin') {
+      try { const ds = await api.get('/api/admin/sources'); setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1); } catch {}
+    }
   };
   const loadMessages = async (cid) => {
     try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
@@ -269,6 +274,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     <AppShell T={T} user={user} active="chat" sidebarContent={sidebarContent}
               topbarTitle={title} hideSidebarNewChat
               showConnectionPill connectionOk={dbOk}
+              connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
               onToggleTheme={onToggleTheme} onNewChat={newChat}
               onNavigate={onNavigate} onLogout={onLogout}>
       {!activeConvId || messages.length === 0

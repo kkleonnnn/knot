@@ -106,16 +106,8 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
     }
   }
 
-  const sidebarContent = (
-    <button onClick={() => onNavigate('chat')} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '9px 10px', borderRadius: 8, background: 'transparent',
-      color: T.muted, border: `1px solid ${T.border}`,
-      fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-    }}>
-      <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-    </button>
-  );
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）
+  const sidebarContent = null;
 
   return (
     <AppShell T={T} user={user} active="admin-audit" sidebarContent={sidebarContent}
@@ -198,13 +190,13 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             </div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-              {/* R-409 thead brandSoft 8% 闭环第四处 — 字面与 R-323/R-372/R-386 byte-equal */}
+              {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
               <div style={{
                 display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.3fr 2fr 0.7fr 0.6fr 60px',
                 padding: '10px 18px',
-                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                background: T.bg,
                 borderBottom: `1px solid ${T.border}`,
-                fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                fontSize: 11, color: T.muted, fontFamily: T.mono,
                 fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
               }}>
                 <span>时间</span><span>Actor</span><span>Action</span><span>资源</span><span>IP</span><span>状态</span><span></span>

@@ -79,16 +79,8 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
     }
   }
 
-  const sidebarContent = (
-    <button onClick={() => onNavigate('chat')} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '9px 10px', borderRadius: 8, background: 'transparent',
-      color: T.muted, border: `1px solid ${T.border}`,
-      fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-    }}>
-      <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-    </button>
-  );
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）
+  const sidebarContent = null;
 
   // R-447 Rules note 2 条 — brandSoft inset + R-481 borderLeft 3px 25%
   const rules = [
@@ -96,10 +88,10 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
     { tag: '数据源', body: 'messages.recovery_attempt 列（v0.4.2 引入），含 fan-out reject + fix_sql retry' },
   ];
 
-  // v0.5.33 — PeriodTab 移到 topbar 右侧（demo recovery.jsx L76-82 byte-equal）
+  // v0.5.38 — PeriodTab 字体统一（fontFamily inherit T.sans + fontSize 12.5 + 与 Audit CSV button 一致风格）
   const periodTabs = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 12, color: T.muted, marginRight: 4 }}>时段</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontFamily: 'inherit', color: T.muted }}>
+      <span style={{ marginRight: 4 }}>时段</span>
       {['7d', '30d', '90d'].map(p => (
         <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
       ))}
@@ -178,13 +170,13 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                   </div>
                 ) : (
                   <>
-                    {/* R-480 thead brandSoft 8% 闭环第六处铁律加冕 — 字面 byte-equal v0.5.14/15/16/17/18 */}
+                    {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
                     <div style={{
                       display: 'grid', gridTemplateColumns: '64px 1.4fr 1fr 1fr 1fr',
                       padding: '8px 18px',
-                      background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                      background: T.bg,
                       borderBottom: `1px solid ${T.border}`,
-                      fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                      fontSize: 11, color: T.muted, fontFamily: T.mono,
                       fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
                     }}>
                       <span>#</span><span>User</span><span>自纠正次数</span><span>消息数</span><span>自纠正率</span>
