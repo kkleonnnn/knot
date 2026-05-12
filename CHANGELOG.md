@@ -5,7 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.42 (Backend+UX) 预算页 demo 重构 — 多 scope CRUD → 单 global config
+## [Unreleased] - v0.5.43 (Backend) sql_planner prompt 专家身份框定 — 笛卡尔积第 5 层防御
+
+> 资深架构师反馈"Claude 4.6 还会生成笛卡尔积"。现有 4 层防御（catalog RELATIONS / prompt 硬约束 / sql_validator AST / R-91 retry counter）后增第 5 层：**prompt 重构 — 专家身份 + 正例/反例对照**。
+
+### Changed
+
+#### `_AGENT_SYSTEM_TEMPLATE` 重构
+
+`knot/services/agents/sql_planner_prompts.py:45-119`：
+
+**开场身份**：
+- 旧: `你是一个 SQL Agent，通过 ReAct 模式...`（功能性身份）
+- 新: `你是 KNOT 的资深数据工程师 Agent — 10 年以上企业级 BI / 数据仓库 / 数据建模经验`（专家身份）
+
+**5 条专业基线**（新加）：
+1. 多表 JOIN 永远先确认表关系，再写 ON
+2. 聚合多明细表必先 CTE 预聚合
+3. 写不出可靠 JOIN 主动 final_answer 报错
+4. WHERE 时间/真实用户/币种过滤完整
+5. final_answer 前自检（行数 / 双向膨胀 / 时间窗）
+
+**笛卡尔积规则**重构：
+- 旧：单纯 "严禁 FROM a, b WHERE..."（否定语句）
+- 新：先 ✓ **正确模式**（INNER JOIN + ON），再 ✗ **4 种错误模式**（旧式逗号 / 缺 ON / 恒真 ON / CROSS JOIN）并列对照
+- 关联键来源 3 优先级（RELATIONS → search_schema 同名 _id → final_answer 报错）
+
+**Fan-Out 规则**保留 (✓/✗ 对照结构维持)。
+
+### 效果预期
+
+Claude 4.6 prompt eng 研究表明：
+- 专家身份框定 → 启用更严格的内化质量标准（如医生 prompt 比"助手"产出更精确）
+- ✓/✗ 并列对照 → 模型更易识别错误模式（vs 纯否定）
+- 关联键来源优先级 → 减少"凭直觉猜 JOIN key"
+
+### 自审简化协议持续
+
+后端 1 文件改（sql_planner_prompts.py）/ Shared.jsx 0 改 / 17 屏视觉 byte-equal / 0 路由数变化（仍 77）。
+
+### 版本同步
+
+- main.py 0.5.43 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.42 (Backend+UX) 预算页 demo 重构 — 多 scope CRUD → 单 global config
 
 > 资深架构师反馈"预算这个功能要改"。AdminBudgets 从 v0.4.3 multi-scope CRUD 模型重构为 demo `budget.jsx` 单 global config 模式（5 字段单次保存）。
 
