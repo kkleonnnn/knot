@@ -149,8 +149,7 @@ def test_repo_translates_crypto_config_error_to_config_missing(tmp_db_path, monk
     user_repo.create_user("e", "h", "E", "analyst", "h", 9030, "u", "secret", "db")
     # 切到不同 master key
     other_key = "RbU1qJOKDpyRpaeQEvO7G0YkU9tnxAjLfqg0gQNFLjI="
-    monkeypatch.setenv("BIAGENT_MASTER_KEY", other_key)
-    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68：测旧 KEY 切换
+    monkeypatch.setenv("KNOT_MASTER_KEY", other_key)
     get_crypto_adapter.cache_clear()
     with pytest.raises(ConfigMissingError, match="解密失败"):
         user_repo.get_user_by_username("e")

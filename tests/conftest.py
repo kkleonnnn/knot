@@ -21,8 +21,8 @@ TEST_MASTER_KEY = "QwlGZIGjzEryd93omq5UGR5ATZ6mTMm70NmS4o331Xk="
 def _master_key_for_tests(monkeypatch):
     """为每个测试默认设置 KNOT_MASTER_KEY；清空 lru_cache 防 fixture 间污染（R-40）。
 
-    v0.5.0 R-78：默认走 "仅新 key" 路径（避免每测试触发 deprecation warn 污染 caplog）。
-    旧 BIAGENT_MASTER_KEY 兼容由 tests/test_env_dual_source.py 显式覆盖测试。
+    v0.6.0 F13/F14.2 单源化：直接走 KNOT_MASTER_KEY 路径
+    （v0.5.0 双源兼容已撤回；test_env_dual_source.py 已删）。
     """
     monkeypatch.setenv("KNOT_MASTER_KEY", TEST_MASTER_KEY)
     # 清 lru_cache（防上一测试持有了不同 key 的 adapter）

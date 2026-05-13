@@ -219,8 +219,7 @@ def test_R41_migrate_not_called_in_main_or_base():
 
 def test_R46_no_master_key_fails_before_backup(tmp_db_path, monkeypatch):
     """守护者提示：master key 缺失立即 fail，不创建 bak（避免浪费磁盘 / 误导）。"""
-    monkeypatch.delenv("BIAGENT_MASTER_KEY", raising=False)
-    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)  # v0.5.0 R-68 双源后必须同步清理
+    monkeypatch.delenv("KNOT_MASTER_KEY", raising=False)
     get_crypto_adapter.cache_clear()
 
     from knot.core.crypto.fernet import CryptoConfigError
