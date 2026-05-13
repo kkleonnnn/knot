@@ -3,13 +3,22 @@
 
 模式（Q-E2.A 资深拍板）：
 - --mode=sanitize : 仅扫业务方言（ohx / mydb）— commit 1 完成后首次可 exit 0
-- --mode=brand    : 仅扫旧品牌（bi_agent / BIAGENT_*）— commit 5 完成后首次可 exit 0
+- --mode=brand    : 仅扫旧品牌（bi_agent / BIAGENT_*）— commit 6 完成后首次可 exit 0
 - --mode=all      : 两者都扫（默认）— commit 7 全闸门最终验证
 
-排除（EXCLUDE_RE）：
+INCLUDE_GLOBS（R-PA-6 业务代码守护范围）：
+- knot/**/*.py + tests/**/*.py + scripts/**/*.py（Python 业务代码 + 测试 + 工具脚本）
+- frontend/src/**/*.{jsx,js}（前端业务代码）
+- .env.example + Dockerfile + pyproject.toml（部署 + 构建配置）
+
+排除（EXCLUDE_RE 治理档案 + 自动重建产物）：
 - docs/plans/v0.4.*.md / docs/plans/v0.5.*.md（治理过程历史档案豁免）
-- CHANGELOG.md（历史记录段；仅 v0.6.0 入口段须 sanitize）
+- CHANGELOG.md（v0.6.0 撤回声明 + 历史档案；含撤回命令字面）
 - knot/static/assets/（Vite 构建产物自动重建）
+
+README.md / CLAUDE.md 不在 INCLUDE_GLOBS 范围（用户文档 — 升级路径段必含
+`bi_agent.db` / `BIAGENT_MASTER_KEY` 历史字面作为用户实操命令；与 R-PA-6 业务
+代码守护不冲突 — 详 R-PA-6.1 业务代码 docstring 守护范围）。
 
 执行：python3 scripts/audit_ohx_leakage.py [--mode=sanitize|brand|all]
 退出码：0 = 干净 / 1 = 有命中点
@@ -40,10 +49,10 @@ INCLUDE_GLOBS = [
     "frontend/src/**/*.js",
     "tests/**/*.py",
     "scripts/**/*.py",
-    "README.md",
     ".env.example",
     "Dockerfile",
     "pyproject.toml",
+    # README.md / CLAUDE.md 不在范围 — 用户文档允许含升级路径历史字面命令
 ]
 EXCLUDE_RE = re.compile(
     r"^(docs/plans/v0\.4\.|docs/plans/v0\.5\.|knot/static/assets/|CHANGELOG\.md$)"

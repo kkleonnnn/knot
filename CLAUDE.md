@@ -112,8 +112,9 @@ PATCH 内（v0.5.0 → v0.5.1 → …）**不切换角色**，仍由同一执行
 - v2（v0.4.x 期间生效）：3 角色（执行者 + 守护者 + 辅助 AI 初审组）
 - v3（v0.5.0 起生效）：+ 远古守护者 + 整体审核仪式
 - 首次整体审核：v0.4.6 → v0.5.0 滚动前夕（执行者 v0.4 + 守护者 v0.3，因 v0.3 之前无 v3 协议未存远古守护者）
+- 第二次整体审核：v0.5.44 → v0.6.0 滚动前夕（执行者 v0.5 + 守护者 v0.4 + 远古守护者 v0.3）→ 产出 9 项 LOCKED 决议 S-1~S-9 → v0.6 Agent 启动 Phase A
 
-**v3 协议施行回顾**（v0.5.0~v0.5.4 已 5 次完整 PATCH 内施行）：
+**v3 协议施行回顾**（v0.5.0~v0.6.0 累计 26 次完整 PATCH 内施行；首次跨 MINOR 角色滚动后施行 = v0.6.0）：
 
 | PATCH | 主题 | 红线 | 关键决策 / 施行特征 |
 |---|---|---|---|
@@ -203,18 +204,16 @@ PATCH 内（v0.5.0 → v0.5.1 → …）**不切换角色**，仍由同一执行
 ## 启动
 
 ```bash
-# 本地开发（v0.5.0 起包名 knot）
+# 本地开发
 pip install -e ".[dev]"
 python3 -m uvicorn knot.main:app --reload --port 8000
 
-# Docker 部署
-docker build -t knot . && docker run -d -p 8000:8000 --env-file .env knot
+# Docker 部署（v0.6.0 5 分钟全新部署快速开始 — 详 README §5 分钟）
+docker build -t knot . && docker run -d -p 8000:8000 -v $(pwd)/data:/app/knot/data --env-file .env knot
 
-# v0.5.0 升级老用户（v0.4.x → v0.5.0）
-# 1. pip uninstall bi-agent && pip install -e .（包名变更）
-# 2. .env 改 KNOT_MASTER_KEY（旧 BIAGENT_MASTER_KEY 兼容至 v1.0）
-# 3. DB 自动迁移：startup 检测 bi_agent.db → 自动 rename knot.db + 留 timestamped bak
-# 4. Docker volume：-v 路径变更 bi_agent/data/ → knot/data/
+# v0.4.x dev 用户升级（v0.5.0 R-67/68/74 双源兼容已撤回 — 详 CHANGELOG v0.6.0 撤回声明）
+# 1. .env 改名 + 同值: BIAGENT_MASTER_KEY → KNOT_MASTER_KEY / JWT_SECRET 改通用 secret
+# 2. DB 文件手动 rename: bi_agent.db → knot.db（详 README v0.4.x → v0.6.0 升级路径）
 ```
 
 ## 关键路径（v0.5.0 起包名 knot）
@@ -229,8 +228,8 @@ docker build -t knot . && docker run -d -p 8000:8000 --env-file .env knot
 | `knot/api/` | 业务域路由文件（72 路由：auth / admin / conversations / database / few_shots / knowledge / prompts / query / templates / uploads / saved_reports / audit / catalog / exports） |
 | `knot/services/agents/` | 3 agent 实现（v0.5.0 从 services/knot/ rename）；v0.5.2 sql_planner 拆 prompts/tools/llm + orchestrator 拆 clarifier/presenter |
 | `knot/services/agents/sql_planner.py` | v0.5.2 主文件：ReAct 调度员；拆出 prompts (`_AGENT_SYSTEM_TEMPLATE` + `_business_rules` + `_relations_for_schema`) / tools (`_strip_sql` + `_parse_agent_output` + `_is_fan_out` + `_run_tool` 含 v0.5.1 cartesian + v0.4.1.1 fan-out 守护) / llm (`_call_llm` + `_acall_llm` 含 v0.4.4 R-26 budget gate + R-30 透传) |
-| `knot/services/agents/clarifier.py` | v0.5.2：VALID_INTENTS / INTENT_TO_HINT / DEFAULT_INTENT_FALLBACK + `_CLARIFIER_SYS` + `run_clarifier` / `arun_clarifier`（R-26 budget gate + R-30 透传） |
-| `knot/services/agents/presenter.py` | v0.5.2：`_PRESENTER_SYS`（含幻觉禁令 + 异常判断）+ `run_presenter` / `arun_presenter` |
+| `knot/services/agents/clarifier.py` | v0.5.2：VALID_INTENTS / INTENT_TO_HINT / DEFAULT_INTENT_FALLBACK + `_CLARIFIER_SYS` + `run_clarifier` / `arun_clarifier`（R-26 budget gate + R-30 透传）；v0.6.0 F2.6 `_CLARIFIER_SYS` 从 `knot/prompts/clarifier.md` lazy load |
+| `knot/services/agents/presenter.py` | v0.5.2：`_PRESENTER_SYS`（含幻觉禁令 + 异常判断）+ `run_presenter` / `arun_presenter`；v0.6.0 F2.7 `_PRESENTER_SYS` 从 `knot/prompts/presenter.md` lazy load |
 | `knot/services/agents/orchestrator.py` | v0.5.2 调度员：保留共享 helpers `_resolve` / `_llm` / `_allm` / `_parse_json` / `_today` / `_date_block` / `_business_rules` / `_app_or_key`（子文件函数体内延迟 import — R-106 方案 1）+ re-export 子文件 public 符号 |
 | `knot/services/` | 业务编排层（auth_service / budget_service / cost_service / audit_service / error_translator / llm_client 等） |
 | `knot/services/llm_client.py` | v0.5.2 主文件：generate_sql / agenerate_sql / fix_sql / afix_sql；拆出 few_shots / llm_prompt_builder / _llm_invoke + R-100 re-export |
@@ -245,9 +244,11 @@ docker build -t knot . && docker run -d -p 8000:8000 --env-file .env knot
 | `knot/repositories/` | 9 个 *_repo.py + audit_repo.py |
 | `knot/adapters/` | llm/{anthropic_native,openai_compat,openrouter,async+sync 双 API} + db/doris.py + notification/{base.py,__init__.py}（通知接口抽象层 — v0.5.5 删 lark.py stub；接口预留供未来加 adapter） |
 | `knot/core/` | 横切工具（logging_setup / date_context / crypto/fernet）|
-| `knot/scripts/` | migrate_encrypt_v045.py / purge_audit_log.py / migrate_db_rename_v050.py |
+| `knot/scripts/` | migrate_encrypt_v045.py / purge_audit_log.py（v0.6.0 删 migrate_db_rename_v050.py — R-67/68 撤回；详 CHANGELOG）|
+| `knot/prompts/` | 默认 3-Agent system prompts（v0.6.0 F2 — sql_planner.md / clarifier.md / presenter.md；启动期幂等 seed 到 DB；admin UI 可覆盖）|
 | `knot/static/` | Vite 构建产物（`frontend/` 源码 → `npm run build` 输出至此） |
 | `knot/data/` | SQLite 数据库（gitignore，runtime 自动创建；v0.5.0 起文件名 knot.db） |
+| `scripts/audit_ohx_leakage.py` | v0.6.0 F6 — 业务方言 + 旧品牌字面泄漏守护（--mode=sanitize/brand/all；R-PA-1/R-PA-6 闸门 6 工具）|
 
 ## 导入约定
 
@@ -257,15 +258,15 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 ## 数据库
 
 - `knot/data/knot.db` — 用户 / 会话 / 消息 / 知识库 / 用户上传 CSV/Excel / 审计日志
-  （v0.2.4 合并 uploads.db；v0.4.6 加 audit_log；v0.5.0 文件名 bi_agent.db → knot.db）
-- 启动 migration（v0.5.0+）：检测旧 `bi_agent.db` → 自动 rename + 留 timestamped backup（R-69 幂等 + R-76 atomic 异常保护）
+  （v0.2.4 合并 uploads.db；v0.4.6 加 audit_log）
+- v0.4.x dev 用户升级路径（README §v0.4.x → v0.6.0）：手动 `mv bi_agent.db knot.db`（v0.5.0 startup auto-rename migration 已撤回 — 详 CHANGELOG v0.6.0）
 - Apache Doris / MySQL — 业务查询目标（通过 .env 配置）
 
-## 加密 master key（v0.5.0 双源）
+## 加密 master key（v0.6.0 单一 KNOT_MASTER_KEY）
 
-- **v0.5.0+ 推荐**：`KNOT_MASTER_KEY`（新名）
-- **兼容旧名**：`BIAGENT_MASTER_KEY`（v0.4.5 起；启动见 deprecation warn；v1.0 移除）
-- 同时设置且值不同 + DB 有 `enc_v1:` 数据 → R-74 探针验证旧/新解密能力，旧成功新失败 → `sys.exit(1)` 防数据永久丢失
+- **v0.6.0+ 唯一**：`KNOT_MASTER_KEY`
+- v0.5.x 的双源（KNOT_MASTER_KEY + 兼容旧名）已于 v0.6.0 Phase A 物理删除（详 [CHANGELOG v0.6.0 撤回声明](CHANGELOG.md#unreleased---v060-phase-a-knot-sanitize--bi_agent-兼容层清算--deploy-ready-内测可启动门)）
+- v0.4.x dev 用户升级路径（README 同步）：DB 文件 rename + env 改名（同值）
 
 ## 版本管理
 
@@ -432,6 +433,30 @@ gantt
 | ✅ v0.5.5 | (Cn) cleanup（遗留清理） | Loop Protocol v3 **第 6 次**完整 PATCH 内施行（D1-D5 全锁定 + 15 红线 R-139~R-153）；**v0.5.x 序列首个减法 PATCH（Negative Delta -18 行）** — 物理删 `knot/adapters/notification/lark.py` (29 行) v0.3.2 占位 stub（业务侧 0 调用，接口契约 base.py + __init__.py 保留供未来加 adapter）；删 2 个 lark 测试 cases (`test_lark_satisfies_protocol` + `test_lark_send_raises_not_implemented`) 受控降级 backend 432→430；sync LLM API 8 处 docstring 加 R-152 锁定模板首行 `[DEPRECATED v0.5.5; target removal in v1.0] Use async equivalent (a*) instead.`（分散在 7 个文件：llm_client.py 2 处 + _llm_invoke.py / sql_planner.py / sql_planner_llm.py / clarifier.py / presenter.py / orchestrator.py 各 1）；R-142 函数体零修改（仅 docstring）；R-149 幽灵 import 0 残留；R-150 非 SSE 手测 8 处 callable ✓；R-153 关键路径表 notification 描述改"通知接口抽象层"；D2 sync API v1.0 删除目标（query_steps 非流式仍依赖，实际删留 v0.6.x）；3 commit；430 tests / 112 skipped；7 contracts KEPT 不动；72 routes 不变；不动 frontend / scripts / requirements / package / pyproject / .importlinter；**已偿还** 15 条红线 R-139~R-153。 |
 
 > v0.5.x 主线推进 1.0 release 准备。1.0 团队公测起点。
+
+## v0.6.x 路线图（v0.5.44 之后 — Phase A Deploy-Ready 内测可启动门 → 4 周缓冲 → Phase B 评估）
+
+v0.5→v0.6 滚动整体审核 9 项决议（S-1~S-9）LOCKED 后开启。Phase A 范围窄而硬：sanitize + bi_agent 兼容层清算 + 默认 prompts 明文化 + Deploy-Ready 内测可启动门 4 大主题；业务功能 0 变更。
+
+| PATCH | 主题 | 关键交付 |
+|---|---|---|
+| 🚧 v0.6.0 | (Phase A) Sanitize + bi_agent 兼容层清算 + **Deploy-Ready 内测可启动门** | Loop Protocol v3 **第 26 次完整施行**（首次跨 MINOR 角色滚动 + 首次公开承诺撤回 + 首次 sanitize/Deploy-Ready 二合一 PATCH）；18 In-Scope (F1~F8+F11~F18) + 15 OOS（Phase B / v0.7+ 推迟）+ 8 红线 R-PA-1~8（含 R-PA-6.1 业务代码 docstring 字面豁免立约）+ 13 闸门 + 7 commit + commit 0 LOCKED 终稿归档；撤回 v0.5.0 R-67/68/74 公开承诺（"承诺接收方为空"治理学习）；默认 prompts 抽 knot/prompts/*.md + DB seed；fernet.py 单源化 237→102；merge 后 30 分钟可云服务器 docker run 内测部署 + 默认 admin/admin123；413 tests / 112 skipped（净 -19：F14.1/14.2/14.3 整文件删 19 tests）；7 contracts KEPT；77 routes；详 [docs/plans/v0.6.0-phase-a-sanitize.md](docs/plans/v0.6.0-phase-a-sanitize.md) + [CHANGELOG v0.6.0 撤回声明](CHANGELOG.md#unreleased---v060-phase-a-knot-sanitize--bi_agent-兼容层清算--deploy-ready-内测可启动门) |
+| ⏳ v0.6.0.1（候选 micro PATCH）| scripts/check_phase_b_leakage.py 工具落地（R-PA-8 守护） | 内测启动 Day 7+ 实施 — 严禁 Phase B 准备性 commit（main 分支 `docs/plans/v0.6.1-*.md` / `multi-tenant` 字面 / `users.project_id` 列新加均触发 alert + 资深拍板回滚）|
+| ⏳ 内测期（4 周缓冲） | 团队 5-10 人真实使用反馈 | 资深架构师开 GitHub issue `🚀 v0.6.0 Phase A — 内测启动` + label `/start-internal-test` 创建日 = R-PA-5 Day 0 计时起点；**严禁 Phase B 草案**（R-PA-5 + R-PA-8）|
+| ⏳ Phase B 评估 | 三方拍板（执行者 + 守护者 + 远古守护者 + 资深） | 视真实需求：① 需求充分 → Phase B v0.6.1 草案启动；② 需求不足 → Phase B 缩减（仅做 OOS-5/6 代码组织债务）；③ 需求归零 → Phase B 跳过 → 直接 1.0 团队公测准备 |
+
+**v0.6.0 Loop Protocol v3 施行回顾**：
+
+| 阶段 | 内容 | 关键决议 |
+|---|---|---|
+| Stage 1 v1 草案 | v0.6 执行者起草 — 18 In-Scope + 15 OOS + 6 红线 + 12 闸门 + 7 commit | 2026-05-13 |
+| Stage 1 v2 草案 | Deploy-Ready 内测可启动门修正 — 加 R-PA-7 + 闸门 13 + F18 扩 5 子项 + 附录 J | 同日 |
+| Stage 2 辅助 AI 初审 | Codex + 其他 AI — 3 条预检全接受（KNOT_MASTER_KEY 单行命令 + Dockerfile COPY 熔断 + 缓冲期标记机制）| 同日 |
+| Stage 3 v0.5 守护者终审 | 8 处修订（P-1~P-6）+ 2 项补丁（N-1 R-PA-8 + N-2 catalog 方案 C）+ 0 否决 | 同日 |
+| Q-E1.A / Q-E2.A 执行者澄清 | commit 3/4 边界 + audit 工具 --mode 分模式 | 同日 |
+| 资深架构师拍板 | §5 6 项 + Q-E1.A + Q-E2.A 共 8 项 LOCKED | 同日 |
+| commit 4 守护者复核 | 0 否决 + 2 修订（M-1/M-2 grep audit）+ G-1 R-PA-6.1 立约（资深拍板）+ G-3 LOCKED retro 推 v0.6.0 收官 | 同日 |
+| **总计** | **第 26 次完整 v3 三阶段施行** — 首次跨 MINOR 角色滚动 + 首次公开承诺撤回 + 首次 sanitize/Deploy-Ready 二合一 + LOCKED 终稿盲区识别 4 处补救（commit 1 五处 / F14.3 修订 / F18 提前联动 / R-PA-6 闸门修订） | — |
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 

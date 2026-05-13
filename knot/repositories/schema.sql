@@ -1,4 +1,4 @@
--- bi_agent.repositories.schema — DDL 集中式（v0.3.0）
+-- knot.repositories.schema — DDL 集中式（v0.3.0+）
 -- 任何新表/新列都在此添加；新增列在 base.py 的 ALTER TABLE 兼容块同步。
 
 CREATE TABLE IF NOT EXISTS users (
