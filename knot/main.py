@@ -39,6 +39,13 @@ _DATA_DIR.mkdir(parents=True, exist_ok=True)
 migrate_db_rename(_DATA_DIR)
 init_db()
 
+# v0.6.0 F2.9：启动期幂等 seed 3-Agent system prompt 默认值（从 knot/prompts/*.md → DB）
+# 仅 DB 行不存在时 INSERT；已有则跳过（不覆盖 admin 已编辑值，R-PA-2.3）
+from knot.services.prompt_service import seed_defaults_from_files as _seed_prompts  # noqa: E402
+
+_seed_result = _seed_prompts()
+logger.info(f"prompt seed: {_seed_result}")
+
 
 # v0.4.5 R-45 / v0.5.0 R-68：master key fail-fast 在 init_db() 之后、所有路由注册之前。
 # 缺失/格式错 → sys.exit(1) + 彩色边框错误（非 traceback，避免吓非技术运维）。
