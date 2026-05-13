@@ -125,6 +125,43 @@ LOCKED §F17.2 link 模式扩展至业务代码 docstring：
 - `knot/core/crypto/fernet.py` docstring（commit 4 落地 — "v0.5.0 R-67/68/74（env 旧名双源 + 密文兼容性探针）"）
 - `tests/conftest.py` docstring（commit 4 落地 — "v0.6.0 F13/F14.2 单源化"）
 
+### R-PA-6.2 立约（守护者 commit 6 Stage 3 终审 §7.4 G-1 / 资深拍板）
+
+LOCKED §F6 工具设计盲区补救 + R-PA-6 守护范围正式细化锁定：
+
+```
+R-PA-6.2（R-PA-6 子条款 — v0.6.0 commit 6 守护者立约）
+────────────────────────────────────────────────
+R-PA-6 守护范围细化条款 — INCLUDE_GLOBS + EXCLUDE_RE + EXCLUDE 自指环
+
+INCLUDE_GLOBS（业务代码守护 — 0 BIAGENT/bi_agent 字面）：
+  - knot/**/*.py + knot/**/*.sql（Python 业务代码 + schema）
+  - tests/**/*.py / scripts/**/*.py（测试 + 工具代码）
+  - frontend/src/**/*.{jsx,js}（前端业务代码）
+  - .env.example + Dockerfile + pyproject.toml（部署 + 构建配置）
+
+EXCLUDE 用户文档（用户实操命令字面允许）：
+  - README.md（升级路径段 + 默认账号 + 命令字面）
+  - CLAUDE.md（启动段升级命令 + 历史 contract FIXME 段 + v0.5.x 路线图历史表）
+
+EXCLUDE_RE 治理档案 + 自动重建产物（LOCKED §F6 sustained）：
+  - CHANGELOG.md（v0.6.0 撤回声明含字面）
+  - docs/plans/v0.4.*.md / docs/plans/v0.5.*.md
+  - knot/static/assets/（Vite 构建产物）
+
+EXCLUDE 守护工具自身字面（自指环不可避免）：
+  - scripts/audit_ohx_leakage.py（守护工具 docstring 引用扫描目标）
+  - tests/test_rename_smoke.py（grep 守护工具 docstring + 字面分割构造）
+
+闸门：
+  - 闸门 6: audit_ohx_leakage --mode=all exit 0（commit 6 完成首次过）
+  - 闸门 7 + 闸门 8: git grep 命令同步豁免清单
+```
+
+适用先例：
+- `knot/core/crypto/fernet.py` docstring → R-PA-6.1（v0.6.0 commit 4 守护者立约）
+- `README.md` + `CLAUDE.md` 升级路径段 + 历史档案段 → R-PA-6.2（v0.6.0 commit 6 守护者立约）
+
 ### 版本同步
 
 main.py 0.6.0 + R-72 smoke + Login 页脚 + Shell.jsx logoArea（R-181 四处同步 sustained）；
