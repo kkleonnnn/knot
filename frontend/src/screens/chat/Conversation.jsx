@@ -1,15 +1,13 @@
 // v0.5.3: extracted from Chat.jsx L337-379 (ChatConversation 会话主视图)
-import { I } from '../../Shared.jsx';  // noqa: F401  保留 Shared import 风格一致
+// v0.5.31 #37 avatar → KnotMark；#40 thinking panel 永显（demo grid 一直保留右栏）
+import { KnotMark } from '../../Shared.jsx';
 import { ResultBlock } from './ResultBlock.jsx';
 import { ThinkingCard, AgentThinkingPanel } from './ThinkingCard.jsx';
 import { Composer } from './Composer.jsx';
 
-// I 未直接使用，但 import 与原 Chat.jsx 一致风格保留；如 lint 报警可移除
-// （sparkle icon 在内部 div 内嵌使用 — 见 L19）
 export function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion,
                                   onSubmit, onKeyDown, onCopy, onDownload, onPin, onRetry,
                                   agentEvents, activeUpload, setActiveUpload, onUpload }) {
-  const showPanel = agentEvents.length > 0;
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -17,15 +15,17 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
           {messages.map((msg, i) => (
             <div key={msg.id || i} className="cb-fadein">
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                {/* v0.5.38 — borderTopRightRadius 4 → 12 统一四角（资深反馈"右上和其他三个角不一致"）*/}
                 <div style={{
                   background: T.chipBg, border: `1px solid ${T.chipBorder}`, color: T.text,
-                  padding: '10px 14px', borderRadius: 12, borderTopRightRadius: 4,
+                  padding: '10px 14px', borderRadius: 12,
                   fontSize: 14, maxWidth: 520,
                 }}>{msg.question}</div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, background: T.accent, color: '#fff', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }}>
-                  <I.sparkle width="14" height="14"/>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                {/* v0.5.31 #37 — avatar → KnotMark（demo thinking.jsx L91-93 byte-equal；删 T.accent bg + I.sparkle） */}
+                <div style={{ marginTop: 2, flexShrink: 0 }}>
+                  <KnotMark T={T} size={26}/>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {msg.loading
@@ -47,7 +47,8 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
           </div>
         </div>
       </div>
-      {showPanel && <AgentThinkingPanel T={T} events={agentEvents} visible={showPanel}/>}
+      {/* v0.5.31 #40 — Thinking panel 永显（demo grid 208/1fr/320 三列；删 showPanel 条件渲染） */}
+      <AgentThinkingPanel T={T} events={agentEvents} visible={true}/>
     </div>
   );
 }

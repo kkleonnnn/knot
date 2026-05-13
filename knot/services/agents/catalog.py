@@ -60,19 +60,23 @@ def _load_from_files() -> tuple:
 
 
 def _load_from_db() -> tuple:
-    """返回 (lexicon, tables, business_rules, found_any)。"""
+    """v0.5.44 — 返回 (lexicon, tables, business_rules, relations, found_any)。
+
+    relations 新加（4 键 → 4 字段全部走 DB 覆盖；之前 v0.4.x R-S3 仅 3 字段）。
+    """
     try:
         from knot.repositories.settings_repo import get_app_setting
     except Exception:
-        return {}, [], "", False
+        return {}, [], "", [], False
     try:
         raw_tables = get_app_setting("catalog.tables") or ""
         raw_lex = get_app_setting("catalog.lexicon") or ""
         rules = get_app_setting("catalog.business_rules") or ""
+        raw_rel = get_app_setting("catalog.relations") or ""
     except Exception:
-        return {}, [], "", False
+        return {}, [], "", [], False
 
-    tables, lex = [], {}
+    tables, lex, relations = [], {}, []
     if raw_tables.strip():
         try:
             t = json.loads(raw_tables)
@@ -87,24 +91,33 @@ def _load_from_db() -> tuple:
                 lex = parsed
         except Exception:
             pass
+    # v0.5.44 — relations JSON 解析（list of [left_t, left_c, right_t, right_c, semantics]）
+    if raw_rel.strip():
+        try:
+            parsed_rel = json.loads(raw_rel)
+            if isinstance(parsed_rel, list):
+                # 兼容 tuple 长度 ≥4（semantics 可省略）；过滤无效条目
+                relations = [tuple(r) for r in parsed_rel if isinstance(r, (list, tuple)) and len(r) >= 4]
+        except Exception:
+            pass
 
-    found = bool(tables or lex or rules.strip())
-    return lex, tables, rules, found
+    found = bool(tables or lex or rules.strip() or relations)
+    return lex, tables, rules, relations, found
 
 
 def reload() -> str:
-    """重新加载 catalog；返回 source 标签。
-    DB 三键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。
-    RELATIONS 不走 DB 覆盖（admin 后台暂无编辑 UI；v0.4.x 只能在 .py 文件维护）。"""
+    """v0.5.44 — 重新加载 catalog；返回 source 标签。
+    DB 4 键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。
+    RELATIONS 现也走 DB 覆盖（admin UI v0.5.44 落地，根因解防 cartesian）。"""
     global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
 
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
-    db_lex, db_tables, db_rules, db_found = _load_from_db()
+    db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
 
     LEXICON = db_lex if db_lex else f_lex
     TABLES = db_tables if db_tables else f_tables
     BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
-    RELATIONS = f_relations  # 仅 file 来源；db 暂无 UI
+    RELATIONS = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
 
     _SOURCE = "db" if db_found else f_src
     return _SOURCE
@@ -115,12 +128,13 @@ reload()
 
 
 def get_defaults_from_files() -> dict:
-    """admin "恢复默认"按钮预填值。"""
-    f_lex, f_tables, f_rules, _f_relations, f_src = _load_from_files()
+    """admin "恢复默认"按钮预填值。v0.5.44 加 relations。"""
+    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     return {
         "lexicon": f_lex,
         "tables": f_tables,
         "business_rules": f_rules,
+        "relations": [list(r) for r in f_relations],  # tuple → list (JSON-friendly)
         "source": f_src,
     }
 

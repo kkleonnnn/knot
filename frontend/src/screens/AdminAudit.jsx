@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn } from '../Shared.jsx';
+import { I, iconBtn, pillBtn } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -21,20 +21,49 @@ function actionColor(T, action) {
   return T.muted;
 }
 
-// R-426 ActionChip — actionColor + color-mix 12% bg + padding/radius/fontWeight 三件套
+// v0.5.32 — ActionChip 简化对齐 demo audit.jsx L135（删 bg/padding/radius；仅保 mono + actionColor + fontWeight 500）
 function ActionChip({ T, action }) {
   const color = actionColor(T, action);
   return (
     <span style={{
-      color,
-      background: `color-mix(in oklch, ${color} 12%, transparent)`,
-      padding: '2px 8px',
-      borderRadius: 4,
-      fontWeight: 500,
-      fontSize: 11,
-      fontFamily: T.mono,
+      color, fontFamily: T.mono, fontWeight: 500, fontSize: 12,
     }}>{action}</span>
   );
+}
+
+// v0.5.32 — 时段下拉 preset (demo audit.jsx L75 byte-equal — 24h/7d/30d)；映射到 since ISO 字符串
+function _sinceFromPreset(preset) {
+  if (!preset) return '';
+  const now = new Date();
+  const ms = { '24h': 24 * 3600 * 1000, '7d': 7 * 86400 * 1000, '30d': 30 * 86400 * 1000 }[preset];
+  if (!ms) return '';
+  return new Date(now.getTime() - ms).toISOString();
+}
+
+// v0.5.32 — Field helper（demo audit.jsx L30-35 byte-equal）label mono uppercase + 子元素
+function Field({ T, label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
+      <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+// v0.5.32 — 客户端 CSV 导出 helper（topbar 导出 CSV button — demo audit.jsx L64）
+function exportAuditCsv(items) {
+  if (!items || items.length === 0) return;
+  const cols = ['created_at', 'actor_name', 'actor_role', 'actor_id', 'action', 'resource_type', 'resource_id', 'client_ip', 'success'];
+  const esc = (v) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v).replace(/"/g, '""');
+    return /[",\n]/.test(s) ? `"${s}"` : s;
+  };
+  const csv = '﻿' + cols.join(',') + '\n' + items.map(r => cols.map(c => esc(r[c])).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `knot-audit-${Date.now()}.csv`;
+  a.click();
 }
 
 // R-412 StatusDot inline helper（v0.6 候选 → 移入 Shared 与 ResultBlock/AdminBudgets 共用）
@@ -52,18 +81,25 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(50);
-  const [filter, setFilter] = useState({ actor_id: '', action: '', resource_type: '', since: '' });
+  // v0.5.32 — 加 sincePreset state（demo 24h/7d/30d 下拉 + 客户端转 since ISO）；resource_kw 替代 resource_type 字面（保后端字段名）
+  const [filter, setFilter] = useState({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' });
   const [drawerRow, setDrawerRow] = useState(null);  // 详情抽屉
+  const [stats, setStats] = useState(null);  // v0.5.40 — { total, today, failed, distinct_users }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, size]);
+  // v0.5.40 — load stats once on mount
+  useEffect(() => { api.get('/api/admin/audit-stats').then(setStats).catch(() => {}); }, []);
 
   async function load() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: size, offset: (page - 1) * size });
-      for (const k of ['actor_id', 'action', 'resource_type', 'since']) {
+      // v0.5.32 — sincePreset → since ISO 字符串；其他直传
+      for (const k of ['actor_id', 'action', 'resource_type']) {
         if (filter[k]) params.append(k, filter[k]);
       }
+      const sinceIso = _sinceFromPreset(filter.sincePreset);
+      if (sinceIso) params.append('since', sinceIso);
       const r = await api.get(`/api/admin/audit-log?${params.toString()}`);
       setItems(r.items || []);
     } catch (e) {
@@ -73,70 +109,76 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
     }
   }
 
-  const sidebarContent = (
-    <button onClick={() => onNavigate('chat')} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '9px 10px', borderRadius: 8, background: 'transparent',
-      color: T.muted, border: `1px solid ${T.border}`,
-      fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-    }}>
-      <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-    </button>
-  );
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）
+  const sidebarContent = null;
 
   return (
     <AppShell T={T} user={user} active="admin-audit" sidebarContent={sidebarContent}
               topbarTitle="审计日志" onToggleTheme={onToggleTheme}
+              topbarTrailing={
+                /* v0.5.41 — 用 pillBtn(T) helper 统一 topbar button 字体/图标（与 Admin tabs 新建账号等一致）*/
+                <button onClick={() => exportAuditCsv(items)} disabled={items.length === 0}
+                        style={{ ...pillBtn(T), opacity: items.length === 0 ? 0.5 : 1, cursor: items.length === 0 ? 'not-allowed' : 'pointer' }}>
+                  <I.dl width="13" height="13"/> 导出 CSV
+                </button>
+              }
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* R-405 Stat 4-card grid + R-394 auto-fit + Q1 tooltip placeholder (4 inline cards for grep ≥4) */}
+          {/* v0.5.40 Stat 4-card grid — 真数据 from /api/admin/audit-stats（{total, today, failed, distinct_users}）*/}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>总记录数</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.total.toLocaleString() : '—'}</span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>今日</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.today.toLocaleString() : '—'}</span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>失败数</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={{ ...statValueStyle(T), color: stats && stats.failed > 0 ? T.warn : T.text }}>
+                {stats ? stats.failed.toLocaleString() : '—'}
+              </span>
             </div>
-            <div title="后端聚合 API 对接中 (v0.6+)" style={statCardStyle(T)}>
+            <div style={statCardStyle(T)}>
               <span style={statLabelStyle(T)}>涉及用户</span>
-              <span style={statValueStyle(T)}>—</span>
+              <span style={statValueStyle(T)}>{stats ? stats.distinct_users.toLocaleString() : '—'}</span>
             </div>
           </div>
 
-          {/* R-406/407 + D2 双兼 Filter strip — Label "操作人 (Actor ID)" + Placeholder "输入用户 ID..." */}
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 18px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, alignItems: 'flex-end' }}>
-              <Field T={T} label="操作人 (Actor ID)">
-                <input value={filter.actor_id} onChange={e => setFilter({...filter, actor_id: e.target.value})}
-                       placeholder="输入用户 ID..." style={inputStyle(T)}/>
-              </Field>
-              <Field T={T} label="操作类型 (Action)">
-                <input value={filter.action} onChange={e => setFilter({...filter, action: e.target.value})}
-                       placeholder="如 auth.login..." style={inputStyle(T)}/>
-              </Field>
-              <Field T={T} label="资源类型 (Resource Type)">
-                <input value={filter.resource_type} onChange={e => setFilter({...filter, resource_type: e.target.value})}
-                       placeholder="如 user / budget..." style={inputStyle(T)}/>
-              </Field>
-              <Field T={T} label="起始时间 (Since)">
-                <input value={filter.since} onChange={e => setFilter({...filter, since: e.target.value})}
-                       placeholder="YYYY-MM-DD..." style={inputStyle(T)}/>
-              </Field>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-              <button onClick={() => { setFilter({ actor_id: '', action: '', resource_type: '', since: '' }); setPage(1); }}
-                      style={ghostBtnStyle(T)}>重置</button>
-              <button onClick={() => { setPage(1); load(); }}
-                      style={primaryBtnStyle(T)}>查询</button>
-            </div>
+          {/* v0.5.32 Filter strip 对齐 demo audit.jsx L69-92 — 时段 dropdown + 单短标签 + 横向 flex */}
+          <div style={{
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 18px',
+            display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap',
+          }}>
+            <Field T={T} label="时段">
+              <select value={filter.sincePreset} onChange={e => setFilter({...filter, sincePreset: e.target.value})}
+                      style={inputStyle(T)}>
+                <option value="">全部</option>
+                <option value="24h">最近 24h</option>
+                <option value="7d">最近 7 天</option>
+                <option value="30d">最近 30 天</option>
+              </select>
+            </Field>
+            <Field T={T} label="用户 ID">
+              <input value={filter.actor_id} onChange={e => setFilter({...filter, actor_id: e.target.value})}
+                     placeholder="数字 ID..." style={inputStyle(T)}/>
+            </Field>
+            <Field T={T} label="动作">
+              <input value={filter.action} onChange={e => setFilter({...filter, action: e.target.value})}
+                     placeholder="如 auth.login" style={inputStyle(T)}/>
+            </Field>
+            <Field T={T} label="资源关键词">
+              <input value={filter.resource_type} onChange={e => setFilter({...filter, resource_type: e.target.value})}
+                     placeholder="如 user / budget" style={inputStyle(T)}/>
+            </Field>
+            <div style={{ flex: 1, minWidth: 0 }}/>
+            <button onClick={() => { setFilter({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' }); setPage(1); }}
+                    style={ghostBtnStyle(T)}>重置</button>
+            <button onClick={() => { setPage(1); load(); }}
+                    style={primaryBtnStyle(T)}>查询</button>
           </div>
 
           {/* R-408 Table HTML → CSS Grid 7-col */}
@@ -148,13 +190,13 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             </div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-              {/* R-409 thead brandSoft 8% 闭环第四处 — 字面与 R-323/R-372/R-386 byte-equal */}
+              {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
               <div style={{
                 display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.3fr 2fr 0.7fr 0.6fr 60px',
                 padding: '10px 18px',
-                background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                background: T.bg,
                 borderBottom: `1px solid ${T.border}`,
-                fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                fontSize: 11, color: T.muted, fontFamily: T.mono,
                 fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
               }}>
                 <span>时间</span><span>Actor</span><span>Action</span><span>资源</span><span>IP</span><span>状态</span><span></span>
@@ -202,17 +244,20 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             </div>
           )}
 
-          {/* R-413/R-430 Pagination — 边界 disabled: page === 1 / items.length < size */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
-                    style={pageBtnStyle(T, page === 1)}>‹ 上一页</button>
-            <span style={{ fontSize: 12.5, color: T.muted, fontFamily: T.mono }}>第 {page} 页（每页 {size}）</span>
-            <button onClick={() => setPage(page + 1)} disabled={items.length < size}
-                    style={pageBtnStyle(T, items.length < size)}>下一页 ›</button>
+          {/* v0.5.32 Pagination 对齐 demo audit.jsx L149-154 — "1 - 8 / 12,408" 简洁字面 + 左 range / 右 buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.muted }}>
+            <span style={{ fontFamily: T.mono }}>
+              {items.length === 0 ? '0 / 0' : `${(page - 1) * size + 1} - ${(page - 1) * size + items.length}`}
+            </span>
+            <div style={{ flex: 1 }}/>
             <select value={size} onChange={e => { setSize(parseInt(e.target.value)); setPage(1); }}
-                    style={{...inputStyle(T), width: 'auto', marginLeft: 16}}>
+                    style={{...inputStyle(T), width: 'auto', height: 28, fontSize: 11.5}}>
               {_PAGE_SIZES.map(s => <option key={s} value={s}>{s} / 页</option>)}
             </select>
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
+                    style={pageBtnStyle(T, page === 1)}>‹ 上一页</button>
+            <button onClick={() => setPage(page + 1)} disabled={items.length < size}
+                    style={pageBtnStyle(T, items.length < size)}>下一页 ›</button>
           </div>
         </div>
       </div>
@@ -297,14 +342,7 @@ function KV({ T, k, v, mono }) {
   );
 }
 
-function Field({ T, label, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-      <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
-      {children}
-    </div>
-  );
-}
+// v0.5.32 — 旧 Field helper 已上移至 L44（demo audit.jsx L30-35 byte-equal flex:1 minWidth:130）
 
 function statCardStyle(T) {
   return {

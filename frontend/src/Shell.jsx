@@ -8,6 +8,7 @@ export function AppShell({
   T, user, active = 'chat', sidebarContent,
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
+  connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
   hideSidebarNewChat = false,
   onToggleTheme, onNewChat, onNavigate, onLogout,
   children,
@@ -28,16 +29,22 @@ export function AppShell({
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand 区 — R-199 KnotLogo size=20（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
-            R-200 logoArea 56px + borderBottom（与 main header 52px 视觉对齐） */}
+            v0.5.30 #28 logoArea 56 → 52 — 与 main header 52 字节对齐
+            v0.5.31 #34 — KnotLogo 右侧加版本号（demo thinking.jsx L28 byte-equal；R-181 三处同步 → 四处同步） */}
         <div style={{
-          height: 56, padding: '0 16px', flexShrink: 0,
+          height: 52, padding: '0 16px', flexShrink: 0,
           display: 'flex', alignItems: 'center',
           borderBottom: `1px solid ${T.border}`,
         }}>
           <KnotLogo T={T} size={20}/>
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: 11, fontFamily: T.mono, color: T.muted,
+            letterSpacing: '0.02em',
+          }}>v0.5.44</span>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
         {!active.startsWith('admin-') ? (
           <>
             {sidebarContent}
@@ -75,17 +82,19 @@ export function AppShell({
                             onClick={() => onNavigate('admin-audit')}/>
               </>
             )}
-            <div style={{ flex: 1 }}/>
-            <div style={{ padding: '10px 10px 6px' }}>
-              <button onClick={() => onNavigate('chat')} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'none', border: 'none', color: T.muted,
-                fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer', padding: 0,
-              }}>
-                <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-              </button>
-            </div>
           </>
+        )}
+        {/* v0.5.38 — 全屏统一「返回对话」底部位置 + 图标（demo 各屏 sidebar 底部 chev 左 byte-equal）；非 chat 屏自动渲染 */}
+        {active !== 'chat' && onNavigate && (
+          <div style={{ marginTop: 'auto', padding: '10px 16px', flexShrink: 0 }}>
+            <button onClick={() => onNavigate('chat')} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', color: T.muted,
+              fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer', padding: 0,
+            }}>
+              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+            </button>
+          </div>
         )}
 
         </div>
@@ -124,18 +133,20 @@ export function AppShell({
           <div style={{ fontSize: 14, color: T.text, fontWeight: 500 }}>{topbarTitle}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showConnectionPill && (
-              <div style={{
+              /* v0.5.38 — 删 framed pill（border + bg + radius 999）→ inline dot + text；字面 "数据源 · N 已连接" */
+              <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '5px 10px', borderRadius: 999,
-                border: `1px solid ${T.border}`, background: T.content, color: T.subtext, fontSize: 11.5,
+                color: T.muted, fontSize: 12,
               }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%',
                   background: connectionOk ? T.success : T.warn,
-                  boxShadow: connectionOk ? `0 0 0 2px ${T.successSoft}` : `0 0 0 2px rgba(255,164,33,0.18)`,
+                  flexShrink: 0,
                 }}/>
-                {connectionOk ? '数据库已连接' : '未连接数据库'}
-              </div>
+                <span>数据源 · {connectionOk
+                  ? (connectedCount != null ? `${connectedCount} 已连接` : '已连接')
+                  : '未连接'}</span>
+              </span>
             )}
             {topbarTrailing}
             <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
@@ -168,23 +179,17 @@ const WalletIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="
 const ClipboardCheckIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
 
 export function SideNavRow({ T, icon, label, active, onClick }) {
-  // v0.5.26 #11/#17 — active 指示改 absolute span 3px brand bar 左侧（demo 优雅左贴）
-  // bg 升级 T.accentSoft → color-mix 12%（更明显）
+  // v0.5.26 #11/#17 — active 指示纯 bg 填充 color-mix 12%
+  // （删 R-203 absolute span 3px brand bar — 资深反馈"边边很丑"，bg 填充已足够辨识）
   return (
     <div onClick={onClick} style={{
-      position: 'relative',
       display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
       margin: '0 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
       background: active ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
       color: active ? T.accent : T.subtext,
       fontWeight: active ? 500 : 400,
-      marginBottom: 1, overflow: 'hidden',
+      marginBottom: 1,
     }}>
-      {active && <span style={{
-        position: 'absolute', left: 0, top: 0, bottom: 0,
-        width: 3, background: T.accent,
-        borderRadius: '0 2px 2px 0',
-      }}/>}
       <span style={{ display: 'inline-flex', flexShrink: 0 }}>{icon}</span>
       <span style={{
         flex: 1, minWidth: 0,

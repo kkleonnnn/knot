@@ -33,16 +33,17 @@ function KpiCard({ T, label, value, unit, hint, accent }) {
   );
 }
 
-// R-472/R-492 PeriodTab inline helper — active box-shadow color-mix 20% 选中浮起感（v0.6 候选移入 Shared）
+// v0.5.41 PeriodTab — 字体对齐 pillBtn helper（fontSize 12.5 / inherit / fontWeight 500 / letterSpacing -0.005em）；
+// 与 Audit "导出 CSV" + Admin tabs "新建账号" 等 topbar button 一致
 function PeriodTab({ T, label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      height: 30, padding: '0 14px',
+      height: 30, padding: '0 12px',
       background: active ? T.accent : 'transparent',
-      color: active ? T.sendFg : T.muted,
+      color: active ? T.sendFg : T.subtext,
       border: `1px solid ${active ? T.accent : T.border}`,
-      borderRadius: 6, fontSize: 12, fontFamily: T.mono,
-      fontWeight: 500, cursor: 'pointer',
+      borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit',
+      fontWeight: 500, letterSpacing: '-0.005em', cursor: 'pointer',
       boxShadow: active ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
     }}>{label}</button>
   );
@@ -79,16 +80,8 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
     }
   }
 
-  const sidebarContent = (
-    <button onClick={() => onNavigate('chat')} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '9px 10px', borderRadius: 8, background: 'transparent',
-      color: T.muted, border: `1px solid ${T.border}`,
-      fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-    }}>
-      <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-    </button>
-  );
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）
+  const sidebarContent = null;
 
   // R-447 Rules note 2 条 — brandSoft inset + R-481 borderLeft 3px 25%
   const rules = [
@@ -96,20 +89,24 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
     { tag: '数据源', body: 'messages.recovery_attempt 列（v0.4.2 引入），含 fan-out reject + fix_sql retry' },
   ];
 
+  // v0.5.38 — PeriodTab 字体统一（fontFamily inherit T.sans + fontSize 12.5 + 与 Audit CSV button 一致风格）
+  const periodTabs = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontFamily: 'inherit', color: T.muted }}>
+      <span style={{ marginRight: 4 }}>时段</span>
+      {['7d', '30d', '90d'].map(p => (
+        <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
+      ))}
+    </div>
+  );
+
   return (
     <AppShell T={T} user={user} active="admin-recovery" sidebarContent={sidebarContent}
               topbarTitle="System Recovery 趋势" onToggleTheme={onToggleTheme}
+              topbarTrailing={periodTabs}
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* R-472 时段切换 — content area 保留 (R-192 sustained) + PeriodTab + R-492 active 浮起感 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginRight: 4 }}>时段</span>
-            {['7d', '30d', '90d'].map(p => (
-              <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
-            ))}
-          </div>
+        {/* v0.5.33 — maxWidth 960 → 1200（与 demo recovery.jsx chartW 1140 接近）；删除原 inline period tabs（已移至 topbar） */}
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: 32 }}><Spinner size={24} color={T.accent}/></div>
@@ -152,7 +149,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                   <LineChart
                     data={stats.by_day.map(d => ({ date: d.date.slice(5), count: d.count }))}
                     stroke={T.accent} fill labelColor={T.muted}
-                    gridColor={T.borderSoft} width={880} height={280}
+                    gridColor={T.borderSoft} width={1100} height={240}
                   />
                 )}
               </div>
@@ -174,13 +171,13 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                   </div>
                 ) : (
                   <>
-                    {/* R-480 thead brandSoft 8% 闭环第六处铁律加冕 — 字面 byte-equal v0.5.14/15/16/17/18 */}
+                    {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
                     <div style={{
                       display: 'grid', gridTemplateColumns: '64px 1.4fr 1fr 1fr 1fr',
                       padding: '8px 18px',
-                      background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                      background: T.bg,
                       borderBottom: `1px solid ${T.border}`,
-                      fontSize: 11, color: T.subtext, fontFamily: T.mono,
+                      fontSize: 11, color: T.muted, fontFamily: T.mono,
                       fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
                     }}>
                       <span>#</span><span>User</span><span>自纠正次数</span><span>消息数</span><span>自纠正率</span>
@@ -218,14 +215,13 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                 )}
               </div>
 
-              {/* R-447/R-481 Rules note 2 条 — brandSoft inset + borderLeft 3px 25% 第三处闭环铁律加冕 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* v0.5.33 — Rules note 改 demo recovery.jsx L161-172 byte-equal：删 brandSoft 8% bg + borderLeft 3px → 2px brandSoftBorder（更 subtle，对齐资深"深色边边"反馈方向） */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {rules.map((n, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 14px',
-                    borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
-                    background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+                    borderLeft: `2px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
                     fontSize: 12, color: T.subtext, lineHeight: 1.55,
                   }}>
                     <TagChip T={T}>{n.tag}</TagChip>
