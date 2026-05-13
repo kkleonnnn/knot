@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(monkeypatch):
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="bi_agent_int_")
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_int_")
     os.close(fd)
     os.unlink(path)
 

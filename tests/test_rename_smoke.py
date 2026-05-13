@@ -1,12 +1,16 @@
-"""tests/test_rename_smoke.py — v0.5.0 R-67 / R-70 / R-79 / R-72 综合 smoke 守护（TDD）。
+"""tests/test_rename_smoke.py — R-67 / R-70 / R-79 / R-72 综合 smoke 守护。
 
-R-67：包名 / 包目录 / DB 文件名一致；新代码不存在 bi_agent 字符串（白名单除外）
+v0.5.0 起：包名 / 包目录 / 业务代码 / agent prompt 字面统一为 KNOT；旧 brand 0 命中。
+v0.6.0 起（F5/F15）：R-67 从"含白名单的兼容期检查"转型为"通用无 bi_agent 字面严格守护"
+  （v0.5.0 R-67/68/74 公开承诺撤回 + R-PA-6/R-PA-6.1 立约 → 业务代码 0 BIAGENT/bi_agent 字面）。
+
+R-67：knot/ 业务代码不含 bi_agent 字面（0 豁免；commit 3/4/5/6 物理清算 + 转型完成）
 R-70：services/knot/ 强制 → services/agents/，不留 alias
-R-72：FastAPI title=KNOT version=0.5.0；routes count = 72 不变
-R-79：grep BI-Agent / bi-agent 字面量在 agent prompt / repositories / api 0 命中
+R-72：FastAPI title=KNOT version=<current>；routes count = 77 不变
+R-79：grep BI-Agent / bi-agent 字面在 agent prompt / repositories / api 0 命中
 
 ⚠️ 本文件含字面量断言（bi_agent / bi-agent / BI-Agent 是 grep 守护目标），
-   _v050_rename.py 必须 SKIP 本文件。
+   用 "bi" + "_agent" 字面分割避免被 sanitize 脚本 / IDE 替换工具误改。
 """
 import subprocess
 from pathlib import Path
@@ -19,67 +23,44 @@ import pytest
 def test_R67_knot_package_dir_exists():
     """knot/ 包目录存在；bi_agent/ 旧目录必须不存在。"""
     assert Path("knot").is_dir(), "knot/ 包目录必须存在"
-    assert not Path("bi_agent").exists(), "bi_agent/ 旧目录必须不存在（git mv 后）"
+    assert not Path("bi" + "_agent").exists(), "bi_agent/ 旧目录必须不存在（git mv 后）"
 
 
 def test_R67_pyproject_name_is_knot():
     """pyproject.toml name='knot'。"""
     src = Path("pyproject.toml").read_text(encoding="utf-8")
     assert 'name = "knot"' in src, "pyproject.toml name 应改 'knot'"
-    assert 'name = "bi-agent"' not in src, "旧 name 不应保留"
+    assert 'name = "bi' + '-agent"' not in src, "旧 name 不应保留"
 
 
 def test_R67_no_bi_agent_in_knot_package_python_code():
-    """grep `bi_agent` 在 knot/ 业务代码 0 命中（除白名单）。
+    """v0.6.0 F5/F15 转型：grep `bi_agent` 在 knot/ 业务代码 0 命中（0 豁免）。
 
-    白名单：
-    - BIAGENT_MASTER_KEY 字面量（env 兼容代码）
-    - bi_agent.db / bi_agent.db.v044 字面量（DB migration 检测代码）
-    - _v050_rename.py（一次性 PATCH 脚本含 token 字面量；D-5 删除）
+    v0.5.0 时此测试含白名单（BIAGENT_MASTER_KEY / bi_agent.db / .v044- 三类）;
+    v0.6.0 Phase A 撤回 R-67/68/74 公开承诺 + commit 3/4 物理清算 → 白名单整组删 +
+    转为严格"0 命中"守护。
     """
     if not Path("knot").is_dir():
-        pytest.fail("knot/ 包目录必须存在（D-3 后）")
+        pytest.fail("knot/ 包目录必须存在")
 
-    needle = "bi" + "_agent"  # 字面量分割避免被脚本误替
+    needle = "bi" + "_agent"  # 字面分割避免被 sanitize 脚本 / IDE 工具误替
     result = subprocess.run(
-        [
-            "grep", "-rn", needle, "knot/",
-            "--include=*.py",
-        ],
+        ["grep", "-rn", needle, "knot/", "--include=*.py"],
         capture_output=True,
         text=True,
+        check=False,
     )
-    if result.returncode != 0:
-        return  # 0 命中
-
-    whitelist_keywords = [
-        "BIAGENT_MASTER_KEY",   # env 兼容字面量
-        "bi" + "_agent.db",      # DB migration 检测字面量
-        ".v044-",               # bak 命名字面量
-    ]
-    violations = []
-    for line in result.stdout.strip().split("\n"):
-        if not line:
-            continue
-        if not any(kw in line for kw in whitelist_keywords):
-            violations.append(line)
-    assert not violations, (
-        "R-67 违规：knot/ 内 bi_agent 字眼不在白名单：\n" + "\n".join(violations)
+    assert result.returncode != 0, (
+        f"R-67 违规：knot/ 业务代码应 0 命中 bi_agent 字面；命中：\n{result.stdout}"
     )
 
 
 # ─── R-70 services/knot/ 不留 alias ──────────────────────────────────
 
 def test_R70_no_services_knot_alias():
-    """grep `knot.services.knot` 在业务代码 0 命中。
-
-    白名单（豁免）：
-    - knot/scripts/_v050_rename.py（一次性脚本 token 字面量；D-5 删除）
-    - tests/test_rename_smoke.py（本文件 R-70 / R-79 测试 docstring 含目标字面量）
-    - tests/scripts/test_v050_rename.py（脚本守护测试，含目标字面量）
-    """
+    """grep `knot.services.knot` 在业务代码 0 命中。"""
     if not Path("knot").is_dir():
-        pytest.fail("knot/ 必须存在（D-3 后）")
+        pytest.fail("knot/ 必须存在")
 
     result = subprocess.run(
         [
@@ -89,6 +70,7 @@ def test_R70_no_services_knot_alias():
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode != 0, (
         f"R-70：knot/ 业务代码 knot.services.knot 应 0 命中；命中：\n{result.stdout}"
@@ -112,7 +94,7 @@ def test_R79_no_old_brand_literal_in_business_code():
     业务代码中 brand 字眼必须全替换为 KNOT 或品牌中性表述（agent system prompt /
     错误消息文案 / 用户可见 banner / repositories prompts）。
 
-    检测目标用字面量分割构造避免被 _v050_rename.py 误替。
+    检测目标用字面量分割构造避免被 sanitize 脚本误替。
     """
     paths = [
         "knot/services/agents/",
@@ -121,7 +103,7 @@ def test_R79_no_old_brand_literal_in_business_code():
     ]
     paths = [p for p in paths if Path(p).is_dir()]
     if not paths:
-        pytest.fail("knot/services/agents/ 等业务目录必须存在（D-3 后）")
+        pytest.fail("knot/services/agents/ 等业务目录必须存在")
 
     # 字面量分割：'BI' + '-Agent' = 'BI-Agent'；'bi' + '-agent' = 'bi-agent'
     pattern = "BI" + "-Agent" + "|" + "bi" + "-agent"
@@ -131,6 +113,7 @@ def test_R79_no_old_brand_literal_in_business_code():
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         return  # 0 命中是预期

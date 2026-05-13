@@ -46,7 +46,7 @@ def tmp_db_path(monkeypatch):
     base.py 在 import 时把 SQLITE_DB_PATH 拷进自己的命名空间，所以 monkeypatch
     必须直接打 base 模块（不是 config 单例）。
     """
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="bi_agent_test_")
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_test_")
     os.close(fd)
     os.unlink(path)  # 让 init_db() 自己创建
 
