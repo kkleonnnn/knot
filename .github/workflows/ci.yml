@@ -91,21 +91,26 @@ jobs:
           fi
 
           case "${{ matrix.env_setup.name }}" in
-            neither)
-              # R-68 都无 → 期望 fail-fast (sys.exit 1) + 彩色边框 + 文案含 KNOT_MASTER_KEY + Fernet.generate_key
+            neither|only-biagent)
+              # neither: 双 env 都无 → fail-fast
+              # only-biagent (v0.6.0-hotfix LOCKED 盲区 #8 补救): v0.4.x 升级守护测 —
+              #   残留旧 BIAGENT_MASTER_KEY env 而未改 KNOT_MASTER_KEY → fail-fast +
+              #   友好提示用户升级。v0.6.0 commit 4 撤回 R-67/68/74 双源后，本 matrix
+              #   item 从"成功路径"语义反转为"升级路径守护"语义（CHANGELOG 撤回声明
+              #   同精神 — 测守护友好升级体验）。
               set +e
               OUT=$(python -c "from knot.main import app" 2>&1)
               rc=$?
               set -e
               echo "$OUT"
               if [ $rc -ne 1 ]; then
-                echo "::error::neither 路径期望 exit 1，实际 $rc"
+                echo "::error::${{ matrix.env_setup.name }} 路径期望 exit 1（v0.6.0 撤回双源），实际 $rc"
                 exit 1
               fi
               echo "$OUT" | grep -q "KNOT 启动失败" || (echo "::error::缺友好错误文案"; exit 1)
               echo "$OUT" | grep -q "KNOT_MASTER_KEY" || (echo "::error::缺新 env 名提示"; exit 1)
               echo "$OUT" | grep -q "Fernet.generate_key" || (echo "::error::缺生成命令提示"; exit 1)
-              echo "neither path: fail-fast 正确 ✓"
+              echo "${{ matrix.env_setup.name }} path: fail-fast 正确 ✓"
               ;;
             *)
               # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 偿还
