@@ -39,22 +39,22 @@ LIMITS = {
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
     # 2 主文件
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 360,  # 状态容器（14 handlers + 11 state + 7 tab dispatch），资深 ack
+    "frontend/src/screens/Admin.jsx": 380,  # v0.5.44 360→380 (catalog state 加 relations 字段)
     # 12 个新建模块（v0.5.3）
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
-    "frontend/src/screens/chat/ResultBlock.jsx":   440,  # v0.5.14 R-341 final 420→440 (v0.5 收官；v0.6 必须子组件拆分)
+    "frontend/src/screens/chat/ResultBlock.jsx":   460,  # v0.5.39 440→460 (Trace 4th step 推导 + suggestions chevron 改造)
     "frontend/src/screens/SavedReports.jsx":       380,  # v0.5.15 R-363 新增 (Favorites 屏复刻)
-    "frontend/src/screens/AdminAudit.jsx":         380,  # v0.5.17 R-425 新增 (AdminAudit 屏复刻)
+    "frontend/src/screens/AdminAudit.jsx":         430,  # v0.5.38 380→430 (字体 sweep + 时段下拉 + 导出 CSV)
     "frontend/src/screens/AdminBudgets.jsx":       380,  # v0.5.18 R-460 新增 (AdminBudgets 屏复刻)
     "frontend/src/screens/AdminRecovery.jsx":      380,  # v0.5.19 R-490 新增 (AdminRecovery 屏复刻;admin 三部曲收官)
-    "frontend/src/screens/chat/ChatEmpty.jsx":      80,  # v0.5.10 R-218 收紧 250→80
+    "frontend/src/screens/chat/ChatEmpty.jsx":     100,  # v0.5.30 80→100 (suggestion icons spark/flow 扩张)
     "frontend/src/screens/chat/Conversation.jsx":  250,
-    "frontend/src/screens/chat/ThinkingCard.jsx":  160,  # v0.5.12 R-285 收紧 250→160
+    "frontend/src/screens/chat/ThinkingCard.jsx":  220,  # v0.5.39 160→220 (Trace 4th step + 信任度推导)
     "frontend/src/screens/chat/Composer.jsx":      100,  # v0.5.11 R-260 收紧 250→100
     "frontend/src/screens/admin/tab_access.jsx":   250,
     "frontend/src/screens/admin/tab_resources.jsx": 250,
-    "frontend/src/screens/admin/tab_knowledge.jsx": 250,
+    "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 250→440 (Knowledge + Few-shot 完整 UI demo 重写)
     "frontend/src/screens/admin/tab_system.jsx":   250,
     "frontend/src/screens/admin/modals.jsx":       250,
     # ── v0.5.7 R-176 ──────────────────────────────────────────
