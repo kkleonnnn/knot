@@ -53,6 +53,17 @@ class AgentResult:
     total_output_tokens: int
 
 
+def _is_executable_query(sql: str) -> bool:
+    """SELECT 或 CTE (WITH ... SELECT) 视为可执行只读查询。
+
+    v0.6.0-hotfix R-PA-10（LOCKED 终稿盲区第 6 处补救）— v0.4.x/v0.5.x
+    pre-existing bug：startswith('SELECT') 不识别 CTE 写法，跳过 db_connector
+    导致 final_rows 保持 []。DeepSeek 倾向用 CTE 写复杂多表查询时触发。
+    """
+    s = (sql or "").strip().upper()
+    return s.startswith(("SELECT", "WITH"))
+
+
 def run_sql_agent(
     question: str,
     schema_text: str,
@@ -137,7 +148,8 @@ def run_sql_agent(
 
         if observation.startswith("__FINAL__:"):
             final_sql = _strip_sql(observation[len("__FINAL__:"):])
-            if final_sql.upper().startswith("SELECT"):
+            # v0.6.0-hotfix R-PA-10：CTE (WITH...) 也是可执行查询；详 _is_executable_query
+            if _is_executable_query(final_sql):
                 final_rows, exec_err = db_connector.execute_query(engine, final_sql)
                 if exec_err:
                     final_error = exec_err
@@ -159,7 +171,10 @@ def run_sql_agent(
             observation = observation[len("__REJECT_FAN_OUT__:"):]
             # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
 
-        if action == "execute_sql" and not observation.startswith("执行失败"):
+        # v0.6.0-hotfix R-PA-9：fallback 收紧 — 仅真实成功 execute_sql 触发（与
+        # sql_planner_tools._run_tool 的 cartesian/fan-out 守护联动）；改用显式
+        # startswith("查询成功") 避免 REJECT 路径 strip 前缀后误触发 fallback 重跑。
+        if action == "execute_sql" and observation.startswith("查询成功"):
             final_sql = _strip_sql(action_input)
             final_rows, exec_err = db_connector.execute_query(engine, final_sql)
             if not exec_err:
@@ -283,7 +298,8 @@ async def arun_sql_agent(
 
         if observation.startswith("__FINAL__:"):
             final_sql = _strip_sql(observation[len("__FINAL__:"):])
-            if final_sql.upper().startswith("SELECT"):
+            # v0.6.0-hotfix R-PA-10：CTE (WITH...) 也是可执行查询；详 _is_executable_query
+            if _is_executable_query(final_sql):
                 final_rows, exec_err = db_connector.execute_query(engine, final_sql)
                 if exec_err:
                     final_error = exec_err
@@ -305,7 +321,10 @@ async def arun_sql_agent(
             observation = observation[len("__REJECT_FAN_OUT__:"):]
             # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
 
-        if action == "execute_sql" and not observation.startswith("执行失败"):
+        # v0.6.0-hotfix R-PA-9：fallback 收紧 — 仅真实成功 execute_sql 触发（与
+        # sql_planner_tools._run_tool 的 cartesian/fan-out 守护联动）；改用显式
+        # startswith("查询成功") 避免 REJECT 路径 strip 前缀后误触发 fallback 重跑。
+        if action == "execute_sql" and observation.startswith("查询成功"):
             final_sql = _strip_sql(action_input)
             final_rows, exec_err = db_connector.execute_query(engine, final_sql)
             if not exec_err:
