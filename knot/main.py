@@ -24,20 +24,25 @@ from knot.api import saved_reports as saved_reports_router
 from knot.api import templates as templates_router
 from knot.core.logging_setup import logger, new_request_id, set_request_id
 from knot.repositories import init_db
-from knot.scripts.migrate_db_rename_v050 import migrate_db_rename
 
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.5.44")
+app = FastAPI(title="KNOT", version="0.6.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# v0.5.0 R-69 / R-76：DB startup migration（bi_agent.db → knot.db）
-# 在 init_db() 之前；幂等；atomic 异常保护内置
+# v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
+# _DATA_DIR.mkdir 保留 — sqlite3.connect 需要父目录存在
 _DATA_DIR = Path(__file__).parent / "data"
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
-migrate_db_rename(_DATA_DIR)
 init_db()
+
+# v0.6.0 F2.9：启动期幂等 seed 3-Agent system prompt 默认值（从 knot/prompts/*.md → DB）
+# 仅 DB 行不存在时 INSERT；已有则跳过（不覆盖 admin 已编辑值，R-PA-2.3）
+from knot.services.prompt_service import seed_defaults_from_files as _seed_prompts  # noqa: E402
+
+_seed_result = _seed_prompts()
+logger.info(f"prompt seed: {_seed_result}")
 
 
 # v0.4.5 R-45 / v0.5.0 R-68：master key fail-fast 在 init_db() 之后、所有路由注册之前。
@@ -64,9 +69,8 @@ def _check_master_key_or_exit():
         print("  生成新密钥:", file=sys.stderr)
         print('    python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"', file=sys.stderr)
         print("", file=sys.stderr)
-        print("  设置环境变量后重启（v0.5.0 起优先使用 KNOT_MASTER_KEY）:", file=sys.stderr)
+        print("  设置环境变量后重启:", file=sys.stderr)
         print("    export KNOT_MASTER_KEY=<生成的密钥>", file=sys.stderr)
-        print("    （兼容旧名 BIAGENT_MASTER_KEY 至 v1.0；新部署请用 KNOT_MASTER_KEY）", file=sys.stderr)
         print(f"{bar}\033[0m", file=sys.stderr)
         sys.exit(1)
 

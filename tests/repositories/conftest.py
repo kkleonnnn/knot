@@ -11,7 +11,7 @@ import pytest
 
 @pytest.fixture()
 def tmp_db_path(monkeypatch):
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="bi_agent_test_")
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_test_")
     os.close(fd)
     os.unlink(path)  # 让 init_db() 自己创建
 

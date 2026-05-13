@@ -3,7 +3,7 @@
 R-181：Login.jsx 页脚版本字符串与 knot.main.app.version 一致（每 PATCH 三处同步）
 R-185：Login.jsx 引用 KnotLogo / KnotMark（DOM 哨兵 — 防资产重构后"逻辑蒸发"）
 
-⚠️ 本文件含字面量断言；_v050_rename.py 不影响（路径含 knot/ 而非 bi_agent/）。
+⚠️ 本文件含字面量断言；v0.6.0 单源化后路径含 knot/ 而非旧包名。
 """
 from pathlib import Path
 

@@ -99,7 +99,7 @@ def init_db():
         )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")
 
-    # v0.2.4: uploads.db → bi_agent.db 一次性合并（幂等）
+    # v0.2.4: uploads.db 一次性合并入主 DB（幂等）
     _migrate_uploads_db_once(conn)
 
     conn.commit()
@@ -134,7 +134,7 @@ def _migrate_uploads_db_once(conn):
         except OSError:
             pass
         if moved or skipped:
-            print(f"[migration] uploads.db → bi_agent.db: moved={moved}, skipped={skipped}")
+            print(f"[migration] uploads.db merged into main DB: moved={moved}, skipped={skipped}")
     except Exception as e:
         try:
             conn.execute("DETACH DATABASE up")

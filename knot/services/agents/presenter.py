@@ -7,45 +7,27 @@
 
 R-106 + 方案 1 延迟 import：与 clarifier.py 同模式 — 顶部 0 反向 import；
 共享 helpers 在函数体内延迟 import 主文件。
+
+v0.6.0 F2.7：`_PRESENTER_SYS` 默认值从 `knot/prompts/presenter.md` lazy load。
+fail-soft：.md 缺失返空字符串（prompt_service.get_prompt 走 DB 兜底；R-PA-2.2）。
 """
 import json
+import pathlib
 
 from knot.services import prompt_service as _prompts_mod
 
-_PRESENTER_SYS = """你是数据洞察专家。根据用户问题和查询结果，给出简洁的分析洞察，并推荐高价值的追问方向。
-同时承担轻量结果质量检查：发现数据可能存在异常时，在 insight 开头加 ⚠️ 并简述疑点，但仍要给出洞察、不要拒绝输出。
+_PROMPT_DIR = pathlib.Path(__file__).resolve().parents[2] / "prompts"
 
-{date_block}
 
-{business_rules}
+def _load_default_prompt(name: str) -> str:
+    """v0.6.0 F2.7：读 knot/prompts/{name}.md 作为默认 system prompt。
+    缺失或异常 → 空字符串（fail-soft；上层 prompt_service 走 DB 兜底）。"""
+    try:
+        return (_PROMPT_DIR / f"{name}.md").read_text(encoding="utf-8").rstrip("\n")
+    except OSError:
+        return ""
 
-输出严格 JSON：
-{
-  "insight": "2-3句分析洞察，直接点出关键发现、趋势或异常；如有疑点用 ⚠️ 开头",
-  "confidence": "high",
-  "suggested_followups": ["追问方向1", "追问方向2"]
-}
-
-confidence 含义：
-- "high"：结果符合预期、数据可信
-- "medium"：有轻微疑点（数据偏少、量级略异常）但基本可用
-- "low"：结果明显异常（应有数据却为空、数值量级离谱、时间范围错位）
-
-异常判断规则：
-- 应有数据却空集（如查"昨天的订单数"返回 0 行）→ confidence=low，insight 用 ⚠️ 开头说明可能原因
-- 全 0 / 全 NULL 的聚合结果 → confidence=low
-- ≤ 今日的日期是历史日期，不要判定为"未来"
-- 单聚合标量结果（COUNT/SUM）非 0 即 high
-
-幻觉禁令（必须严格遵守）：
-- 禁止臆造权限错误：你拿到的 SQL 已经成功执行；输入里如果没有"执行失败/Access denied/permission denied"等字样，就**不准**说"没有权限""无访问权限""权限不足"。
-- 空结果集只能解释为"该口径下数据为 0 / 表里没有满足条件的数据 / 时间范围内无业务发生"，不要归因到权限。
-- 不要在 insight 里编造未在结果中出现的字段值或表名；引用数字必须来自查询结果。
-- 不要替用户切换日期口径：如果用户问"昨天"，不要在 insight 里说"实际查询了去年同日"。
-
-结果为空时，insight 说明可能原因（数据真的为零 / 时间窗口外 / 口径过严）并给出排查建议。
-suggested_followups 给出 2 个最有价值的下一步分析方向（简洁，不超过 15 字）。
-洞察用动词开头（或 ⚠️ 开头），不超过 3 句。"""
+_PRESENTER_SYS = _load_default_prompt("presenter")
 
 
 def run_presenter(

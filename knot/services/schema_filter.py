@@ -3,8 +3,8 @@ schema_filter.py — Schema 精准过滤（v0.2.3 改造）
 
 从全量 Schema 中过滤出与问题最相关的表，减少 Prompt token 用量。
 v0.2.3 改造点：
-  - 引入 ohx_catalog.LEXICON：业务词命中 → 指定表得高分（同时支持 db.tbl 全名 / 仅 tbl 名匹配）
-  - 引入 ohx_catalog.TABLES.topics：表元数据中的主题与问题词重合 → 加分
+  - 引入 catalog.LEXICON：业务词命中 → 指定表得高分（同时支持 db.tbl 全名 / 仅 tbl 名匹配）
+  - 引入 catalog.TABLES.topics：表元数据中的主题与问题词重合 → 加分
   - 关键词命中的"指向表"作为兜底强制入选（min_floor），即便 BM25 重合度低也保留
   - max_tables 提到 12（兼顾 token 预算），仍可由调用方覆盖
 
@@ -26,17 +26,17 @@ def _lex():
     return getattr(_cl, "LEXICON", {}) if _cl else {}
 
 
-def _ohx_tables():
+def _cat_tables():
     return getattr(_cl, "TABLES", []) if _cl else []
 
 
-def _ohx_lookup():
+def _cat_lookup():
     """每次调用重建（轻量），admin 改后立即生效。"""
-    return {f"{t['db']}.{t['table']}": t for t in _ohx_tables()}
+    return {f"{t['db']}.{t['table']}": t for t in _cat_tables()}
 
 
-def _ohx_by_basename():
-    return {t['table']: t for t in _ohx_tables()}
+def _cat_by_basename():
+    return {t['table']: t for t in _cat_tables()}
 
 
 def parse_schema_tables(schema_text: str) -> list[tuple[str, str]]:
@@ -96,7 +96,7 @@ def _catalog_targets(question: str) -> dict:
 
 def _topic_overlap(table_full_or_base: str, question: str) -> float:
     """表 catalog 中的 topics 与问题片段的重合 → 每命中 +3。"""
-    meta = _ohx_lookup().get(table_full_or_base) or _ohx_by_basename().get(_basename(table_full_or_base))
+    meta = _cat_lookup().get(table_full_or_base) or _cat_by_basename().get(_basename(table_full_or_base))
     if not meta:
         return 0.0
     score = 0.0

@@ -29,7 +29,7 @@ class AppSetting:
 class FileUpload:
     """analyst 通过「上传 CSV」入口上传的临时数据集元数据。
 
-    实际行数据存入 SQLite 主库的 upload_<id> 表（v0.2.4 起与 bi_agent.db 合并），
+    实际行数据存入 SQLite 主库的 upload_<id> 表（v0.2.4 起合并入主 DB），
     可在 ChatScreen 选中后作为 SQL 查询源（与 doris/mysql 数据源平行）。
     """
     id: int

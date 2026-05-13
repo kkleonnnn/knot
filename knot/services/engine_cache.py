@@ -11,8 +11,8 @@ from knot.core.logging_setup import logger
 from knot.repositories import data_source_repo
 
 # v0.2.4: uploads.db 已合并入 主 SQLite；上传表与业务表共用一个 SQLite 文件。
-# v0.5.0: bi_agent.db → knot.db（DB rename 由 startup migration 透明处理）
 # 老 uploads.db 的迁移在 base.init_db() 一次性完成（幂等）。
+# v0.6.0 单源化：主 DB 路径 knot/data/knot.db（v0.5.0 startup rename migration 已撤回 — 详 CHANGELOG）。
 _KNOT_DB = Path(__file__).parent.parent / "data" / "knot.db"
 _upload_engine = db_connector.create_sqlite_engine(str(_KNOT_DB))
 

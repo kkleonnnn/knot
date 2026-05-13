@@ -5,7 +5,213 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.44 (Backend+UX) RELATIONS 业务目录 UI — 笛卡尔积根因解
+## [Unreleased] - v0.6.0 (Phase A) KNOT Sanitize + bi_agent 兼容层清算 + Deploy-Ready 内测可启动门
+
+> **Loop Protocol v3 第 26 次完整施行**（Phase A 起手 — 全 v3 三阶段；S-4 LOCKED 严禁简化协议）；
+> **首次跨 MINOR 角色滚动后施行**（v0.5 → v0.6）+ **首次公开承诺撤回**（v0.5.0 R-67/68/74）+
+> **首次 sanitize + Deploy-Ready 二合一 PATCH**。
+>
+> v0.5→v0.6 滚动整体审核 9 项决议（S-1~S-9）LOCKED 后首个落地 PATCH。Phase A 范围窄而硬：
+> 业务方言 sanitize + 默认 prompts/few-shots/catalog 明文化 + bi_agent 兼容层物理删除 +
+> 公开承诺撤回 + **Deploy-Ready 内测可启动门**（merge 后 30 分钟可云服务器内测）。
+> **业务功能 0 变更**（不引入多租户 / RBAC / 任何 Phase B 范畴）。
+
+### v0.6.0 Phase A = Deploy-Ready 内测可启动门
+
+Phase A merge 后 → 团队任一 dev 在云服务器 30 分钟内完成部署 → 内测启动。
+
+详 [README §5 分钟全新部署快速开始](README.md#5-分钟全新部署快速开始内测) + [v0.4.x → v0.6.0 升级路径](README.md#v04x--v060-升级路径dev-用户)。
+
+4 周缓冲期（R-PA-5 LOCKED；资深架构师开 GitHub issue label `/start-internal-test` 起算 Day 0）
+后真实使用反馈拍板 Phase B 范围（做 / 缩减 / 跳过）。
+
+### Phase A 18 In-Scope 项目（参 `docs/plans/v0.6.0-phase-a-sanitize.md`）
+
+| 编号 | 主题 | 类别 | 落地 commit |
+|---|---|---|---|
+| F1 | ohx 全包 sanitize（mydb / ohx_dwd 等业务方言清零） | sanitize | commit 1 |
+| F2 | 默认 prompts 明文化 → knot/prompts/*.md + DB seed | refactor | commit 2 |
+| F3 | 默认 few-shots / catalog seed template generic（_template_catalog） | refactor | commit 1 |
+| F4 | 4 处 bi_agent_test_ tempfile prefix → knot_test_ | sanitize | commit 5 |
+| F5 | R-67 白名单同步 + 转型为通用无 bi_agent 字面守护 | test refactor | commit 5 |
+| F6 | scripts/audit_ohx_leakage.py 工具新建（--mode=sanitize/brand/all） | infra | commit 1 |
+| F7 | 版本同步 v0.5.44 → v0.6.0（4 处） | chore | commit 7 |
+| F8 | CHANGELOG / CLAUDE.md 显式标注 Phase A + 推迟项 | docs | commit 6 |
+| F11 | knot/scripts/migrate_db_rename_v050.py 整文件物理删 | bi_agent 清算 | commit 3 |
+| F12 | knot/main.py:35-40 startup migration 调用块删 | bi_agent 清算 | commit 3 |
+| F13 | knot/core/crypto/fernet.py 双源 + R-74 探针 → 单一 KNOT_MASTER_KEY | bi_agent 清算 | commit 4 |
+| F14 | 测试整组清理（7 文件：test_db_migration / test_env_dual_source / test_audit_continuity 全删 + 4 文件 BIAGENT 字面清理） | bi_agent 清算 | commit 3/4 |
+| F15 | tests/test_rename_smoke.py R-67 白名单整组删（与 F5 联动） | bi_agent 清算 | commit 5 |
+| F16 | .env.example BIAGENT_MASTER_KEY → KNOT_MASTER_KEY + JWT_SECRET 默认值改 | bi_agent 清算 | commit 6 |
+| F17 | CHANGELOG / CLAUDE.md 撤回 R-67/68/74 公开承诺 + 撤回原因 | docs | commit 6 |
+| F18 | README / 部署文档 sanitize + v0.4.x 升级路径段 + 5 分钟全新部署 quick-start 段 | docs | commit 6 + 部分提前 commit 5 |
+
+### Phase A 推迟项（OOS-1~15 详 `docs/plans/v0.6.0-phase-a-sanitize.md` §2）
+
+- **OOS-1~7**：多租户 / 三级 RBAC / super_admin UI / Admin Context Reducer / ResultBlock 子组件拆分 / inline helpers 入 Shared / catalog facade — 推 Phase B v0.6.1~v0.6.11+
+- **OOS-8~9**：multi-scope budgets endpoints 4 删 / sync LLM 8 处 [DEPRECATED] 物理删 — 推 Phase B v0.6.8
+- **OOS-10~11**：screens/ reorg / knot/static/assets/ git bloat — 推 v0.7+
+- **OOS-12**：✅ 原 v1.0 清 bi_agent 已撤回 → 提前到 Phase A（F11-F18 整组完成）
+- **OOS-13**：Go 重构（全栈或局部）— 推 v0.7+ 前置 9 条件评估
+- **OOS-14**：训练集功能（跨项目数据聚合）— 推 v0.7+
+- **OOS-15**：projects.brand_overrides — 推 v0.7+
+
+### v0.5.0 R-67/68/74 公开承诺撤回声明（v0.6.0 Phase A）
+
+**撤回原因**
+
+v0.5.0 落地时承诺：
+- R-67：包名 bi_agent → knot；env 兼容旧名至 v1.0
+- R-68：DB 文件 rename migration 至 v1.0
+- R-74：双 master key 不同值时密文兼容性探针
+
+v0.5→v0.6 滚动整体审核 9 项决议（S-1~S-9 LOCKED）拍板：**撤回此三条**。
+
+核心原因：v0.5.0 时承诺接收方（v0.4.x 真实用户）= 承诺方（团队内部 dev 唯一存量）。承诺接收方为空，不构成真实契约。维持空契约违反 v0.4 资产建立的 KNOT 治理"承诺-兑现"精神。**v1.0 待办提前至 Phase A 一并清理**。
+
+**撤回内容**
+
+| 承诺 | 原承诺 | 撤回动作 | 理由 |
+|---|---|---|---|
+| **R-67** | 旧 env 名兼容至 v1.0 | **提前 v0.6.0 删** | 接收方为空 |
+| **R-68** | DB rename migration 至 v1.0 | **提前 v0.6.0 删** | 同上 |
+| **R-74** | 密文兼容性探针 | **同时撤回** | 依附 R-67/68 |
+| **R-71** | knot/ 包目录已迁完 | **保留状态**（不撤回） | 已是终态 |
+| **R-72** | smoke 白名单守护 | **转型为通用 0 字面守护** | F5/F15 落地 |
+| **R-69/70/73/75/76/77/78/79** | 其他 v0.5.0 红线 | **依附 R-67/68 失效自动失效**（R-69 migration 幂等 / R-75 audit 连续性 / R-76 atomic / R-77 跨平台 io）或继续 KEPT | 守护对象消失 |
+
+**v0.4.x dev 用户升级路径**（README 同步详 [v0.4.x → v0.6.0 升级路径](README.md#v04x--v060-升级路径dev-用户)）
+
+```bash
+# 1. DB 文件 rename
+cd /path/to/your/knot/data
+cp bi_agent.db bi_agent.db.v044.bak    # 备份
+mv bi_agent.db knot.db                  # rename
+
+# 2. env 改名（必须同值）
+# BIAGENT_MASTER_KEY=<your-key>  → KNOT_MASTER_KEY=<your-key>（必须同值）
+# JWT_SECRET=bi-agent-secret-... → JWT_SECRET=knot-secret-...（旧 token 失效，重新登录）
+```
+
+**为什么 v0.5.0 当时承诺，v0.6.0 又撤回？**
+
+资深架构师 v0.5→v0.6 滚动审核反思：v0.5.0 决策**过度防御**(over-defensive) — 团队当时无真实外部用户，所有兼容性代码维护成本由内部 dev 承担。v0.5.x 25 PATCH 期间，BIAGENT 兼容路径 / R-74 探针 / migrate_db_rename 三套机制累计 ~300 行代码 / ~300 行测试 / ~50 段治理文档，**实际生效场景 = 0 次**（无 v0.4.x → v0.5.x dev 用户经历过自动 migration；团队 dev 都是 git clone fresh 部署）。
+
+**治理学习**
+
+未来公开承诺前必须明确承诺接收方（真实用户群体 / 数量）；接收方为空的"安全网"是技术债，不是治理资产。v0.6.x Phase B 评估时（4 周缓冲后）如启动多租户改造，承诺接收方建立时再考虑类似兼容性承诺。
+
+**生效**：v0.6.0 PR merge 起；v0.7+ 不再回滚此撤回（除非滚动审核新决议明示）。
+
+### R-PA-6.1 立约（守护者 commit 4 Stage 3 终审 §7.4 G-1 / 资深拍板）
+
+LOCKED §F17.2 link 模式扩展至业务代码 docstring：
+
+```
+R-PA-6.1（R-PA-6 子条款 — v0.6.0 守护者立约）
+─────────────────────────────────────────────
+LOCKED §F17.2 link 模式扩展至业务代码 docstring：
+  - 撤回历史完整文本 → CHANGELOG v0.6.0（单一权威来源）
+  - 业务代码 docstring → 通用表述（如"env 旧名"/"双源配置已撤回"）+ link CHANGELOG
+  - audit_ohx_leakage --mode=brand 业务代码 0 BIAGENT_MASTER_KEY 字面命中
+  - 治理意图保留 + 满足 R-PA-6 主条款
+理由：
+  - 治理诚实度 — CHANGELOG 是历史档案，业务代码不应复述
+  - 防止旧名字面在业务代码"借治理之名"残留
+  - 与 CLAUDE.md F17.2 link 模式同精神，覆盖范围扩展
+```
+
+适用先例：
+- `knot/core/crypto/fernet.py` docstring（commit 4 落地 — "v0.5.0 R-67/68/74（env 旧名双源 + 密文兼容性探针）"）
+- `tests/conftest.py` docstring（commit 4 落地 — "v0.6.0 F13/F14.2 单源化"）
+
+### R-PA-6.2 立约（守护者 commit 6 Stage 3 终审 §7.4 G-1 / 资深拍板）
+
+LOCKED §F6 工具设计盲区补救 + R-PA-6 守护范围正式细化锁定：
+
+```
+R-PA-6.2（R-PA-6 子条款 — v0.6.0 commit 6 守护者立约）
+────────────────────────────────────────────────
+R-PA-6 守护范围细化条款 — INCLUDE_GLOBS + EXCLUDE_RE + EXCLUDE 自指环
+
+INCLUDE_GLOBS（业务代码守护 — 0 BIAGENT/bi_agent 字面）：
+  - knot/**/*.py + knot/**/*.sql（Python 业务代码 + schema）
+  - tests/**/*.py / scripts/**/*.py（测试 + 工具代码）
+  - frontend/src/**/*.{jsx,js}（前端业务代码）
+  - .env.example + Dockerfile + pyproject.toml（部署 + 构建配置）
+
+EXCLUDE 用户文档（用户实操命令字面允许）：
+  - README.md（升级路径段 + 默认账号 + 命令字面）
+  - CLAUDE.md（启动段升级命令 + 历史 contract FIXME 段 + v0.5.x 路线图历史表）
+
+EXCLUDE_RE 治理档案 + 自动重建产物（LOCKED §F6 sustained）：
+  - CHANGELOG.md（v0.6.0 撤回声明含字面）
+  - docs/plans/v0.4.*.md / docs/plans/v0.5.*.md
+  - knot/static/assets/（Vite 构建产物）
+
+EXCLUDE 守护工具自身字面（自指环不可避免）：
+  - scripts/audit_ohx_leakage.py（守护工具 docstring 引用扫描目标）
+  - tests/test_rename_smoke.py（grep 守护工具 docstring + 字面分割构造）
+
+闸门：
+  - 闸门 6: audit_ohx_leakage --mode=all exit 0（commit 6 完成首次过）
+  - 闸门 7 + 闸门 8: git grep 命令同步豁免清单
+```
+
+适用先例：
+- `knot/core/crypto/fernet.py` docstring → R-PA-6.1（v0.6.0 commit 4 守护者立约）
+- `README.md` + `CLAUDE.md` 升级路径段 + 历史档案段 → R-PA-6.2（v0.6.0 commit 6 守护者立约）
+
+### 版本同步
+
+main.py 0.6.0 + R-72 smoke + Login 页脚 + Shell.jsx logoArea（R-181 四处同步 sustained）；
+routes count 77 不变（Phase A 0 路由 delta）。
+
+### 测试基线
+
+backend tests = main HEAD 432 - 19（F14.1 test_db_migration 9 + F14.3-修订 test_audit_continuity 2 + F14.2 test_env_dual_source 8）+ 0 新增 = **413 passed / 112 skipped**（S-6 0 regression 真实门）。
+
+### 工具新建
+
+- `scripts/audit_ohx_leakage.py`（F6 / Q-E2.A 三模式）— sanitize / brand / all
+- 默认 prompts 三文件：`knot/prompts/sql_planner.md` + `knot/prompts/clarifier.md` + `knot/prompts/presenter.md`（byte-equal 平移 Python 源；启动期幂等 seed DB）
+
+### LOCKED 终稿实施盲区补救（v0.6.0 Phase A 学习记录）
+
+实施过程中识别 3 处 LOCKED 终稿盲区，均按 Q-E1.A 同精神（commit 完成时 pytest 必绿）补救：
+
+1. **F14.3 fixture 重写 → 整文件删**（commit 3 落地）— R-75 audit 连续性守护对象（migrate_db_rename）随 F11 物理删 → fixture 重写无语义，与 F14.1 同模式整文件删
+2. **commit 1 5 处补救**（commit 1 落地）— LOCKED F1.1 命中表未列：schema_filter.py 函数名 `_ohx_*` / agents/__init__.py 注释 / tab_system.jsx admin hint / README.md 4 处部署文档 / .env.example mydb 默认值
+3. **F18 4 处 knot/ 历史注释提前 commit 5 联动**（commit 5 落地）— R-67 严格转型要求 commit 5 完成时 knot/ 0 命中 bi_agent；原 LOCKED 计划 F18 整组 commit 6 修订为：knot/ 内 4 处提前 commit 5，.env.example/README/CHANGELOG 仍 commit 6
+4. **R-PA-6 闸门修订**（commit 5 落地）— LOCKED §F6 子集映射"commit 5 完成 brand exit 0"不准；实际 commit 6 完成才 0 命中（.env.example 4 行字面在 commit 6 F16 才清）
+
+守护者建议（G-3）：v0.6.0 PR merge 后由资深架构师召集 远古守护者 + 守护者 做 LOCKED 终稿 retro，将"依附失效红线表"加列：`红线 ID | 守护对象 | 守护对象消失依附 | 计划动作 | 实际动作（事后回填）` — 便于未来 PATCH 类似盲区追溯。
+
+### Phase A → 内测 → 4 周缓冲 → Phase B 评估时序
+
+```
+Day 0       Phase A v0.6.0 PR merge to main
+   │
+   │ +0.5h  云服务器 docker run quick-start（任一 dev 执行；详 README §5 分钟）
+   │
+Day 0       ✅ 内测可启动门验证通过
+   │
+   │ Day 0.5  资深架构师开 issue "🚀 v0.6.0 Phase A — 内测启动" + label /start-internal-test
+   │           创建日 = R-PA-5 缓冲期 Day 0
+   │
+   │ Day 7+   v0.6.0.1 micro PATCH（候选）：scripts/check_phase_b_leakage.py 落地 (R-PA-8)
+   │
+   │ Week 1-4 真实使用反馈收集 ⚠️ 严禁 Phase B 草案（R-PA-5 + R-PA-8）
+   │
+Day 28+   Phase B 评估三方拍板（执行者 + 守护者 + 远古守护者 + 资深）
+          ├─ 需求充分 → Phase B v0.6.1 草案启动
+          ├─ 需求不足 → Phase B 缩减（仅做 OOS-5/6 代码组织债务）
+          └─ 需求归零 → Phase B 跳过 → 直接 1.0 团队公测准备
+```
+
+---
+
+## [Archived] - v0.5.44 (Backend+UX) RELATIONS 业务目录 UI — 笛卡尔积根因解
 
 > 资深"⭐⭐ 业务目录加 RELATIONS 配置入口"。catalog DB 第 4 键落地（之前仅 .py 文件维护，gitignored ohx_catalog.py 普通 admin 不可见 → agent 无 JOIN key 指引 → 瞎猜笛卡尔积根因）。
 

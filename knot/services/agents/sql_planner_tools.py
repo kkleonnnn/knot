@@ -94,6 +94,24 @@ def _is_fan_out(sql: str) -> tuple[bool, str]:
 def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
     if action == "execute_sql":
         sql = _strip_sql(action_input)
+        # v0.6.0-hotfix R-PA-9：execute_sql 路径补 R-80~93 守护
+        # （v0.5.1 LOCKED 终稿盲区第 5 处补救 — final_answer 分支守护不覆盖
+        #  LLM 用 execute_sql 工具的直接执行路径；DeepSeek/OpenRouter 触发；
+        #  与 final_answer 分支同源 __REJECT__ 协议）
+        is_cart, cart_reason = sql_validator.is_cartesian(sql)
+        if is_cart:
+            return (
+                f"__REJECT_CARTESIAN__:{cart_reason} "
+                f"Regenerate the SQL with explicit JOIN ... ON conditions."
+            )
+        is_fan, fan_reason = _is_fan_out(sql)
+        if is_fan:
+            return (
+                f"__REJECT_FAN_OUT__:你提交的 SQL 是 fan-out 反模式（{fan_reason}）。"
+                f"必须重写：每个明细表先用 `LEFT JOIN (SELECT key, SUM/COUNT(...) FROM <table> "
+                f"GROUP BY key) AS alias ON ...` 子查询/CTE 按 grain 预聚合后再 JOIN，"
+                f"不要让外层 SELECT 直接对多个 LEFT JOIN 后字段聚合。重新生成 SQL。"
+            )
         rows, error = db_connector.execute_query(engine, sql)
         if error:
             return f"执行失败: {error}"
