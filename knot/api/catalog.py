@@ -7,7 +7,7 @@ catalog.py — admin 维护业务目录（v0.2.5）
   - business_rules  : str，注入到 3 个 agent system prompt 的业务规则
 
 存储：app_settings 三键（catalog.tables / catalog.lexicon / catalog.business_rules）
-读取：catalog_loader.reload() —— DB 优先，缺失时 fallback 到 ohx_catalog(.example).py
+读取：catalog_loader.reload() —— DB 优先，缺失时 fallback 到 _local_catalog / _template_catalog.py
 """
 import json
 

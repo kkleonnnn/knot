@@ -25,9 +25,9 @@ def test_fan_out_detects_three_aggregates_three_joins():
     sql = (
         "SELECT reg.user_id, SUM(dep.deposit) AS total_deposit, "
         "       SUM(deal.future_match_amt) AS total_future_match_amt "
-        "FROM ohx_dwd.dwd_user_reg reg "
-        "LEFT JOIN ohx_dwd.dwd_user_deposit dep ON reg.user_id = dep.user_id "
-        "LEFT JOIN ohx_dwd.dwd_user_deal deal ON reg.user_id = deal.user_id "
+        "FROM demo_dwd.dwd_user_reg reg "
+        "LEFT JOIN demo_dwd.dwd_user_deposit dep ON reg.user_id = dep.user_id "
+        "LEFT JOIN demo_dwd.dwd_user_deal deal ON reg.user_id = deal.user_id "
         "GROUP BY reg.user_id "
         "HAVING SUM(dep.deposit) > 0 OR SUM(deal.future_match_amt) > 0"
     )

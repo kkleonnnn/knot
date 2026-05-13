@@ -3,7 +3,7 @@
 代表的真实实体：
   - CatalogTable ：admin 在「业务目录」面板登记的一张业务库表 + 主题标签
   - Catalog      ：完整业务知识包（表目录 + 词典 + 规则文本），由 services/agents/catalog
-                   按 DB → ohx_catalog.py → ohx_catalog.example.py 三层 fallback 加载
+                   按 DB → _local_catalog.py → _template_catalog.py 三层 fallback 加载
 
 Go 重写映射：internal/domain/catalog.go。
 """
@@ -33,8 +33,8 @@ class Catalog:
 
     source 字段标记加载来源：
       - "db"      ：admin 在 UI 编辑后保存到 app_settings 三键
-      - "real"    ：knot/services/agents/ohx_catalog.py（部署方填，gitignored）
-      - "example" ：仓库内 ohx_catalog.example.py（通用电商模板兜底）
+      - "real"    ：knot/services/agents/_local_catalog.py（部署方填，gitignored）
+      - "example" ：仓库内 _template_catalog.py（通用电商模板兜底）
       - "empty"   ：上述全空（v0.3.x 不应出现）
     """
     tables: list = field(default_factory=list)        # list[CatalogTable]

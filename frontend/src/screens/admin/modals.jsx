@@ -148,7 +148,7 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
         <Input T={T} label="Port" value={String(form.db_port)} onChange={v => set('db_port', v)} required placeholder="9030" mono/>
         <Input T={T} label="User" value={form.db_user} onChange={v => set('db_user', v)} required placeholder="root" mono/>
         <Input T={T} label="Password" value={form.db_password} onChange={v => set('db_password', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
-        <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="mydb 或 ohx_ods,ohx_dwd" mono/>
+        <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="knot_demo 或 demo_dwd,demo_ads" mono/>
         <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
         {/* R-302.5 emoji 业务豁免 sustained — ✓/✗ 是 testResult 业务状态指示器 */}
         {testResult && (

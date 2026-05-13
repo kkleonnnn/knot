@@ -19,10 +19,10 @@ def tmp_db_path(monkeypatch):
 
 
 def test_example_fallback_loaded_when_no_db_no_real(tmp_db_path):
-    """无 DB 覆盖 + 无真实 ohx_catalog.py → 应加载 ohx_catalog.example.py。"""
+    """无 DB 覆盖 + 无真实 _local_catalog.py → 应加载 _template_catalog.py。"""
     from knot.services.agents import catalog
     catalog.reload()
-    # source 至少是 example（如果开发机有 ohx_catalog.py 真实文件可能是 real）
+    # source 至少是 example（如果开发机有 _local_catalog.py 真实文件可能是 real）
     assert catalog._SOURCE in ("example", "real")
     assert isinstance(catalog.TABLES, list)
     assert isinstance(catalog.LEXICON, dict)
@@ -76,7 +76,7 @@ def test_relations_loaded_from_example(tmp_db_path):
     catalog.reload()
     rels = catalog.get_relations()
     assert isinstance(rels, list)
-    # 真实 ohx_catalog.py 可能没补 RELATIONS 仍走 example fallback；example 必有 ≥ 1
+    # 真实 _local_catalog.py 可能没补 RELATIONS 仍走 template fallback；template 必有 ≥ 1
     if catalog._SOURCE == "example":
         assert len(rels) >= 1
         # 字段结构契约：(left_t, left_c, right_t, right_c, semantics) 5 元组

@@ -6,8 +6,8 @@
        - catalog.lexicon         (JSON dict[str, list[str]])
        - catalog.business_rules  (text)
      某项 DB 有值即用 DB；该项为空则继续 fallback。
-  2) knot/core/ohx_catalog.py        — 真实业务 .py（.gitignore，部署方按需放置）
-  3) knot/core/ohx_catalog.example.py — 仓库内通用模板
+  2) knot/services/agents/_local_catalog.py    — 真实业务 .py（.gitignore，部署方按需放置）
+  3) knot/services/agents/_template_catalog.py — 仓库内通用模板
 
 调用方应通过 `import catalog_loader as _cl` + `_cl.LEXICON` / `_cl.TABLES` / `_cl.BUSINESS_RULES`
 动态读取（不要 `from catalog_loader import LEXICON` 一次性快照），admin 修改后调用
@@ -31,7 +31,7 @@ def _load_from_files() -> tuple:
     source_tag ∈ real/example/empty。
     v0.4.1.1 R-S3：老 catalog 文件无 RELATIONS 常量时 getattr 返 [] 不抛 AttributeError。"""
     try:
-        m = importlib.import_module("ohx_catalog")
+        m = importlib.import_module("_local_catalog")
         return (
             getattr(m, "LEXICON", {}) or {},
             getattr(m, "TABLES", []) or [],
@@ -42,9 +42,9 @@ def _load_from_files() -> tuple:
     except Exception:
         pass
     try:
-        p = pathlib.Path(__file__).parent / "ohx_catalog.example.py"
+        p = pathlib.Path(__file__).parent / "_template_catalog.py"
         if p.exists():
-            spec = importlib.util.spec_from_file_location("ohx_catalog_example", p)
+            spec = importlib.util.spec_from_file_location("_template_catalog", p)
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
             return (

@@ -72,7 +72,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
           <circle cx="12" cy="8" r="0.6" fill={T.accent}/>
         </svg>
         <div>
-          业务目录注入到 schema 检索 + 3 个 Agent prompt。优先级：DB（本面板编辑）→ 仓库 ohx_catalog.py（部署方填）→ ohx_catalog.example.py（仓库默认）。
+          业务目录注入到 schema 检索 + 3 个 Agent prompt。优先级：DB（本面板编辑）→ 仓库 _local_catalog.py（部署方填）→ _template_catalog.py（仓库默认）。
           当前生效来源：<b style={{ color: T.text }}>{catalog.source || '...'}</b>。任一字段保存即覆盖默认；点"恢复默认"清空 DB 覆盖。
         </div>
       </div>

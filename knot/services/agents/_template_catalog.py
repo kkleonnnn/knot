@@ -1,8 +1,8 @@
-"""ohx_catalog.example.py — 业务目录与词典模板（仓库内提交版本，**不含真实业务数据**）
+"""_template_catalog.py — 业务目录与词典模板（仓库内提交版本，**不含真实业务数据**）
 
 【部署步骤】
-  cp knot/core/ohx_catalog.example.py knot/core/ohx_catalog.py
-然后按本项目实际业务，编辑 ohx_catalog.py（已加入 .gitignore，不会进 git）。
+  cp knot/services/agents/_template_catalog.py knot/services/agents/_local_catalog.py
+然后按本项目实际业务，编辑 _local_catalog.py（已加入 .gitignore，不会进 git）。
 
 本模板用通用电商示例展示三个对象的结构契约：
   - TABLES        : list[dict]，给 schema_filter 做主题加分
@@ -10,7 +10,7 @@
   - BUSINESS_RULES: str，注入到 3 个 agent 的 system prompt
 
 业务方需要保持这三个名字与字段结构不变。schema_filter / multi_agent / sql_agent 通过
-catalog_loader 加载本模块，缺失时自动 fallback 到本 example，不会让程序崩溃。
+catalog_loader 加载本模块，缺失时自动 fallback 到本 template，不会让程序崩溃。
 """
 
 
@@ -75,8 +75,8 @@ def get_table_full_names() -> list:
 # 用于 sql_planner / llm_client 拼接 prompt 时按需注入"必须 JOIN ... ON ..."的关联字段，
 # 阻止 LLM 生成 `FROM a, b WHERE ...` 旧式笛卡尔积写法。
 #
-# 维护要求：真实 ohx_catalog.py（gitignored）合入 v0.4.1.1 后 7 天内必须按 OHX 实际
-# Schema 补充本列表，否则真实业务库的笛卡尔积问题不会修复。
+# 维护要求：真实 _local_catalog.py（gitignored）按本项目实际业务 Schema 补充本列表，
+# 否则真实业务库的多表 JOIN 笛卡尔积问题不会修复（仓库默认模板 RELATIONS 仅为示意）。
 RELATIONS = [
     # 订单与注册用户：通过 user_id 关联
     ("demo_dwd.dwd_order", "user_id", "demo_dwd.dwd_user_reg", "user_id",
