@@ -46,6 +46,10 @@ jobs:
           fi
           pytest tests/ -v --tb=short --ignore=tests/eval
 
+      # v0.6.0.1 R-PA-8：内测期 Phase B 准备性 commit 守护（与 R-PA-5 联动）
+      - name: R-PA-8 Phase B leakage check
+        run: python3 scripts/check_phase_b_leakage.py
+
   # v0.5.0 R-72 / R-77：env 4 组合 × 双平台 boot smoke
   # ubuntu-latest 跑全 4 组合（仅新 / 仅旧 / 都设 / 都无）
   # macos-latest 跑 1 组合（仅新）保证 R-77 跨平台 sed/Python 替换真生效
@@ -127,3 +131,32 @@ jobs:
           "
               ;;
           esac
+
+  # v0.6.0.1 G-5 守护者立约：docker build CI 自动闸门
+  # R-PA-15 非阻塞性 — continue-on-error（避免 docker hub rate limit 等环境噪声误杀 PR）
+  # 但 R-PA-11 三守护（prompts/_template_catalog.py/frontend-builder /knot/static）必过
+  # 闸门 13.A 本地 simulate catch 过 Dockerfile bug 但人手动跑不可持续 — CI 自动化是唯一可持续守护
+  docker-build:
+    name: docker build smoke
+    needs: lint-test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker build
+        run: |
+          docker build -t knot-ci-smoke . 2>&1 | tee build.log
+          if grep -q "ERROR\|error: failed" build.log; then
+            echo "::error::docker build 失败 — R-PA-11 守护对象"
+            exit 1
+          fi
+          echo "docker build OK"
+      - name: R-PA-7 三守护文件验证（docker exec）
+        run: |
+          docker run --rm --entrypoint sh knot-ci-smoke -c "ls /app/knot/prompts/" | tee /tmp/prompts.txt
+          grep -q "sql_planner.md" /tmp/prompts.txt || (echo "::error::R-PA-7.1 prompts COPY 守护失败"; exit 1)
+          docker run --rm --entrypoint sh knot-ci-smoke -c "ls /app/knot/services/agents/_template_catalog.py" \
+            || (echo "::error::R-PA-7.2 _template_catalog.py COPY 守护失败"; exit 1)
+          docker run --rm --entrypoint sh knot-ci-smoke -c "ls /app/knot/static/index.html" \
+            || (echo "::error::R-PA-7.3 frontend static COPY 守护失败"; exit 1)
+          echo "R-PA-7.1/7.2/7.3 三守护 PASS"

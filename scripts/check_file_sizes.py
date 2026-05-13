@@ -62,6 +62,9 @@ LIMITS = {
     "frontend/src/decor/NarrativeMotif.jsx":       120,
     # ── v0.5.9 R-205 ──────────────────────────────────────────
     "frontend/src/Shell.jsx":                      220,
+    # ── v0.6.0.1 LOCKED §1 ─────────────────────────────────────
+    "scripts/check_phase_b_leakage.py":            200,  # R-PA-8 守护工具
+    "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试
 }
 
 repo = Path(__file__).resolve().parent.parent

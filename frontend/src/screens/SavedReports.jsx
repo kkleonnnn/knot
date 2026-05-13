@@ -11,6 +11,8 @@ const SvgPath = ({ d, size = 14, fill = 'none' }) => (
 
 const SAVED_SVG = {
   bookmark:   'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
+  // v0.6.0.1 F1: ⭐ emoji 视觉债偿还 — 与 ResultBlock RB_SVG.star 字面 byte-equal
+  star:       'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
   chevronL:   'M15 18l-6-6 6-6',
   pencil:     'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z',
   refresh:    'M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5',
@@ -129,8 +131,12 @@ function EmptyView({ T, onBack }) {
           <SvgPath d={SAVED_SVG.bookmark} size={36}/>
         </div>
         <div style={{ fontSize: 15, color: T.text, marginBottom: 4 }}>还没有收藏查询</div>
-        <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16 }}>
-          在对话里点 ⭐ 把任意结果钉成报表，下次直接重跑。
+        <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+          在对话里点
+          <span style={{ display: 'inline-flex', verticalAlign: 'middle', color: T.accent }}>
+            <SvgPath d={SAVED_SVG.star} size={14}/>
+          </span>
+          把任意结果钉成报表，下次直接重跑。
         </div>
         <button onClick={onBack} style={{
           padding: '8px 16px', borderRadius: 6, border: `1px solid ${T.border}`,

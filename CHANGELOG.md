@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.0.1 (micro PATCH) 5 in 1 hotfix + 守护者立约归档
+
+> **Loop Protocol v3 第 27 次施行**（v0.5.22 自审简化协议 sustained — 5 in 1 全部内容已在
+> PR #74 守护者 §9 G-4/5/6 explicit 列范围 → Stage 2/3 实质已含）
+>
+> R-PA-5 Day 0 触发后立即启动（资深架构师 announce 提前于 LOCKED 路线图 "Day 7+" 建议窗口）。
+> 严守 R-PA-12 micro PATCH 范围 — 5 in 1 hotfix + 守护者立约归档，**业务功能 0 变更**。
+
+### 5 in 1 内容
+
+1. **SavedReports ⭐ → inline svg star（F1）** — v0.5.13 R-303 遗漏视觉债偿还。
+   SAVED_SVG +star 字面（与 ResultBlock RB_SVG.star byte-equal）+ EmptyView 空态描述
+   "在对话里点 ⭐..." → "在对话里点 [svg star with T.accent]..."。
+
+2. **R-PA-8 守护工具 `scripts/check_phase_b_leakage.py`（F2）** — LOCKED §3 R-PA-5 + R-PA-8
+   联合守护落地。检测对象：Phase B 字面（multi-tenant / logicform / semantic_layer_v2）+
+   Schema 列字面（users.project_id / .tenant_id / .organization_id）+ 文件 glob
+   （docs/plans/v0.6.1-*.md / v0.7.*-*.md）。豁免：phase-b-proposal-draft.md 草案 +
+   治理档案 + CLAUDE.md / README.md（用户文档；R-PA-6.2 模式）。R-PA-14 自指环避免
+   （字面分割构造）。
+
+3. **R-PA-9/10/11 立约归档（F3）** — 守护者 G-4 提议。
+   - R-PA-9: execute_sql 路径笛卡尔积 / fan-out 守护（commit 8 已字面化）
+   - R-PA-10: SELECT + CTE 可执行查询识别（commit 8 已字面化 `_is_executable_query`）
+   - R-PA-11: Dockerfile 多 stage WORKDIR + vite outDir 路径一致性（commit 9 已字面化）
+   - 归档位置：[docs/plans/v0.6.0-phase-a-sanitize.md §3](docs/plans/v0.6.0-phase-a-sanitize.md#r-pa-9)
+
+4. **G-5 docker build CI 自动闸门（F4）** — 守护者 §6 P-7 立约。
+   `.github/workflows/ci.yml` 新增 `docker-build` job — 真实跑 docker build + docker exec
+   验证 R-PA-7.1/7.2/7.3 三守护文件实际在容器内。
+   continue-on-error: true（R-PA-15 非阻塞性 — 避免 docker hub rate limit 误杀 PR）。
+   理由：闸门 13.A 本地 simulate 真实 catch commit 9 Dockerfile bug 证明此类 bug 仅
+   docker build 才能 catch — pytest/ruff/import-linter 全不覆盖。
+
+5. **G-6 tests/scripts/test_dockerfile_copy.py R-PA-7 字面单元测试（F5）** — 守护者 §6 P-7 立约。
+   3 测试覆盖 R-PA-7.1/7.2/7.3 三守护字面（regex grep / 不解析 AST — R-PA-16 跨 docker 版本稳定）。
+   pytest 集成 = 守护永远跑（R-PA-7 永不漂移）。CI docker build e2e 守护 + 字面单元测试
+   毫秒级守护 — 互补。
+
+### R-PA-12 ~ R-PA-17 新红线
+
+- **R-PA-12** micro PATCH 范围严守（5 in 1 不超范围 commit）
+- **R-PA-13** R-PA-9/10/11 字面 byte-equal 立约（守护者权威 — 仅归档不修订）
+- **R-PA-14** R-PA-8 工具自指环避免（字面分割构造）
+- **R-PA-15** G-5 docker build CI 非阻塞性（continue-on-error）
+- **R-PA-16** G-6 R-PA-7 字面 grep 守护精度（regex / 不解析 AST）
+- **R-PA-17** 版本同步三处守护（main.py / smoke / Login）
+
+### 测试 + 闸门
+
+- pytest 418 → 421 passed（+3 G-6 守护测试）/ 112 skipped ✅
+- import-linter 7 contracts KEPT / 0 broken ✅
+- ruff check knot/ + scripts/ + tests/scripts/test_dockerfile_copy.py clean ✅
+- check_file_sizes 34 → 36 files ✅
+- audit_ohx_leakage --mode=all exit 0 sustained ✅
+- R-PA-8 check_phase_b_leakage exit 0（main 当前无 Phase B 准备性内容）✅
+- 闸门 9 端到端 SavedReports 空态 visual 验证 PASS（Preview MCP）✅
+
+### 协议合规
+
+适用 v0.5.22 自审简化协议（资深 ack sustained）：
+- 5 in 1 全部内容在 PR #74 守护者 §9 G-4/5/6 explicit 列范围
+- R-PA-9/10/11 立约文本已字面化 in commit 8/9 测试代码 + commit message
+- 守护者 §9 终审"批准 merge + 等 commit 10 LOCKED §3 附录补丁" = Stage 3 实质包含
+- 资深架构师 announce「v0.6.0.1 micro PATCH 启动」= explicit 拍板
+
+LOCKED 手册：[docs/plans/v0.6.0.1-locked.md](docs/plans/v0.6.0.1-locked.md)
+
+---
+
 ## [Unreleased] - v0.6.0 (Phase A) KNOT Sanitize + bi_agent 兼容层清算 + Deploy-Ready 内测可启动门
 
 > **Loop Protocol v3 第 26 次完整施行**（Phase A 起手 — 全 v3 三阶段；S-4 LOCKED 严禁简化协议）；
