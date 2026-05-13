@@ -40,19 +40,46 @@ export function ThinkingCard({ T, agentEvents = [] }) {
   );
 }
 
+// v0.5.39 — Trace 推导（前端从 sql + presenter output 派生）；demo thinking.jsx L268-271 风格
+function _deriveTrace(sql, confidence) {
+  if (!sql || typeof sql !== 'string') return null;
+  // 源表数: FROM / JOIN 后的表名（去重）
+  const tableRe = /\b(?:FROM|JOIN)\s+([a-zA-Z_][\w.]*)/gi;
+  const tables = new Set();
+  let m; while ((m = tableRe.exec(sql)) !== null) tables.add(m[1].toLowerCase());
+  const hasJoin = /\bJOIN\b/i.test(sql);
+  const hasAgg  = /\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY)\b/i.test(sql);
+  const trustLabel = confidence === 'low' ? 'low' : confidence === 'medium' ? 'medium' : 'high';
+  const parts = [
+    `本次结果由 ${tables.size || 1} 张原表生成`,
+    `→ 1 条 SQL`,
+    hasJoin ? '含 JOIN' : '无 JOIN',
+    hasAgg ? '含聚合函数' : '无聚合函数',
+  ];
+  return { text: parts.join('，') + '。', confidence: trustLabel };
+}
+
 export function AgentThinkingPanel({ T, events, visible }) {
   // R-290 SSE 兜底：visible 控制 + events 空/异常 optional chaining
   if (!visible) return null;
   const safeEvents = Array.isArray(events) ? events : [];
 
-  // AGENTS 扩 letter/name 字段（R-227.5.1 装饰豁免 K/N/O）
+  // v0.5.39 — 4th agent T (Trace) 加入；推导信任度 from sql_planner sql + presenter confidence
   const AGENTS = [
     { key: 'clarifier',   label: '理解问题', letter: 'K', name: 'Knowledge' },
     { key: 'sql_planner', label: '生成 SQL', letter: 'N', name: 'Nexus' },
     { key: 'presenter',   label: '整理洞察', letter: 'O', name: 'Objective' },
+    { key: 'trace',       label: '追溯链路', letter: 'T', name: 'Trace' },
   ];
 
   const getStatus = (key) => {
+    // v0.5.39 — trace 状态: presenter done 后自动 done（前端推导）
+    if (key === 'trace') {
+      const presenterDone = safeEvents.some(e => e?.type === 'agent_done' && e?.agent === 'presenter');
+      const presenterStarted = safeEvents.some(e => e?.type === 'agent_start' && e?.agent === 'presenter');
+      if (!presenterStarted) return 'pending';
+      return presenterDone ? 'done' : 'thinking';
+    }
     const started = safeEvents.some(e => e?.type === 'agent_start' && e?.agent === key);
     const done    = safeEvents.some(e => e?.type === 'agent_done'  && e?.agent === key);
     if (!started) return 'pending';
@@ -63,6 +90,10 @@ export function AgentThinkingPanel({ T, events, visible }) {
     return ev?.output || null;
   };
   const sqlSteps = safeEvents.filter(e => e?.type === 'sql_step');
+  // v0.5.39 — Trace 推导：从 sql_planner.output.sql + presenter.output.confidence
+  const sqlPlannerOutput = getDoneOutput('sql_planner');
+  const presenterOutput  = getDoneOutput('presenter');
+  const traceInfo = _deriveTrace(sqlPlannerOutput?.sql, presenterOutput?.confidence);
   const doneCount = AGENTS.filter(({ key }) => getStatus(key) === 'done').length;
 
   return (
@@ -149,6 +180,21 @@ export function AgentThinkingPanel({ T, events, visible }) {
                   }}>{output.confidence}</span>
                 )}
                 {output.insight.slice(0, 100)}{output.insight.length > 100 ? '…' : ''}
+              </div>
+            )}
+
+            {/* v0.5.39 — Trace 4th step body：前端从 SQL + presenter confidence 推导（demo thinking.jsx L268-271 风格）*/}
+            {key === 'trace' && isDone && traceInfo && (
+              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
+                <span style={{
+                  fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4, marginRight: 6,
+                  background: traceInfo.confidence === 'low' ? `color-mix(in oklch, ${T.warn} 13%, transparent)`
+                              : traceInfo.confidence === 'medium' ? `color-mix(in oklch, ${T.warn} 13%, transparent)`
+                              : `color-mix(in oklch, ${T.success} 13%, transparent)`,
+                  color: traceInfo.confidence === 'high' ? T.success : T.warn,
+                  textTransform: 'uppercase', fontFamily: T.mono, letterSpacing: '0.02em',
+                }}>{traceInfo.confidence === 'high' ? '可信度高' : traceInfo.confidence === 'medium' ? '可信度中' : '可信度低'}</span>
+                {traceInfo.text}
               </div>
             )}
           </div>

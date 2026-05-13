@@ -5,7 +5,997 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.5.26 (UX) Sidebar 高亮 + 设置页图标 — 资深架构师反馈 #11/17/18 偿还
+## [Unreleased] - v0.5.44 (Backend+UX) RELATIONS 业务目录 UI — 笛卡尔积根因解
+
+> 资深"⭐⭐ 业务目录加 RELATIONS 配置入口"。catalog DB 第 4 键落地（之前仅 .py 文件维护，gitignored ohx_catalog.py 普通 admin 不可见 → agent 无 JOIN key 指引 → 瞎猜笛卡尔积根因）。
+
+### Changed (Backend)
+
+#### `catalog.py` `_load_from_db` 加 relations
+
+之前返回 4 项 (lex/tables/rules/found)，改为返回 **5 项** (lex/tables/rules/relations/found)：
+
+- 新 DB 键 `catalog.relations`（JSON list of `[left_t, left_c, right_t, right_c, semantics?]`）
+- 解析时过滤 len < 4 的无效条目
+- found_any 判定加入 relations
+
+#### `catalog.py` `reload()` 4 键合并
+
+之前 RELATIONS 仅 file 来源（注释明示"db 暂无 UI"）→ 现 **DB 覆盖优先 + file fallback**（与 LEXICON/TABLES/BUSINESS_RULES 一致）。
+
+#### `catalog.py` `get_defaults_from_files()` 返 relations
+
+新加 `relations: [list(r) for r in f_relations]`（tuple → list JSON-friendly）。
+
+#### `/api/admin/catalog` GET 加 relations
+
+- `current.relations`
+- `defaults.relations`
+- `db_overrides.relations`
+
+#### `/api/admin/catalog` PUT 加 relations 验证
+
+- 必须 `list of [≥4 元素]` tuple
+- 空 array → 清除 DB 覆盖回退 file
+- audit log
+
+#### `/api/admin/catalog/reset` 4 字段全清
+
+`valid` 集合加 'relations'；fields 缺省扩展。
+
+### Changed (Frontend)
+
+#### `tab_system.jsx` 加第 4 section
+
+`sections` 数组 3 → 4：
+
+```js
+{ num: '04', key: 'relations', title: '表关系', source: 'relations',
+  hint: 'JSON 数组：[[left_table, left_col, right_table, right_col, semantics?]]。多表 JOIN ON 关联键来源，sql_planner 必读防笛卡尔积。', mono: true }
+```
+
+#### `Admin.jsx` state + load 加 relations
+
+- `catalog` initialState 加 `relations: ''` + `defaults.relations: []` + `overrides.relations: false`
+- catalog tab load 时 setCatalog 加 `relations: JSON.stringify(d.current.relations || [], null, 2)`
+
+#### `Admin.jsx` saveCatalogField 加 relations 校验
+
+- 默认空数组 (与 tables 同)
+- 必须 Array
+- 每项必须 ≥4 元素 tuple
+
+### 防笛卡尔积 6 层防御完整链路
+
+| 层 | 位置 | 落地版本 |
+|---|---|---|
+| 1 | catalog RELATIONS 注入 | v0.4.1.1 |
+| 2 | prompt JOIN 硬约束 | v0.4.1.1 |
+| 3 | sql_validator AST C1-C4 | v0.5.1 |
+| 4 | R-91 retry counter | v0.5.1 |
+| 5 | prompt 专家身份 + ✓/✗ 对照 | v0.5.43 |
+| **6** | **RELATIONS admin UI（根因解）** | **v0.5.44** |
+
+### 版本同步
+
+- main.py 0.5.44 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+- routes count 77 不变（catalog 3 endpoints 字段扩展，无新路由）
+
+---
+
+## v0.5.43 (Backend) sql_planner prompt 专家身份框定 — 笛卡尔积第 5 层防御
+
+> 资深架构师反馈"Claude 4.6 还会生成笛卡尔积"。现有 4 层防御（catalog RELATIONS / prompt 硬约束 / sql_validator AST / R-91 retry counter）后增第 5 层：**prompt 重构 — 专家身份 + 正例/反例对照**。
+
+### Changed
+
+#### `_AGENT_SYSTEM_TEMPLATE` 重构
+
+`knot/services/agents/sql_planner_prompts.py:45-119`：
+
+**开场身份**：
+- 旧: `你是一个 SQL Agent，通过 ReAct 模式...`（功能性身份）
+- 新: `你是 KNOT 的资深数据工程师 Agent — 10 年以上企业级 BI / 数据仓库 / 数据建模经验`（专家身份）
+
+**5 条专业基线**（新加）：
+1. 多表 JOIN 永远先确认表关系，再写 ON
+2. 聚合多明细表必先 CTE 预聚合
+3. 写不出可靠 JOIN 主动 final_answer 报错
+4. WHERE 时间/真实用户/币种过滤完整
+5. final_answer 前自检（行数 / 双向膨胀 / 时间窗）
+
+**笛卡尔积规则**重构：
+- 旧：单纯 "严禁 FROM a, b WHERE..."（否定语句）
+- 新：先 ✓ **正确模式**（INNER JOIN + ON），再 ✗ **4 种错误模式**（旧式逗号 / 缺 ON / 恒真 ON / CROSS JOIN）并列对照
+- 关联键来源 3 优先级（RELATIONS → search_schema 同名 _id → final_answer 报错）
+
+**Fan-Out 规则**保留 (✓/✗ 对照结构维持)。
+
+### 效果预期
+
+Claude 4.6 prompt eng 研究表明：
+- 专家身份框定 → 启用更严格的内化质量标准（如医生 prompt 比"助手"产出更精确）
+- ✓/✗ 并列对照 → 模型更易识别错误模式（vs 纯否定）
+- 关联键来源优先级 → 减少"凭直觉猜 JOIN key"
+
+### 自审简化协议持续
+
+后端 1 文件改（sql_planner_prompts.py）/ Shared.jsx 0 改 / 17 屏视觉 byte-equal / 0 路由数变化（仍 77）。
+
+### 版本同步
+
+- main.py 0.5.43 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.42 (Backend+UX) 预算页 demo 重构 — 多 scope CRUD → 单 global config
+
+> 资深架构师反馈"预算这个功能要改"。AdminBudgets 从 v0.4.3 multi-scope CRUD 模型重构为 demo `budget.jsx` 单 global config 模式（5 字段单次保存）。
+
+### Added (Backend)
+
+#### `GET /api/admin/budget-config` (admin only)
+
+返回 5 字段全局预算配置（从 `app_settings` KV 读取，缺失走默认）：
+
+```json
+{
+  "monthly_token_cap": 500000,      // 月度 token 上限
+  "per_conv_token_cap": 40000,      // 单次对话上限
+  "warn_pct": 80,                   // 告警阈值 %
+  "default_model": "claude-haiku-4-5",
+  "rate_limit_per_min": 20          // 单用户限流
+}
+```
+
+#### `PUT /api/admin/budget-config` (admin only)
+
+更新 5 字段，写入 `app_settings` KV。校验：
+- 数值字段 ≥ 1
+- warn_pct 0-100
+- audit log `budget.config_update`
+
+#### `/api/admin/budgets-stats` cap 来源调整
+
+之前从 `budgets` 表读 enabled global monthly_tokens budget — 改为从 `app_settings.budget_monthly_token_cap` 读（与新 PUT endpoint 一致）。
+
+### Changed (Frontend)
+
+#### AdminBudgets.jsx 完整重写
+
+之前 v0.4.3 multi-scope CRUD UI（form + table + 4 rules）→ demo `budget.jsx` 风格：
+
+- **Hero usage card 保留**（4-block 横向 flex + progress bar）
+- **5 字段 single-form**: Row helper (180px label + hint + input)
+  - 月度 token 上限 (tokens / 月)
+  - 单次对话上限 (tokens)
+  - 告警阈值 (%)
+  - 默认模型 (select from /api/admin/agent-models)
+  - 限流策略 (req / min · 用户)
+- **保存配置 + 重置** primary/ghost buttons
+- **2 条 Rules note**（R-16 优先级 / R-23 实时；保留 borderLeft 2px brandSoftBorder）
+- 删除 multi-scope: SCOPE_TYPES / BUDGET_TYPES / ACTIONS / draft state / table 7-col / WarnNote / BudgetActionChip / EnabledChip 全部移除
+
+### Backward compat
+
+后端 multi-scope budgets endpoints `/api/admin/budgets` (GET/POST/PUT/DELETE) **保留向后兼容**（budget_service 业务逻辑不动）。新 single-config UI 只用 `app_settings` KV，互不冲突。
+
+### Routes count 75 → 77
+
+v0.5.42 +2: `GET/PUT /api/admin/budget-config`。smoke test 同步。
+
+### 版本同步
+
+- main.py 0.5.42 + smoke 字面 + Login 页脚 build `20260513` + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.41 (UX) topbar buttons 字体统一 + 整理洞察换行 + 版号 letterSpacing
+
+> 资深架构师 v0.5.x 收尾 sweep 续：topbar 字体/图标统一 + 3 处微调。
+
+### Changed
+
+#### topbar trailing buttons 字体/图标统一
+
+- `AdminAudit.jsx` "导出 CSV" button: inline style → `pillBtn(T)` ghost（与 Admin tabs "下载模板"/"上传文档" 一致）
+- `AdminRecovery.jsx` `PeriodTab` 字体: `fontSize 12 + T.mono` → `fontSize 12.5 + inherit + fontWeight 500 + letterSpacing -0.005em`（与 pillBtn helper byte-equal）
+- 全 admin 屏 topbar buttons 现在统一走 pillBtn 风格
+
+#### API & 模型 "整理洞察 + 质量检查" 换行修复
+
+`tab_resources.jsx:54` Agent 模型分配 grid：
+- `gridTemplateColumns: '120px 1fr 90px'` → `'160px 1fr 80px'`
+- label span 加 `whiteSpace: 'nowrap'`
+
+#### 对话页版号 letterSpacing 收紧
+
+`Shell.jsx:42` logoArea version span: `letterSpacing: '0.1em'` → `'0.02em'`（资深反馈"字体间隔小一点才好看"）。
+
+### 版本同步
+
+- main.py 0.5.41 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 17 屏视觉 byte-equal。
+
+---
+
+## v0.5.40 (Backend) 真数据收尾 — Audit / Budget / DataSources 3 stats endpoints
+
+> 资深架构师 v0.5.x 收官最后一项后端 PATCH。3 个 stats 聚合 endpoint 补齐前端 Hero / Stats card 中的 `—` placeholder。
+
+### Added (Backend)
+
+#### `GET /api/admin/audit-stats` (admin only)
+
+聚合 `audit_log` 表，返回：
+
+```json
+{ "total": int, "today": int, "failed": int, "distinct_users": int }
+```
+
+SQL: 单 query 同时 SUM (CASE WHEN ...) 4 个聚合字段，无 N+1。
+
+#### `GET /api/admin/budgets-stats` (admin only)
+
+聚合 `messages` 表当月数据 + 取 global monthly_tokens budget cap：
+
+```json
+{ "tokens_used": int, "cost_usd": float, "usage_pct": float|null, "cap": int|null }
+```
+
+- `tokens_used`: SUM(input_tokens + output_tokens) WHERE strftime('%Y-%m', created_at) = current month
+- `cost_usd`: SUM(cost_usd) 同条件
+- `cap`: 取 enabled global monthly_tokens budget threshold（无配置 null）
+- `usage_pct`: tokens_used / cap × 100（无 cap null）
+
+#### `GET /api/admin/datasources-stats` (admin only)
+
+聚合 `data_sources` + `semantic_layer`：
+
+```json
+{ "total_schemas": int, "total_tables": int, "last_heartbeat": ISO string|null }
+```
+
+- `total_schemas`: COUNT(DISTINCT db_database) WHERE is_active = 1
+- `total_tables`: SUM of `###` 分隔块 in semantic_layer.schema_text（与 `/api/db/status` tables 字段约定一致）
+- `last_heartbeat`: MAX(created_at) of active data_sources（创建时间近似；真实 heartbeat 推 v0.6+）
+
+### Wired Frontend (3 屏 stats 真值)
+
+| 屏 | placeholder | → 真值 |
+|---|---|---|
+| AdminAudit | 4 Stat cards (总记录数/今日/失败数/涉及用户) | useEffect fetch + render |
+| AdminBudgets | Hero 4-block (本月已用/预计花费/使用率) + progress bar | useEffect + width binding |
+| tab_access Sources | Hero 4 cards (总 schema/总表数/上次心跳) + 相对时间 helper | useEffect on tab='sources' + `_heartbeatRelative` |
+
+### Deferred (推 v0.5.41+)
+
+- Knowledge file_size 列扩展（schema migration）
+- Few-shot hit_count + updated_at 列扩展
+- Prompt version_log 表 + GET endpoint
+- 真实 source heartbeat（独立 endpoint 测每 source test_connection）
+
+### 版本同步
+
+- main.py 0.5.40 + smoke 字面 + **routes count 72 → 75**（v0.4.6 锚点首次扩张）
+- Login.jsx 页脚 + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.39 (UX) Trace agent 4th step — 思考过程 K→N→O→T 收齐
+
+> 资深架构师 #41 / 本批最后一项追溯链路偿还。前端推导信任度 + 4th agent T 卡片渲染（demo `thinking.jsx` 4-STEPS byte-equal）。
+
+### Added
+
+#### `_deriveTrace(sql, confidence)` helper — frontend 推导
+
+`ThinkingCard.jsx` 顶部 inline helper：
+
+- **源表数**: regex `/\\b(?:FROM|JOIN)\\s+([a-zA-Z_][\\w.]*)/gi` 抓取并去重
+- **SQL 数**: 固定 1（KNOT 每查询生成 1 条 final SQL）
+- **JOIN 判定**: `/\\bJOIN\\b/i`
+- **聚合判定**: `/\\b(COUNT|SUM|AVG|MAX|MIN|GROUP\\s+BY)\\b/i`
+- **信任度**: 从 `presenter.output.confidence` 透传
+
+输出字面对照 demo `thinking.jsx:L270` byte-equal：
+`本次结果由 N 张原表生成，→ 1 条 SQL，[含/无] JOIN，[含/无] 聚合函数。`
+
+#### 4th agent T (Trace) 卡片
+
+`AGENTS` 数组 3 → 4 条：
+
+| Letter | Name | Label |
+|---|---|---|
+| K | Knowledge | 理解问题 |
+| N | Nexus | 生成 SQL |
+| O | Objective | 整理洞察 |
+| **T** | **Trace** | **追溯链路** |
+
+`getStatus('trace')` 派生逻辑：
+- presenter 未启动 → `pending`
+- presenter 启动未完成 → `thinking`
+- presenter 完成 → `done`（自动触发 trace 渲染）
+
+Trace card body：
+- 信任度 chip（high → T.success / medium / low → T.warn）
+- 推导文本 from `_deriveTrace`
+- demo `thinking.jsx:L268-271` 视觉 byte-equal
+
+### 数据流
+
+```
+sql_planner agent_done.output.sql
+              ↓
+        _deriveTrace(sql, confidence)
+              ↓
+presenter agent_done.output.confidence
+              ↓
+       Trace card 渲染 (auto)
+```
+
+### 自审简化协议持续
+
+后端 0 改（sql + confidence 已 emit）/ Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ 16 屏视觉 byte-equal（仅 ThinkingCard.jsx 改）。
+
+### 版本同步
+
+- main.py 0.5.39 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.38 (UX) 字体层级统一 + 视觉细节 sweep — 资深架构师反馈批量偿还
+
+> 资深架构师 v0.5.x 收官前端 sweep。本批反馈 7 项中 6 项前端可直接落地，1 项（DataSources 真数据 + Connection count + 各 stats）推 v0.5.40 后端 PATCH；Trace 4th step 推 v0.5.39。
+
+### Changed
+
+#### 连接 pill 简化 + "N 已连接" 字面
+
+`Shell.jsx` connection pill 删 framed 样式：
+
+- 删除 `border + bg T.content + radius 999` 框
+- 改为 inline `dot + text` 简洁风格（demo 字面 byte-equal）
+- 新加 `connectedCount` prop（null → 不显示数字 / N → "N 已连接"）
+- 文案: `数据源 · ${connectedCount} 已连接` / `数据源 · 未连接`
+
+`Chat.jsx` 新加 `sourceCount` state：
+- admin 用户: 通过 `/api/admin/sources` 实时计算 online count
+- 普通用户: dbOk ? 1 : 0 fallback（普通 user 通常 1 个 active source）
+- 真后端 source_count endpoint 推 v0.5.40
+
+#### 「返回对话」全屏统一位置 + 图标（Shell.jsx 自动渲染）
+
+`Shell.jsx` sidebar 加自动渲染（条件 `active !== 'chat' && onNavigate`）：
+
+- 位置: sidebar 底部 marginTop auto
+- 图标: `I.chev style transform rotate 90deg`（左箭头）
+- 字体: fontSize 12.5, T.muted, inherit fontFamily
+
+各 page sidebarContent 中"返回对话" button 全部移除：
+- `AdminAudit.jsx` sidebarContent → null
+- `AdminRecovery.jsx` sidebarContent → null
+- `AdminBudgets.jsx` sidebarContent → null
+- `SavedReports.jsx` 删除顶部 button（保留 SideHeading 收藏查询）
+
+#### 全站表头底色 brandSoft 8% → T.bg gray + 字体 T.subtext → T.muted
+
+资深反馈"底色改成灰色 + 字体统一"。
+
+**v0.5.19 R-480 brandSoft 8% 闭环铁律加冕局部撤回** — 仅 thead bg；Avatar / chip / icon container 等 brand 8% bg 保留（语义元素 vs 表头分组装饰）。
+
+7 处 thead 改 `T.bg` + color `T.muted`:
+- `tab_access.jsx` × 2 (Users + Sources thead)
+- `tab_resources.jsx` × 1 (Models thead)
+- `tab_knowledge.jsx` theadStyle helper × 1 (Knowledge 文档列表)
+- `AdminAudit.jsx` × 1 (审计日志 thead)
+- `AdminBudgets.jsx` × 1 (Budgets thead)
+- `AdminRecovery.jsx` × 1 (Top users thead)
+- `SavedReports.jsx` × 1 (Report 表 thead)
+- `chat/ResultBlock.jsx` × 1 (查询结果 thead)
+
+总 9 处 thead 一致性字面 byte-equal：`{ background: T.bg, color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }`。
+
+#### 用户气泡圆角统一
+
+`Conversation.jsx` 删 `borderTopRightRadius: 4`（与其他三角 12 一致）— 资深反馈"右上和其他三个角不一致"。
+
+#### Recovery PeriodTab 字体统一
+
+`AdminRecovery.jsx` periodTabs wrapper：
+
+- fontSize 12.5（与 Audit "导出 CSV" button 一致）
+- fontFamily inherit T.sans
+- 删除 "时段" mono + uppercase + letterSpacing（改 plain）
+
+### Deferred
+
+- **Trace agent 4th step** → v0.5.39 PATCH（前端推导信任度 from sql/rows）
+- **真数据全收尾** → v0.5.40 PATCH（DataSources stats + Audit stats + Budget stats + Knowledge file_size + Few-shot hits + Connection count）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 整体视觉一致性扫描。
+
+### 版本同步
+
+- main.py 0.5.38 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.37 (UX) Prompt tab 重设计 — demo 重写第 6/6 板块（v0.5.x 6-demo 重写收官）
+
+> 资深架构师 v0.5.x 收官 6 demo 重写最后一张 Prompt tab。当前 3 sections 纵向堆叠 → demo `prompts.jsx` 标准 prompt editor 风格（tabs + editor + sidebar）。
+
+### Changed
+
+#### 3 sections 纵向 → 3 agent tabs 横向 + 2-col editor + sidebar
+
+新组件 `PromptsView`（同文件内）取代原 3 个 Card 堆叠渲染：
+
+**Layout（demo `prompts.jsx:L83-180` byte-equal）**：
+
+1. **Agent tabs row** (横向)
+   - 3 tabs: clarifier(K) / sql_planner(N) / presenter(T)
+   - Active tab: borderBottom 2px brand + letter chip brand bg
+   - Inactive: letter chip T.bg
+   - Format: `<letter chip> <name mono> · <desc>`
+
+2. **Editor (1fr)**
+   - Header: `<pencil> SYSTEM PROMPT · {key} <v current chip>` + token count + 保存 button (右侧)
+   - Textarea: 全 flex 高度 + T.mono 12.5px + line-height 1.7 + T.bg
+
+3. **Sidebar (320px)**
+   - **注入变量**: per-agent vars list（actual 后端字段 byte-equal — clarifier {tables}{history} / sql_planner {max_steps}{db_env}{schema}{business_ctx} / presenter {today}）
+   - **版本历史**: placeholder（推 v0.5.38 后端 prompts.version_log）
+
+### Computed
+
+- Token count: `Math.round(text.length / 4)` 启发式估算
+- Active agent state: local `useState('clarifier')`
+
+### Deferred
+
+- 真实版本历史 → v0.5.38 后端 prompts.version_log 表 + GET endpoint
+- 精确 token count → v0.5.38 后端 tiktoken-based 计算
+
+### v0.5.x 6-demo 重写收官
+
+| # | PATCH | demo 板块 | Status |
+|---|---|---|---|
+| 1 | v0.5.32 | audit.jsx | ✓ |
+| 2 | v0.5.33 | recovery.jsx | ✓ |
+| 3 | v0.5.34 | budget.jsx | ✓ |
+| 4 | v0.5.35 | knowledge.jsx | ✓ |
+| 5 | v0.5.36 | fewshot.jsx | ✓ |
+| 6 | v0.5.37 | prompts.jsx | ✓ |
+
+后续 v0.5.38 收尾后端 + trace 4th step。
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ Admin.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_knowledge.jsx prompts 段重写）。
+
+### 版本同步
+
+- main.py 0.5.37 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.36 (UX) Few-shot tab 完整 UI — demo 重写第 5/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 5 张 Few-shot tab。当前 UI 仅 5-col 简表，本 PATCH 重做为 card-based layout 对照 demo `fewshot.jsx`。
+
+### Added
+
+#### Intro banner（demo `fewshot.jsx:L85-89` byte-equal）
+
+- `sql_planner` Tag + borderLeft 2px brandSoftBorder + 检索说明文案
+- 文案"检索 top-k(=3) 相似问题并拼到 prompt 之前。命中越多说明示例越通用..."
+
+#### Count + type filter row（demo L92-100 byte-equal）
+
+- "共 N 条示例"（N mono fontWeight 600）
+- 动态 type tag list（neutral chip — T.bg + T.subtext + border + mono uppercase）
+- 从 `fewShots` 自动提取唯一 type 值
+
+#### Example card layout（demo L103-145 重设计）
+
+替代原 5-col 表 → 每个 example 一个 card：
+
+| 元素 | 字段 | 备注 |
+|---|---|---|
+| Flask icon avatar | inline svg | Q2 VRP 局部例外（Shared 无 I.flask） |
+| Question | `f.question` bold | demo byte-equal |
+| Meta line | `fs.{f.id}` + 启用/停用 | demo "更新于 X" deferred 后端无 updated_at |
+| Type tag | `f.type` neutral chip | demo byte-equal |
+| Hits placeholder | `—` + chart icon + HITS label | 推 v0.5.38 后端 hit 计数 |
+| Actions | 编辑 / 删除 | 复用 onEdit / onDelete handlers |
+| SQL block | mono + T.bg + pre + max-height 240 | demo byte-equal |
+
+### Deferred
+
+- 真实 hit 计数 → v0.5.38 后端 `fewshot.hit_count` 列
+- 更新时间 → v0.5.38 后端 `fewshot.updated_at` 列
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ Admin.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_knowledge.jsx fewshots 段重写）。
+
+### 版本同步
+
+- main.py 0.5.36 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.35 (UX) Knowledge tab 完整 UI — demo 重写第 4/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 4 张 Knowledge tab。当前 UI 仅"暂无文档"占位，本 PATCH 添加完整 UI 对照 demo `knowledge.jsx`。
+
+### Added
+
+#### 4 stats 卡片（demo `knowledge.jsx:L58-75` byte-equal）
+
+- **文档数**: `knowledgeDocs.length` 真值
+- **总大小**: placeholder `—`（后端无 file_size 字段；推 v0.5.38）
+- **索引状态**: `indexedCount / total`（基于 `chunk_count > 0` 启发式）
+- **上次更新**: 相对时间（"X 小时前 / 昨天 / X 天前 / X 周前 / 上月"）
+
+#### Drag-drop upload zone（demo L77-95 byte-equal）
+
+- 1.5px dashed border + brandSoft bg
+- onDragOver / onDragLeave / onDrop 全 wired
+- 复用 Admin.jsx 现有 `handleKbUpload` 走 `/api/knowledge/upload`
+- dragOver 状态 transition 0.2s（25% → 50% border，8% → 12% bg）
+
+新 prop `onUploadKb` 注入 TabKnowledge 组件签名。
+
+#### 8-col 文档列表（demo L98-141 重设计）
+
+| 列 | 字段 | 来源 |
+|---|---|---|
+| File icon | filename ext (PDF warn / 其他 brand) | FileIcon helper |
+| 文档名 | `d.name` | 真值 |
+| 类型 | filename ext 推断 chip | brandSoft 8% chip |
+| 大小 | `—` | placeholder (v0.5.38) |
+| 更新 | 相对时间 | `_relativeTime(created_at)` |
+| 命中 | `chunk_count` | 真值（demo: 实际命中数，本地用分块数替代） |
+| 状态 | `chunk_count > 0 ? '已索引' : '待索引'` | 启发式 |
+| 操作 | 删除 button | 真值 |
+
+### Helpers added
+
+- `FileIcon({ T, type })` — demo L39-47 byte-equal 双色样式
+- `_relativeTime(iso)` — 6 档相对时间映射
+
+### Deferred
+
+- 真实文件大小 / 真实命中数 / 重建索引 button → **v0.5.38 后端扩展**
+- 文档 download button → 同上
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面）/ 16 屏视觉 byte-equal（仅 tab_knowledge.jsx + Admin.jsx 一行 prop 注入）。
+
+### 版本同步
+
+- main.py 0.5.35 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.34 (UX) AdminBudgets visual改 — demo 重写第 3/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 3 张 AdminBudgets。demo 用单一 global config 模型，本 PATCH 保留 multi-scope CRUD 但视觉对齐 demo Hero 卡片 + Rules note 风格。
+
+### Changed
+
+#### Hero card 4-grid → 3-block 横向 flex + borderLeft separator
+
+对照 demo `budget.jsx:L57-87`：
+
+- 删除 `gridTemplateColumns: repeat(auto-fit, minmax(180px, 1fr))` 4 卡片
+- 改 `display: flex, alignItems: flex-end, gap: 32, flexWrap: wrap` 横向
+- 4 个 block 分别用 `borderLeft: 1px solid T.border + paddingLeft: 24` 分隔（demo byte-equal）
+- **本月已用 token**: 大数字 36px fontWeight 700 + `/ —` muted + brand chip `%`（demo 完整字面布局）
+- **预计花费**: 24px fontWeight 600
+- **已配置预算项**: budgets.length 真值（保留功能性数据）
+- **结算日**: 自动计算下月 1 号 MM-DD（demo `06-01` byte-equal 结构）
+
+Progress bar + 0/50/100% mono labels sustained。
+
+#### Rules note borderLeft 3px → 2px + 删 brandSoft 8% bg
+
+对照 demo `budget.jsx:L128-140`（与 v0.5.33 AdminRecovery 一致）：
+
+- borderLeft 3px → 2px（更 subtle）
+- 删 brandSoft 8% bg（仅保 borderLeft 视觉分组）
+
+**v0.5.18 R-465 borderLeft 25% 闭环第二处 width 微调** — 仍保 color-mix 25% literal（不影响 SavedReports 同字面 byte-equal）。
+
+### Deferred
+
+- 本月已用 token / 预计花费 / 本月使用率 真值 → **v0.5.38 后端 `/api/admin/budgets/stats` 聚合 endpoint**
+- 进度条 width 0% → 真实 pct → 同上
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / multi-scope CRUD 业务逻辑 0 改 / 16 屏视觉 byte-equal（仅 AdminBudgets.jsx 改）。
+
+### 版本同步
+
+- main.py 0.5.34 + smoke + Login + Shell.jsx logoArea（R-181 四处同步）
+
+---
+
+## v0.5.33 (UX) AdminRecovery polish — demo 重写第 2/6 板块
+
+> 资深架构师 v0.5.x 收官 6 demo 重写 — 本 PATCH 第 2 张 AdminRecovery。v0.5.19 已基本对齐 demo，本 PATCH 微调 3 项。
+
+### Changed
+
+#### 时段切换 tabs 移至 topbar
+
+`AdminRecovery.jsx` PeriodTab 7d/30d/90d 从 content area 顶部移到 `AppShell.topbarTrailing`（demo `recovery.jsx:L76-82` byte-equal）。
+
+让出 content 顶部 16px 高度给 KPI cards；视觉密度更紧凑。
+
+#### Chart 加宽 + maxWidth 升级
+
+- `LineChart width: 880 → 1100`（demo chartW 1140 接近）
+- `LineChart height: 280 → 240`（demo aspect ratio 更扁）
+- container `maxWidth: 960 → 1200`
+
+#### Rules note borderLeft 3px → 2px + 删 brandSoft 8% bg
+
+对齐 demo `recovery.jsx:L161-172`：
+
+- borderLeft `3px → 2px`（更 subtle，对齐资深"深色边边"反馈方向）
+- 删 `brandSoft 8% bg`（仅保 borderLeft 视觉分组）
+
+**v0.5.22 R-481 borderLeft 25% 闭环第三处局部微调** — width 减小但字面 25% color-mix 保留（不影响其他 3 处文件 SavedReports/AdminBudgets/AdminRecovery byte-equal）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.33"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- Login.jsx 页脚 + Shell.jsx logoArea: v0.5.33（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改（除版本字面） / 16 屏视觉 byte-equal（仅 AdminRecovery.jsx 改）。
+
+---
+
+## v0.5.32 (UX) AdminAudit polish — 资深架构师 demo 重写第 1/6 板块
+
+> 资深架构师 v0.5.x 收官最后一批 6 demo 重写板块 — 本 PATCH 首张 AdminAudit。对照 demo `audit.jsx` 优化筛选/表格/topbar/分页。
+
+### Changed
+
+#### 筛选 strip 重做 — 时段下拉 + 单短标签 + 横向 flex
+
+- 删除 4 字段 grid 布局（auto-fit minmax 180px）+ D2 双兼标签 "操作人 (Actor ID)"
+- 改为 demo `audit.jsx:L69-92` 横向 flex 布局
+- **时段 dropdown** 新加（24h / 7d / 30d / 全部）→ 客户端转 `since` ISO 字符串 → 后端 `since` 参数 byte-equal
+- **用户 ID / 动作 / 资源关键词** 单短标签 mono uppercase
+- 删除 "起始时间 (Since)" 文本输入（被时段下拉替代）
+- 重置 / 查询 按钮右对齐
+- Field helper 上移至文件头（demo `audit.jsx:L30-35` byte-equal）
+
+#### 导出 CSV — 顶栏按钮
+
+`AppShell.topbarTrailing` 新加 "导出 CSV" 按钮（demo `audit.jsx:L64` byte-equal）：
+
+- 客户端 CSV 生成（utf-8 BOM + 9 字段 + 引号转义）
+- 文件名 `knot-audit-{timestamp}.csv`
+- 空 items 时 disabled
+
+#### ActionChip 简化 — 删 bg/padding/radius
+
+`ActionChip` 改 demo `audit.jsx:L135` byte-equal：
+
+- 删除 `color-mix(in oklch, ${color} 12%, transparent)` bg
+- 删除 `padding: 2px 8px` + `borderRadius: 4`
+- 仅保 `actionColor` + `T.mono` + `fontWeight: 500`
+- 视觉更简洁，颜色辨识度不变
+
+#### 分页 — "1 - N" 简洁字面
+
+对齐 demo `audit.jsx:L149-154`：
+
+- 字面 `第 X 页（每页 Y）` → `(page-1)*size+1 - (page-1)*size+items.length`（mono）
+- 左 range / 右 size 切换 + 上一页 / 下一页（demo 顺序 byte-equal）
+
+### Deferred
+
+- **总记录数 / 今日 / 失败数 / 涉及用户** 真值 — 需要后端聚合 endpoint `/api/admin/audit-stats`，推至 v0.5.38 收尾 PATCH（与 DataSources 真数据 + 连接 pill count 一起）
+- **总记录数显示 "1 - 8 / 12,408"** 中的 total — 同上 deferred
+
+### 版本同步
+
+- knot/main.py: version "0.5.32"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 v0.5.32
+- frontend/src/Shell.jsx: logoArea v0.5.32（R-181 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 17 屏视觉 byte-equal（仅 AdminAudit.jsx 改）。
+
+---
+
+## v0.5.31 (UX) Chat + Thinking 视觉续 — 资深架构师反馈 #34/35/37~40 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #34/35/37~40：Chat sidebar + Conversation + ThinkingPanel 6 项视觉对照 demo `thinking.jsx` 优化。
+
+### Changed
+
+#### #34 sidebar logo 区版本号
+
+`Shell.jsx:38` logoArea 加版本号显示（KnotLogo 右侧 marginLeft auto），对齐 demo `thinking.jsx:L28` `<span>v1.4</span>` 字面 byte-equal：
+
+- fontSize 11, T.mono, T.muted, letterSpacing 0.1em
+- 内容: `v0.5.31`
+
+**R-181 三处同步 → 四处同步**：main.py + smoke + Login + **Shell.jsx logoArea**。
+
+#### #35 active conv 高亮 — brandSoft 8% + brandSoftBorder + T.text
+
+`Chat.jsx` convRow 改 demo `thinking.jsx:L281-291` `ChatItem` byte-equal：
+
+- bg: `brandSoft 12% → brandSoft 8%`（更淡）
+- border: 加 `1px solid brandSoftBorder 25%`（视觉"框"感）
+- color: `T.accent → T.text`
+- inactive border: `1px solid transparent`（防 layout shift）
+- borderRadius: `8 → 6`
+
+**撤回 v0.5.26 高亮决议（"框比例不对 + 左侧深色边"反馈）**。
+
+#### #37 agent message avatar → KnotMark
+
+`Conversation.jsx` agent 消息头像改 demo `thinking.jsx:L91-93` byte-equal：
+
+- 删 26×26 T.accent bg + I.sparkle 14×14
+- 改 `<KnotMark T={T} size={26}/>`（原子 logo 直渲）
+- marginTop: 2（与文字基线对齐）
+
+#### #38 agent_costs chip icons — bulb / magnify / bars
+
+`ResultBlock.jsx` AGENT_KIND_EMOJI 改 demo `thinking.jsx:L199-202` 字面 byte-equal：
+
+- clarifier: `sparkle → bulb`（灯泡 — 理解 / 启发）
+- sql_planner: `search → magnify`（放大镜 — 查询）
+- presenter: `chart → bars`（柱状图 — 整理 / 呈现）
+- fix_sql: `wrench`（保持，demo 无对应）
+
+RB_SVG dict 新加 bulb / magnify / bars / bookmark 4 paths（compound multi-element 走单 path 字符串）。
+
+#### #39 收藏按钮 star → bookmark
+
+`ResultBlock.jsx` 收藏按钮 icon 改 demo `thinking.jsx:L82` byte-equal：
+
+- `RB_SVG.star → RB_SVG.bookmark`
+- fill 双态保留（pinned: T.accent / 非 pinned: 'none' 描边）
+
+#### #40 思考过程 panel 永显
+
+`Conversation.jsx:50` 删 `showPanel && ...` 条件渲染，改 `visible={true}` 始终渲染（demo `thinking.jsx:L21` grid 208/1fr/320 三列永久布局 byte-equal）。
+
+空 events 时 AgentThinkingPanel 内部已渲染 3 个 pending 状态卡片（opacity 0.45）作为占位。
+
+### Deferred
+
+#41 思考过程 4th step Trace agent — 涉及推导信任度（source_tables count / SQL count / JOIN regex / 聚合函数 regex），需要后端 metadata 或前端 SQL parser；**推至 v0.5.35 trace agent 专门 PATCH**。
+
+### 版本同步
+
+- knot/main.py: version "0.5.31"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.31 · build 20260512`
+- **frontend/src/Shell.jsx: logoArea 版本号 byte-equal**（R-181 三处 → 四处同步）
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 13 屏视觉 byte-equal（Shell.jsx + Chat.jsx + Conversation.jsx + ResultBlock.jsx 4 文件改）。
+
+---
+
+## v0.5.30 (UX) Chat 屏视觉优化 — 资深架构师反馈 #28~33 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #28~33：Chat 主屏（sidebar + topbar + 默认问题）对照 demo `home.jsx` 优化。
+
+### Changed
+
+#### #28 左上角线对齐 — Shell.jsx logoArea 56 → 52
+
+资深反馈"左上角的线没对齐" — sidebar logoArea borderBottom 与 main header borderBottom 在 y=56 vs y=52 有 4px 错位（v0.5.9 R-200 当时为视觉对称选 56；现修订对齐 main header 52）。
+
+#### #29 新建对话 按钮 — 比例升级
+
+`Chat.jsx:209` 按钮风格对照 demo `Btn variant="default" size="md"`：
+
+- justifyContent `center → flex-start`（demo 左对齐 + icon 在左）
+- padding `9px 10px → 10px 14px`（更高更宽，比例更稳）
+- gap `8 → 10`
+- bg `transparent → T.card`（subtle elevation）
+- margin 8 → 抽到 wrapper div 中（统一 layout）
+
+#### #30 收藏报表 → 收藏查询 + bookmark svg + 右箭头
+
+`Chat.jsx:218` sidebar 收藏入口重做：
+
+- 删 📌 emoji
+- 左 inline bookmark svg（Q2 VRP — Shared 无 I.bookmark）
+- 文案 "收藏报表" → "收藏查询"
+- 右 I.chev rotated -90deg（指明点击跳转语义）
+- 整体提升点击 affordance
+
+同步 SavedReports.jsx 一致性：page title + sidebar header + delete confirm + empty state 4 处 "收藏报表" → "收藏查询"。
+
+#### #31 最近 / 更早 历史对话分组
+
+`Chat.jsx` sidebar 按 `updated_at` 切分两组：
+
+- 最近：≤ 7 天内（demo home.jsx L14-29 byte-equal）
+- 更早：> 7 天
+
+使用 Shell.jsx 已 exported 的 `SideHeading` 渲染分组标题（与 admin "管理员" SideHeading 风格统一）。
+
+空组隐藏 SideHeading（仅有"最近"或仅有"更早"时不显示空组）。
+
+#### #32 连接 pill 字面 — "数据源 · 已连接"
+
+`Shell.jsx:137` connection pill label：
+
+- ok: `'数据库已连接' → '数据源 · 已连接'`
+- error: `'未连接数据库' → '数据源 · 未连接'`
+
+**部分实现** — demo 完整字面为 "数据源 · X 已连接"（含 count），count 需要 `/api/db/status` 新加 `source_count` 字段；**deferred 至 v0.5.34 DataSources 真数据 PATCH**（同步实现 总schema/总表数/上次心跳 真数）。
+
+#### #33 默认问题图标 — demo spark + flow
+
+`ChatEmpty.jsx` 4 个 suggestion chips icon 改 demo `home.jsx` byte-equal：
+
+- 今天的订单总量是多少 — `I.sparkle` → `SparkIcon`（inline svg 简洁十字；demo `ui.jsx` spark path byte-equal）
+- 最近 7 天 GMV 趋势 — `I.chart` → `FlowIcon`（inline svg 3 圆 + 连线；demo flow path byte-equal）
+- 新用户注册 — `I.users`（保）
+- 查看数据库 — `I.db`（保）
+
+Q2 VRP 局部例外（Shared 无 spark/flow）— inline svg 第 9/10 处 helper（累计待 v0.6 Shared.jsx 移入承诺）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.30"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.30 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / 14 屏视觉 byte-equal（Shell.jsx + Chat.jsx + ChatEmpty.jsx + SavedReports.jsx 4 文件改）。
+
+---
+
+## v0.5.29 (UX) 业务目录 视觉优化 — 资深架构师反馈 #25/26/27 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #25/26/27：业务目录 (Catalog) 子模块视觉对照 demo 优化。
+
+### Changed
+
+#### #25 Helper banner info icon — 精确对齐 demo path
+
+`tab_system.jsx:53-57` info icon SVG path 改为 demo `ui.jsx` `info` 字面 byte-equal：
+
+- 圆 r `10 → 9`（更精致）
+- 主线 y `12 → 11`（更长，覆盖到中段）
+- 顶部点 `<line x1=12 y1=8 x2=12.01 y2=8>` → `<circle cx=12 cy=8 r=0.6 fill=T.accent>`（filled 圆点，**视觉无歧义为 "i" 信息符**，撤回资深"感叹号"误读）
+
+#### #26 Helper banner borderLeft 移除
+
+`tab_system.jsx:49` 删除 `borderLeft: '3px solid color-mix(in oklch, T.accent 25%, transparent)'`（资深反馈"莫名其妙的深色边边"）。
+
+**v0.5.22 R-481 borderLeft 25% 闭环第四处局部撤回** — 仅 catalog Helper banner 一处；SavedReports + AdminBudgets + AdminRecovery 三处保留（这三处是 Rules note 多条规则上下文，borderLeft 有信息分组语义；Helper banner 单条说明无此需求）。
+
+#### #27 Section source — neutral tag 替代字面拼接
+
+`tab_system.jsx` sections 数组结构调整：
+
+- 移除 title 内 `(TABLES)/(LEXICON)/(BUSINESS_RULES)` 字面拼接
+- 新加 `source` 字段（'tables'/'lexicon'/'business_rules'）
+- 新加 `SourceTag` inline helper（neutral 风格 — T.bg bg + T.subtext color + T.mono uppercase + T.border + radius 4）
+- 标题渲染：title（粗体）+ SourceTag（neutral chip）+ OverrideChip（brand chip — 若有覆盖）
+
+与 demo `catalog.jsx:48` `<Tag tone="neutral">{source}</Tag>` byte-equal；neutral SourceTag 与 brand OverrideChip 视觉分离（前者 = 元数据 / 后者 = 状态）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.29"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.29 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 17 屏视觉 byte-equal（仅 tab_system.jsx Catalog Section 重构）。
+
+---
+
+## v0.5.28 (UX) DataSources 视觉优化 — 资深架构师反馈 #19/23/24 偿还
+
+> 资深架构师 v0.5.x 收官反馈 #19/23/24：DataSources Sources 子模块视觉对照 demo 优化。
+
+### Changed
+
+#### #19 "已连接" 统计卡片 — 移除莫名其妙的高亮
+
+`tab_access.jsx:40` 已连接卡片之前 brandSoft 8% bg + brand 文字 + brand label，在 4 卡 grid 里突兀。对照 demo `datasources.jsx:L57-63`：
+
+- 卡片 bg `brandSoft 8% → T.card`（与其他 3 卡同 plain 风格）
+- 卡片 border `brandSoftBorder 25% → T.border`
+- Label color `T.accent → T.muted`
+- Value color `T.text → T.success`（demo `s.tone === 'ok' ? T.ok : t.text` byte-equal）
+
+视觉效果：4 卡 grid 完全平等，"已连接" 唯一区别是 value 走 T.success 绿色（语义增强 — 绿 = 在线/健康）。
+
+#### #23 thead 字体色 → T.muted
+
+`tab_access.jsx:58` thead font color `T.subtext → T.muted`（demo `t.textFaint` byte-equal）。保 brandSoft 8% bg 维持 v0.5.27 #24 全站表头一致性。
+
+#### #24 db icon borderRadius 8 → 6
+
+`tab_access.jsx:64` db icon borderRadius `8 → 6`（demo `datasources.jsx:L96` byte-equal）。Type chip 保 brandSoft 8% pill 不动（demo `<Tag tone="brand">` 同 brand 系统色）。
+
+### Deferred
+
+#21 总 schema / 总表数 / 上次心跳 真数据 — 保留 `—` placeholder + tooltip "后端数据对接中 (v0.6+)"；真数据实现需要后端 endpoint + 心跳采集，推至 **v0.5.34 DataSources 真数据 PATCH**。
+
+### 版本同步
+
+- knot/main.py: version "0.5.28"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.28 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / 16 屏视觉 byte-equal（仅 tab_access.jsx Sources 段 3 行 + 版本 3 处）。
+
+---
+
+## v0.5.27 (UX) 全站表头统一 — 资深架构师反馈 #24 偿还
+
+> 资深架构师 v0.5.x 收官测试反馈 #24：表头风格全站不一致。
+
+### Changed
+
+#### #24 SavedReports + ResultBlock 表头风格统一
+
+`SavedReports.jsx:314` + `chat/ResultBlock.jsx:266` 两处 HTML 表头是 v0.5.x 视觉重构唯二**未对齐** brandSoft 8% mono uppercase 模式的表头（admin 屏 7 个表头已全部统一）：
+
+- `<tr>` bg `T.bg` → `color-mix(in oklch, ${T.accent} 8%, transparent)`
+- `<th>` color `T.muted` → `T.subtext`
+- `<th>` 新加 `fontFamily: T.mono`
+- `<th>` 新加 `textTransform: 'uppercase'`
+- `<th>` letterSpacing `'normal'` → `'0.06em'`
+- 其他保持: padding 8 12 / textAlign left / fontWeight 500 / fontSize 11 / borderBottom / whiteSpace nowrap
+
+**第二次红线撤回**（v0.5.x 第一次为 v0.5.14 R-325 TokenPill）— v0.5.14 R-327 + v0.5.15 R-357 当时**故意**删 uppercase，资深 #24 反馈认为表头风格全站应一致，撤回该决议对齐 admin 屏铁律。
+
+与 admin 屏字面 byte-equal（R-480/R-444/R-409/R-504 sustained），brandSoft 8% **闭环字面文件数仍为 9**（thead 在两文件已有命中，无新文件加入）。
+
+### 版本同步
+
+- knot/main.py: version "0.5.27"
+- tests/test_rename_smoke.py: smoke 字面 byte-equal
+- frontend/src/screens/Login.jsx: 页脚 `v0.5.27 · build 20260512`
+
+### 自审简化协议持续
+
+后端 0 改 / Shared.jsx 0 改 / Shell.jsx 0 改 / Composer/ChatEmpty/Conversation/ThinkingCard/Admin/16 屏视觉 byte-equal（仅 SavedReports.jsx + ResultBlock.jsx 表头 4 行调整）。
+
+---
+
+## v0.5.26 (UX) Sidebar 高亮 + 设置页图标 — 资深架构师反馈 #11/17/18 偿还
 
 > 资深架构师 v0.5.x 收官测试反馈 #11/17/18：sidebar 高亮 + 配置图标问题。
 

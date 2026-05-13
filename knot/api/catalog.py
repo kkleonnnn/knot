@@ -30,7 +30,7 @@ def _has_setting(key: str) -> bool:
 
 @router.get("/api/admin/catalog")
 async def get_catalog(admin=Depends(require_admin)):
-    """返回当前生效的 catalog（DB 覆盖后）+ 文件默认值，供前端"恢复默认"使用。"""
+    """v0.5.44 — 加 relations 字段返回；4 键全部可走 DB 覆盖。"""
     catalog_loader.reload()
     return {
         "source": catalog_loader._SOURCE,
@@ -38,12 +38,14 @@ async def get_catalog(admin=Depends(require_admin)):
             "tables": catalog_loader.TABLES,
             "lexicon": catalog_loader.LEXICON,
             "business_rules": catalog_loader.BUSINESS_RULES,
+            "relations": [list(r) for r in catalog_loader.RELATIONS],
         },
         "defaults": catalog_loader.get_defaults_from_files(),
         "db_overrides": {
             "tables": _has_setting("catalog.tables"),
             "lexicon": _has_setting("catalog.lexicon"),
             "business_rules": _has_setting("catalog.business_rules"),
+            "relations": _has_setting("catalog.relations"),
         },
     }
 
@@ -79,6 +81,20 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
         settings_repo.set_app_setting("catalog.business_rules", str(v or ""))
         out["saved"].append("business_rules")
 
+    # v0.5.44 — relations 字段（JSON list of [left_t, left_c, right_t, right_c, semantics]）
+    if "relations" in payload:
+        v = payload["relations"]
+        if v in (None, "", [], {}):
+            settings_repo.set_app_setting("catalog.relations", "")
+        else:
+            if not isinstance(v, list):
+                raise HTTPException(status_code=400, detail="relations 必须是数组（list of tuples）")
+            for r in v:
+                if not isinstance(r, (list, tuple)) or len(r) < 4:
+                    raise HTTPException(status_code=400, detail="relations 每项必须 ≥4 元组 [left_t, left_c, right_t, right_c, semantics?]")
+            settings_repo.set_app_setting("catalog.relations", json.dumps(v, ensure_ascii=False))
+        out["saved"].append("relations")
+
     catalog_loader.reload()
     out["source"] = catalog_loader._SOURCE
     if out["saved"]:
@@ -91,8 +107,8 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
 async def reset_catalog(payload: dict = Body(default={}), request: Request = None, admin=Depends(require_admin)):
     """清空 DB 覆盖，回退到文件默认。
     payload.fields 可指定 ["tables", "lexicon", "business_rules"] 子集；缺省则全清。"""
-    fields = payload.get("fields") or ["tables", "lexicon", "business_rules"]
-    valid = {"tables", "lexicon", "business_rules"}
+    fields = payload.get("fields") or ["tables", "lexicon", "business_rules", "relations"]
+    valid = {"tables", "lexicon", "business_rules", "relations"}  # v0.5.44 — relations 加入
     cleared = []
     for f in fields:
         if f not in valid:

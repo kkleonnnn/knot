@@ -1,15 +1,20 @@
 // v0.5.10 (C5+) Home 屏复刻；R-227.5 字面分流装饰 "knot · ready" 小写 vs 声明 "KNOT 可能出错" 大写
+// v0.5.30 #33 — suggestion icons 改 demo "spark"/"flow" 风格（Q2 VRP 局部例外 — Shared 无 spark/flow）
 import { I } from '../../Shared.jsx';
 import { Composer } from './Composer.jsx';
+
+// v0.5.30 #33 — demo ui.jsx spark/flow path byte-equal
+const SparkIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>;
+const FlowIcon  = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7 7l4 9M17 7l-4 9"/></svg>;
 
 export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, onKeyDown,
                            activeUpload, setActiveUpload, onUpload }) {
   const firstName = user?.display_name?.split(' ')[0] || user?.username || '你';
   const suggestions = [
-    { icon: 'sparkle', text: '今天的订单总量是多少？' },
-    { icon: 'chart',   text: '最近 7 天每日 GMV 趋势' },
-    { icon: 'users',   text: '新用户注册数量（本月）' },
-    { icon: 'db',      text: '查看数据库有哪些表' },
+    { Icon: SparkIcon, text: '今天的订单总量是多少？' },
+    { Icon: FlowIcon,  text: '最近 7 天每日 GMV 趋势' },
+    { Icon: I.users,   text: '新用户注册数量（本月）' },
+    { Icon: I.db,      text: '查看数据库有哪些表' },
   ];
   return (
     <div style={{
@@ -53,7 +58,7 @@ export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, o
           display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10,
         }}>
           {suggestions.map((s, i) => {
-            const Icon = I[s.icon];
+            const Icon = s.Icon;
             return (
               <button key={i} onClick={() => setQuestion(s.text)} style={{
                 flex: '1 1 280px', minWidth: 0, height: 44, padding: '0 14px',

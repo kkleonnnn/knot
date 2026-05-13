@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { I, iconBtn } from '../Shared.jsx';
 import { usePersist, toast } from '../utils.jsx';
-import { AppShell } from '../Shell.jsx';
+import { AppShell, SideHeading } from '../Shell.jsx';
 import { api } from '../api.js';
 import { ChatEmpty } from './chat/ChatEmpty.jsx';
 import { ChatConversation } from './chat/Conversation.jsx';
@@ -22,6 +22,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbOk, setDbOk] = useState(null);
+  const [sourceCount, setSourceCount] = useState(null);  // v0.5.38 — 已连接数据源数（admin fetch real / 普通 user 走 dbOk ? 1 : 0）
   const [agentEvents, setAgentEvents] = useState([]);
   const [activeUpload, setActiveUpload] = useState(null);
   const scrollRef = useRef(null);
@@ -43,6 +44,10 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   };
   const checkDb = async () => {
     try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
+    // v0.5.38 — admin user fetch sources count（普通 user 走默认 1 if dbOk）；真数据 endpoint 推 v0.5.40
+    if (user?.role === 'admin') {
+      try { const ds = await api.get('/api/admin/sources'); setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1); } catch {}
+    }
   };
   const loadMessages = async (cid) => {
     try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
@@ -190,40 +195,76 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     } catch (e) { toast(`上传失败: ${e.message}`, true); }
   };
 
-  const convList = convs.map(c => (
-    // v0.5.26 #11 — 移除 ugly borderLeft 2px + paddingLeft 抖动；改 brandSoft 12% + radius 8
-    <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
-      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
-      borderRadius: 8, cursor: 'pointer',
-      background: c.id === activeConvId ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
-      color: c.id === activeConvId ? T.accent : T.subtext, fontSize: 12.5,
-      fontWeight: c.id === activeConvId ? 500 : 400,
-    }}>
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
-      <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
-    </div>
-  ));
+  // v0.5.30 #31 — 历史对话按 updated_at 切 最近(7d内) / 更早 两组（demo home.jsx L14-35 byte-equal）
+  const _NOW = Date.now();
+  const _WEEK_MS = 7 * 24 * 3600 * 1000;
+  const recentConvs = convs.filter(c => _NOW - new Date(c.updated_at).getTime() < _WEEK_MS);
+  const olderConvs  = convs.filter(c => _NOW - new Date(c.updated_at).getTime() >= _WEEK_MS);
+
+  const convRow = (c) => {
+    // v0.5.31 #35 — active conv 高亮 demo byte-equal（thinking.jsx ChatItem L281-291）：
+    // brandSoft 8% bg + brandSoftBorder 25% + T.text；inactive 加 transparent 1px border 防 layout shift；
+    // 撤回 v0.5.26 brandSoft 12% bg + T.accent text（资深"框比例不对 + 左侧深色边"反馈）
+    const isActive = c.id === activeConvId;
+    return (
+      <div key={c.id} onClick={() => setActiveConvId(c.id)} style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
+        margin: '0 8px',
+        borderRadius: 6, cursor: 'pointer',
+        background: isActive ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent',
+        border: isActive ? `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)` : '1px solid transparent',
+        color: isActive ? T.text : T.subtext, fontSize: 12.5,
+        fontWeight: isActive ? 500 : 400,
+      }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
+        <button onClick={(e) => { e.stopPropagation(); deleteConv(c.id, e); }} style={{ ...iconBtn(T), width: 20, height: 20, opacity: 0.5, flexShrink: 0 }}><I.trash/></button>
+      </div>
+    );
+  };
 
   const sidebarContent = (
     <>
-      <button onClick={newChat} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-        padding: '9px 10px', borderRadius: 8, background: 'transparent',
-        color: T.text, border: `1px solid ${T.border}`,
-        fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer', marginBottom: 8,
-      }}>
-        <I.plus width="14" height="14"/> 新建对话
-      </button>
-      {/* v0.4.1: 收藏报表入口 */}
-      <button onClick={() => onNavigate('saved-reports')} style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-        padding: '7px 10px', borderRadius: 6, background: 'transparent',
-        color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
-        cursor: 'pointer', marginBottom: 6,
-      }}>
-        <span>📌</span> 收藏报表
-      </button>
-      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>{convList}</div>
+      {/* v0.5.30 #29 — 新建对话 button: justify left-start + padding 升级 + gap 10（demo Btn variant=default size=md byte-equal）*/}
+      <div style={{ padding: '0 8px 8px' }}>
+        <button onClick={newChat} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
+          padding: '10px 14px', borderRadius: 8, background: T.card,
+          color: T.text, border: `1px solid ${T.border}`,
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+        }}>
+          <I.plus width="14" height="14"/> 新建对话
+        </button>
+      </div>
+      {/* v0.5.30 #30 — 收藏报表 → 收藏查询；删 📌；左 bookmark svg + 右 chev 右箭头（指明跳转）*/}
+      <div style={{ padding: '0 8px 8px' }}>
+        <button onClick={() => onNavigate('saved-reports')} style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          padding: '8px 14px', borderRadius: 8, background: 'transparent',
+          color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
+          cursor: 'pointer',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style={{ flex: 1, textAlign: 'left' }}>收藏查询</span>
+          <I.chev style={{ transform: 'rotate(-90deg)', flexShrink: 0, opacity: 0.6 }}/>
+        </button>
+      </div>
+      {/* v0.5.30 #31 — 最近 / 更早 分组 + SideHeading（demo home.jsx byte-equal）*/}
+      <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {recentConvs.length > 0 && (
+          <>
+            <SideHeading T={T}>最近</SideHeading>
+            {recentConvs.map(convRow)}
+          </>
+        )}
+        {olderConvs.length > 0 && (
+          <>
+            <SideHeading T={T}>更早</SideHeading>
+            {olderConvs.map(convRow)}
+          </>
+        )}
+      </div>
     </>
   );
 
@@ -233,6 +274,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
     <AppShell T={T} user={user} active="chat" sidebarContent={sidebarContent}
               topbarTitle={title} hideSidebarNewChat
               showConnectionPill connectionOk={dbOk}
+              connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
               onToggleTheme={onToggleTheme} onNewChat={newChat}
               onNavigate={onNavigate} onLogout={onLogout}>
       {!activeConvId || messages.length === 0

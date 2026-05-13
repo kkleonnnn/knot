@@ -59,7 +59,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
   }
 
   async function handleDelete(id) {
-    if (!confirm('删除该收藏报表？此操作不可恢复（不影响原对话历史）。')) return;
+    if (!confirm('删除该收藏查询？此操作不可恢复（不影响原对话历史）。')) return;
     try {
       await api.del(`/api/saved-reports/${id}`);
       toast('已删除');
@@ -73,21 +73,13 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
   const active = reports.find(r => r.id === activeId);
 
-  // R-353 Sidebar header T.mono + 删 📌；R-354 SavedItem bookmark + brandSoft + time mono
+  // v0.5.38 — 返回对话 button 移除（Shell.jsx 全屏底部统一渲染）；R-353 Sidebar header sustained
   const sidebarContent = (
     <>
-      <button onClick={() => onNavigate('chat')} style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-        padding: '9px 10px', borderRadius: 8, background: 'transparent',
-        color: T.muted, border: `1px solid ${T.border}`,
-        fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', marginBottom: 8,
-      }}>
-        <SvgPath d={SAVED_SVG.chevronL} size={12}/> 返回对话
-      </button>
       <div style={{
         padding: '10px 10px 4px', fontSize: 10, color: T.muted,
         fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
-      }}>收藏报表 <span style={{ color: T.muted, fontWeight: 600 }}>{reports.length}</span></div>
+      }}>收藏查询 <span style={{ color: T.muted, fontWeight: 600 }}>{reports.length}</span></div>
       <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {reports.map(r => {
           const isActive = r.id === activeId;
@@ -117,7 +109,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
   return (
     <AppShell T={T} user={user} active="saved-reports" sidebarContent={sidebarContent}
-              topbarTitle={active ? active.title : '收藏报表'} hideSidebarNewChat
+              topbarTitle={active ? active.title : '收藏查询'} hideSidebarNewChat
               onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
       {loading
@@ -136,7 +128,7 @@ function EmptyView({ T, onBack }) {
         <div style={{ color: T.muted, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
           <SvgPath d={SAVED_SVG.bookmark} size={36}/>
         </div>
-        <div style={{ fontSize: 15, color: T.text, marginBottom: 4 }}>还没有收藏报表</div>
+        <div style={{ fontSize: 15, color: T.text, marginBottom: 4 }}>还没有收藏查询</div>
         <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16 }}>
           在对话里点 ⭐ 把任意结果钉成报表，下次直接重跑。
         </div>
@@ -310,8 +302,9 @@ function DetailView({ T, report, onChanged }) {
             <div className="cb-sb" style={{ overflowX: 'auto', maxHeight: 480 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
+                  {/* v0.5.38 全站表头底色 brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；与 admin 屏一致）*/}
                   <tr style={{ background: T.bg }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 11, letterSpacing: 'normal', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>
