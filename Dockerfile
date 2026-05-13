@@ -17,7 +17,7 @@ COPY . .
 #   显式 COPY 即使未来改 COPY 策略（多阶段构建 / .dockerignore 加新规则）也不会漏
 COPY knot/prompts/ /app/knot/prompts/
 COPY knot/services/agents/_template_catalog.py /app/knot/services/agents/_template_catalog.py
-COPY --from=frontend-builder /app/knot/static ./knot/static
+COPY --from=frontend-builder /knot/static ./knot/static
 RUN mkdir -p knot/data
 EXPOSE 8000
 CMD ["uvicorn", "knot.main:app", "--host", "0.0.0.0", "--port", "8000"]
