@@ -2,16 +2,18 @@
 
 公司内部用的 AI 取数助手：自然语言 → SQL → 图表 + 洞察。
 
+> **当前版本** v0.5.44 · v0.5.x 视觉重构 + 业务功能完整收官（demo 1:1 复刻 + 42 项资深架构师反馈偿还）
+
 ## 角色
 
-- **admin**：配置数据源、API key、3-agent 模型；维护 few-shot / prompt / 知识库
-- **analyst**（运营 / 执行）：聊天提问，自动生成 SQL、图表、洞察
+- **admin**：配置数据源、API key、3-agent 模型；维护 few-shot / prompt / 知识库 / 业务目录（表 / 词典 / 规则 / **表关系 RELATIONS** v0.5.44）/ 预算配置（单 global 5 字段 v0.5.42）
+- **analyst**（运营 / 执行）：聊天提问，自动生成 SQL、图表、洞察 + 思考过程 4-step (Knowledge → Nexus → Objective → Trace) 透明可追溯
 
-## 3-Agent 流式管线
+## 4-Step 流式管线（v0.5.39 起 Trace 加入）
 
 ```
-Clarifier → SQL Planner → Presenter
-（理解）   （ReAct 生成）  （洞察 + 内联异常检查 + 追问建议）
+Clarifier (K Knowledge) → SQL Planner (N Nexus) → Presenter (O Objective) → Trace (T)
+   （理解问题）            （ReAct 生成 SQL）       （洞察 + 异常 + 追问）     （信任度推导：源表数 / SQL 数 / JOIN / 聚合 / 可信度）
 ```
 
 - 支持多轮上下文（代词「这些用户」「上述」会自动回指上一题口径）
@@ -21,7 +23,11 @@ Clarifier → SQL Planner → Presenter
 - **多源跨组检测**（v0.2.3）：跨连接组 SQL 直接报错，不再让 MySQL 回 Access denied 误导 LLM 报权限错
 - **Schema 检索 v2**（v0.2.3）：BM25 + 业务词典命中加分 + 主题重合 + 高优先表强制纳入，单次 prompt 上限 25 表 → 选 12 表
 - **隐私脱敏**（v0.2.4）：业务 catalog / few-shots / eval cases / fake schema 采用 `.example` 模板模式，真实文件 `.gitignore`；缺失时自动回退 `.example`
-- **业务目录可视化编辑**（v0.2.5）：admin 后台「业务目录」tab 直接编辑表目录 / 业务词典 / 业务规则，DB 覆盖文件默认；不编辑则用仓库默认（`ohx_catalog.example.py`）
+- **业务目录可视化编辑**（v0.2.5 → v0.5.44 4 字段全维度）：admin 后台「业务目录」tab 直接编辑表目录 / 业务词典 / 业务规则 / **表关系 RELATIONS**，DB 覆盖文件默认；不编辑则用仓库默认（`ohx_catalog.example.py`）
+- **笛卡尔积 6 层防御**（v0.4.1.1 → v0.5.44）：catalog RELATIONS 注入 / prompt JOIN 硬约束 / sql_validator AST C1-C4 / R-91 retry counter / prompt 专家身份 ✓ ✗ 对照 / RELATIONS admin UI 根因解
+- **思考过程 4 step 可追溯**（v0.5.39）：K Knowledge → N Nexus → O Objective → T Trace；Trace 前端从 SQL FROM/JOIN regex + presenter confidence 推导信任度（高 / 中 / 低）
+- **预算单 global 配置**（v0.5.42）：admin 后台 5 字段（月度 token 上限 / 单次对话上限 / 告警阈值 / 默认模型 / 限流策略）+ Hero card 实时 token 用量进度条
+- **demo 1:1 视觉复刻**（v0.5.6 → v0.5.44）：18 屏全部对照 Claude Design demo；OKLCH 单色空间 brand 195° + HarmonyOS / PingFang / Inter / JetBrains Mono 字体
 
 ## 快速开始
 
@@ -58,15 +64,17 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `ohx_catalog.py`（B）> `ohx_catalog.example.py`（仓库默认）。
 
-## 技术栈（v0.2.5）
+## 技术栈（v0.5.44）
 
-- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru
-- **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）
-- **LLM**：OpenRouter 统一路由（Anthropic / OpenAI / Google / DeepSeek / Qwen / 智谱 / MiniMax）
+- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；77 routes；7 import-linter contracts KEPT
+- **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
+- **LLM**：OpenRouter 统一路由（Anthropic Claude 4.6 / OpenAI / Google / DeepSeek / Qwen / 智谱 / MiniMax）；3-agent 异步并行
 - **业务库**：Apache Doris / MySQL（多源按 `host:port:user` 分组合并）
-- **RAG**：BM25 + embedding cosine
-- **SQL 安全**：sqlglot AST 校验 + DB grants 探测
-- **测试**：pytest + yaml 驱动的 eval 集
+- **RAG**：BM25 + embedding cosine + RELATIONS 元数据注入 prompt
+- **SQL 安全**：sqlglot AST 校验 + DB grants 探测 + **6 层笛卡尔积防御**（v0.5.44 收官）
+- **加密**：Fernet 字段级（API key / DB 密码）+ KNOT_MASTER_KEY env fail-fast（v0.4.5+）
+- **审计**：INSERT-only audit_log + 8 类 mutation 自动记录 + PII 三层防御 + 90 天 retention（v0.4.6+）
+- **测试**：pytest + yaml 驱动的 eval 集（111 cases / 7 contracts / 77 routes smoke）
 
 ## 项目结构
 
@@ -96,7 +104,7 @@ KNOT 每个 PATCH 都按 **三阶段评审 + 4 级角色 + MINOR 滚动整体审
 
 **MINOR 滚动整体审核**（v3 新增仪式）：每跨 MINOR 时由资深架构师明确 announce「整体审核」，执行者 + 守护者 + 所有存活的远古守护者独立提供意见，产出代码结构评估 / 奥卡姆剃刀清单 / 重命名重构提案 / 下一 MINOR 预期范围 4 份固定模板。
 
-完整协议条款详见 [CLAUDE.md](./CLAUDE.md)「迭代循环协议」段落（含 v3 协议施行历史 + v0.5.0~v0.5.4 5 次完整施行回顾）。
+完整协议条款详见 [CLAUDE.md](./CLAUDE.md)「迭代循环协议」段落（含 v3 协议施行历史；v0.5.0~v0.5.44 期间共 **25+ 次完整施行**，自 v0.5.22 起授权"自审简化协议"用于视觉冲刺 + bug fix 类小 PATCH）。
 
 ## 版本记录
 
