@@ -507,8 +507,10 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
                 s["db_host"], s["db_port"], s["db_user"], s["db_password"], s["db_database"]
             )
             with engine.connect() as c:
+                # v0.6.1.3 patch — 仅 BASE TABLE 不含 VIEW / SYSTEM VIEW（用户反馈 11 vs 12 偏差）
                 n = c.execute(_sa_text(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = :db"
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    "WHERE table_schema = :db AND table_type = 'BASE TABLE'"
                 ), {"db": s["db_database"]}).scalar() or 0
                 tables_total += int(n)
             last_heartbeat = datetime.now().isoformat(timespec="seconds")
