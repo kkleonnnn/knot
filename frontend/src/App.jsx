@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme, usePersist, Spinner } from './utils.jsx';
 import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
@@ -14,6 +14,10 @@ export default function App() {
   const [user, setUser] = usePersist('cb_user', null);
   const [screen, setScreen] = usePersist('cb_screen', 'chat');
   const [loading, setLoading] = usePersist('cb_loading', true);
+  // v0.6.1.2 F1 — shared backend data lifted from ChatScreen，避免每次切屏 re-mount 时重 fetch
+  const [convs, setConvs] = useState([]);
+  const [dbOk, setDbOk] = useState(null);
+  const [sourceCount, setSourceCount] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('cb_token');
@@ -27,6 +31,18 @@ export default function App() {
       setLoading(false);
     });
   }, []);
+
+  // v0.6.1.2 F1 — 用户认证完成后并行 prefetch 共享数据；user 切换时重新 fetch
+  useEffect(() => {
+    if (!user) { setConvs([]); setDbOk(null); setSourceCount(null); return; }
+    api.get('/api/conversations').then(setConvs).catch(() => {});
+    api.get('/api/db/status').then(d => setDbOk(d.connected)).catch(() => setDbOk(false));
+    if (user.role === 'admin') {
+      api.get('/api/admin/sources')
+         .then(ds => setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1))
+         .catch(() => {});
+    }
+  }, [user?.id]);
 
   const handleLogin = (u) => {
     // 切账号时清掉上一个 user 的会话引用，防止 cb_conv 残留导致 POST 404
@@ -54,7 +70,8 @@ export default function App() {
 
   if (!user) return <LoginScreen T={T} onLogin={handleLogin} onToggleTheme={toggleTheme}/>;
 
-  const commonProps = { T, user, onToggleTheme: toggleTheme, onNavigate: navigate, onLogout: handleLogout };
+  const commonProps = { T, user, onToggleTheme: toggleTheme, onNavigate: navigate, onLogout: handleLogout,
+                        convs, setConvs, dbOk, sourceCount };
 
   const adminTabMap = {
     'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',

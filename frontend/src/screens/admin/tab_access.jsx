@@ -17,7 +17,7 @@ function _heartbeatRelative(iso) {
   return `${Math.floor(sec / 86400)} 天前`;
 }
 
-export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
+export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDeleteUser,
                           onEditSource, onDeleteSource, roleChip }) {
   // v0.5.40 — DataSources Hero stats（仅 sources tab 激活时 fetch）
   const [dsStats, setDsStats] = useState(null);
@@ -50,7 +50,8 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
               </div>
             </div>
           ))}
-          {users.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: T.muted }}>暂无用户</div>}
+          {/* v0.6.1.2 F2 — loading 时显示"加载中..."，避免误显"暂无用户"幻觉 */}
+          {users.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: T.muted }}>{loading ? '加载中…' : '暂无用户'}</div>}
         </div>
       )}
 
@@ -106,7 +107,7 @@ export function TabAccess({ T, tab, users, sources, onEditUser, onDeleteUser,
                 </div>
               </div>
             ))}
-            {sources.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: T.muted }}>暂无数据源</div>}
+            {sources.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: T.muted }}>{loading ? '加载中…' : '暂无数据源'}</div>}
           </div>
         </>
       )}
