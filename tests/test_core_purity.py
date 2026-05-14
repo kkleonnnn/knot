@@ -17,7 +17,6 @@ import pkgutil
 
 import knot.core
 
-
 _FORBIDDEN_PREFIXES = (
     "knot.api",
     "knot.services",
@@ -83,9 +82,10 @@ def test_core_purity_via_runtime_reflection():
 
 def test_core_only_contains_horizontal_utilities():
     """v0.3.3 终态：core/ 应只剩横切工具（logging / date_context / errors）。
+    v0.6.1 起：新增 time_resolver.py（时间语义统一引擎 — 同 date_context.py 同性质横切工具）。
     若新增其他业务文件，本测试失败 — 强制 reviewer 思考分层归属。"""
     core_dir = pathlib.Path(knot.core.__file__).parent
-    expected = {"__init__.py", "logging_setup.py", "date_context.py"}
+    expected = {"__init__.py", "logging_setup.py", "date_context.py", "time_resolver.py"}
     actual = {f.name for f in core_dir.glob("*.py")}
     unexpected = actual - expected
     assert not unexpected, (
