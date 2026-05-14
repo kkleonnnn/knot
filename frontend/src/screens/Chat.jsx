@@ -15,40 +15,27 @@ import { ChatEmpty } from './chat/ChatEmpty.jsx';
 import { ChatConversation } from './chat/Conversation.jsx';
 import { runQueryStream } from './chat/sse_handler.js';
 
-export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
-  const [convs, setConvs] = useState([]);
+export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
+                              convs, setConvs, dbOk, sourceCount }) {
+  // v0.6.1.2 F1：convs / dbOk / sourceCount 从 App.jsx props 接收 — 每次 ChatScreen mount 不再 re-fetch
   const [activeConvId, setActiveConvId] = usePersist('cb_conv', null);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dbOk, setDbOk] = useState(null);
-  const [sourceCount, setSourceCount] = useState(null);  // v0.5.38 — 已连接数据源数（admin fetch real / 普通 user 走 dbOk ? 1 : 0）
   const [agentEvents, setAgentEvents] = useState([]);
   const [activeUpload, setActiveUpload] = useState(null);
   const scrollRef = useRef(null);
 
-  useEffect(() => { loadConvs(); checkDb(); }, []);
+  // v0.6.1.2 F1：convs 变化时（App prefetch 返回 / 账号切换）检查并清理 stale activeConvId
+  useEffect(() => {
+    if (convs.length > 0 && activeConvId && !convs.some(c => c.id === activeConvId)) {
+      setActiveConvId(null);
+      setMessages([]);
+    }
+  }, [convs]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
-  const loadConvs = async () => {
-    try {
-      const d = await api.get('/api/conversations');
-      setConvs(d);
-      // 若当前 activeConvId 不在该 user 的列表中（账号切换 / 会话已删），重置避免 query 报 404
-      if (activeConvId && !d.some(c => c.id === activeConvId)) {
-        setActiveConvId(null);
-        setMessages([]);
-      }
-    } catch {}
-  };
-  const checkDb = async () => {
-    try { const d = await api.get('/api/db/status'); setDbOk(d.connected); } catch { setDbOk(false); }
-    // v0.5.38 — admin user fetch sources count（普通 user 走默认 1 if dbOk）；真数据 endpoint 推 v0.5.40
-    if (user?.role === 'admin') {
-      try { const ds = await api.get('/api/admin/sources'); setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1); } catch {}
-    }
-  };
   const loadMessages = async (cid) => {
     try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
   };
@@ -145,7 +132,8 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
           is_retryable: ev.is_retryable ?? null,
           loading: false,
         } : m));
-        loadConvs();
+        // v0.6.1.2 F1：query 完成后刷新 conv 列表（拿到 LLM 生成的标题），通过 props setConvs 回写到 App
+        api.get('/api/conversations').then(setConvs).catch(() => {});
         setLoading(false);
       },
       onException: (err) => {

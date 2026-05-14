@@ -51,11 +51,14 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     overrides: { tables: false, lexicon: false, business_rules: false, relations: false },
   });
   const [catalogSaving, setCatalogSaving] = useState({});
+  // v0.6.1.2 F2 — tab fetch loading state；区分"加载中"与"暂无XXX"，消除误导性空提示
+  const [tabLoading, setTabLoading] = useState(true);
 
   useEffect(() => { setTab(initialTab); }, [initialTab]);
   useEffect(() => { loadAll(); }, [tab]);
 
   const loadAll = async () => {
+    setTabLoading(true);
     try {
       if (tab === 'users') { const [d, s] = await Promise.all([api.get('/api/admin/users'), api.get('/api/admin/datasources')]); setUsers(d); setSources(s); }
       if (tab === 'sources') { const d = await api.get('/api/admin/datasources'); setSources(d); }
@@ -98,6 +101,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
       }
       const s = await api.get('/api/admin/stats'); setStats(s);
     } catch {}
+    finally { setTabLoading(false); }
   };
 
   const handleKbUpload = async (file) => {
@@ -318,7 +322,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
       <div className="cb-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
 
         {(tab === 'users' || tab === 'sources') && (
-          <TabAccess T={T} tab={tab} users={users} sources={sources}
+          <TabAccess T={T} tab={tab} users={users} sources={sources} loading={tabLoading}
                      onEditUser={(u) => setModal({ type: 'user', data: u })}
                      onDeleteUser={deleteUser}
                      onEditSource={(s) => setModal({ type: 'source', data: s })}
