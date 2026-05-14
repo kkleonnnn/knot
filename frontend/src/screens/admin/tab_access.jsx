@@ -67,15 +67,15 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
             {/* v0.5.40 — 真数据 from /api/admin/datasources-stats */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总 schema</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? dsStats.total_schemas : '—'}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_schemas : '—'}</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总表数</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? dsStats.total_tables : '—'}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_tables : '—'}</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>上次心跳</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{dsStats ? _heartbeatRelative(dsStats.last_heartbeat) : '—'}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? _heartbeatRelative(dsStats.last_heartbeat) : '—'}</div>
             </div>
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
