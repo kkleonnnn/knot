@@ -72,11 +72,14 @@ LIMITS = {
     "frontend/src/screens/chat/ResultBlock/BudgetBanner.jsx":    60,
     "frontend/src/screens/chat/ResultBlock/ErrorBanner.jsx":     80,   # 含 ERROR_KIND_META 7 类
     "frontend/src/screens/chat/ResultBlock/TokenMeter.jsx":      60,
+    # ── v0.6.0.3 F-A — FeedbackBar 子组件（M-A4 复用 utils Modal）──────────
+    "frontend/src/screens/chat/ResultBlock/FeedbackBar.jsx":     100,
     # ── v0.6.1 LOCKED §1 F2 — 时间语义引擎（R-PA-PB-2 守护）──────────────
     "knot/core/time_resolver.py":                  350,  # ~235 行 + 后续预留扩展
 }
 # v0.6.0.2 R-PA-PB-V0.5：ResultBlock.jsx 主文件 LIMIT 460 → 280 收紧（拆分后）
-LIMITS["frontend/src/screens/chat/ResultBlock.jsx"] = 280
+# v0.6.0.3 F-A: 280 → 290 (FeedbackBar import + 调用 ~5 行；子组件已抽出主体逻辑)
+LIMITS["frontend/src/screens/chat/ResultBlock.jsx"] = 290
 
 repo = Path(__file__).resolve().parent.parent
 violations = []

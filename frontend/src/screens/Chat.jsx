@@ -161,6 +161,17 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     }
   };
 
+  // v0.6.0.3 F-A: submit feedback (+1/-1 + optional comment); 返回 true=已落库 false=失败
+  const submitFeedback = async (mid, score, comment) => {
+    try {
+      await api.post(`/api/messages/${mid}/feedback`, { score, comment: comment || '' });
+      return true;
+    } catch (e) {
+      toast(`反馈失败: ${e.message}`, true);
+      return false;
+    }
+  };
+
   const downloadCSV = (rows, question) => {
     if (!rows || !rows.length) return;
     const headers = Object.keys(rows[0]);
@@ -274,7 +285,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
                             question={question} setQuestion={setQuestion}
                             onSubmit={sendQuery} onKeyDown={handleKeyDown}
                             onCopy={copyToClipboard} onDownload={downloadCSV} onPin={pinMessage}
-                            onRetry={(q) => { setQuestion(q); }}
+                            onRetry={(q) => { setQuestion(q); }} onFeedback={submitFeedback}
                                                         agentEvents={agentEvents}
                             activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
       }

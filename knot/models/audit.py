@@ -32,6 +32,8 @@ AuditAction = Literal[
     "saved_report.pin", "saved_report.unpin",
     # 数据导出
     "export.csv", "export.xlsx",
+    # 用户反馈（v0.6.0.3 F-A）
+    "feedback.submit",
     # 审计自身（meta-audit, R-57）
     "audit.retention_change", "audit.purge",
 ]
@@ -40,4 +42,6 @@ AuditResourceType = Literal[
     "user", "datasource", "api_key", "budget",
     "agent_model", "prompt", "catalog", "few_shots",
     "saved_report", "audit",
+    # v0.6.0.3 F-A: 反馈关联 message
+    "message",
 ]

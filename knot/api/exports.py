@@ -17,8 +17,11 @@ from knot.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes
 router = APIRouter()
 
 
-def _check_message_access(message_id: int, user) -> dict:
-    """共用权限校验：返回 msg dict 或 raise 404 防 id 枚举。"""
+def check_message_access(message_id: int, user) -> dict:
+    """共用权限校验：返回 msg dict 或 raise 404 防 id 枚举。
+
+    v0.6.0.3 F-A：drop 下划线开放给 api/feedback.py 等同层模块复用。
+    """
     msg = message_repo.get_message(message_id)
     if not msg:
         raise HTTPException(status_code=404, detail="消息不存在或无权访问")
@@ -27,6 +30,10 @@ def _check_message_access(message_id: int, user) -> dict:
     if owner_id != user["id"] and not is_admin:
         raise HTTPException(status_code=404, detail="消息不存在或无权访问")
     return msg
+
+
+# v0.6.0.3 F-A：保留 _check_message_access 别名兼容老调用方
+_check_message_access = check_message_access
 
 
 @router.get("/api/messages/{message_id}/export.csv")
