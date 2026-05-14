@@ -79,6 +79,13 @@ export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, o
         }}>
           KNOT 可能出错 · 关键结果请核对原始数据
         </div>
+        {/* v0.6.1 R-PA-PB-1：窄场景宣告 — 简要 hint，详 README §能做不能做 */}
+        <div style={{
+          marginTop: 6, fontSize: 10.5, color: T.muted, opacity: 0.7,
+          letterSpacing: '0.02em',
+        }}>
+          当前支持 SELECT 类查询 · 复杂归因 / 跨域分析 / 动作触发等场景见 README
+        </div>
       </div>
     </div>
   );

@@ -9,6 +9,39 @@
 - **admin**：配置数据源、API key、3-agent 模型；维护 few-shot / prompt / 知识库 / 业务目录（表 / 词典 / 规则 / **表关系 RELATIONS** v0.5.44）/ 预算配置（单 global 5 字段 v0.5.42）
 - **analyst**（运营 / 执行）：聊天提问，自动生成 SQL、图表、洞察 + 思考过程 4-step (Knowledge → Nexus → Objective → Trace) 透明可追溯
 
+## knot 当前能做什么 / 不能做什么（v0.6.x 阶段宣告）
+
+> v0.6.1 R-PA-PB-1 立约 — 窄场景宣告 + 责任边界
+
+### ✅ 当前能做（v0.6.x 范围）
+
+- **NL → SELECT SQL**：单表 / 多表 JOIN / GROUP BY / 时间过滤 / 排序 / TopN / 子查询 / CTE
+- **简单业务问题**：销售统计 / 用户行为 / 趋势分析 / 维度对比 / 同比环比
+- **数据可视化**：line / bar / pie / table / metric card / rank_view / retention_matrix
+- **笛卡尔积硬防御**：v0.5.1 R-80~93 + v0.6.0.1 R-PA-9 4 层守护 + execute_sql 路径
+- **复杂 CTE 多表查询**：v0.6.0.1 R-PA-10 修复（WITH...SELECT 识别为可执行）
+- **时间语义统一**（v0.6.1）：5 类核心表达 + 同比基准 + 节假日上下文 + D-1 数据更新延迟
+- **业务流**：收藏报表 + CSV/xlsx 导出 + 重跑 + 多轮追问继承
+- **成本治理**：4 桶 agent_kind 分桶 + 预算告警 + audit_log INSERT-only
+
+### ❌ 当前不能做（OOS 范畴 / 推迟到 v0.7+）
+
+- **归因分析**（"为什么下降"）— 5 层语义中**事件 + 规则层未建**（v0.7+）
+- **跨业务域聚合**（不同 catalog 跨域分析）— **对象语义层未建**（v0.7+）
+- **数据合理性反检**（"这个数对吗"）— **校验段未建**（v0.7.2）
+- **动作触发**（通知 / 工单 / 审批）— **动作语义层未建**（v1.x+）
+- **多租户隔离 / SSO / RBAC** — OOS-1~3
+- **国际化 i18n** — v1.x+ 公测准备
+- **大规模向量 / RAG / 多模态** — 不在 knot 范围（Doris/SelectDB 4.0 这类是 DB 厂商课题）
+
+### 当前阶段定位
+
+- **knot v0.6.x = "更好的 ChatBI" 层级**（DAU 5-20 人内部工具）
+- **knot v0.7.x+ = 进入 "Data Agent" 分界线**（5 层语义建模 + LogicForm 中间层）— Phase B 路线
+- **1.0 团队公测**前完成 v0.7.x 核心能力
+
+> 详 Phase B 提案：`docs/plans/phase-b-proposal-draft.md`（worktree 本地草案，待 Day 28+ 三方会议拍板）
+
 ## 4-Step 流式管线（v0.5.39 起 Trace 加入）
 
 ```
