@@ -65,7 +65,16 @@ LIMITS = {
     # ── v0.6.0.1 LOCKED §1 ─────────────────────────────────────
     "scripts/check_phase_b_leakage.py":            200,  # R-PA-8 守护工具
     "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试
+    # ── v0.6.0.2 LOCKED §1 — ResultBlock 6 子组件拆分（R-341 偿还）──────────
+    "frontend/src/screens/chat/ResultBlock/MetricCard.jsx":      50,
+    "frontend/src/screens/chat/ResultBlock/TableContainer.jsx":  100,  # chart + table 复合最大
+    "frontend/src/screens/chat/ResultBlock/InsightCard.jsx":     50,
+    "frontend/src/screens/chat/ResultBlock/BudgetBanner.jsx":    60,
+    "frontend/src/screens/chat/ResultBlock/ErrorBanner.jsx":     80,   # 含 ERROR_KIND_META 7 类
+    "frontend/src/screens/chat/ResultBlock/TokenMeter.jsx":      60,
 }
+# v0.6.0.2 R-PA-PB-V0.5：ResultBlock.jsx 主文件 LIMIT 460 → 280 收紧（拆分后）
+LIMITS["frontend/src/screens/chat/ResultBlock.jsx"] = 280
 
 repo = Path(__file__).resolve().parent.parent
 violations = []

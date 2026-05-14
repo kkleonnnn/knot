@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.0.2 (micro PATCH) ResultBlock 6 子组件拆分 — v0.5.14 R-341 承诺偿还
+
+> **Loop Protocol v3 第 28 次施行**（v0.5.22 自审简化协议 sustained — Phase B 评估预 LOCKED 决议 B 修订版 v0.5 守护者 §2 强制前置）
+>
+> R-PA-5 Day 1（2026-05-14）触发后立即启动 — 资深架构师拍板。严守 R-PA-12 micro PATCH 范围 — 纯偿还性 / 0 业务功能变更 / 6 子组件抽出。
+
+### 触发理由
+
+v0.5.14 R-341 LOCKED 立约（commit message 字面）：
+> "v0.5 ResultBlock 行数收官（440 final；v0.6 必须开启子组件拆分 6 候选：MetricCard / TableContainer / InsightCard / BudgetBanner / ErrorBanner / TokenMeter）"
+
+Phase B 评估预 LOCKED §6 v0.5 守护者强制建议 5：
+> "v0.6.0.2 micro PATCH — ResultBlock 6 子组件拆分（v0.5.14 R-341 承诺偿还前置 — §2）...
+> 否则 v0.6.2~v0.7.2 加 props 时不可控"
+
+### 6 子组件抽出 + 主文件瘦身
+
+| 文件 | 行数 | 职责 |
+|---|---|---|
+| `chat/ResultBlock.jsx` (主) | 449 → **279** | layout 调度 + intent 分支 + 6 子组件 import + agent_costs chip + SQL accordion + exportMessageCsv |
+| `chat/ResultBlock/MetricCard.jsx` [NEW] | 27 | metric intent 大数字卡片（v0.4.0）|
+| `chat/ResultBlock/TableContainer.jsx` [NEW] | 66 | chart + table 复合容器（v0.5.38 thead T.bg）|
+| `chat/ResultBlock/InsightCard.jsx` [NEW] | 30 | brandSoft 8% Observation inset（v0.5.14 R-323）|
+| `chat/ResultBlock/BudgetBanner.jsx` [NEW] | 36 | warn/block banner + svg shield/triangle（v0.5.13 R-304）|
+| `chat/ResultBlock/ErrorBanner.jsx` [NEW] | 48 | ERROR_KIND_META 7 类 + getErrorKindMeta（v0.4.4 R-28 / R-302.5）|
+| `chat/ResultBlock/TokenMeter.jsx` [NEW] | 37 | inline stat + svg ↑↓ + confidence（v0.5.14 R-325）|
+
+### R-PA-PB-V0 红线 6 条立约
+
+- R-PA-PB-V0.1 props 签名 byte-equal（Conversation 调用点 0 改）
+- R-PA-PB-V0.2 视觉规范 byte-equal（v0.5.6~v0.5.21 18 项契约 0 修改）
+- R-PA-PB-V0.3 业务逻辑 byte-equal（resolveEffectiveHint / exportMessageCsv / 7 intent layout）
+- R-PA-PB-V0.4 测试 0 regression（pytest 421 sustained）
+- R-PA-PB-V0.5 行数压制（主 ≤ 280 + 6 子 ≤ 50-100）
+- R-PA-PB-V0.6 Preview MCP visual 验证（DOM 含 "30 行 · 3 列" + "查看 SQL" + "OBSERVATION"）
+
+### v0.6.0.2 后 Phase B 加 props 路径（解耦）
+
+| Phase B PATCH | 涉及子组件 | 新 prop（R-548 范围 ↓）|
+|---|---|---|
+| v0.6.2 长期记忆 | 主文件 + 新 FeedbackButton（独立）| onFeedback |
+| v0.6.3 预演模式 | 主文件 + TableContainer | dryRunMode |
+| v0.7.2 校验段 | InsightCard + ErrorBanner 协同 | validatorStep |
+
+### 测试 + 闸门
+
+- pytest 421 sustained / 112 skipped ✅
+- import-linter 7 contracts KEPT ✅
+- ruff check knot/ + frontend clean ✅
+- check_file_sizes 36 → **43 files**（+6 子组件 + ResultBlock.jsx LIMIT 460→280 收紧）✅
+- audit_ohx_leakage --mode=all exit 0 sustained ✅
+- R-PA-8 check_phase_b_leakage exit 0 sustained ✅
+- npm build clean ✅
+- Preview MCP visual：DOM 含 "30 行 · 3 列" / "查看 SQL" / 真实浏览器 ≥1280px 渲染正常 ✅
+
+LOCKED 手册：[docs/plans/v0.6.0.2-locked.md](docs/plans/v0.6.0.2-locked.md)
+
+---
+
 ## [Unreleased] - v0.6.0.1 (micro PATCH) 5 in 1 hotfix + 守护者立约归档
 
 > **Loop Protocol v3 第 27 次施行**（v0.5.22 自审简化协议 sustained — 5 in 1 全部内容已在
