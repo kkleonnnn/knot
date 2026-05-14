@@ -55,9 +55,11 @@ PHASE_B_SCHEMA_COLUMNS = [
 ]
 
 # Phase B 准备性文档文件 glob（落地即触发 alert）
+# v0.6.1 R-PA-PB-7：v0.6.1-* 从 PHASE_B_DOC_GLOBS 移除（已合法启动），
+#   保留 v0.6.2+ / v0.7+ 继续防御后续准备性内容
 PHASE_B_DOC_GLOBS = [
-    "docs/plans/v0.6.1-*.md",
     "docs/plans/v0.6.2-*.md",
+    "docs/plans/v0.6.3-*.md",
     "docs/plans/v0.7.*-*.md",
 ]
 
@@ -75,11 +77,14 @@ INCLUDE_GLOBS = [
 # 注：CLAUDE.md / README.md 不在 INCLUDE_GLOBS（用户文档；可含 OOS-1~15 路线图引用）— R-PA-6.2 模式
 
 # 豁免：治理档案 + 提案草案 + 本工具 + 自动重建 + 用户文档（CLAUDE.md 含路线图引用 OOS）
+# v0.6.1 R-PA-PB-7：v0.6.1 已正式启动（Phase B 决议 B 修订版首个 PATCH），LOCKED 手册不属准备性内容
 EXCLUDE_RE = re.compile(
     r"docs/plans/v0\.4\.|"
     r"docs/plans/v0\.5\.|"
     r"docs/plans/v0\.6\.0-|"
     r"docs/plans/v0\.6\.0\.1-|"
+    r"docs/plans/v0\.6\.0\.2-|"
+    r"docs/plans/v0\.6\.1-|"           # R-PA-PB-7（v0.6.1 已正式启动）
     r"docs/plans/phase-b-proposal-draft\.md|"
     r"CHANGELOG\.md|"
     r"CLAUDE\.md|"
