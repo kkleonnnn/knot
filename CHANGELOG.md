@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.1 (Phase B 决议 B 修订版首个正式 PATCH) 窄场景宣告 + 时间语义引擎
+
+> **Loop Protocol v3 第 29 次施行** — Phase B 评估预 LOCKED §6.1 决议 B 修订版 v0.6.1 落点确认
+>
+> R-PA-5 Day 1（2026-05-14）启动 — 提前于 LOCKED 路线图 "Day 7+" 建议窗口（资深架构师 announce 拍板）。
+> v0.5 守护者 V4 评估 ⭐⭐⭐ 必做 + v0.4 远古守护者 §1.3 async 链路 sustained。
+
+### F1 — 窄场景宣告 + 责任边界（v0.5 守护者 V4 ⭐⭐⭐ 必做）
+
+#### F1.1 README §能做不能做（30 行新段）
+- ✅ 当前能做：NL → SELECT SQL / 7 intent 可视化 / 笛卡尔积防御 4 层 + execute_sql 路径 / CTE 识别 / v0.6.1 时间语义统一 / 收藏导出重跑
+- ❌ 当前不能做：归因分析（事件+规则层未建）/ 跨业务域聚合（对象层未建）/ 数据合理性反检（v0.7.2 校验段）/ 动作触发（v1.x+）/ OOS-1~3 / i18n / 大规模向量
+- 阶段定位：v0.6.x = "更好的 ChatBI" / v0.7.x+ = "Data Agent" 分界线 / 1.0 团队公测前完成 v0.7.x 核心
+
+#### F1.2 Login.jsx 页脚（版本字面 v0.6.0.2 → v0.6.1）
+
+#### F1.4 ChatEmpty.jsx suggestion hint
+- 11px 灰色小字："当前支持 SELECT 类查询 · 复杂归因 / 跨域分析 / 动作触发等场景见 README"
+- v0.5.10 R-227.5.1 装饰豁免延伸 + R-PA-PB-V1 视觉延续性 sustained
+
+#### F1.3 OOS（不破 R-30）
+error_translator.py user_message 字面**不改**（v0.4.4 R-30 透传字面 byte-equal 守护硬约束）。
+hint 工作推迟到前端 ErrorBanner 子组件展示层（v0.6.0.2 拆分后的独立子组件）— v0.6.2 候选。
+
+### F2 — 时间语义统一引擎（v0.5 守护者 V4 ⭐⭐⭐ 必做）
+
+#### F2.1 knot/core/time_resolver.py [NEW 234 行]
+- `resolve_time_context()` 单核函数（R-PA-PB-2 API 签名 byte-equal）
+- `TimeContext` frozen dataclass
+- 5 类核心时间表达：今年 / 本月 / 上周 / 最近 N 天 / 同比基准
+- 同比基准以 latest 为锚（跨年正确对齐）
+
+#### F2.2 2026 节假日 hardcoded（R-PA-PB-3）
+元旦 / 春节 / 清明 / 劳动节 / 端午 / 中秋 / 国庆 — 7 个节假日 byte-equal。
+v0.7+ 升级为外部 yaml + admin 可编辑路径预约。
+
+#### F2.3 数据更新延迟 D-1 默认（R-PA-PB-4）
+`data_freshness_lag_days=1` — 数据更新到昨天，避免 LLM 把"今年同比"算到今天。
+admin 可配置（app_settings KV）但不改默认。
+
+#### F2.4 knot/core/date_context.py 升级
+- 内部调用 `time_resolver.resolve_time_context().prompt_block`
+- R-PA-PB-6: sql_planner_prompts.py `{date_context}` 占位 byte-equal sustained — 仅本模块内部升级
+- 影响所有 agent system prompt（SqlPlanner / Clarifier / Presenter 共用）
+
+#### F2.5 tests/core/test_time_resolver.py [NEW 32 守护测试]
+- 基础时间解析（8）/ 数据更新延迟（4）/ 节假日检测（6）/ 同比基准对齐（4）/ 月初月末边界（3）/ 跨年边界（3）/ prompt_block snapshot（2）/ API 签名（2）
+
+### 8 红线立约（R-PA-PB-V1 + R-PA-PB-1~7）
+
+- R-PA-PB-V1: Phase B 视觉延续性 6 条（v0.5 G-1）
+- R-PA-PB-1: 窄场景宣告字面持久化
+- R-PA-PB-2: time_resolver API 签名稳定
+- R-PA-PB-3: 节假日表 hardcoded byte-equal
+- R-PA-PB-4: D-1 数据延迟默认
+- R-PA-PB-5: prompt_block 字面 snapshot
+- R-PA-PB-6: sql_planner_prompts.py 占位 byte-equal sustained
+- R-PA-PB-7: R-PA-8 工具豁免 v0.6.1-* 文件
+
+详 [docs/plans/v0.6.0-phase-a-sanitize.md §3 附录](docs/plans/v0.6.0-phase-a-sanitize.md)
+
+### 闸门验证
+
+- pytest 421 → **453** passed / 112 skipped（+32 time_resolver 测试）✅
+- import-linter 7 contracts KEPT ✅
+- ruff check knot/ clean ✅
+- check_file_sizes 42 → **43 files**（+time_resolver.py ≤ 350）✅
+- audit_ohx_leakage --mode=all + R-PA-8 check_phase_b_leakage exit 0 ✅
+- test_login_version_sync R-181 三处版本同步 2/2 PASS ✅
+- test_rename_smoke R-72 v=0.6.1 PASS ✅
+- test_core_purity time_resolver.py 白名单扩展 PASS ✅
+
+### 协议合规
+
+Loop Protocol v3 全 v3 三阶段（涉及业务功能 — time_resolver 核心 + Clarifier system prompt 注入）。
+但 Phase B 预评估 §6 已 explicit 含部分 Stage 3 信号（v0.5/v0.4 双守护者推荐 + 范围 ack）→ 部分简化。
+
+LOCKED 手册：[docs/plans/v0.6.1-narrow-scope-time-resolver.md](docs/plans/v0.6.1-narrow-scope-time-resolver.md)
+
+---
+
 ## [Unreleased] - v0.6.0.2 (micro PATCH) ResultBlock 6 子组件拆分 — v0.5.14 R-341 承诺偿还
 
 > **Loop Protocol v3 第 28 次施行**（v0.5.22 自审简化协议 sustained — Phase B 评估预 LOCKED 决议 B 修订版 v0.5 守护者 §2 强制前置）
