@@ -471,37 +471,59 @@ async def admin_budgets_stats(admin=Depends(require_admin)):
     }
 
 
+# v0.6.1.3 — DataSources Hero stats 5min 模块级缓存（避免每次切 tab 都打远程 DB）
+_DS_STATS_CACHE: dict = {"data": None, "ts": 0.0}
+_DS_STATS_TTL_SEC = 300
+
+
 @router.get("/api/admin/datasources-stats")
 async def admin_datasources_stats(admin=Depends(require_admin)):
-    """v0.5.40 — DataSources Hero card 聚合 stats（总 schema / 总表数 / 上次心跳）。
+    """v0.6.1.3 — DataSources Hero card 真实 stats（修 v0.5.40 broken impl 500）。
 
-    总 schema: 已配置 datasources 中 distinct db_database 数（一个 source = 一个 schema）
-    总表数: 从 semantic_layer 缓存（每 source 的 schema_json 中 ### 分隔表数 sum）
-    上次心跳: 最近一次 datasources 心跳测试 = 最近 created_at 相对时间（近似实现）
+    总 schema: COUNT(DISTINCT db_database) WHERE is_active=1
+    总表数: 每个 active source 跑 information_schema.tables COUNT（容错；单 source 失败不影响其它）
+    上次心跳: 循环里最近一次成功探测的时间戳
+
+    server 端 5min 模块级缓存（_DS_STATS_CACHE）— admin tab 反复切换不会重打远程 DB。
     """
-    from knot.repositories import get_conn
-    conn = get_conn()
-    schemas = conn.execute(
-        "SELECT COUNT(DISTINCT db_database) FROM data_sources WHERE is_active = 1"
-    ).fetchone()[0] or 0
-    # 总表数: 从 semantic_layer schema_json 中数 ### 分隔块
+    import time
+    from datetime import datetime
+
+    from sqlalchemy import text as _sa_text
+
+    now = time.time()
+    if _DS_STATS_CACHE["data"] is not None and now - _DS_STATS_CACHE["ts"] < _DS_STATS_TTL_SEC:
+        return _DS_STATS_CACHE["data"]
+
+    sources = data_source_repo.list_datasources()
+    active = [s for s in sources if s.get("is_active") == 1]
+    schemas = len({s["db_database"] for s in active})
+
     tables_total = 0
-    sem_rows = conn.execute("SELECT schema_text FROM semantic_layer").fetchall()
-    for r in sem_rows:
-        s = r[0] or ""
-        # 每个 ### 标记一张表（与 db/status endpoint 的 tables 字段一致约定）
-        tables_total += s.count("###")
-    # 上次心跳: data_sources 表最新 created_at（暂以创建时间近似；真实 heartbeat 推 v0.6+）
-    hb_row = conn.execute(
-        "SELECT MAX(created_at) FROM data_sources WHERE is_active = 1"
-    ).fetchone()
-    conn.close()
-    last_heartbeat = hb_row[0] if hb_row and hb_row[0] else None
-    return {
+    last_heartbeat = None
+    for s in active:
+        try:
+            engine = db_connector.create_engine(
+                s["db_host"], s["db_port"], s["db_user"], s["db_password"], s["db_database"]
+            )
+            with engine.connect() as c:
+                n = c.execute(_sa_text(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = :db"
+                ), {"db": s["db_database"]}).scalar() or 0
+                tables_total += int(n)
+            last_heartbeat = datetime.now().isoformat(timespec="seconds")
+        except Exception:
+            # 单 source 探测失败不影响 aggregate；保留已累计 tables_total + 历史 heartbeat
+            continue
+
+    result = {
         "total_schemas": schemas,
         "total_tables": tables_total,
         "last_heartbeat": last_heartbeat,
     }
+    _DS_STATS_CACHE["data"] = result
+    _DS_STATS_CACHE["ts"] = now
+    return result
 
 
 # ─── v0.5.42 预算 demo 重构 — 单 global config（5 字段 app_settings KV）──────
