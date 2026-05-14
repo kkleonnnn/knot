@@ -134,7 +134,7 @@ function EmptyView({ T, onBack }) {
         <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
           在对话里点
           <span style={{ display: 'inline-flex', verticalAlign: 'middle', color: T.accent }}>
-            <SvgPath d={SAVED_SVG.star} size={14}/>
+            <SvgPath d={SAVED_SVG.bookmark} size={14}/>
           </span>
           把任意结果钉成报表，下次直接重跑。
         </div>
