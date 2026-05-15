@@ -12,7 +12,7 @@
  */
 import { useState } from 'react';
 import { I, KnotLogo } from '../Shared.jsx';
-import { Spinner } from '../utils.jsx';
+import { Spinner, toast } from '../utils.jsx';
 import NarrativeMotif from '../decor/NarrativeMotif.jsx';
 import { api } from '../api.js';
 
@@ -149,7 +149,9 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
                 style={{ accentColor: T.accent, width: 14, height: 14, cursor: 'pointer' }}/>
               7 天内自动登录
             </label>
-            <a style={{ fontSize: 13, color: T.accent, textDecoration: 'none', cursor: 'default' }}>忘记密码？</a>
+            {/* v0.6.0.7: 内测期密码重置走 admin — 点击提示文案而非走自助流程 */}
+            <a onClick={(e) => { e.preventDefault(); toast('内测期间请联系管理员重置密码'); }}
+               style={{ fontSize: 13, color: T.accent, textDecoration: 'none', cursor: 'pointer' }}>忘记密码？</a>
           </div>
 
           {/* Error banner — D6 oklch 红 */}
@@ -180,7 +182,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 64, right: 64,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v0.6.0.6 · build 202605151400</span>
+          <span>v0.6.0.7 · build 202605151700</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>
