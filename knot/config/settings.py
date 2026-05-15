@@ -48,7 +48,7 @@ MODELS = {
     # v0.6.0.6 F-D 删除 google/gemini-pro-1.5 — OR API 已下架
 }
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "claude-haiku-4-5-20251001")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "anthropic/claude-haiku-4.5")  # v0.6.0.8 MUST-2: OR-only default
 
 PROVIDER_BASE_URLS = {
     "anthropic":  os.getenv("ANTHROPIC_BASE_URL", ""),

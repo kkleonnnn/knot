@@ -15,6 +15,11 @@ import pytest
 # 硬编码是为测试可重现性（避免 CI 多 worker / 并行测试时 env 污染）。
 # 移除/改动测试时需同步更新。
 TEST_MASTER_KEY = "QwlGZIGjzEryd93omq5UGR5ATZ6mTMm70NmS4o331Xk="
+TEST_JWT_SECRET = "test-only-jwt-secret-32-chars-min-len-padding"
+
+# v0.6.0.8 MUST-1：测试 JWT_SECRET 必须 import 前设置（main.py fail-fast 在 import 时跑）
+# os.environ 直写而非 monkeypatch — autouse fixture 时机太晚（module import 已发生）
+os.environ.setdefault("JWT_SECRET", TEST_JWT_SECRET)
 
 
 @pytest.fixture(autouse=True)

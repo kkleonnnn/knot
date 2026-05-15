@@ -38,6 +38,9 @@ jobs:
       - name: Pytest
         env:
           KNOT_MASTER_KEY: ${{ secrets.TEST_MASTER_KEY }}
+          # v0.6.0.8 MUST-1：JWT_SECRET fail-fast 后 pytest 需要 import 时已设
+          # conftest.py os.environ.setdefault 也兜底，但 env 显式更早
+          JWT_SECRET: "ci-test-jwt-secret-32-chars-min-length-padding"
         run: |
           # CI 注入测试 key（v0.4.5 R-37：测试 master key 与生产隔离）
           # 若 secrets.TEST_MASTER_KEY 未配置，conftest autouse fixture 会兜底设置
@@ -83,6 +86,8 @@ jobs:
       - name: Boot smoke
         run: |
           TEST_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+          # v0.6.0.8 MUST-1：JWT_SECRET 也需注入（KNOT 缺失 fail-fast 先发，不影响 matrix 语义）
+          export JWT_SECRET="boot-smoke-jwt-32-chars-min-length-pad"
 
           # 设置 env 按 matrix 组合
           if [ "${{ matrix.env_setup.set_knot }}" = "yes" ]; then

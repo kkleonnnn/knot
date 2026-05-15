@@ -30,7 +30,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.0.7")
+app = FastAPI(title="KNOT", version="0.6.0.8")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
@@ -78,6 +78,20 @@ def _check_master_key_or_exit():
 
 
 _check_master_key_or_exit()
+
+
+# v0.6.0.8 MUST-1：JWT_SECRET fail-fast（同 KNOT_MASTER_KEY 模式）
+def _check_jwt_secret_or_exit():
+    """启动期校验 JWT_SECRET：缺失 / 用历史默认占位 / 长度 < 16 → sys.exit(1)。
+
+    防部署事故：任何人能用 'knot-secret-change-in-production' 默认占位伪造
+    admin token 登录任意账号（公开仓库 → grep 可得）。
+    """
+    from knot.api.deps import _resolve_jwt_secret
+    _resolve_jwt_secret()  # fail-fast 内置，缺失即 sys.exit(1)
+
+
+_check_jwt_secret_or_exit()
 
 
 @app.on_event("startup")

@@ -43,12 +43,24 @@ def test_pricing_corrections_applied(client, auth_headers):
     assert cfg.MODELS["qwen/qwen-plus"]["input_price"] == 0.26
 
 
-def test_default_model_unchanged(client, auth_headers):
-    """F-D-7: DEFAULT_MODEL 不动（R-PA-5 兼容性；等 Day 28+ 三方会议拍板）。"""
+def test_default_model_fallback_is_or_path():
+    """v0.6.0.8 MUST-2: 检查 settings.py 源码 fallback 已切到 OR-only key。
+
+    实际 cfg.DEFAULT_MODEL 受 env DEFAULT_MODEL 覆盖（本地 dev / 测试 env 各异），
+    所以本测试用源码字面 grep 校验 fallback 默认值已修正。
+    """
+    from pathlib import Path
+    settings_src = Path("knot/config/settings.py").read_text(encoding="utf-8")
+    assert 'os.getenv("DEFAULT_MODEL", "anthropic/claude-haiku-4.5")' in settings_src, (
+        "MUST-2 违规：settings.py:51 fallback 必须为 'anthropic/claude-haiku-4.5'"
+    )
+
+
+def test_legacy_direct_key_still_in_dict(client, auth_headers):
+    """v0.6.0.6 F-D-2/v0.6.0.8 兼容：旧 direct provider key 保留至 Day 28+ 三方会议。"""
     from knot import config as cfg
-    assert cfg.DEFAULT_MODEL == "claude-haiku-4-5-20251001"
-    # 该 key 必须仍在 MODELS dict（保 admin 已配置的 agent_models 不破）
-    assert cfg.DEFAULT_MODEL in cfg.MODELS
+    assert "claude-haiku-4-5-20251001" in cfg.MODELS
+    assert "anthropic/claude-haiku-4.5" in cfg.MODELS
 
 
 def test_or_catalog_empty_initially(client, auth_headers):

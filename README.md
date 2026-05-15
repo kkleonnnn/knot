@@ -2,7 +2,7 @@
 
 公司内部用的 AI 取数助手：自然语言 → SQL → 图表 + 洞察。
 
-> **当前版本** v0.5.44 · v0.5.x 视觉重构 + 业务功能完整收官（demo 1:1 复刻 + 42 项资深架构师反馈偿还）
+> **当前版本** v0.6.0.8 · R-PA-5 内测期 · F-A/B/C/D 反馈观测治理基础设施完整（用户反馈 👍/👎 + 前端错误自动上报 + audit 自动清理 + 模型 catalog max_context + OR live sync）
 
 ## 角色
 
@@ -167,17 +167,18 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.5.44）
+## 技术栈（v0.6.0.8）
 
-- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；77 routes；7 import-linter contracts KEPT
+- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
-- **LLM**：OpenRouter 统一路由（Anthropic Claude 4.6 / OpenAI / Google / DeepSeek / Qwen / 智谱 / MiniMax）；3-agent 异步并行
+- **LLM**：OpenRouter 统一路由（Claude 4.x / GPT-4o / Gemini / DeepSeek V3+R1 / Qwen / GLM / MiniMax — 14 OR entries + 6 direct keys；max_context 字段 v0.6.0.6 起 OR live API 实测）；3-agent 异步并行
 - **业务库**：Apache Doris / MySQL（多源按 `host:port:user` 分组合并）
 - **RAG**：BM25 + embedding cosine + RELATIONS 元数据注入 prompt
-- **SQL 安全**：sqlglot AST 校验 + DB grants 探测 + **6 层笛卡尔积防御**（v0.5.44 收官）
-- **加密**：Fernet 字段级（API key / DB 密码）+ KNOT_MASTER_KEY env fail-fast（v0.4.5+）
-- **审计**：INSERT-only audit_log + 8 类 mutation 自动记录 + PII 三层防御 + 90 天 retention（v0.4.6+）
-- **测试**：pytest + yaml 驱动的 eval 集（111 cases / 7 contracts / 77 routes smoke）
+- **SQL 安全**：sqlglot AST 校验 + DB grants 探测 + **6 层笛卡尔积防御**（v0.5.44 + v0.6.0.1 R-PA-9 收官）
+- **加密**：Fernet 字段级（API key / DB 密码）+ KNOT_MASTER_KEY env fail-fast（v0.4.5+）+ **JWT_SECRET fail-fast**（v0.6.0.8 MUST-1）
+- **审计**：INSERT-only audit_log + 9 类 mutation 自动记录 + PII 三层防御 + 90 天 retention + **auto-purge 7 天阈值**（v0.6.0.5 F-C）
+- **反馈观测**：用户回答 👍/👎 + 评论（F-A）/ 前端 JS 错误自动上报（F-B PII 三层防御 + 1h hash dedupe）
+- **测试**：pytest + yaml 驱动的 eval 集（111 cases / 7 contracts / **86 routes smoke**）
 
 ## 项目结构
 
