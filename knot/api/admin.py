@@ -593,9 +593,9 @@ async def admin_sync_or_catalog(admin=Depends(require_admin)):
     - 失败 503（不刷写表）
     - 成功 200 + {fetched_count, upserted_count, sample}
     """
-    import urllib.request
-    import urllib.error
     import json as _json
+    import urllib.error
+    import urllib.request
 
     from knot.repositories import model_catalog_repo
 
