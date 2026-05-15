@@ -7,6 +7,49 @@
 
 ---
 
+## 👥 角色边界（先看这一段）
+
+KNOT 涉及 3 类"密钥"，分属不同角色——**别搞混**：
+
+| 类别 | 在哪 | 谁负责 | 何时设 | 用途 | UI 可见？ |
+|---|---|---|---|---|---|
+| **`KNOT_MASTER_KEY`** | 服务器 `.env` 文件 | **运维** | 部署前（`deploy_checklist.sh` 自动生成）| Fernet 加密 DB 里的"数据源密码 / API Key"6 类敏感字段 | ❌ 看不见，admin 永不接触 |
+| **`JWT_SECRET`** | 服务器 `.env` 文件 | **运维** | 部署前（同上）| 给登录 token 签名 | ❌ 看不见 |
+| **admin 登录密码** | DB `users` 表（bcrypt 哈希）| **admin 本人** | 首次浏览器登录后改 | 浏览器认证 | ✅ admin 自己设 |
+
+### 流程图
+
+```
+                运维 在服务器上
+                       ↓
+        ┌──── bash scripts/deploy_checklist.sh ────┐
+        │  · 生成 KNOT_MASTER_KEY → 写 .env       │  ← 这俩 env
+        │  · 生成 JWT_SECRET     → 写 .env       │     admin 永不接触
+        └──────────────────────────────────────────┘
+                       ↓
+                  docker run ...
+                       ↓
+            应用从 .env 读取，启动
+                       ↓
+        ╔══════════════════════════════════════╗
+        ║  浏览器：admin / admin123 登录       ║
+        ║  → 进设置 → 改密码 + 改用户名         ║  ← 这是 admin 的事
+        ╚══════════════════════════════════════╝
+                       ↓
+        admin 在 UI 里配置数据源 / API Key 等
+                       ↓
+        应用用 KNOT_MASTER_KEY 在后台加密落库
+        （admin 输入明文，应用透明加密）
+```
+
+### 一句话总结
+
+- **运维要做的**：跑 `deploy_checklist.sh`（自动生成两个 env 密钥）+ `KNOT_MASTER_KEY` 存密码管理器 + `chmod 600 .env`
+- **admin 要做的**：浏览器登录后立即改密码 + 改用户名 + 填 OpenRouter Key + 配数据源
+- **两者完全不重叠** — admin 在浏览器里**没有任何方式**接触 `KNOT_MASTER_KEY` / `JWT_SECRET`
+
+---
+
 ## 🚀 一键部署（推荐流程）
 
 ```bash
