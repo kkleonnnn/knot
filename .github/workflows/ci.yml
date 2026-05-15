@@ -50,9 +50,13 @@ jobs:
       - name: R-PA-8 Phase B leakage check
         run: python3 scripts/check_phase_b_leakage.py
 
-  # v0.5.0 R-72 / R-77：env 4 组合 × 双平台 boot smoke
+  # v0.5.0 R-72 / R-77：env 4 组合 boot smoke
   # ubuntu-latest 跑全 4 组合（仅新 / 仅旧 / 都设 / 都无）
-  # macos-latest 跑 1 组合（仅新）保证 R-77 跨平台 sed/Python 替换真生效
+  #
+  # v0.6.0.3 救火：删 macos-latest 矩阵（GitHub Actions macOS = 10x cost 单价）
+  # R-77 跨平台 sed/Python 替换守护对象自 v0.5.0 完成后已 14 个 MINOR 0 命中；
+  # 守护价值衰减 + 配额成本 10x → 决议撤回（同 v0.6.0 R-67/68/74 撤回精神）
+  # 长期由 v0.6.0.4 P-1 + 决议 5 一起统一治本拍板
   boot-smoke:
     name: boot smoke (${{ matrix.env_setup.name }}, ${{ matrix.os }})
     needs: lint-test
@@ -66,10 +70,6 @@ jobs:
           - { name: "only-biagent", set_knot: "no",  set_biagent: "yes" }
           - { name: "both-same",    set_knot: "yes", set_biagent: "same" }
           - { name: "neither",      set_knot: "no",  set_biagent: "no" }  # 期望 fail-fast
-        include:
-          # macOS 仅跑 only-knot 路径，验证 R-77 跨平台无 sed -i '' 隐患
-          - os: macos-latest
-            env_setup: { name: "only-knot", set_knot: "yes", set_biagent: "no" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
