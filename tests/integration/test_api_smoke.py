@@ -12,7 +12,7 @@ def test_healthz_returns_200(client):
     assert r.status_code == 200
 
 
-def test_app_has_77_routes(client):
+def test_app_has_80_routes(client):
     """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
     v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。
     v0.4.1 加 saved_reports 6 路由 → 55 → 61。
@@ -20,9 +20,10 @@ def test_app_has_77_routes(client):
     v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。
     v0.4.6: +audit-log GET (1) + audit-config GET/PUT (2) → 69 → 72。
     v0.5.40: +audit-stats / budgets-stats / datasources-stats → 72 → 75。
-    v0.5.42: +budget-config GET/PUT → 75 → 77。"""
+    v0.5.42: +budget-config GET/PUT → 75 → 77。
+    v0.6.0.3: F-A +POST/GET msg feedback + GET admin feedback → 77 → 80。"""
     from knot.main import app
-    assert len(app.routes) == 77
+    assert len(app.routes) == 80
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──
