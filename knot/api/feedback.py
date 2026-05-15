@@ -10,8 +10,6 @@
 
 权限：复用 exports._check_message_access — 只能反馈自己 conversation 的 message；admin 可反馈任意。
 """
-from __future__ import annotations
-
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
