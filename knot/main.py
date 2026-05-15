@@ -20,6 +20,7 @@ from knot.api import catalog as catalog_router
 from knot.api import exports as exports_router
 from knot.api import feedback as feedback_router
 from knot.api import few_shots as few_shots_router
+from knot.api import frontend_errors as frontend_errors_router
 from knot.api import prompts as prompts_router
 from knot.api import saved_reports as saved_reports_router
 from knot.api import templates as templates_router
@@ -29,7 +30,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.0.3")
+app = FastAPI(title="KNOT", version="0.6.0.4")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
@@ -113,7 +114,8 @@ for _router in [auth.router, conversations.router, query.router, database.router
                 uploads.router, knowledge.router, admin.router,
                 few_shots_router.router, prompts_router.router, templates_router.router,
                 catalog_router.router, exports_router.router, saved_reports_router.router,
-                audit_router.router, feedback_router.router]:
+                audit_router.router, feedback_router.router,
+                frontend_errors_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

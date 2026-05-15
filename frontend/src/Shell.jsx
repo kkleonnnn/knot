@@ -41,7 +41,7 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.02em',
-          }}>v0.6.0.3</span>
+          }}>v0.6.0.4</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
@@ -80,6 +80,9 @@ export function AppShell({
                 {/* v0.5.26 #18 审计日志 icon book → clipboard-check (Q2 VRP) */}
                 <SideNavRow T={T} icon={<ClipboardCheckIcon/>} label="审计日志" active={active === 'admin-audit'}
                             onClick={() => onNavigate('admin-audit')}/>
+                {/* v0.6.0.4 F-B 前端 JS 错误上报 */}
+                <SideNavRow T={T} icon={<I.x/>} label="前端错误" active={active === 'admin-errors'}
+                            onClick={() => onNavigate('admin-errors')}/>
               </>
             )}
           </>

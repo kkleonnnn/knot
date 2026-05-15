@@ -74,6 +74,9 @@ LIMITS = {
     "frontend/src/screens/chat/ResultBlock/TokenMeter.jsx":      60,
     # ── v0.6.0.3 F-A — FeedbackBar 子组件（M-A4 复用 utils Modal）──────────
     "frontend/src/screens/chat/ResultBlock/FeedbackBar.jsx":     100,
+    # ── v0.6.0.4 F-B — 前端 JS 错误上报基础设施 ──────────────────────────
+    "frontend/src/error_reporter.js":              120,   # M-B1 throttle/dedupe
+    "frontend/src/screens/AdminErrors.jsx":        150,   # 姊妹屏（视觉沿用 AdminAudit/Recovery）
     # ── v0.6.1 LOCKED §1 F2 — 时间语义引擎（R-PA-PB-2 守护）──────────────
     "knot/core/time_resolver.py":                  350,  # ~235 行 + 后续预留扩展
 }

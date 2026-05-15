@@ -194,6 +194,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log(actor_id, created_a
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log(resource_type, resource_id);
 
+-- v0.6.0.4 F-B: 前端 JS 错误上报（onerror + onunhandledrejection 自动捕获）
+-- M-B2 PII：message + stack 落库前由后端 _scrub 链脱敏（复用 audit_service._scrub）
+-- 守护者 P-2 模式：dedupe by hash 由前端 1h cooldown + 1min 全局 cap 5 防爆
+CREATE TABLE IF NOT EXISTS frontend_errors (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER,            -- 允许 NULL（未登录页 JS 错也想捕获）
+    message      TEXT    NOT NULL,
+    stack        TEXT    DEFAULT '',
+    url          TEXT    DEFAULT '',
+    user_agent   TEXT    DEFAULT '',
+    error_hash   TEXT,                -- 前端算的 hash(stack first 10 lines + message) — admin 看趋势
+    created_at   TEXT    DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_fe_errors_hash_time ON frontend_errors(error_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_fe_errors_time      ON frontend_errors(created_at);
+
 -- v0.6.0.3 F-A: 用户对每条 assistant 回答的 +1/-1 反馈 + 可选评论
 -- UNIQUE (message_id, user_id) — 同用户对同消息幂等覆盖；admin 全局可读
 CREATE TABLE IF NOT EXISTS message_feedback (
