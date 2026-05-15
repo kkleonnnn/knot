@@ -35,7 +35,8 @@ async def get_messages(conv_id: int, user=Depends(get_current_user)):
     convs = conversation_repo.list_conversations(user["id"])
     if not any(c["id"] == conv_id for c in convs):
         raise HTTPException(status_code=404)
-    msgs = message_repo.get_messages(conv_id)
+    # v0.6.0.3 F-A：传 viewer_user_id 让 repo LEFT JOIN feedback 回显当前用户态度
+    msgs = message_repo.get_messages(conv_id, viewer_user_id=user["id"])
     # v0.4.1.1: API 边界 normalization — 与 SSE final 事件对齐（query.py emit 的是 'sql'）。
     # 修复历史消息回放时前端 ResultBlock 解构 msg.sql 拿不到值导致 ⭐ 收藏按钮缺失。
     for m in msgs:

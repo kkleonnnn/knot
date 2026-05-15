@@ -63,12 +63,27 @@ def save_message(conv_id, question, sql, explanation, confidence,
     return mid
 
 
-def get_messages(conv_id: int) -> list:
+def get_messages(conv_id: int, viewer_user_id: int | None = None) -> list:
+    """获取会话消息；v0.6.0.3 F-A：可选 LEFT JOIN viewer 的 feedback 用于前端回显态度。
+
+    viewer_user_id=None → 不查 feedback（向后兼容）；
+    传入 → 每行附加 user_feedback_score (+1/-1/None)。
+    """
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM messages WHERE conversation_id=? ORDER BY created_at",
-        (conv_id,),
-    ).fetchall()
+    if viewer_user_id is None:
+        rows = conn.execute(
+            "SELECT * FROM messages WHERE conversation_id=? ORDER BY created_at",
+            (conv_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT m.*, mf.score AS user_feedback_score "
+            "FROM messages m "
+            "LEFT JOIN message_feedback mf ON mf.message_id = m.id AND mf.user_id = ? "
+            "WHERE m.conversation_id = ? "
+            "ORDER BY m.created_at",
+            (viewer_user_id, conv_id),
+        ).fetchall()
     conn.close()
     result = []
     for r in rows:

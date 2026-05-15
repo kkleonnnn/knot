@@ -12,6 +12,7 @@ import { BudgetBanner } from './ResultBlock/BudgetBanner.jsx';
 import { ErrorBanner } from './ResultBlock/ErrorBanner.jsx';
 import { TokenMeter } from './ResultBlock/TokenMeter.jsx';
 import { TableContainer } from './ResultBlock/TableContainer.jsx';
+import { FeedbackBar } from './ResultBlock/FeedbackBar.jsx';
 
 // SVG path helper（不依赖 Shared.jsx 36 names — 局部 inline；agent_costs chips + bookmark 用）
 const SvgPath = ({ d, size = 14, fill = 'none' }) => (
@@ -37,7 +38,8 @@ const AGENT_KIND_EMOJI = {
   presenter:   RB_SVG.bars,
 };
 
-export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onRetry }) {
+// v0.6.0.3 F-A — M-A3 onFeedback prop 追加末尾守 R-548 核爆级签名守护（不破前 7 个）
+export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onRetry, onFeedback }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
   const [pinned, setPinned] = useState(!!msg.is_pinned);
@@ -228,6 +230,10 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
 
       <TokenMeter T={T} input_tokens={input_tokens} output_tokens={output_tokens}
                   cost_usd={cost_usd} confidence={confidence} recovery_attempt={recovery_attempt}/>
+
+      {/* v0.6.0.3 F-A: 👍/👎 反馈条（拆出 FeedbackBar 子组件；is_clarification 跳过）*/}
+      <FeedbackBar T={T} mid={msg.id} initialScore={msg.user_feedback_score}
+                   onFeedback={onFeedback} suppress={is_clarification}/>
 
       {/* v0.4.2 per-agent cost 分桶 chip（R-302 emoji → svg；R-301 hex 兜底 → T.bg） */}
       {agent_costs && Object.values(agent_costs).some(b => b && (b.cost > 0 || b.tokens > 0)) && (

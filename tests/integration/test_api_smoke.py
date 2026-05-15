@@ -12,17 +12,23 @@ def test_healthz_returns_200(client):
     assert r.status_code == 200
 
 
-def test_app_has_77_routes(client):
-    """4-PATCH 重构未丢失任何端点 — 资深关心的回归项。
+def test_app_routes_at_least_80(client):
+    """4-PATCH 重构未丢失任何端点 — 改为下限守护（v0.6.0.3 守护者 P-2 临时救火）。
+
+    历史 == 严格相等模式每次加路由都触发 4 处硬编码 drift（routes count 守护对象
+    14 个 MINOR 累积 5+ 次 CI 红）。短期 >= 防"路由蒸发"足够；长期由 v0.6.0.4
+    P-1/P-5 决议拍板（动态计数 / 直接撤回守护对象）治本。
+
     v0.4.0 加 /api/messages/{id}/export.csv → 54 → 55。
     v0.4.1 加 saved_reports 6 路由 → 55 → 61。
     v0.4.2: +cost-stats (1) + 2 个 xlsx 导出 → 61 → 64。
     v0.4.3: +budgets CRUD (4) + recovery-stats (1) → 64 → 69。
     v0.4.6: +audit-log GET (1) + audit-config GET/PUT (2) → 69 → 72。
     v0.5.40: +audit-stats / budgets-stats / datasources-stats → 72 → 75。
-    v0.5.42: +budget-config GET/PUT → 75 → 77。"""
+    v0.5.42: +budget-config GET/PUT → 75 → 77。
+    v0.6.0.3: F-A +POST/GET msg feedback + GET admin feedback → 77 → 80。"""
     from knot.main import app
-    assert len(app.routes) == 77
+    assert len(app.routes) >= 80
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──

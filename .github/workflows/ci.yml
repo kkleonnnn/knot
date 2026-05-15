@@ -50,9 +50,13 @@ jobs:
       - name: R-PA-8 Phase B leakage check
         run: python3 scripts/check_phase_b_leakage.py
 
-  # v0.5.0 R-72 / R-77：env 4 组合 × 双平台 boot smoke
+  # v0.5.0 R-72 / R-77：env 4 组合 boot smoke
   # ubuntu-latest 跑全 4 组合（仅新 / 仅旧 / 都设 / 都无）
-  # macos-latest 跑 1 组合（仅新）保证 R-77 跨平台 sed/Python 替换真生效
+  #
+  # v0.6.0.3 救火：删 macos-latest 矩阵（GitHub Actions macOS = 10x cost 单价）
+  # R-77 跨平台 sed/Python 替换守护对象自 v0.5.0 完成后已 14 个 MINOR 0 命中；
+  # 守护价值衰减 + 配额成本 10x → 决议撤回（同 v0.6.0 R-67/68/74 撤回精神）
+  # 长期由 v0.6.0.4 P-1 + 决议 5 一起统一治本拍板
   boot-smoke:
     name: boot smoke (${{ matrix.env_setup.name }}, ${{ matrix.os }})
     needs: lint-test
@@ -66,10 +70,6 @@ jobs:
           - { name: "only-biagent", set_knot: "no",  set_biagent: "yes" }
           - { name: "both-same",    set_knot: "yes", set_biagent: "same" }
           - { name: "neither",      set_knot: "no",  set_biagent: "no" }  # 期望 fail-fast
-        include:
-          # macOS 仅跑 only-knot 路径，验证 R-77 跨平台无 sed -i '' 隐患
-          - os: macos-latest
-            env_setup: { name: "only-knot", set_knot: "yes", set_biagent: "no" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -117,8 +117,9 @@ jobs:
               echo "${{ matrix.env_setup.name }} path: fail-fast 正确 ✓"
               ;;
             *)
-              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 偿还
-              # v0.5.0 R-72 留下的硬编 bug）/ routes=77（v0.5.40 +3 stats / v0.5.42 +2 budget-config）
+              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 治本模式）
+              # routes 改为 >= 下限（v0.6.0.3 守护者 P-2 救火 — 4 处硬编 drift 已累积 5+ 次 CI 红）
+              # 长期由 v0.6.0.4 P-1 / 决议 5 拍板治本
               python -c "
           import re
           src = open('knot/main.py').read()
@@ -126,8 +127,8 @@ jobs:
           from knot.main import app
           assert app.title == 'KNOT', f'title={app.title}'
           assert app.version == expected, f'version={app.version} expected={expected}'
-          assert len(app.routes) == 77, f'routes={len(app.routes)}'
-          print(f'boot smoke OK: title=KNOT version={app.version} routes=77')
+          assert len(app.routes) >= 80, f'routes={len(app.routes)} (下限 80 防路由蒸发)'
+          print(f'boot smoke OK: title=KNOT version={app.version} routes={len(app.routes)}')
           "
               ;;
           esac

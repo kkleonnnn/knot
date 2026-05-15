@@ -193,3 +193,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log(actor_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log(resource_type, resource_id);
+
+-- v0.6.0.3 F-A: 用户对每条 assistant 回答的 +1/-1 反馈 + 可选评论
+-- UNIQUE (message_id, user_id) — 同用户对同消息幂等覆盖；admin 全局可读
+CREATE TABLE IF NOT EXISTS message_feedback (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id   INTEGER NOT NULL,
+    user_id      INTEGER NOT NULL,
+    score        INTEGER NOT NULL,  -- +1 (good) or -1 (bad)
+    comment      TEXT    DEFAULT '',
+    created_at   TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (message_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_message ON message_feedback(message_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_score_time ON message_feedback(score, created_at);

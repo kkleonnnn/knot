@@ -6,7 +6,7 @@ import { ThinkingCard, AgentThinkingPanel } from './ThinkingCard.jsx';
 import { Composer } from './Composer.jsx';
 
 export function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion,
-                                  onSubmit, onKeyDown, onCopy, onDownload, onPin, onRetry,
+                                  onSubmit, onKeyDown, onCopy, onDownload, onPin, onRetry, onFeedback,
                                   agentEvents, activeUpload, setActiveUpload, onUpload }) {
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -31,8 +31,8 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
                   {msg.loading
                     ? <ThinkingCard T={T} agentEvents={agentEvents}/>
                     : <ResultBlock T={T} msg={msg} onCopy={onCopy} onDownload={onDownload}
-                                   onPin={onPin} onRetry={onRetry}
-                                   onFollowup={(q) => setQuestion(q)}/>}
+                                   onFollowup={(q) => setQuestion(q)}
+                                   onPin={onPin} onRetry={onRetry} onFeedback={onFeedback}/>}
                 </div>
               </div>
             </div>
