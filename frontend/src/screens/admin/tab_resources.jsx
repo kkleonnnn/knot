@@ -6,7 +6,7 @@ import { Input, Spinner } from '../../utils.jsx';
 
 export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, onSaveApiKeys,
                               agentCfg, setAgentCfg, agentSaving, onSaveAgentCfg,
-                              onToggleModel, onSetDefaultModel }) {
+                              onToggleModel, onSetDefaultModel, onSyncOrCatalog, orSyncing }) {
   // R-529 KeyInput trailing mono uppercase helper — "已填写"/"未填写" 工业感
   const trailingChip = (value) => (
     <span style={{
@@ -73,20 +73,31 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
         </div>
       </div>
 
+      {/* v0.6.0.6 F-D-6 — 从 OpenRouter 同步 catalog 按钮（数据自治原则；不影响业务路径） */}
+      {onSyncOrCatalog && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onSyncOrCatalog} disabled={orSyncing}
+                  title="拉取 OpenRouter live API 写入 model_catalog_live 缓存表（参考用，不影响业务路径）"
+                  style={{ ...pillBtn(T, false), padding: '5px 12px', fontSize: 12 }}>
+            {orSyncing ? <><Spinner size={11} color={T.accent}/> 同步中…</> : <><I.refresh width="12" height="12"/> 从 OpenRouter 同步</>}
+          </button>
+        </div>
+      )}
+
       {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.7fr 100px',
+          display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px',
           padding: '9px 16px',
           background: T.bg,
           fontSize: 11, color: T.muted, fontFamily: T.mono,
           fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
           borderBottom: `1px solid ${T.border}`,
         }}>
-          <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>状态</div><div></div>
+          <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>上下文</div><div>状态</div><div></div>
         </div>
         {models.map((m, i) => (
-          <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.7fr 100px', padding: '11px 16px', borderBottom: i < models.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+          <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px', padding: '11px 16px', borderBottom: i < models.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
             <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               <span style={{ color: T.text, fontWeight: 500 }}>{m.name}</span>
               {/* R-534 默认 chip 保 T.accentSoft byte-equal（D6 保守） */}
@@ -97,6 +108,13 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
             <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.model_id}</div>
             {/* R-549 价格业务标签 $ 单位保留 byte-equal */}
             <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>${m.input_price}/{m.output_price}</div>
+            {/* v0.6.0.6 F-D-5 上下文列：智能 K/M 显示；direct provider 无 max_context 时显 — */}
+            <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {m.max_context
+                ? (m.max_context >= 1000000 ? `${(m.max_context / 1000000).toFixed(m.max_context % 1000000 === 0 ? 0 : 1)}M`
+                                            : `${Math.round(m.max_context / 1024)}K`)
+                : '—'}
+            </div>
             {/* R-535 状态文字 byte-equal */}
             <div style={{ fontSize: 11.5, color: m.enabled ? T.success : T.muted, minWidth: 0 }}>{m.enabled ? '启用' : '禁用'}</div>
             <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
