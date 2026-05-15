@@ -45,7 +45,7 @@ LIMITS = {
     "frontend/src/screens/chat/sse_handler.js":    150,
     "frontend/src/screens/chat/ResultBlock.jsx":   460,  # v0.5.39 440→460 (Trace 4th step 推导 + suggestions chevron 改造)
     "frontend/src/screens/SavedReports.jsx":       380,  # v0.5.15 R-363 新增 (Favorites 屏复刻)
-    "frontend/src/screens/AdminAudit.jsx":         430,  # v0.5.38 380→430 (字体 sweep + 时段下拉 + 导出 CSV)
+    "frontend/src/screens/AdminAudit.jsx":         490,  # v0.6.0.5 F-C 430→490 (Retention + 立即清理 banner)
     "frontend/src/screens/AdminBudgets.jsx":       380,  # v0.5.18 R-460 新增 (AdminBudgets 屏复刻)
     "frontend/src/screens/AdminRecovery.jsx":      380,  # v0.5.19 R-490 新增 (AdminRecovery 屏复刻;admin 三部曲收官)
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,  # v0.5.30 80→100 (suggestion icons spark/flow 扩张)

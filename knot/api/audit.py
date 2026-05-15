@@ -95,3 +95,23 @@ async def update_audit_config(payload: dict = Body(...), request: Request = None
     audit(request, admin, action="audit.retention_change", resource_type="audit",
           detail={"old": old_days, "new": new_days})
     return {"ok": True, "retention_days": new_days}
+
+
+# v0.6.0.5 F-C — admin 立即清理 + last_purge_at 查询
+@router.post("/api/admin/audit/purge")
+async def trigger_audit_purge(request: Request = None, admin=Depends(require_admin)):
+    """admin UI 立即触发 audit retention 清理（守护者 M-C2 meta-audit + trigger="manual"）。
+
+    chunk DELETE 1000/批（守护者 M-C1 防 SQLite 锁表）；阻塞返回 stats。
+    实际场景：admin 看到 "上次清理 N 天前" 想立即跑一次。
+    """
+    from knot.scripts.purge_audit_log import purge as _purge
+    stats = _purge(dry_run=False, trigger="manual", actor=admin)
+    return {"ok": True, **stats}
+
+
+@router.get("/api/admin/audit/purge-status")
+async def get_audit_purge_status(admin=Depends(require_admin)):
+    """admin UI 顶部 "上次清理 N 天前" 状态栏数据源。"""
+    last_at = settings_repo.get_app_setting("audit.last_purge_at", "")
+    return {"last_purge_at": last_at or None}

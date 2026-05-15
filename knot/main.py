@@ -30,7 +30,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.0.4")
+app = FastAPI(title="KNOT", version="0.6.0.5")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
@@ -92,6 +92,47 @@ async def _bump_threadpool():
     tokens = int(os.getenv("ANYIO_TOKENS", "32"))
     to_thread.current_default_thread_limiter().total_tokens = tokens
     logger.info(f"anyio threadpool tokens = {tokens}")
+
+
+# v0.6.0.5 F-C — audit 自动清理 startup hook（守护者 M-C1 chunk DELETE + fire-and-forget）
+@app.on_event("startup")
+async def _audit_auto_purge_if_stale():
+    """如果 last_audit_purge_at > 7 天前 → asyncio.create_task 后台跑 purge。
+
+    设计：fire-and-forget 不阻塞启动；失败 silent log（避免破坏 server boot）。
+    7 天阈值是配额 + 频次平衡 — admin 不必每次重启都跑，但也防止累积过久。
+    """
+    import asyncio
+    import datetime as _dt
+
+    from knot.repositories import settings_repo
+
+    async def _maybe_purge():
+        try:
+            last = settings_repo.get_app_setting("audit.last_purge_at", "")
+            should_run = True
+            if last:
+                try:
+                    last_dt = _dt.datetime.fromisoformat(last)
+                    if (_dt.datetime.now() - last_dt).days < 7:
+                        should_run = False
+                except ValueError:
+                    pass  # 坏数据 → 触发清理
+            if not should_run:
+                logger.info(f"[audit_auto_purge] 上次清理 {last}，未到 7 天阈值，跳过")
+                return
+            # 真跑 — chunk DELETE 由 audit_repo 内部保证
+            from anyio import to_thread
+
+            from knot.scripts.purge_audit_log import purge as _purge
+            stats = await to_thread.run_sync(
+                lambda: _purge(dry_run=False, trigger="auto", actor=None)
+            )
+            logger.info(f"[audit_auto_purge] startup 自动清理完成: {stats}")
+        except Exception as e:
+            logger.warning(f"[audit_auto_purge] 失败 (silent fail): {type(e).__name__}: {e}")
+
+    asyncio.create_task(_maybe_purge())
 
 
 @app.middleware("http")
