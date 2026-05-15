@@ -220,6 +220,7 @@ docker build -t knot . && docker run -d -p 8000:8000 -v $(pwd)/data:/app/knot/da
 
 | 文件 | 职责 |
 |------|------|
+| `DEPLOY.md` | **运维部署手册**（v0.6.0.10 加）— 一键部署 + 升级 + 故障排查 + 监控；运维 / AI 助手优先参考 |
 | `knot/main.py` | App 工厂，FastAPI title=KNOT version=0.5.6；启动 banner 显示实际加载 env 名 |
 | `knot/api/deps.py` | JWT 常量、create_token、get_current_user、require_admin |
 | `knot/api/schemas.py` | 所有 Pydantic 请求模型（9 个） |
