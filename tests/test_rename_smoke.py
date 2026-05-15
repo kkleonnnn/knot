@@ -128,16 +128,16 @@ def test_R79_no_old_brand_literal_in_business_code():
 # ─── R-72 FastAPI 元数据 + 路由数 ────────────────────────────────────
 
 def test_R72_app_title_and_version():
-    """FastAPI title=KNOT version=0.6.0.3（v0.5.0 R-72 守护，每 PATCH 同步）。"""
+    """FastAPI title=KNOT version=0.6.0.4（v0.5.0 R-72 守护，每 PATCH 同步）。"""
     from knot.main import app
     assert app.title == "KNOT", f"title 应改 KNOT；实际：{app.title}"
-    assert app.version == "0.6.0.3", f"version 应 0.6.0.3；实际：{app.version}"
+    assert app.version == "0.6.0.4", f"version 应 0.6.0.4；实际：{app.version}"
 
 
 def test_R72_routes_count_unchanged():
-    """路由数下限守护 ≥ 80（v0.6.0.3 F-A 起改为下限 — 守护者 P-2 临时救火）。
+    """路由数下限守护 ≥ 80（v0.6.0.4 F-A 起改为下限 — 守护者 P-2 临时救火）。
 
-    历史上是 == 严格相等：v0.5.40 +3 / v0.5.42 +2 / v0.6.0.3 +3 每次都触发 4 处硬编码 drift。
+    历史上是 == 严格相等：v0.5.40 +3 / v0.5.42 +2 / v0.6.0.4 +3 每次都触发 4 处硬编码 drift。
     短期改 >= 防"路由蒸发"+ 允许加路由不触发 CI 红；
     长期由 v0.6.0.4 P-1/P-5 决议（动态计数 / 直接撤回守护对象）治本。
     """
