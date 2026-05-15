@@ -194,6 +194,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log(actor_id, created_a
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log(resource_type, resource_id);
 
+-- v0.6.0.6 F-D: OpenRouter live catalog 缓存（admin "同步 OR" 按钮 UPSERT）
+-- 设计：admin 主动 fetch OR API → 落 model_catalog_live；前端可对比 MODELS dict 看差异
+-- 不影响业务路径（业务仍读 MODELS dict）；纯审计/参考用途
+CREATE TABLE IF NOT EXISTS model_catalog_live (
+    model_id       TEXT PRIMARY KEY,
+    context_length INTEGER,
+    input_price    REAL,
+    output_price   REAL,
+    raw_json       TEXT,           -- 完整 OR 行 JSON 存档（防字段未来扩展）
+    fetched_at     TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- v0.6.0.4 F-B: 前端 JS 错误上报（onerror + onunhandledrejection 自动捕获）
 -- M-B2 PII：message + stack 落库前由后端 _scrub 链脱敏（复用 audit_service._scrub）
 -- 守护者 P-2 模式：dedupe by hash 由前端 1h cooldown + 1min 全局 cap 5 防爆

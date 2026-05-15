@@ -141,6 +141,18 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     try { await api.post(`/api/admin/models/${key}/default`); loadAll(); toast('已设为默认'); } catch (e) { toast(String(e), true); }
   };
 
+  // v0.6.0.6 F-D-6 — 从 OpenRouter 同步 catalog（admin 触发；写 model_catalog_live 表）
+  const [orSyncing, setOrSyncing] = useState(false);
+  const syncOrCatalog = async () => {
+    if (orSyncing) return;
+    setOrSyncing(true);
+    try {
+      const r = await api.post('/api/admin/sync-or-catalog', {});
+      toast(`已同步 ${r.upserted_count} 条 OR catalog`);
+    } catch (e) { toast(`同步失败: ${e.message}`, true); }
+    finally { setOrSyncing(false); }
+  };
+
   const saveApiKeys = async () => {
     setApiKeysSaving(true);
     // v0.4.5 R-39：仅发送被编辑过的字段（input 值 !== 加载时的 masked 值）；
@@ -336,7 +348,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                         apiKeysSaving={apiKeysSaving} onSaveApiKeys={saveApiKeys}
                         agentCfg={agentCfg} setAgentCfg={setAgentCfg}
                         agentSaving={agentSaving} onSaveAgentCfg={saveAgentCfg}
-                        onToggleModel={toggleModel} onSetDefaultModel={setDefaultModel}/>
+                        onToggleModel={toggleModel} onSetDefaultModel={setDefaultModel}
+                        onSyncOrCatalog={syncOrCatalog} orSyncing={orSyncing}/>
         )}
 
         {(tab === 'knowledge' || tab === 'fewshots' || tab === 'prompts') && (
