@@ -117,8 +117,9 @@ jobs:
               echo "${{ matrix.env_setup.name }} path: fail-fast 正确 ✓"
               ;;
             *)
-              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 偿还
-              # v0.5.0 R-72 留下的硬编 bug）/ routes=80（v0.5.40 +3 / v0.5.42 +2 / v0.6.0.3 F-A +3）
+              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 治本模式）
+              # routes 改为 >= 下限（v0.6.0.3 守护者 P-2 救火 — 4 处硬编 drift 已累积 5+ 次 CI 红）
+              # 长期由 v0.6.0.4 P-1 / 决议 5 拍板治本
               python -c "
           import re
           src = open('knot/main.py').read()
@@ -126,8 +127,8 @@ jobs:
           from knot.main import app
           assert app.title == 'KNOT', f'title={app.title}'
           assert app.version == expected, f'version={app.version} expected={expected}'
-          assert len(app.routes) == 80, f'routes={len(app.routes)}'
-          print(f'boot smoke OK: title=KNOT version={app.version} routes=80')
+          assert len(app.routes) >= 80, f'routes={len(app.routes)} (下限 80 防路由蒸发)'
+          print(f'boot smoke OK: title=KNOT version={app.version} routes={len(app.routes)}')
           "
               ;;
           esac

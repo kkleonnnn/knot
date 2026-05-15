@@ -135,9 +135,14 @@ def test_R72_app_title_and_version():
 
 
 def test_R72_routes_count_unchanged():
-    """路由数 = 80（v0.6.0.3 F-A 新增 feedback 3 路由：POST/GET msg + GET admin）。"""
+    """路由数下限守护 ≥ 80（v0.6.0.3 F-A 起改为下限 — 守护者 P-2 临时救火）。
+
+    历史上是 == 严格相等：v0.5.40 +3 / v0.5.42 +2 / v0.6.0.3 +3 每次都触发 4 处硬编码 drift。
+    短期改 >= 防"路由蒸发"+ 允许加路由不触发 CI 红；
+    长期由 v0.6.0.4 P-1/P-5 决议（动态计数 / 直接撤回守护对象）治本。
+    """
     from knot.main import app
-    assert len(app.routes) == 80, f"路由数应为 80；实际：{len(app.routes)}"
+    assert len(app.routes) >= 80, f"路由数下限应 ≥ 80（防路由蒸发）；实际：{len(app.routes)}"
 
 
 def test_R72_import_knot_main_succeeds():
