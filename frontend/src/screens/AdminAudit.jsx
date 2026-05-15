@@ -85,10 +85,54 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
   const [filter, setFilter] = useState({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' });
   const [drawerRow, setDrawerRow] = useState(null);  // 详情抽屉
   const [stats, setStats] = useState(null);  // v0.5.40 — { total, today, failed, distinct_users }
+  // v0.6.0.5 F-C: 清理状态 + retention 配置
+  const [purgeStatus, setPurgeStatus] = useState({ last_purge_at: null });
+  const [retention, setRetention] = useState(90);
+  const [purging, setPurging] = useState(false);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, size]);
   // v0.5.40 — load stats once on mount
   useEffect(() => { api.get('/api/admin/audit-stats').then(setStats).catch(() => {}); }, []);
+  // v0.6.0.5 F-C — 清理状态 + retention 配置一次性 fetch
+  useEffect(() => {
+    api.get('/api/admin/audit/purge-status').then(setPurgeStatus).catch(() => {});
+    api.get('/api/admin/audit-config').then(d => setRetention(d.retention_days || 90)).catch(() => {});
+  }, []);
+
+  const triggerPurge = async () => {
+    if (purging) return;
+    if (!confirm('确认立即清理超过 retention 期的审计日志？此操作含自动备份。')) return;
+    setPurging(true);
+    try {
+      const r = await api.post('/api/admin/audit/purge', {});
+      toast(`已清理 ${r.deleted} 行，备份：${r.backup_path?.split('/').pop()}`);
+      const s = await api.get('/api/admin/audit/purge-status');
+      setPurgeStatus(s);
+      const st = await api.get('/api/admin/audit-stats');
+      setStats(st);
+    } catch (e) { toast(`清理失败: ${e.message}`, true); }
+    finally { setPurging(false); }
+  };
+
+  const saveRetention = async (days) => {
+    try {
+      await api.put('/api/admin/audit-config', { retention_days: days });
+      setRetention(days);
+      toast(`Retention 已设为 ${days} 天`);
+    } catch (e) { toast(`保存失败: ${e.message}`, true); }
+  };
+
+  // 上次清理 → 相对时间
+  const _relPurge = () => {
+    if (!purgeStatus.last_purge_at) return '未清理';
+    const t = new Date(purgeStatus.last_purge_at).getTime();
+    if (isNaN(t)) return '未清理';
+    const sec = Math.floor((Date.now() - t) / 1000);
+    if (sec < 60) return `${sec}s 前`;
+    if (sec < 3600) return `${Math.floor(sec / 60)} 分钟前`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)} 小时前`;
+    return `${Math.floor(sec / 86400)} 天前`;
+  };
 
   async function load() {
     setLoading(true);
@@ -146,6 +190,30 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
               <span style={statLabelStyle(T)}>涉及用户</span>
               <span style={statValueStyle(T)}>{stats ? stats.distinct_users.toLocaleString() : '—'}</span>
             </div>
+          </div>
+
+          {/* v0.6.0.5 F-C — Retention 配置 + 立即清理 banner */}
+          <div style={{
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 18px',
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          }}>
+            <div style={{ fontSize: 12, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em' }}>上次清理</div>
+            <div style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{_relPurge()}</div>
+            <div style={{ flex: 1 }}/>
+            <div style={{ fontSize: 12, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em' }}>Retention</div>
+            <input type="number" min={7} max={3650} value={retention}
+                   onChange={e => setRetention(Number(e.target.value) || 90)}
+                   onBlur={() => {
+                     const d = Math.max(7, Math.min(3650, Number(retention) || 90));
+                     if (d !== retention) setRetention(d);
+                     saveRetention(d);
+                   }}
+                   style={{ width: 70, padding: '4px 8px', border: `1px solid ${T.border}`, borderRadius: 6, background: T.content, color: T.text, fontFamily: T.mono, fontSize: 12 }}/>
+            <span style={{ fontSize: 12, color: T.muted }}>天</span>
+            <button onClick={triggerPurge} disabled={purging}
+                    style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.border}`, background: T.content, color: T.text, fontSize: 12.5, cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.5 : 1, fontFamily: 'inherit' }}>
+              {purging ? '清理中…' : '立即清理'}
+            </button>
           </div>
 
           {/* v0.5.32 Filter strip 对齐 demo audit.jsx L69-92 — 时段 dropdown + 单短标签 + 横向 flex */}

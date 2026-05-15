@@ -45,8 +45,13 @@ def _make_backup(db_path: Path) -> Path:
     return bak
 
 
-def purge(dry_run: bool = False, db_path: str | None = None) -> dict:
-    """主清理函数；返回 stats dict 含 backup_path（dry-run 为 None）。"""
+def purge(dry_run: bool = False, db_path: str | None = None,
+          trigger: str = "manual", actor: dict | None = None) -> dict:
+    """主清理函数；返回 stats dict 含 backup_path（dry-run 为 None）。
+
+    v0.6.0.5 F-C 守护者 M-C2：meta-audit detail 增加 trigger 字段（auto / manual / cli）
+    跟踪谁触发了清理。
+    """
     days_str = settings_repo.get_app_setting("audit.retention_days", str(_DEFAULT_RETENTION))
     try:
         days = int(days_str)
@@ -60,13 +65,21 @@ def purge(dry_run: bool = False, db_path: str | None = None) -> dict:
 
     deleted = audit_repo.delete_older_than(days, dry_run=dry_run)
 
-    stats = {"days": days, "deleted": deleted, "backup_path": backup_path}
+    stats = {"days": days, "deleted": deleted, "backup_path": backup_path, "trigger": trigger}
 
     # R-57 meta-audit：真跑后写入；dry-run 不写
     if not dry_run and deleted > 0:
         audit_service.log(
-            actor=None, action="audit.purge", resource_type="audit",
-            detail={"days": days, "deleted_count": deleted},
+            actor=actor, action="audit.purge", resource_type="audit",
+            detail={"days": days, "deleted_count": deleted, "trigger": trigger},
+        )
+
+    # v0.6.0.5 F-C：落 last_audit_purge_at 到 app_settings（auto-purge 7 天阈值依据）
+    if not dry_run:
+        import datetime as _dt
+        settings_repo.set_app_setting(
+            "audit.last_purge_at",
+            _dt.datetime.now().isoformat(timespec="seconds"),
         )
 
     mode = "[dry-run] " if dry_run else ""

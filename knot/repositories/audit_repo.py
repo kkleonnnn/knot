@@ -93,8 +93,12 @@ def list_filtered(
     return out
 
 
-def delete_older_than(days: int, dry_run: bool = False) -> int:
-    """purge 脚本（commit #5）唯一删除入口；返回受影响行数。"""
+def delete_older_than(days: int, dry_run: bool = False, chunk_size: int = 1000) -> int:
+    """purge 脚本（commit #5）唯一删除入口；返回受影响行数。
+
+    v0.6.0.5 F-C 守护者 M-C1：chunk DELETE 1000 行/批防 SQLite 锁表（业务查询并发安全）。
+    chunk_size=0 → 单批全删（保留旧行为兼容老 entrypoint）。
+    """
     conn = get_conn()
     if dry_run:
         row = conn.execute(
@@ -104,12 +108,33 @@ def delete_older_than(days: int, dry_run: bool = False) -> int:
         ).fetchone()
         conn.close()
         return row["n"] if row else 0
-    cur = conn.execute(
-        "DELETE FROM audit_log "
-        "WHERE created_at < datetime('now','localtime', ?)",
-        (f"-{days} days",),
-    )
-    deleted = cur.rowcount
-    conn.commit()
+
+    if chunk_size <= 0:
+        cur = conn.execute(
+            "DELETE FROM audit_log "
+            "WHERE created_at < datetime('now','localtime', ?)",
+            (f"-{days} days",),
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
+
+    # v0.6.0.5 F-C M-C1：chunk DELETE 防锁表
+    total = 0
+    while True:
+        cur = conn.execute(
+            "DELETE FROM audit_log WHERE id IN ("
+            "  SELECT id FROM audit_log "
+            "  WHERE created_at < datetime('now','localtime', ?) "
+            "  LIMIT ?"
+            ")",
+            (f"-{days} days", chunk_size),
+        )
+        n = cur.rowcount
+        conn.commit()
+        total += n
+        if n < chunk_size:
+            break
     conn.close()
-    return deleted
+    return total
