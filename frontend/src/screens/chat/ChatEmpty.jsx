@@ -11,8 +11,8 @@ export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, o
                            activeUpload, setActiveUpload, onUpload }) {
   const firstName = user?.display_name?.split(' ')[0] || user?.username || '你';
   const suggestions = [
-    { Icon: SparkIcon, text: '今天的订单总量是多少？' },
-    { Icon: FlowIcon,  text: '最近 7 天每日 GMV 趋势' },
+    { Icon: SparkIcon, text: '今天的合约交易总量是多少？' },
+    { Icon: FlowIcon,  text: '最近 7 天每日平台总盈亏趋势' },
     { Icon: I.users,   text: '新用户注册数量（本月）' },
     { Icon: I.db,      text: '查看数据库有哪些表' },
   ];

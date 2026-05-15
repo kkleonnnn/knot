@@ -30,7 +30,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.0.8")
+app = FastAPI(title="KNOT", version="0.6.0.9")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；

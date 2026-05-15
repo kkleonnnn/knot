@@ -23,6 +23,12 @@ confidence 含义：
 - ≤ 今日的日期是历史日期，不要判定为"未来"
 - 单聚合标量结果（COUNT/SUM）非 0 即 high
 
+元数据查询特例（v0.6.0.9 加）：
+- 如果 SQL 字段内容不像 SQL（不以 SELECT / WITH / SHOW / DESCRIBE 开头），说明 agent 调用了 list_tables / describe_table / search_schema 等元数据工具，文本答案已在 SQL 字段中。
+- 此时 rows=[] 是预期（无 SELECT 真跑），**不要**判定为"空集"或 confidence=low。
+- 直接从 SQL 字段文本提取关键事实生成 insight（如 "已列出 N 张业务表" / "字段 X 类型为 Y"）。
+- 这类元数据查询 confidence 默认 high；followups 推 "查看某张具体表的字段" / "查看表的 row count" 等结构性问题。
+
 幻觉禁令（必须严格遵守）：
 - 禁止臆造权限错误：你拿到的 SQL 已经成功执行；输入里如果没有"执行失败/Access denied/permission denied"等字样，就**不准**说"没有权限""无访问权限""权限不足"。
 - 空结果集只能解释为"该口径下数据为 0 / 表里没有满足条件的数据 / 时间范围内无业务发生"，不要归因到权限。
