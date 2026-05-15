@@ -53,26 +53,21 @@ jobs:
       - name: R-PA-8 Phase B leakage check
         run: python3 scripts/check_phase_b_leakage.py
 
-  # v0.5.0 R-72 / R-77：env 4 组合 boot smoke
-  # ubuntu-latest 跑全 4 组合（仅新 / 仅旧 / 都设 / 都无）
-  #
-  # v0.6.0.3 救火：删 macos-latest 矩阵（GitHub Actions macOS = 10x cost 单价）
-  # R-77 跨平台 sed/Python 替换守护对象自 v0.5.0 完成后已 14 个 MINOR 0 命中；
-  # 守护价值衰减 + 配额成本 10x → 决议撤回（同 v0.6.0 R-67/68/74 撤回精神）
-  # 长期由 v0.6.0.4 P-1 + 决议 5 一起统一治本拍板
+  # v0.6.0.9 F3 CI 精简：boot smoke 矩阵 4→1 variants
+  # 历史背景：
+  #   v0.5.0 R-72/R-77 时期 bi-agent → knot 重命名，需要验证 env 4 组合
+  #     (only-knot / only-biagent / both-same / neither)
+  #   v0.6.0 撤回 R-67/68/74 双源后，only-biagent / both-same / neither 矩阵语义反转为
+  #     "升级路径守护"——守护对象自 v0.6.0 已 13 MINOR 0 命中
+  # 决议：
+  #   - 保留 only-knot（happy path 启动验证；含 title/version/routes 守护）
+  #   - 删除 only-biagent / both-same / neither（守护对象失效；同 R-67/68/74 撤回精神）
+  #   - 配额从 6 job × ~10min queue 降至 3 job × ~4min（节省 60%）
+  # 守护回退：旧 env 名 fail-fast 行为由 tests/scripts/test_env_*.py 单元覆盖（如有需求）
   boot-smoke:
-    name: boot smoke (${{ matrix.env_setup.name }}, ${{ matrix.os }})
+    name: boot smoke (only-knot, ubuntu-latest)
     needs: lint-test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        env_setup:
-          - { name: "only-knot",    set_knot: "yes", set_biagent: "no" }
-          - { name: "only-biagent", set_knot: "no",  set_biagent: "yes" }
-          - { name: "both-same",    set_knot: "yes", set_biagent: "same" }
-          - { name: "neither",      set_knot: "no",  set_biagent: "no" }  # 期望 fail-fast
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -85,47 +80,11 @@ jobs:
           pip install -e ".[dev]"
       - name: Boot smoke
         run: |
-          TEST_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-          # v0.6.0.8 MUST-1：JWT_SECRET 也需注入（KNOT 缺失 fail-fast 先发，不影响 matrix 语义）
+          export KNOT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
           export JWT_SECRET="boot-smoke-jwt-32-chars-min-length-pad"
-
-          # 设置 env 按 matrix 组合
-          if [ "${{ matrix.env_setup.set_knot }}" = "yes" ]; then
-            export KNOT_MASTER_KEY="$TEST_KEY"
-          fi
-          if [ "${{ matrix.env_setup.set_biagent }}" = "yes" ]; then
-            export BIAGENT_MASTER_KEY="$TEST_KEY"
-          elif [ "${{ matrix.env_setup.set_biagent }}" = "same" ]; then
-            export BIAGENT_MASTER_KEY="$TEST_KEY"  # 同值
-          fi
-
-          case "${{ matrix.env_setup.name }}" in
-            neither|only-biagent)
-              # neither: 双 env 都无 → fail-fast
-              # only-biagent (v0.6.0-hotfix LOCKED 盲区 #8 补救): v0.4.x 升级守护测 —
-              #   残留旧 BIAGENT_MASTER_KEY env 而未改 KNOT_MASTER_KEY → fail-fast +
-              #   友好提示用户升级。v0.6.0 commit 4 撤回 R-67/68/74 双源后，本 matrix
-              #   item 从"成功路径"语义反转为"升级路径守护"语义（CHANGELOG 撤回声明
-              #   同精神 — 测守护友好升级体验）。
-              set +e
-              OUT=$(python -c "from knot.main import app" 2>&1)
-              rc=$?
-              set -e
-              echo "$OUT"
-              if [ $rc -ne 1 ]; then
-                echo "::error::${{ matrix.env_setup.name }} 路径期望 exit 1（v0.6.0 撤回双源），实际 $rc"
-                exit 1
-              fi
-              echo "$OUT" | grep -q "KNOT 启动失败" || (echo "::error::缺友好错误文案"; exit 1)
-              echo "$OUT" | grep -q "KNOT_MASTER_KEY" || (echo "::error::缺新 env 名提示"; exit 1)
-              echo "$OUT" | grep -q "Fernet.generate_key" || (echo "::error::缺生成命令提示"; exit 1)
-              echo "${{ matrix.env_setup.name }} path: fail-fast 正确 ✓"
-              ;;
-            *)
-              # 三个成功路径：title=KNOT / version 动态读 main.py（v0.5.8 R-187 治本模式）
-              # routes 改为 >= 下限（v0.6.0.3 守护者 P-2 救火 — 4 处硬编 drift 已累积 5+ 次 CI 红）
-              # 长期由 v0.6.0.4 P-1 / 决议 5 拍板治本
-              python -c "
+          # title=KNOT / version 动态读 main.py（v0.5.8 R-187 治本模式）
+          # routes 改为 >= 下限（v0.6.0.3 守护者 P-2 救火 — 防路由蒸发）
+          python -c "
           import re
           src = open('knot/main.py').read()
           expected = re.search(r'version=\"([\d.]+)\"', src).group(1)
@@ -135,8 +94,6 @@ jobs:
           assert len(app.routes) >= 80, f'routes={len(app.routes)} (下限 80 防路由蒸发)'
           print(f'boot smoke OK: title=KNOT version={app.version} routes={len(app.routes)}')
           "
-              ;;
-          esac
 
   # v0.6.0.1 G-5 守护者立约：docker build CI 自动闸门
   # R-PA-15 非阻塞性 — continue-on-error（避免 docker hub rate limit 等环境噪声误杀 PR）
