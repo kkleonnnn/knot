@@ -29,6 +29,11 @@ def test_deploy_md_has_required_sections():
         "12-Factor",           # 合规清单段
         "配置优先级",          # 系统 env > .env > fallback
         "data_sources",        # DB_HOST 仅 seed 不动运行时数据源
+        # v0.6.0.12 新增 — 生产安全段（运维提问：会不会写库）
+        "生产安全",            # §标题
+        "STRICT_READONLY_GRANTS",  # 强约束 env
+        "_is_safe_sql",        # Layer 1 应用层守护
+        "GRANT SELECT",        # Layer 3 DBA 只读账号示例
     ]
     for keyword in required:
         assert keyword in src, f"DEPLOY.md 缺关键段 / 关键字: {keyword!r}"

@@ -131,6 +131,104 @@ KNOT 基础设施层 ✅ 完全符合 12-Factor "Config" 原则：
 
 ---
 
+## 🛡️ 生产安全 — 数据库写库风险评估
+
+**核心问题**：KNOT 接入生产数仓后，**会不会写库 / DROP / 改数据 / 拖垮 DB**？
+
+**结论**：✅ **几乎不可能写库**（两层独立守护 + 推荐第三层 DBA 权限隔离）；⚠️ 有**少量计算资源占用风险**（OLAP SELECT 仍消耗 BE 资源）。
+
+### 防护层级
+
+#### 🛡️ Layer 1 — 应用层 SQL 守护（`_is_safe_sql`）
+
+[`knot/adapters/db/doris.py`](knot/adapters/db/doris.py) — **每次 SQL 执行前必跑**：
+
+- **sqlglot AST 解析**（不是正则黑名单 — 更稳，骗不过）
+- ✅ **允许的根节点**：`SELECT` / `WITH` / `UNION` / `INTERSECT` / `EXCEPT` / `SHOW` / `DESCRIBE`
+- ❌ **AST 内任意位置出现这些节点全拒**：`Insert` / `Update` / `Delete` / `Merge` / `Drop` / `Create` / `Alter` / `TruncateTable` / `Set` / `Use` / `Grant` / `Command`（兜底未知操作）
+- ❌ **多语句直接拒**（防 SQL 注入 stacked query — `SELECT 1; DROP TABLE...` 这种）
+- ❌ sqlglot 解析失败 → 拒绝执行（fail-closed）
+- ❌ sqlglot 未安装 → 退回严格字符串前缀检查（仍只允许 `SELECT/WITH/SHOW/DESCRIBE/EXPLAIN`）
+
+**实战**：即使 LLM 抽风生成 `DROP TABLE users; SELECT 1`，会被前置拦截，**不会到 DB**。
+
+#### 🛡️ Layer 2 — DB 层账号权限检查（`check_readonly_grants`）
+
+[`knot/adapters/db/doris.py:39`](knot/adapters/db/doris.py) — **加数据源时检测**：
+
+- `SHOW GRANTS` 解析账号权限
+- 状态：`readonly` / `writable` / `unknown`
+- 默认 `STRICT_READONLY_GRANTS=0`（信任模式，只警告 admin）
+- **设 `STRICT_READONLY_GRANTS=1` → writable 账号直接拒绝构建 engine**（无法接入非只读账号）
+
+#### 🛡️ Layer 3 — DBA 侧专用只读账号（生产强烈建议）
+
+```sql
+-- DBA 在 Doris / MySQL 侧创建
+CREATE USER 'knot_ro'@'%' IDENTIFIED BY '<生成的强密码>';
+GRANT SELECT ON your_business_db.* TO 'knot_ro'@'%';
+FLUSH PRIVILEGES;
+-- ⛔ 故意不给：INSERT / UPDATE / DELETE / DROP / CREATE / ALTER / GRANT
+```
+
+KNOT admin UI 加数据源时填这个账号 + env 设 `STRICT_READONLY_GRANTS=1` → **3 层独立守护，任一层挡住都不会写库**。
+
+### 其他保护机制
+
+| 风险 | 保护机制 |
+|---|---|
+| **笛卡尔积大查询拖垮 DB** | 6 层防御（v0.5.1 R-80~93）：catalog RELATIONS 注入 / prompt JOIN 硬约束 / sqlglot AST C1-C4 / R-91 retry counter / prompt 专家身份 / RELATIONS admin UI 根因解 |
+| **全表扫描占资源** | `LIMIT 10000` 默认追加（无 LIMIT 自动加） |
+| **LLM 失控狂跑** | 预算告警 + 月度 token cap + 单次对话 cap + 限流（v0.4.3+） |
+| **重试无限循环** | `recovery_attempt` 计数器 cap 3 次 |
+| **审计追溯** | `audit_log` INSERT-only + 9 类 mutation 自动记录 + PII 三层脱敏 + 7 天 retention 自动清理 |
+| **业务表名爆破探测** | 业务目录 admin UI 显式配置 + few-shot 引导（LLM 看不到表名不会瞎猜） |
+| **SQL 注入 stacked query** | 多语句直接拒（Layer 1 守护）|
+| **加密敏感字段** | Fernet 字段级加密（`db_password` / `api_key` 等 6 类） + `KNOT_MASTER_KEY` fail-fast |
+
+### ⚠️ 不能 100% 保证的边界（透明披露）
+
+| 风险 | 说明 | 缓解建议 |
+|---|---|---|
+| **复杂 SELECT 短时占 IO** | 即使只读也消耗 Doris BE 计算资源 | 给 KNOT 用 **OLAP 从库副本**（与业务 OLTP 资源隔离） |
+| **大表 SELECT 拖慢业务 DB** | LIMIT 10000 兜底；但 5-10 用户同时跑重 OLAP 仍可能 P99 飙升 | Doris BE 资源组（resource_tag）隔离 KNOT 流量 |
+| **LLM 数据解读错** | 数据**不准** ≠ DB 写坏 | presenter `confidence=low` 时自动标 ⚠️ banner |
+| **业务目录配错** | RELATIONS 错填让 LLM 误 JOIN | 只是查不准；不会写库；admin 进 UI 改 catalog 即可 |
+
+### 生产部署 checklist（DBA / 运维必读）
+
+```bash
+# 1. DBA 在 Doris/MySQL 侧创建专用只读账号
+mysql -h <doris-fe> -u root -p <<'SQL'
+CREATE USER 'knot_ro'@'%' IDENTIFIED BY '<openssl rand -hex 16>';
+GRANT SELECT ON <business_db>.* TO 'knot_ro'@'%';
+FLUSH PRIVILEGES;
+SQL
+
+# 2. KNOT 服务器 .env 设强约束
+echo "STRICT_READONLY_GRANTS=1" >> .env
+
+# 3. 推荐生产部署模式
+#    - 单独 OLAP 从库副本（避免与业务 OLTP 竞争资源）
+#    - 或 Doris 计算节点 BE 资源组隔离 KNOT 流量
+
+# 4. 监控（Doris 侧）
+#    SELECT * FROM mysql.audit_log WHERE user='knot_ro' AND
+#           UPPER(stmt) NOT LIKE 'SELECT%' AND
+#           UPPER(stmt) NOT LIKE 'WITH%' AND
+#           UPPER(stmt) NOT LIKE 'SHOW%';
+#    应永远 0 行（如果有任何非 SELECT 被尝试，Doris 侧能 catch 到）
+
+# 5. 监控（KNOT 侧）
+#    admin → 审计日志 → 看 KNOT user 的 query 历史（每条都有完整 SQL + cost）
+```
+
+### 一句话总结（生产安全）
+
+> 三层独立守护（应用 AST + DB 权限 + DBA 账号），KNOT 接入生产数仓**几乎不可能写库**。最大风险是 **OLAP 计算资源占用**，强烈建议用从库副本或 Doris 资源组隔离 KNOT 流量。
+
+---
+
 ## 🚀 一键部署（推荐流程）
 
 ```bash
