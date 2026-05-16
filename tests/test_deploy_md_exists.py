@@ -25,6 +25,10 @@ def test_deploy_md_has_required_sections():
         "故障排查",
         "JWT_SECRET",          # 安全配置
         "deploy_checklist.sh", # 自动化脚本引用
+        # v0.6.0.11 新增 — 配置加载机制 + 12-Factor 合规说明
+        "12-Factor",           # 合规清单段
+        "配置优先级",          # 系统 env > .env > fallback
+        "data_sources",        # DB_HOST 仅 seed 不动运行时数据源
     ]
     for keyword in required:
         assert keyword in src, f"DEPLOY.md 缺关键段 / 关键字: {keyword!r}"

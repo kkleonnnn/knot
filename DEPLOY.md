@@ -50,6 +50,87 @@ KNOT 涉及 3 类"密钥"，分属不同角色——**别搞混**：
 
 ---
 
+## 📋 配置加载与 12-Factor 合规
+
+### 配置优先级（高 → 低）
+
+KNOT 用 `python-dotenv` 默认行为：
+
+1. **OS 系统环境变量**（`export DB_HOST=...` / `docker run -e DB_HOST=...` / k8s ConfigMap / Secret）
+2. **`.env` 文件**（仓库根目录，由 `deploy_checklist.sh` 生成）
+3. **代码 fallback 默认值**（`os.getenv("DB_HOST", "localhost")` 的第二个参数）
+
+**举例**：
+```bash
+# .env 内：DB_HOST=from-dotenv.local
+$ docker run -e DB_HOST=from-system-env.prod ... knot
+→ 应用读到 DB_HOST=from-system-env.prod   ← 系统 env 优先
+```
+
+部署玩法：
+- **本地 dev**：用 `.env` 文件最方便
+- **生产**：`.env` 兜底 + `docker run -e` 临时覆盖（不改文件）
+- **k8s**：直接 ConfigMap / Secret 注 env，不用 `.env`
+
+### `DB_HOST` env 的实际作用范围（特别说明）
+
+KNOT 有**两层**业务 DB 配置 — 别搞混：
+
+| 层级 | 来源 | `DB_HOST` env 影响？ |
+|---|---|---|
+| 1. **首次 `init_db` seed admin 账户** | env 默认值 | ✅ admin 用户的 `doris_host` 字段被写入 |
+| 2. **运行时业务连接** | `data_sources` 表（admin UI 加） | ❌ 走表里的 `db_host` 字段，与 env 无关 |
+| 3. **legacy fallback** | env 默认值 | ✅ 极少触发 |
+
+**使用判断**：
+- 🟢 **全新部署**：env 设 `DB_HOST=db.your-cluster.com` → admin UI 数据源 tab 预填该值
+- 🔴 **已部署改 DB 地址**：进 admin UI → 数据源 tab → 编辑现有数据源（**不要靠改 env**，运行时数据源在 DB 里）
+- 🔴 **k8s 重启换 DB**：env 改了但 `data_sources` 表里老记录不动
+
+### 12-Factor 合规清单
+
+KNOT 基础设施层 ✅ 完全符合 12-Factor "Config" 原则：
+
+| 配置项 | 来源 | env 名 | 12-Factor 合规 |
+|---|---|---|---|
+| Fernet 加密主密钥 | env | `KNOT_MASTER_KEY` | ✅ + fail-fast |
+| JWT 签名密钥 | env | `JWT_SECRET` | ✅ + fail-fast |
+| 默认业务 DB 连接 | env | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_DATABASE` | ✅ |
+| LLM 默认模型 | env | `DEFAULT_MODEL` | ✅ |
+| LLM API Key（env 兜底）| env | `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` / ... | ✅ |
+| SQLite 路径 | env | `SQLITE_DB_PATH` | ✅ |
+| Agent 调优参数 | env | `AGENT_MAX_STEPS` / `RAG_TOP_K` / `SCHEMA_FILTER_MAX_TABLES` | ✅ |
+
+### 业务配置走 DB，不走 env（混合模式说明）
+
+以下配置**不走 env** — 由 admin 在浏览器 UI 配置 + DB 持久化：
+
+| 配置 | 表 | 加密 |
+|---|---|---|
+| 多数据源连接（host/port/user/pwd/database）| `data_sources` | `db_password` Fernet 加密 |
+| LLM API Key（admin UI 加，覆盖 env 兜底） | `app_settings` | Fernet 加密 |
+| 3 个 Agent 模型分配 | `app_settings` | — |
+| 用户账号 + 角色 | `users` | bcrypt 哈希 |
+| 业务目录 / 表关系 / 业务规则 | `app_settings` | — |
+| Few-shot 示例 | `few_shots` | — |
+| Prompt 模板 | `prompt_templates` | — |
+| 预算配置 | `app_settings` | — |
+| 收藏报表 | `saved_reports` | — |
+
+**为什么不全走 env**：
+- 需要 admin 浏览器**即时**改 / 加 / 删（不可能每次重启容器）
+- 多用户多数据源场景下 env 不适合（多条同类配置无法表达）
+- 业务变更要**审计追溯**（`audit_log` INSERT-only + 9 类 mutation 自动记录 + Fernet 加密敏感字段）
+
+### 一句话总结（12-Factor）
+
+> 12-Factor 没有要求"每条 config 都 env"，强调的是 **"环境无差异"** + **"config 与代码分离"** + **"严格隔离 build / release / run"**。KNOT 这三条都满足：
+> - 基础设施 config 走 env（dev / staging / prod 同一份代码）
+> - 业务运行时 config 走 DB（admin UI 即时管理 + audit 追溯）
+> - 镜像与配置完全分离（同一镜像跑任意环境，靠 env + DB 区分）
+
+---
+
 ## 🚀 一键部署（推荐流程）
 
 ```bash
