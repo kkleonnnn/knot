@@ -9,8 +9,7 @@ export function AppShell({
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
   connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
-  hideSidebarNewChat = false,
-  onToggleTheme, onNewChat, onNavigate, onLogout,
+  onToggleTheme, onNavigate, onLogout,
   children,
 }) {
   const isAdmin = user && user.role === 'admin';
@@ -41,7 +40,7 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.02em',
-          }}>v0.6.0.13</span>
+          }}>v0.6.0.14</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>

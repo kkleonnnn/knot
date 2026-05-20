@@ -90,7 +90,9 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
   const [retention, setRetention] = useState(90);
   const [purging, setPurging] = useState(false);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, size]);
+  // v0.6.0.14 lint sweep：page/size 切换 fetch；load 闭包内访问 setter
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [page, size]);
   // v0.5.40 — load stats once on mount
   useEffect(() => { api.get('/api/admin/audit-stats').then(setStats).catch(() => {}); }, []);
   // v0.6.0.5 F-C — 清理状态 + retention 配置一次性 fetch

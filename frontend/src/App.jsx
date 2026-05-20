@@ -20,6 +20,7 @@ export default function App() {
   const [dbOk, setDbOk] = useState(null);
   const [sourceCount, setSourceCount] = useState(null);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const token = localStorage.getItem('cb_token');
     if (!token) { setLoading(false); return; }
@@ -32,18 +33,22 @@ export default function App() {
       setLoading(false);
     });
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // v0.6.1.2 F1 — 用户认证完成后并行 prefetch 共享数据；user 切换时重新 fetch
+  // v0.6.0.14 lint sweep：sync 清空 + async prefetch 是 SPA 用户切换标准模式
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!user) { setConvs([]); setDbOk(null); setSourceCount(null); return; }
-    api.get('/api/conversations').then(setConvs).catch(() => {});
+    api.get('/api/conversations').then(setConvs).catch(() => { /* prefetch 失败不阻塞 UI */ });
     api.get('/api/db/status').then(d => setDbOk(d.connected)).catch(() => setDbOk(false));
     if (user.role === 'admin') {
       api.get('/api/admin/sources')
          .then(ds => setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1))
-         .catch(() => {});
+         .catch(() => { /* admin sources 失败不阻塞 UI */ });
     }
   }, [user?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   const handleLogin = (u) => {
     // 切账号时清掉上一个 user 的会话引用，防止 cb_conv 残留导致 POST 404

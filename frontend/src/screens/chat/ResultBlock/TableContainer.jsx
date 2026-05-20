@@ -10,9 +10,12 @@ const CHART_BTNS = [
   { id: 'pie',  label: '饼图' },
 ];
 
-export function TableContainer({ T, rows, cols, labelCols, numericCols, chartable, isMetric, isDetail, isRetention,
-                                  showChart, chartData, pieData, chartType, setChartType, activeType,
-                                  isDateLike, msg, onDownload, exportMessageCsv }) {
+// v0.6.0.14 lint sweep: 删 chartable / isMetric / isRetention / chartType / isDateLike 未使用 props
+// 这些是 v0.6.0.2 拆分时 over-passed 的 props，TableContainer 内部不需要（父 ResultBlock 已用于
+// 决定 showChart）。保留 cols 等仍在使用的字段。
+export function TableContainer({ T, rows, cols, labelCols, numericCols, isDetail,
+                                  showChart, chartData, pieData, setChartType, activeType,
+                                  msg, onDownload, exportMessageCsv }) {
   return (
     <>
       {showChart && (

@@ -1,7 +1,7 @@
 // v0.6.0.4 F-B AdminErrors — 前端 JS 错误列表 + top hashes 聚合
 // 视觉沿用 AdminAudit/Recovery 模式：Inset 8% brandSoft + thead mono uppercase + KpiCard
 import { useState, useEffect } from 'react';
-import { I } from '../Shared.jsx';
+// v0.6.0.14 lint sweep: 删 I import — 未使用
 import { Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -25,13 +25,16 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
   const [page, setPage] = useState(1);
   const [size] = useState(50);
 
+  // v0.6.0.14 lint sweep：page 切换 fetch 是分页屏标准副作用
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     setLoading(true);
     api.get(`/api/admin/frontend-errors?limit=${size}&offset=${(page - 1) * size}`)
       .then(d => { setItems(d.items || []); setTotal(d.total || 0); setTopHashes(d.top_hashes || []); })
-      .catch(() => {})
+      .catch(() => { /* 前端错误列表加载失败 fail-soft */ })
       .finally(() => setLoading(false));
   }, [page]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   return (
     <AppShell T={T} user={user} active="admin-errors" onToggleTheme={onToggleTheme}

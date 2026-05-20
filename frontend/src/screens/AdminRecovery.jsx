@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { I, LineChart } from '../Shared.jsx';
+import { LineChart } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -67,7 +67,10 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // v0.6.0.14 lint sweep：period 切换触发 fetch 是 admin recovery 屏标准副作用；load 作为 function declaration 在闭包中访问 setter
+  /* eslint-disable react-hooks/immutability, react-hooks/exhaustive-deps */
   useEffect(() => { load(); }, [period]);
+  /* eslint-enable react-hooks/immutability, react-hooks/exhaustive-deps */
 
   async function load() {
     setLoading(true);
