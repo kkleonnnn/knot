@@ -2,6 +2,12 @@
 
 公司内部用的 AI 取数助手：自然语言 → SQL → 图表 + 洞察。
 
+## Demo
+
+<video src="https://github.com/kkleonnnn/knot/releases/download/demo-v0.6/knot-demo-v0.6.mp4" controls width="100%" muted playsinline></video>
+
+> 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
+
 > **当前版本** v0.6.0.12 · R-PA-5 内测期 · F-A/B/C/D 反馈观测治理基础设施完整（用户反馈 👍/👎 + 前端错误自动上报 + audit 自动清理 + 模型 catalog max_context + OR live sync）
 
 ## 角色
