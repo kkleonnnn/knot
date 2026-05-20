@@ -41,10 +41,24 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.02em',
-          }}>v0.6.0.12</span>
+          }}>v0.6.0.13</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
+        {/* v0.6.0.13 #1：非 chat 屏 sidebar 顶部加「返回对话」大按钮（与 Chat 屏「新建对话」同位置同样式）
+            实现"哪来的就哪回的"原则；旧的底部 ghost 链接移除（详 L100+ 注释） */}
+        {active !== 'chat' && onNavigate && (
+          <div style={{ padding: '0 8px 8px' }}>
+            <button onClick={() => onNavigate('chat')} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
+              padding: '10px 14px', borderRadius: 8, background: T.card,
+              color: T.text, border: `1px solid ${T.border}`,
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            }}>
+              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+            </button>
+          </div>
+        )}
         {!active.startsWith('admin-') ? (
           <>
             {sidebarContent}
@@ -87,18 +101,7 @@ export function AppShell({
             )}
           </>
         )}
-        {/* v0.5.38 — 全屏统一「返回对话」底部位置 + 图标（demo 各屏 sidebar 底部 chev 左 byte-equal）；非 chat 屏自动渲染 */}
-        {active !== 'chat' && onNavigate && (
-          <div style={{ marginTop: 'auto', padding: '10px 16px', flexShrink: 0 }}>
-            <button onClick={() => onNavigate('chat')} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'none', border: 'none', color: T.muted,
-              fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer', padding: 0,
-            }}>
-              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
-            </button>
-          </div>
-        )}
+        {/* v0.5.38 → v0.6.0.13：底部「返回对话」ghost 链接已挪到 sidebar 顶部（"哪来的就哪回的"内测反馈 #1）*/}
 
         </div>
 

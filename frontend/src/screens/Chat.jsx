@@ -27,11 +27,17 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
   const scrollRef = useRef(null);
 
   // v0.6.1.2 F1：convs 变化时（App prefetch 返回 / 账号切换）检查并清理 stale activeConvId
+  // v0.6.0.13 内测反馈 #5 bug 修：只在首次 convs 加载后做一次 stale check
+  // 否则 sendQuery 末尾 api.get refresh 也会触发，把刚创建的 conv 误判为 stale → 清空 activeConvId → 退回首页
+  const initialStaleCheckDone = useRef(false);
   useEffect(() => {
-    if (convs.length > 0 && activeConvId && !convs.some(c => c.id === activeConvId)) {
+    if (initialStaleCheckDone.current) return;
+    if (convs.length === 0) return;  // 等 convs 真加载（账号切换会走 App.jsx 清 activeConvId）
+    if (activeConvId && !convs.some(c => c.id === activeConvId)) {
       setActiveConvId(null);
       setMessages([]);
     }
+    initialStaleCheckDone.current = true;
   }, [convs]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
@@ -276,7 +282,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
               connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
               onToggleTheme={onToggleTheme} onNewChat={newChat}
               onNavigate={onNavigate} onLogout={onLogout}>
-      {!activeConvId || messages.length === 0
+      {/* v0.6.0.13 #5：仅按 activeConvId 决定（去掉 messages.length===0 — sendQuery 间隙
+          messages 短暂为 [] 时 ChatEmpty 闪回首页是 bug 根因之一）*/}
+      {!activeConvId
         ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
                      hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
