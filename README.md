@@ -4,7 +4,7 @@
 
 ## Demo
 
-<video src="https://github.com/kkleonnnn/knot/releases/download/demo-v0.6/knot-demo-v0.6.mp4" controls width="100%" muted playsinline></video>
+https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
