@@ -9,6 +9,7 @@ import { AdminBudgetsScreen } from './screens/AdminBudgets.jsx';
 import { AdminRecoveryScreen } from './screens/AdminRecovery.jsx';
 import { AdminAuditScreen } from './screens/AdminAudit.jsx';
 import { AdminErrorsScreen } from './screens/AdminErrors.jsx';
+import { AdminMetricsScreen } from './screens/AdminMetrics.jsx';
 
 export default function App() {
   const [T, toggleTheme] = useTheme();
@@ -90,6 +91,7 @@ export default function App() {
   if (screen === 'admin-recovery' && user.role === 'admin') return <AdminRecoveryScreen {...commonProps}/>;
   if (screen === 'admin-audit' && user.role === 'admin') return <AdminAuditScreen {...commonProps}/>;
   if (screen === 'admin-errors' && user.role === 'admin') return <AdminErrorsScreen {...commonProps}/>;
+  if (screen === 'admin-metrics' && user.role === 'admin') return <AdminMetricsScreen {...commonProps}/>;
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板

@@ -25,7 +25,7 @@ LIMITS = {
     "knot/services/agents/sql_planner.py": 350,
     "knot/services/llm_client.py":         300,
     "knot/services/agents/orchestrator.py": 220,
-    "knot/api/query.py":                   310,  # SSE 协议样板，资深 ack
+    "knot/api/query.py":                   315,  # v0.5.2 SSE 样板 310 → v0.6.0.16 +5（latency_ms 跟踪 3 save_message 调用）
     # 9 个新建模块（v0.5.2）
     "knot/services/agents/sql_planner_prompts.py": 250,
     "knot/services/agents/sql_planner_tools.py":   250,
@@ -48,6 +48,7 @@ LIMITS = {
     "frontend/src/screens/AdminAudit.jsx":         490,  # v0.6.0.5 F-C 430→490 (Retention + 立即清理 banner)
     "frontend/src/screens/AdminBudgets.jsx":       380,  # v0.5.18 R-460 新增 (AdminBudgets 屏复刻)
     "frontend/src/screens/AdminRecovery.jsx":      380,  # v0.5.19 R-490 新增 (AdminRecovery 屏复刻;admin 三部曲收官)
+    "frontend/src/screens/AdminMetrics.jsx":       200,  # v0.6.0.16 新增 (内测指标屏 — 4 KPI cards + period tabs + rules)
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,  # v0.5.30 80→100 (suggestion icons spark/flow 扩张)
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  220,  # v0.5.39 160→220 (Trace 4th step + 信任度推导)

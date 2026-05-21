@@ -21,7 +21,10 @@ def save_message(conv_id, question, sql, explanation, confidence,
                  sql_planner_tokens: int = 0,
                  fix_sql_tokens: int = 0,
                  presenter_tokens: int = 0,
-                 recovery_attempt: int = 0) -> int:
+                 recovery_attempt: int = 0,
+                 # v0.6.1.0：端到端响应延迟（毫秒），admin 内测指标屏 P95 计算用；
+                 # None 允许（老消息 / 不需要追踪的写入路径），P95 query 时 WHERE latency_ms IS NOT NULL
+                 latency_ms: int | None = None) -> int:
     """v0.4.2 新增成本分桶参数。
     - 默认 agent_kind='sql_planner'（v0.4.0+ 主路径），强制非 'legacy'（Stage 3-A 守护）
     - 'legacy' 是不变量：仅供老消息持有，新写入禁止
@@ -45,13 +48,13 @@ def save_message(conv_id, question, sql, explanation, confidence,
         " rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent, "
         " agent_kind, clarifier_cost, sql_planner_cost, fix_sql_cost, presenter_cost, "
         " clarifier_tokens, sql_planner_tokens, fix_sql_tokens, presenter_tokens, "
-        " recovery_attempt) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " recovery_attempt, latency_ms) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (conv_id, question, sql, explanation, confidence,
          rows_json, db_error, cost_usd, input_tokens, output_tokens, retry_count, intent,
          agent_kind, clarifier_cost, sql_planner_cost, fix_sql_cost, presenter_cost,
          clarifier_tokens, sql_planner_tokens, fix_sql_tokens, presenter_tokens,
-         recovery_attempt),
+         recovery_attempt, latency_ms),
     )
     mid = cur.lastrowid
     conn.execute(

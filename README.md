@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.0.15 · R-PA-5 内测期 · 开源 readiness（Apache-2.0 LICENSE + SECURITY + CONTRIBUTING + CORS env 配置）
+> **当前版本** v0.6.0.16 · R-PA-5 内测期 · 内测指标屏（一次成功率 / 澄清率 / P95 latency / cost — admin 健康可观测）
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.0.15）
+## 技术栈（v0.6.0.16）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

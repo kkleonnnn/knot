@@ -413,6 +413,119 @@ async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)
 
 # ─── v0.5.40 后端真数据 stats endpoints ──────────────────────────────────
 
+@router.get("/api/admin/metrics")
+async def admin_internal_metrics(period: str = "7d", admin=Depends(require_admin)):
+    """v0.6.1.0 — 内测健康指标：一次成功率 / 澄清率 / P95 latency / cost。
+
+    Query params:
+      - period: '7d' / '30d' / '90d' 或裸数字天，默认 7d（内测期主要观察短窗口）
+
+    返回：
+      {
+        period_days: int,
+        total_messages: int,                  # 期内所有非 legacy 消息
+        first_try_success: {
+          rate: float (0~1),                  # presenter & recovery_attempt=0 占所有 presenter 的比例
+          numerator: int, denominator: int,
+        },
+        clarification: {
+          rate: float (0~1),                  # clarifier 消息占总消息的比例
+          numerator: int, denominator: int,
+        },
+        latency_ms: {
+          p50: int | None, p95: int | None, p99: int | None,
+          sample_size: int,                   # 有 latency_ms 数据的消息数
+        },
+        cost_usd: {
+          total: float,                       # 期内总成本
+          avg_per_message: float,             # 平均每消息成本
+        },
+      }
+    """
+    from knot.repositories import get_conn
+
+    days = 7
+    s = (period or "").strip().lower()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = max(1, int(s[:-1]))
+    elif s.isdigit():
+        days = max(1, int(s))
+
+    conn = get_conn()
+    # 期窗：created_at >= datetime('now', '-Nd', 'localtime')
+    cutoff_clause = f"datetime('now', '-{days} days', 'localtime')"
+
+    # 1. 总消息数（排除 legacy 老消息 — 与 recovery-stats R-19 同口径）
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM messages WHERE agent_kind != 'legacy' "
+        f"AND created_at >= {cutoff_clause}"
+    ).fetchone()[0] or 0
+
+    # 2. 一次成功率：presenter 输出（最终成功路径）+ recovery_attempt=0
+    success_num = conn.execute(
+        f"SELECT COUNT(*) FROM messages "
+        f"WHERE agent_kind = 'sql_planner' AND recovery_attempt = 0 "
+        f"AND created_at >= {cutoff_clause}"
+    ).fetchone()[0] or 0
+    success_den = conn.execute(
+        f"SELECT COUNT(*) FROM messages WHERE agent_kind = 'sql_planner' "
+        f"AND created_at >= {cutoff_clause}"
+    ).fetchone()[0] or 0
+
+    # 3. 澄清率：clarifier 终态 / 期内所有消息
+    clarif_num = conn.execute(
+        f"SELECT COUNT(*) FROM messages WHERE agent_kind = 'clarifier' "
+        f"AND created_at >= {cutoff_clause}"
+    ).fetchone()[0] or 0
+
+    # 4. P50/P95/P99 latency — Python 侧排序（内测期数据量小；DAU 5-20，< 10k/period）
+    latencies = [
+        row[0] for row in conn.execute(
+            f"SELECT latency_ms FROM messages "
+            f"WHERE latency_ms IS NOT NULL AND agent_kind != 'legacy' "
+            f"AND created_at >= {cutoff_clause} ORDER BY latency_ms"
+        ).fetchall()
+    ]
+    p50 = p95 = p99 = None
+    if latencies:
+        n = len(latencies)
+        p50 = latencies[min(n - 1, int(n * 0.50))]
+        p95 = latencies[min(n - 1, int(n * 0.95))]
+        p99 = latencies[min(n - 1, int(n * 0.99))]
+
+    # 5. 总成本（cost_usd 已是聚合值；agent_kind != legacy 避免老消息混入）
+    cost_row = conn.execute(
+        f"SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM messages "
+        f"WHERE agent_kind != 'legacy' AND created_at >= {cutoff_clause}"
+    ).fetchone()
+    conn.close()
+    total_cost = float(cost_row[0] or 0)
+    cost_count = int(cost_row[1] or 0)
+
+    return {
+        "period_days": days,
+        "total_messages": total,
+        "first_try_success": {
+            "rate": (success_num / success_den) if success_den else 0.0,
+            "numerator": success_num,
+            "denominator": success_den,
+        },
+        "clarification": {
+            "rate": (clarif_num / total) if total else 0.0,
+            "numerator": clarif_num,
+            "denominator": total,
+        },
+        "latency_ms": {
+            "p50": p50, "p95": p95, "p99": p99,
+            "sample_size": len(latencies),
+        },
+        "cost_usd": {
+            "total": round(total_cost, 4),
+            "avg_per_message": round(total_cost / cost_count, 4) if cost_count else 0.0,
+        },
+    }
+
+
 @router.get("/api/admin/audit-stats")
 async def admin_audit_stats(admin=Depends(require_admin)):
     """v0.5.40 — 审计日志聚合 stats（总记录数/今日/失败数/涉及用户）。"""

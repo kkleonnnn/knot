@@ -76,6 +76,11 @@ def init_db():
     # R-S6 / Stage 3-A 保险：所有老行（agent_kind 为 NULL）显式回填 'legacy'
     conn.execute("UPDATE messages SET agent_kind='legacy' WHERE agent_kind IS NULL")
 
+    # v0.6.1.0: messages.latency_ms — 端到端响应延迟（毫秒），用于 admin 内测指标屏 P95
+    # NULL 允许（老消息无此数据；P95 计算时 WHERE latency_ms IS NOT NULL 过滤）
+    if "latency_ms" not in msg_cols_after_intent:
+        conn.execute("ALTER TABLE messages ADD COLUMN latency_ms INTEGER")
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""

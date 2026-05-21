@@ -40,7 +40,7 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.02em',
-          }}>v0.6.0.15</span>
+          }}>v0.6.0.16</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
@@ -96,6 +96,9 @@ export function AppShell({
                 {/* v0.6.0.4 F-B 前端 JS 错误上报 */}
                 <SideNavRow T={T} icon={<I.x/>} label="前端错误" active={active === 'admin-errors'}
                             onClick={() => onNavigate('admin-errors')}/>
+                {/* v0.6.1.0 内测指标屏 */}
+                <SideNavRow T={T} icon={<I.zap/>} label="内测指标" active={active === 'admin-metrics'}
+                            onClick={() => onNavigate('admin-metrics')}/>
               </>
             )}
           </>
