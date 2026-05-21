@@ -39,7 +39,9 @@ const AGENT_KIND_EMOJI = {
 };
 
 // v0.6.0.3 F-A — M-A3 onFeedback prop 追加末尾守 R-548 核爆级签名守护（不破前 7 个）
-export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onRetry, onFeedback }) {
+export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPin, onRetry, onFeedback }) {
+  // v0.6.0.17 — 非 admin 用户隐藏 SQL accordion（防内部表名泄漏）；admin 保留用于调试
+  const isAdmin = user?.role === 'admin';
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
   const [pinned, setPinned] = useState(!!msg.is_pinned);
@@ -208,7 +210,7 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
         </div>
       )}
 
-      {sql && (
+      {sql && isAdmin && (
         <div style={{ background: T.codeBg, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <div onClick={() => setSqlOpen(!sqlOpen)} style={{
             cursor: 'pointer', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,

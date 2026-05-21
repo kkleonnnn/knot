@@ -297,7 +297,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
                      hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
                                           activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
-        : <ChatConversation T={T} messages={messages} scrollRef={scrollRef} loading={loading}
+        : <ChatConversation T={T} user={user} messages={messages} scrollRef={scrollRef} loading={loading}
                             question={question} setQuestion={setQuestion}
                             onSubmit={sendQuery} onKeyDown={handleKeyDown}
                             onCopy={copyToClipboard} onDownload={downloadCSV} onPin={pinMessage}
