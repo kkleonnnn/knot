@@ -123,6 +123,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         cost_usd=cost_usd, input_tokens=input_tokens, output_tokens=output_tokens,
         retry_count=retry_count, intent=None, agent_kind="sql_planner",
         recovery_attempt=retry_count,  # 非流式：fix_sql retry 等同 recovery_attempt
+        latency_ms=query_time_ms,  # v0.6.1.0 内测指标屏 P95
         **cost_service.to_save_message_kwargs(agent_buckets_ns),
     )
 
@@ -199,6 +200,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                     output_tokens=clarifier_result["output_tokens"],
                     retry_count=0, intent=clarifier_result.get("intent"),
                     agent_kind="clarifier",
+                    latency_ms=int((time.time() - t0) * 1000),  # v0.6.0.16 内测指标屏 P95
                     **cost_service.to_save_message_kwargs(agent_buckets),
                 )
                 if len(message_repo.get_messages(conv_id)) == 1:
@@ -272,6 +274,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 cost_usd=total_cost, input_tokens=total_input, output_tokens=total_output,
                 retry_count=0, intent=intent, agent_kind="sql_planner",
                 recovery_attempt=recovery_attempt,
+                latency_ms=query_time_ms,  # v0.6.1.0 内测指标屏 P95
                 **cost_service.to_save_message_kwargs(agent_buckets),
             )
             if len(message_repo.get_messages(conv_id)) == 1:
