@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.0.14 · R-PA-5 内测期 · 前端 lint sweep + CI 闸门（0 lint errors / 0 warnings；npm run lint 纳入 CI 阻塞）
+> **当前版本** v0.6.0.15 · R-PA-5 内测期 · 开源 readiness（Apache-2.0 LICENSE + SECURITY + CONTRIBUTING + CORS env 配置）
 
 ## 角色
 
@@ -134,7 +134,7 @@ docker logs knot | tail -10
 ### 8. 可选优化（团队反馈驱动）
 
 - **HTTPS**：加 Caddy 反代（5 分钟）`caddy reverse-proxy --from yourdomain.com --to localhost:8000`
-- **CORS 收紧**：`knot/main.py:33` `allow_origins=["*"]` 改具体域名
+- **CORS 收紧**（v0.6.0.15）：`.env` 加 `KNOT_CORS_ORIGINS="https://your-domain.example.com"`（逗号分隔多 origin）；未设时启动期会打印 WARNING + 兜底 `*`
 - **监控**：UptimeRobot 拨测 `/healthz` 端点
 - **业务目录定制**：admin 后台「业务目录」tab 编辑 lexicon / tables / business_rules / RELATIONS 四字段适配你的真实业务库（**推荐第 2-3 天做** — 默认 generic 模板体验受限）
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.0.14）
+## 技术栈（v0.6.0.15）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
@@ -223,3 +223,12 @@ KNOT 每个 PATCH 都按 **三阶段评审 + 4 级角色 + MINOR 滚动整体审
 见 [CHANGELOG.md](./CHANGELOG.md)。
 
 格式 `vMAJOR.MINOR.PATCH.YYYYMMDDHHmm`：MAJOR 0=内测 / 1=团队公测；MINOR=阶段大节点；PATCH=每轮迭代 +1。
+
+## License & Contributing
+
+KNOT 采用 **Apache License 2.0**（v0.6.0.15 起 — 含明确专利授权 + 商标条款；详 [LICENSE](LICENSE) + [NOTICE](NOTICE)）。
+
+- **贡献指南**：[CONTRIBUTING.md](CONTRIBUTING.md) — Loop Protocol v3 治理下的外部贡献者路径
+- **安全报告**：[SECURITY.md](SECURITY.md) — **请勿提交公开 issue**（漏洞走 GitHub Security Advisory 或 kk@100xex.com）
+- **Issues**：https://github.com/kkleonnnn/knot/issues
+
