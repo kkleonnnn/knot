@@ -7,6 +7,7 @@ v0.5.0：包重命名 + env 双源（KNOT_MASTER_KEY 优先 + 旧名兼容）+ D
 """
 
 import mimetypes
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -30,8 +31,27 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.0.14")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app = FastAPI(title="KNOT", version="0.6.0.15")
+
+# v0.6.0.15 — CORS env 配置（开源 readiness）
+# 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
+#   export KNOT_CORS_ORIGINS="https://knot.example.com,https://app.example.com"
+# 未设置时兼容 dev / docker-compose 单机部署，回退到 "*" 并打印 warning（不 fail-fast，
+# 避免破坏现有 docker dev 部署；生产环境应通过 .env / k8s secret 显式配置）。
+_cors_env = os.getenv("KNOT_CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    _cors_allow_credentials = True  # 显式 origin 列表时启用 credentials（cookie / Authorization 透传）
+else:
+    _cors_origins = ["*"]
+    _cors_allow_credentials = False  # CORS 规范：origin=* 时 credentials 必须 false
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=_cors_allow_credentials,
+)
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
 # _DATA_DIR.mkdir 保留 — sqlite3.connect 需要父目录存在
@@ -92,6 +112,20 @@ def _check_jwt_secret_or_exit():
 
 
 _check_jwt_secret_or_exit()
+
+
+@app.on_event("startup")
+async def _log_cors_config():
+    """v0.6.0.15：CORS 配置 startup 透明化 — 明文打印当前 origins。
+    未显式配置时打印 WARNING（生产部署必须配置 KNOT_CORS_ORIGINS）。"""
+    if _cors_origins == ["*"]:
+        logger.warning(
+            "CORS allow_origins=['*'] (KNOT_CORS_ORIGINS not set). "
+            "OK for dev / docker-compose 单机部署；生产部署请显式配置："
+            'export KNOT_CORS_ORIGINS="https://your-domain.example.com"'
+        )
+    else:
+        logger.info(f"CORS allow_origins={_cors_origins} (allow_credentials={_cors_allow_credentials})")
 
 
 @app.on_event("startup")
