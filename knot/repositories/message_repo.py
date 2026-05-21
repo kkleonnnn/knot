@@ -96,6 +96,76 @@ def get_messages(conv_id: int, viewer_user_id: int | None = None) -> list:
     return result
 
 
+def list_messages_for_admin(
+    period_days: int = 7,
+    user_id: int | None = None,
+    agent_kind: str | None = None,
+    has_error: bool | None = None,
+    page: int = 1,
+    size: int = 50,
+) -> dict:
+    """v0.6.0.18 — admin 用户查询历史屏数据源（跨用户聚合）。
+
+    返回结构：
+      {"items": [...], "total": int, "page": int, "size": int}
+
+    items 每条含 message 字段 + actor info：
+      - id / question / agent_kind / cost_usd / latency_ms / db_error
+        / created_at / recovery_attempt / intent / confidence
+        / sql_text / explanation
+      - actor_id / actor_username / actor_display_name / actor_role
+      - conversation_id / conversation_title
+    """
+    size = min(size, 200)
+    if size < 1:
+        size = 50
+    page = max(page, 1)
+
+    conn = get_conn()
+    where = ["m.created_at >= datetime('now', '-' || ? || ' days', 'localtime')",
+             "m.agent_kind != 'legacy'"]
+    params: list = [period_days]
+    if user_id is not None:
+        where.append("c.user_id = ?")
+        params.append(user_id)
+    if agent_kind:
+        where.append("m.agent_kind = ?")
+        params.append(agent_kind)
+    if has_error is True:
+        where.append("(m.db_error IS NOT NULL AND m.db_error != '')")
+    elif has_error is False:
+        where.append("(m.db_error IS NULL OR m.db_error = '')")
+    where_clause = " AND ".join(where)
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM messages m "
+        f"JOIN conversations c ON c.id = m.conversation_id "
+        f"WHERE {where_clause}",
+        params,
+    ).fetchone()[0] or 0
+
+    offset = (page - 1) * size
+    rows = conn.execute(
+        f"SELECT m.id, m.question, m.agent_kind, m.cost_usd, m.latency_ms, "
+        f"m.db_error, m.created_at, m.recovery_attempt, m.intent, m.confidence, "
+        f"m.sql_text, m.explanation, m.conversation_id, "
+        f"c.title AS conversation_title, "
+        f"c.user_id AS actor_id, "
+        f"u.username AS actor_username, u.display_name AS actor_display_name, "
+        f"u.role AS actor_role "
+        f"FROM messages m "
+        f"JOIN conversations c ON c.id = m.conversation_id "
+        f"LEFT JOIN users u ON u.id = c.user_id "
+        f"WHERE {where_clause} "
+        f"ORDER BY m.created_at DESC "
+        f"LIMIT ? OFFSET ?",
+        params + [size, offset],
+    ).fetchall()
+    conn.close()
+    items = [dict(r) for r in rows]
+    return {"items": items, "total": total, "page": page, "size": size}
+
+
 def get_message(message_id: int) -> dict | None:
     """单条 message 查询（含 rows 解码）。
 

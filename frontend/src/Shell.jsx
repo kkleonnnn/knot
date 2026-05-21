@@ -40,7 +40,7 @@ export function AppShell({
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
             letterSpacing: '0.02em',
-          }}>v0.6.0.17</span>
+          }}>v0.6.0.18</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
@@ -99,6 +99,9 @@ export function AppShell({
                 {/* v0.6.1.0 内测指标屏 */}
                 <SideNavRow T={T} icon={<I.zap/>} label="内测指标" active={active === 'admin-metrics'}
                             onClick={() => onNavigate('admin-metrics')}/>
+                {/* v0.6.0.18 用户查询历史屏（脱敏链 2/3）*/}
+                <SideNavRow T={T} icon={<I.search/>} label="查询历史" active={active === 'admin-history'}
+                            onClick={() => onNavigate('admin-history')}/>
               </>
             )}
           </>
