@@ -83,7 +83,8 @@ LIMITS = {
 }
 # v0.6.0.2 R-PA-PB-V0.5：ResultBlock.jsx 主文件 LIMIT 460 → 280 收紧（拆分后）
 # v0.6.0.3 F-A: 280 → 290 (FeedbackBar import + 调用 ~5 行；子组件已抽出主体逻辑)
-LIMITS["frontend/src/screens/chat/ResultBlock.jsx"] = 290
+# v0.6.0.17: 290 → 295 (user prop + isAdmin 守护非 admin 隐 SQL accordion)
+LIMITS["frontend/src/screens/chat/ResultBlock.jsx"] = 295
 
 repo = Path(__file__).resolve().parent.parent
 violations = []

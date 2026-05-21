@@ -59,10 +59,12 @@ function _deriveTrace(sql, confidence) {
   return { text: parts.join('，') + '。', confidence: trustLabel };
 }
 
-export function AgentThinkingPanel({ T, events, visible }) {
+export function AgentThinkingPanel({ T, events, visible, user }) {
   // R-290 SSE 兜底：visible 控制 + events 空/异常 optional chaining
   if (!visible) return null;
   const safeEvents = Array.isArray(events) ? events : [];
+  // v0.6.0.17 — 非 admin 用户隐藏 sql_step 思考细节（含表名 / 字段名 / SQL 片段）；admin 调试保留
+  const isAdmin = user?.role === 'admin';
 
   // v0.5.39 — 4th agent T (Trace) 加入；推导信任度 from sql_planner sql + presenter confidence
   const AGENTS = [
@@ -150,7 +152,7 @@ export function AgentThinkingPanel({ T, events, visible }) {
               </div>
             )}
 
-            {key === 'sql_planner' && (isThinking || isDone) && sqlSteps.length > 0 && (
+            {key === 'sql_planner' && (isThinking || isDone) && sqlSteps.length > 0 && isAdmin && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {sqlSteps.map((s, i) => {
                   const text = (s?.thought ? s.thought.slice(0, 120) : s?.action) || '';

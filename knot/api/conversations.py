@@ -41,4 +41,10 @@ async def get_messages(conv_id: int, user=Depends(get_current_user)):
     # 修复历史消息回放时前端 ResultBlock 解构 msg.sql 拿不到值导致 ⭐ 收藏按钮缺失。
     for m in msgs:
         m["sql"] = m.get("sql_text")
+    # v0.6.0.17 — 非 admin 用户脱敏：移除 sql_text + sql 字段（防内部表名泄漏给业务用户）
+    # admin 保留完整字段用于调试 + 业务目录维护
+    if user.get("role") != "admin":
+        for m in msgs:
+            m.pop("sql_text", None)
+            m.pop("sql", None)
     return msgs

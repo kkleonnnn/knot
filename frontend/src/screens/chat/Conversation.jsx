@@ -5,7 +5,7 @@ import { ResultBlock } from './ResultBlock.jsx';
 import { ThinkingCard, AgentThinkingPanel } from './ThinkingCard.jsx';
 import { Composer } from './Composer.jsx';
 
-export function ChatConversation({ T, messages, scrollRef, loading, question, setQuestion,
+export function ChatConversation({ T, user, messages, scrollRef, loading, question, setQuestion,
                                   onSubmit, onKeyDown, onCopy, onDownload, onPin, onRetry, onFeedback,
                                   agentEvents, activeUpload, setActiveUpload, onUpload }) {
   return (
@@ -30,7 +30,7 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {msg.loading
                     ? <ThinkingCard T={T} agentEvents={agentEvents}/>
-                    : <ResultBlock T={T} msg={msg} onCopy={onCopy} onDownload={onDownload}
+                    : <ResultBlock T={T} msg={msg} user={user} onCopy={onCopy} onDownload={onDownload}
                                    onFollowup={(q) => setQuestion(q)}
                                    onPin={onPin} onRetry={onRetry} onFeedback={onFeedback}/>}
                 </div>
@@ -48,7 +48,7 @@ export function ChatConversation({ T, messages, scrollRef, loading, question, se
         </div>
       </div>
       {/* v0.5.31 #40 — Thinking panel 永显（demo grid 208/1fr/320 三列；删 showPanel 条件渲染） */}
-      <AgentThinkingPanel T={T} events={agentEvents} visible={true}/>
+      <AgentThinkingPanel T={T} user={user} events={agentEvents} visible={true}/>
     </div>
   );
 }
