@@ -49,6 +49,7 @@ LIMITS = {
     "frontend/src/screens/AdminBudgets.jsx":       380,  # v0.5.18 R-460 新增 (AdminBudgets 屏复刻)
     "frontend/src/screens/AdminRecovery.jsx":      380,  # v0.5.19 R-490 新增 (AdminRecovery 屏复刻;admin 三部曲收官)
     "frontend/src/screens/AdminMetrics.jsx":       200,  # v0.6.0.16 新增 (内测指标屏 — 4 KPI cards + period tabs + rules)
+    "frontend/src/screens/AdminQueryHistory.jsx":  250,  # v0.6.0.18 新增 (查询历史屏 — filter strip + CSS grid table + drawer detail)
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,  # v0.5.30 80→100 (suggestion icons spark/flow 扩张)
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  220,  # v0.5.39 160→220 (Trace 4th step + 信任度推导)

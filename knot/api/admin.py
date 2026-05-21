@@ -526,6 +526,49 @@ async def admin_internal_metrics(period: str = "7d", admin=Depends(require_admin
     }
 
 
+@router.get("/api/admin/query-history")
+async def admin_query_history(
+    period: str = "7d",
+    user_id: Optional[int] = None,
+    agent_kind: Optional[str] = None,
+    has_error: Optional[bool] = None,
+    page: int = 1,
+    size: int = 50,
+    admin=Depends(require_admin),
+):
+    """v0.6.0.18 — admin 用户查询历史屏数据源（脱敏链 2/3）。
+
+    全部用户的消息聚合（跨 conversation）；admin 全字段（含 sql_text）；
+    支持按 user_id / period / agent_kind / has_error 过滤。
+
+    Query params:
+      - period: '7d' / '30d' / '90d' 或裸数字天，默认 7d
+      - user_id: 仅看某用户（None=所有）
+      - agent_kind: clarifier / sql_planner / fix_sql / presenter（None=所有）
+      - has_error: true=只看错误 / false=只看成功 / None=所有
+      - page / size: 分页（size 上限 200，默认 50）
+
+    返回：{items: [...], total: int, page: int, size: int}
+    """
+    from knot.repositories import message_repo
+
+    days = 7
+    s = (period or "").strip().lower()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = max(1, int(s[:-1]))
+    elif s.isdigit():
+        days = max(1, int(s))
+
+    return message_repo.list_messages_for_admin(
+        period_days=days,
+        user_id=user_id,
+        agent_kind=agent_kind,
+        has_error=has_error,
+        page=page,
+        size=size,
+    )
+
+
 @router.get("/api/admin/audit-stats")
 async def admin_audit_stats(admin=Depends(require_admin)):
     """v0.5.40 — 审计日志聚合 stats（总记录数/今日/失败数/涉及用户）。"""
