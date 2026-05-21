@@ -1,3 +1,7 @@
+// v0.6.0.14 lint sweep：utils.jsx 是 Foundation 契约文件（v0.5.6 R-159 锁定 8 exports）—
+// hooks (useTheme/usePersist) + helpers (toast) + components (Modal/ModalHeader/Input/Select/Spinner)
+// 必须共存以维持单一 import 入口。同 Shared.jsx 决议。
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react';
 import { buildTheme, I, iconBtn } from './Shared.jsx';
 
@@ -20,7 +24,7 @@ export function usePersist(key, def) {
   });
   const setP = nv => {
     set(nv);
-    try { localStorage.setItem(key, JSON.stringify(nv)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(nv)); } catch { /* localStorage 写失败（隐私模式 / 配额）静默降级 */ }
   };
   return [v, setP];
 }

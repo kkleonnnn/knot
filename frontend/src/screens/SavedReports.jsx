@@ -45,6 +45,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount 时一次性加载
   useEffect(() => { loadReports(); }, []);
 
   async function loadReports() {
@@ -156,11 +157,11 @@ function DetailView({ T, report, onChanged }) {
   const [noteDraft, setNoteDraft] = useState(report.pin_note || '');
 
   useEffect(() => {
-    setRunResult(null);
+    setRunResult(null);  // eslint-disable-line react-hooks/set-state-in-effect
     setTitleDraft(report.title);
     setNoteDraft(report.pin_note || '');
     setEditing(false);
-  }, [report.id]);
+  }, [report.id]);  // eslint-disable-line react-hooks/exhaustive-deps -- report.id 切换时重置 4 个编辑/运行态
 
   async function handleRun() {
     setRunning(true);

@@ -30,6 +30,8 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
   // v0.6.0.13 内测反馈 #5 bug 修：只在首次 convs 加载后做一次 stale check
   // 否则 sendQuery 末尾 api.get refresh 也会触发，把刚创建的 conv 误判为 stale → 清空 activeConvId → 退回首页
   const initialStaleCheckDone = useRef(false);
+  // v0.6.0.14 lint sweep：stale check + activeConvId 切换是 SPA 路由必要副作用，整块 disable
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (initialStaleCheckDone.current) return;
     if (convs.length === 0) return;  // 等 convs 真加载（账号切换会走 App.jsx 清 activeConvId）
@@ -38,13 +40,15 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
       setMessages([]);
     }
     initialStaleCheckDone.current = true;
-  }, [convs]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [convs]);
+  // v0.6.0.14 lint sweep：loadMessages 提到 useEffect 之前消除 use-before-define + immutability 警告
+  const loadMessages = async (cid) => {
+    try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); }
+    catch { /* 加载历史失败保持当前 messages 不变（async fetch fail-soft） */ }
+  };
   useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
-
-  const loadMessages = async (cid) => {
-    try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); } catch {}
-  };
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   const newChat = async () => {
     try {
@@ -178,7 +182,8 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     }
   };
 
-  const downloadCSV = (rows, question) => {
+  // v0.6.0.14 lint sweep：question 参数保留位（TableContainer 调用方传 msg.question；本地不依赖）
+  const downloadCSV = (rows, _question) => {
     if (!rows || !rows.length) return;
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
@@ -201,6 +206,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
   };
 
   // v0.5.30 #31 — 历史对话按 updated_at 切 最近(7d内) / 更早 两组（demo home.jsx L14-35 byte-equal）
+  // v0.6.0.14 lint sweep：Date.now() 在 render 中调用是侧栏分组的边界判定（每次 re-render 边界自然推进）；
+  // 不放 useMemo 因 7 天边界自然漂移恰是预期；用 useRef 持久化会引入"陈旧 NOW"反而错误。
+  // eslint-disable-next-line react-hooks/purity -- 分组边界自然随 re-render 推进，是预期行为
   const _NOW = Date.now();
   const _WEEK_MS = 7 * 24 * 3600 * 1000;
   const recentConvs = convs.filter(c => _NOW - new Date(c.updated_at).getTime() < _WEEK_MS);
@@ -277,10 +285,10 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
 
   return (
     <AppShell T={T} user={user} active="chat" sidebarContent={sidebarContent}
-              topbarTitle={title} hideSidebarNewChat
+              topbarTitle={title}
               showConnectionPill connectionOk={dbOk}
               connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
-              onToggleTheme={onToggleTheme} onNewChat={newChat}
+              onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
       {/* v0.6.0.13 #5：仅按 activeConvId 决定（去掉 messages.length===0 — sendQuery 间隙
           messages 短暂为 [] 时 ChatEmpty 闪回首页是 bug 根因之一）*/}

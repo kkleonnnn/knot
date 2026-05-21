@@ -43,8 +43,16 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
   const [sqlOpen, setSqlOpen] = useState(false);
   const [chartType, setChartType] = useState('auto');
   const [pinned, setPinned] = useState(!!msg.is_pinned);
+  // v0.6.0.14 lint fix: budgetDismissed useState 必须在所有 early return 之前
+  // （之前 v0.4.3 加在 L125 — 违反 react-hooks/rules-of-hooks，会在 is_clarification
+  // 切换时 hook 数变化）
+  const _yearMonth = new Date().toISOString().slice(0, 7).replace('-', '');
+  const _dismissKey = `budget_warn_${msg.user_id || 'self'}_${_yearMonth}`;
+  const [budgetDismissed, setBudgetDismissed] = useState(
+    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(_dismissKey) === '1'
+  );
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
-          insight, suggested_followups, is_clarification, intent,
+          insight, suggested_followups, is_clarification,
           agent_costs, recovery_attempt,
           budget_status, budget_meta,
           error_kind, user_message, is_retryable } = msg;  // v0.4.2 分桶 + 自纠正 / v0.4.3 预算告警 / v0.4.4 错误翻译
@@ -119,19 +127,15 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
     if (r && r.ok) setPinned(true);
   };
 
-  // v0.4.3 R-20 预算 banner（sessionStorage 降噪）
-  const yearMonth = new Date().toISOString().slice(0, 7).replace('-', '');  // 'YYYYMM'
-  const dismissKey = `budget_warn_${msg.user_id || 'self'}_${yearMonth}`;
-  const [budgetDismissed, setBudgetDismissed] = useState(
-    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(dismissKey) === '1'
-  );
+  // v0.4.3 R-20 预算 banner（sessionStorage 降噪）— useState 已挪到组件顶部（v0.6.0.14 lint fix）
+  const dismissKey = _dismissKey;  // alias for handler readability
   // v0.4.4 R-28：ErrorBanner > BudgetBanner 优先级；budget_exceeded 错误时不再重复显示 BudgetBanner
   const showErrorBanner = !!(error && error_kind);
   const showBudgetBanner = budget_status && budget_status !== 'ok' && !budgetDismissed && budget_meta
                             && !(showErrorBanner && error_kind === 'budget_exceeded');
 
   const handleBudgetDismiss = () => {
-    try { sessionStorage.setItem(dismissKey, '1'); } catch {}
+    try { sessionStorage.setItem(dismissKey, '1'); } catch { /* sessionStorage 不可用时降噪状态丢失，可接受 */ }
     setBudgetDismissed(true);
   };
 
@@ -239,7 +243,7 @@ export function ResultBlock({ T, msg, onCopy, onDownload, onFollowup, onPin, onR
       {agent_costs && Object.values(agent_costs).some(b => b && (b.cost > 0 || b.tokens > 0)) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10.5, fontFamily: T.mono }}>
           {Object.entries(agent_costs)
-            .filter(([_, b]) => b && (b.cost > 0 || b.tokens > 0))
+            .filter(([, b]) => b && (b.cost > 0 || b.tokens > 0))
             .map(([kind, b]) => (
               <span key={kind} title={`${kind}: $${b.cost?.toFixed(5) || 0} / ${b.tokens || 0} tok`}
                     style={{

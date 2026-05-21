@@ -1,6 +1,9 @@
 // v0.6.0.2 F5 — ErrorBanner 子组件抽出（v0.4.4 R-28 banner 优先级 sustained）
 // v0.5.13 R-302.5 emoji 业务豁免 7 类 kind sustained — emoji 字面 byte-equal 保留
 // getErrorKindMeta helper 集中迁移到本文件
+// v0.6.0.14 lint sweep：ERROR_KIND_ICONS / ERROR_KIND_TITLES / getErrorKindMeta 与 ErrorBanner
+// 高内聚（同一错误展示语义集中维护），保持单文件不拆。
+/* eslint-disable react-refresh/only-export-components */
 export const ERROR_KIND_ICONS = {
   budget_exceeded: '🛑', config_missing: '🔧', llm_failed: '🤖',
   sql_invalid: '🚫', sql_exec_failed: '⚠️', data_unavailable: '📡', unknown: '❌',

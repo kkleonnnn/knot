@@ -10,7 +10,7 @@
 // 实际 Admin.jsx 仅 7 tabs（Budgets/Audit/Recovery 是独立页面），按内聚原则调整内部映射，
 // 4 文件总数不变。
 import { useState, useEffect, useRef } from 'react';
-import { I, iconBtn, pillBtn } from '../Shared.jsx';
+import { I, pillBtn } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -26,7 +26,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const [sources, setSources] = useState([]);
   const [models, setModels] = useState([]);
   const [knowledgeDocs, setKnowledgeDocs] = useState([]);
-  const [stats, setStats] = useState({});
+  // v0.6.0.14 lint sweep: 删 stats state — set 但从未读取，是 v0.4 时代旧 dashboard 残留
   const [modal, setModal] = useState(null);
   const [kbUploading, setKbUploading] = useState(false);
   const kbFileRef = useRef(null);
@@ -54,8 +54,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   // v0.6.1.2 F2 — tab fetch loading state；区分"加载中"与"暂无XXX"，消除误导性空提示
   const [tabLoading, setTabLoading] = useState(true);
 
-  useEffect(() => { setTab(initialTab); }, [initialTab]);
-  useEffect(() => { loadAll(); }, [tab]);
+  useEffect(() => { setTab(initialTab); }, [initialTab]);  // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { loadAll(); }, [tab]);  // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/immutability
 
   const loadAll = async () => {
     setTabLoading(true);
@@ -99,8 +99,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
           });
         }
       }
-      const s = await api.get('/api/admin/stats'); setStats(s);
-    } catch {}
+      // v0.6.0.14 lint sweep: 删 /api/admin/stats 调用 — 返回数据无消费者
+    } catch { /* tab fetch 失败保持当前数据视图，由 toast 上层处理 */ }
     finally { setTabLoading(false); }
   };
 
