@@ -116,12 +116,10 @@ def list_messages_for_admin(
       - actor_id / actor_username / actor_display_name / actor_role
       - conversation_id / conversation_title
     """
-    if size > 200:
-        size = 200
+    size = min(size, 200)
     if size < 1:
         size = 50
-    if page < 1:
-        page = 1
+    page = max(page, 1)
 
     conn = get_conn()
     where = ["m.created_at >= datetime('now', '-' || ? || ' days', 'localtime')",
