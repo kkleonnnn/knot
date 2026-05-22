@@ -9,21 +9,8 @@
 """
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def client():
-    from knot.main import app
-    return TestClient(app)
-
-
-@pytest.fixture
-def admin_token(client):
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-    assert r.status_code == 200
-    return r.json()["token"]
+# v0.6.0.20: client / admin_token fixtures 从 tests/api/conftest.py 注入
+# （含 must_change_password=0 reset；防 admin 默认账号强制改密守护误杀业务测试）
 
 
 def _auth(token):

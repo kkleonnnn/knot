@@ -10,21 +10,8 @@ require_admin 守护：非 admin 401。
 """
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def client():
-    from knot.main import app
-    return TestClient(app)
-
-
-@pytest.fixture
-def admin_token(client):
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-    assert r.status_code == 200, r.text
-    return r.json()["token"]
+# v0.6.0.20: client / admin_token fixtures 从 tests/api/conftest.py 注入
+# （含 must_change_password=0 reset；防 admin 默认账号强制改密守护误杀业务测试）
 
 
 def _auth(token):
@@ -89,18 +76,13 @@ def test_metrics_rates_in_unit_interval(client, admin_token):
     assert 0.0 <= data["clarification"]["rate"] <= 1.0
 
 
-def test_metrics_empty_dataset_safe():
+def test_metrics_empty_dataset_safe(client, admin_token):
     """空数据集不崩溃（除 0 守护）— 用全新 SQLite 验证。
 
     本测试不依赖既有 admin user / messages 数据；直接调内部 logic 路径。
+    v0.6.0.20: 改用 conftest 注入的 client + admin_token（含 must_change_password=0 reset）。
     """
-    # 直接调 router function（避开 fixture 复用的 DB）
-    # 实际上更简单：现网测试中 cutoff 极小让数据集为空
-    from knot.main import app
-    client = TestClient(app)
-    # admin login
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-    token = r.json()["token"]
+    token = admin_token
     # 0 天 → 当天 — 但 cutoff 解析最小是 1（max(1, ...)）
     # 用很大 period 反查所有数据 — rate 仍合法
     r = client.get(

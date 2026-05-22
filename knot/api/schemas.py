@@ -8,6 +8,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# v0.6.0.20 admin 强制改密
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 class CreateConversationRequest(BaseModel):
     title: str = "新对话"
 

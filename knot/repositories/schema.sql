@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
     doris_database TEXT,
     default_source_id INTEGER,
     is_active      INTEGER DEFAULT 1,
+    -- v0.6.0.20: admin 默认账号 admin/admin123 强制改密守护（1.0 公测前必清的安全债）
+    -- 0=已改 / 1=必须改密；admin seed 时设 1，change-password 端点改 0
+    must_change_password INTEGER DEFAULT 0,
     created_at     TEXT    DEFAULT (datetime('now','localtime'))
 );
 

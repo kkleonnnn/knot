@@ -59,6 +59,13 @@ def tmp_db_path(monkeypatch):
     monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
     base_mod.init_db()
 
+    # v0.6.0.20：seed admin 默认 must_change_password=1（生产环境必须改密）；
+    # 测试场景统一 reset 让业务 API 可调；专门测改密的用例在 test_force_change_password.py 自己设回 1
+    from knot.repositories import user_repo
+    admin = user_repo.get_user_by_username("admin")
+    if admin and admin.get("must_change_password"):
+        user_repo.update_user(admin["id"], must_change_password=0)
+
     yield path
 
     if os.path.exists(path):

@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timedelta
 
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from knot.repositories.user_repo import get_user_by_id
@@ -84,15 +84,29 @@ def create_token(user_id: int) -> str:
     return jwt.encode({"sub": str(user_id), "exp": exp}, _get_secret(), algorithm=JWT_ALGORITHM)
 
 
-def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)):
+# v0.6.0.20 admin 强制改密：白名单路径在 must_change_password=1 时仍放行
+# 含 me / change-password / logout 等 auth flow；其他 API 一律 403 直到改密成功
+_FORCE_CHANGE_PWD_WHITELIST_PREFIX = "/api/auth/"
+
+
+def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(creds.credentials, _get_secret(), algorithms=[JWT_ALGORITHM])
         user = get_user_by_id(int(payload["sub"]))
         if not user or not user["is_active"]:
             raise HTTPException(status_code=401, detail="用户不存在或已停用")
+        # v0.6.0.20 admin 强制改密：must_change_password=1 时仅 /api/auth/* 放行
+        # 防绕过：业务路径全 403；前端见此 status + 特定 detail 弹改密模态
+        if user.get("must_change_password") and not request.url.path.startswith(_FORCE_CHANGE_PWD_WHITELIST_PREFIX):
+            raise HTTPException(
+                status_code=403,
+                detail="must_change_password",  # 前端识别此字面 → 弹 ForceChangePassword 模态
+            )
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
+    except HTTPException:
+        raise  # 上面的 403 不被 except Exception 吞掉
     except (jwt.InvalidTokenError, Exception):
         raise HTTPException(status_code=401, detail="无效的登录凭证")
 
