@@ -41,6 +41,10 @@ def init_db():
         ("openrouter_api_key",    "TEXT DEFAULT ''"),
         ("embedding_api_key",     "TEXT DEFAULT ''"),
         ("agent_model_config",    "TEXT DEFAULT NULL"),
+        # v0.6.0.20: admin 默认账号 admin/admin123 强制改密守护（1.0 公测前必清的安全债）
+        # SQLite bool surrogate: 0=已改 / 1=必须改密；seed 时设 1，change-password 端点改 0
+        # 老数据列 ALTER 后默认 0（已存在的用户视为已正常配置，无须强制改密）
+        ("must_change_password",  "INTEGER DEFAULT 0"),
     ]
     existing = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
     for col, definition in new_cols:
@@ -97,9 +101,11 @@ def init_db():
 
         from knot.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
         seed_pwd = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
+        # v0.6.0.20: seed admin 必须改密（must_change_password=1）— 默认密码 admin123 是已知公开值
+        # 首登 login → must_change_password=1 → 前端 ForceChangePassword 模态 → POST /api/auth/change-password → 0
         conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, role, doris_host, doris_port) "
-            "VALUES (?, ?, '管理员', 'admin', ?, ?)",
+            "INSERT INTO users (username, password_hash, display_name, role, doris_host, doris_port, must_change_password) "
+            "VALUES (?, ?, '管理员', 'admin', ?, ?, 1)",
             ("admin", seed_pwd, DEFAULT_DB_HOST, DEFAULT_DB_PORT),
         )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")

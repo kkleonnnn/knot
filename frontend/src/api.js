@@ -25,4 +25,7 @@ export const api = {
   del:   (p)    => api.req('DELETE', p),
   login: (u, p) => api.req('POST', '/api/auth/login', { username: u, password: p }),
   me:    ()     => api.get('/api/auth/me'),
+  // v0.6.0.20 admin 默认账号强制改密
+  changePassword: (oldPw, newPw) => api.req('POST', '/api/auth/change-password',
+    { old_password: oldPw, new_password: newPw }),
 };

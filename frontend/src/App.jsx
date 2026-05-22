@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTheme, usePersist, Spinner } from './utils.jsx';
 import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
+import { ForceChangePasswordScreen } from './screens/ForceChangePassword.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
 import { SavedReportsScreen } from './screens/SavedReports.jsx';
@@ -77,6 +78,11 @@ export default function App() {
   }
 
   if (!user) return <LoginScreen T={T} onLogin={handleLogin} onToggleTheme={toggleTheme}/>;
+  // v0.6.0.20 admin 默认账号强制改密守护：has token + must_change_password=1 → 强制改密屏
+  // 改密成功后 onChanged({...user, must_change_password: false}) → 解禁主应用
+  if (user.must_change_password) {
+    return <ForceChangePasswordScreen T={T} user={user} onChanged={setUser} onToggleTheme={toggleTheme}/>;
+  }
 
   const commonProps = { T, user, onToggleTheme: toggleTheme, onNavigate: navigate, onLogout: handleLogout,
                         convs, setConvs, dbOk, sourceCount };
