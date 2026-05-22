@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from knot import config as cfg
 from knot.adapters.db import doris as db_connector
+from knot.api._rate_limit import enforce_query_rate_limit
 from knot.api.deps import get_current_user
 from knot.api.schemas import QueryRequest
 from knot.core.logging_setup import logger
@@ -82,6 +83,8 @@ def _check_conv_owner(conv_id: int, user_id: int) -> None:
 
 @router.post("/api/conversations/{conv_id}/query")
 async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user)):
+    # v0.6.0.24 — query rate limit 30/min/user 防 LLM cost burning
+    enforce_query_rate_limit(user["id"])
     _check_conv_owner(conv_id, user["id"])
     engine, schema_text = _get_engine_and_schema(req, user)
     api_key, openrouter_api_key, model_key, semantic, history = _resolve_keys_and_semantic(req, user, conv_id)
@@ -153,6 +156,8 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
 
 @router.post("/api/conversations/{conv_id}/query-stream")
 async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current_user)):
+    # v0.6.0.24 — query rate limit 30/min/user 防 LLM cost burning（SSE 路径同 sync）
+    enforce_query_rate_limit(user["id"])
     _check_conv_owner(conv_id, user["id"])
     engine, schema_text = _get_engine_and_schema(req, user)
     api_key, openrouter_api_key, model_key, semantic, history = _resolve_keys_and_semantic(req, user, conv_id)
