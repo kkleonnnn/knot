@@ -5,6 +5,11 @@
 **KNOT 当前处于 v0.6.0 内测期**（R-PA-5 4 周窗口 2026-05-15 → 2026-06-12）。
 本项目尚未公开发布稳定版本（MAJOR=0），生产部署需自行评估风险。
 
+## 相关文档
+
+- [`docs/SLA.md`](docs/SLA.md) — Service Level Expectations（生命周期 / 备份 / 性能 / OSS 治理）
+- [`docs/PRIVACY.md`](docs/PRIVACY.md) — Privacy & Data Processing（GDPR-lite 数据透明性）
+
 ## 当前安全姿态
 
 | 维度 | 实现 |
@@ -14,8 +19,9 @@
 | JWT 签名 | `JWT_SECRET` env fail-fast（≥32 字符；v0.6.0.8 MUST-1）|
 | SQL 注入防御 | sqlglot AST 校验 + DB grants 探测 + 6 层笛卡尔积防御 |
 | 审计日志 | INSERT-only + 9 类 mutation + PII 三层防御 + 自动 purge 7 天阈值 |
-| 数据脱敏 | audit 日志 redacted；查询结果当前不脱敏（v0.6.1.x 计划）|
-| 2FA | 暂未支持（v0.6.2.0 计划 TOTP）|
+| 数据脱敏 | audit 日志 redacted；非 admin sql_text strip + 业务表名 → 业务别名（v0.6.0.17~19 脱敏链 3 部曲完成）|
+| Rate limit | login 10/min/IP + change_pwd 5/min/IP + query 30/min/user（v0.6.0.23~24）|
+| 2FA | 暂未支持（v0.6.2.0 计划 TOTP；启动闸门 R-PA-8 自验已完成 v0.6.0.22）|
 | CORS | env 配置 `KNOT_CORS_ORIGINS`（v0.6.0.15 起；未设兜底 `*` + warning）|
 
 ## 已知限制（公开声明）
@@ -23,9 +29,8 @@
 - **MAJOR=0 内测阶段**：不承诺生产 SLA / 不签订安全责任书
 - **默认凭据**：首次启动 `admin/admin123` — 必须修改，否则任何能访问端口的人都是 admin
 - **CORS 默认开放**：dev 模式 `*` 兜底；生产必须显式配置 `KNOT_CORS_ORIGINS`
-- **查询结果未脱敏**：返回前端的 SQL 结果包含原始表名 / 字段名（v0.6.1.x 治理）
-- **无 rate limiting**：依赖反向代理 / WAF 防爆破
 - **JWT 无 refresh token**：当前 access token 7 天有效；登出仅前端清 localStorage（无服务端撤销）
+- **rate limit in-memory**：当前 per-worker；多 replica 时各自计数（v0.7+ 评估 Redis backend）
 
 ## 漏洞报告
 
