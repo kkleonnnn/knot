@@ -4,6 +4,12 @@
 LOCKED §3 R-PA-5 + R-PA-8 联合守护：R-PA-5 内测期（Day 0~28）严禁 Phase B 准备性
 commit。本工具扫 main 分支（默认）或当前工作目录字面，命中即 exit 1。
 
+v0.6.0.22 加固（Codex §APPENDIX D R-PA-8 自验 gate — v0.6.2.0 启动闸门之一）：
+- 加 --self-test mode：构造合成 positive/negative 用例验证检测函数行为
+- EXCLUDE_RE 扩 docs/plans/phase-b-*.md（豁免合法 phase-b-* 命名 docs）
+- PHASE_B_DOC_GLOBS 扩 v0.6.4-* ~ v0.6.9-*（防 PATCH 号跳跃绕过）
+- 加单元测试：tests/scripts/test_check_phase_b_leakage.py
+
 检测对象（字面分割构造避免自指环 — R-PA-14）：
 1. 文件存在：docs/plans/v0.6.1-*.md / docs/plans/v0.7.x-*.md（Phase B 规划文档落地）
 2. 字面命中：
@@ -57,9 +63,16 @@ PHASE_B_SCHEMA_COLUMNS = [
 # Phase B 准备性文档文件 glob（落地即触发 alert）
 # v0.6.1 R-PA-PB-7：v0.6.1-* 从 PHASE_B_DOC_GLOBS 移除（已合法启动），
 #   保留 v0.6.2+ / v0.7+ 继续防御后续准备性内容
+# v0.6.0.22 加固：扩 v0.6.4 ~ v0.6.9（防 PATCH 号跳跃绕过 — 攻击者可故意跳号）
 PHASE_B_DOC_GLOBS = [
     "docs/plans/v0.6.2-*.md",
     "docs/plans/v0.6.3-*.md",
+    "docs/plans/v0.6.4-*.md",
+    "docs/plans/v0.6.5-*.md",
+    "docs/plans/v0.6.6-*.md",
+    "docs/plans/v0.6.7-*.md",
+    "docs/plans/v0.6.8-*.md",
+    "docs/plans/v0.6.9-*.md",
     "docs/plans/v0.7.*-*.md",
 ]
 
@@ -78,18 +91,20 @@ INCLUDE_GLOBS = [
 
 # 豁免：治理档案 + 提案草案 + 本工具 + 自动重建 + 用户文档（CLAUDE.md 含路线图引用 OOS）
 # v0.6.1 R-PA-PB-7：v0.6.1 已正式启动（Phase B 决议 B 修订版首个 PATCH），LOCKED 手册不属准备性内容
+# v0.6.0.22 加固：扩 phase-b-* 通配豁免（早评估 / locked / 提案等合法 phase-b-* 命名 docs）
+#   + 扩 v0.6.0.{3..22}-* LOCKED 手册显式（防未来加号时漏豁免）
 EXCLUDE_RE = re.compile(
     r"docs/plans/v0\.4\.|"
     r"docs/plans/v0\.5\.|"
     r"docs/plans/v0\.6\.0-|"
-    r"docs/plans/v0\.6\.0\.1-|"
-    r"docs/plans/v0\.6\.0\.2-|"
+    r"docs/plans/v0\.6\.0\.\d+-|"      # v0.6.0.x LOCKED 手册全豁免（hotfix / micro PATCH）
     r"docs/plans/v0\.6\.1-|"           # R-PA-PB-7（v0.6.1 已正式启动）
-    r"docs/plans/phase-b-proposal-draft\.md|"
+    r"docs/plans/phase-b-|"            # phase-b-proposal-draft / phase-b-early-review-* 等
     r"CHANGELOG\.md|"
     r"CLAUDE\.md|"
     r"README\.md|"
     r"scripts/check_phase_b_leakage\.py|"
+    r"tests/scripts/test_check_phase_b_leakage\.py|"   # 守护测试自身豁免
     r"knot/static/assets/"
 )
 
@@ -129,11 +144,137 @@ def grep_phase_b_literals(strict: bool) -> list[tuple[str, str]]:
     return hits
 
 
+def run_self_test() -> int:
+    """v0.6.0.22 自验 mode — 构造合成 positive/negative 用例验证检测逻辑。
+
+    Codex §APPENDIX D R-PA-8 自验 gate：v0.6.2.0 MINOR 滚动前必须证明本工具
+    实际工作（不只是文档约束）。返 0 = 自验 PASS / 1 = FAIL。
+    """
+    import tempfile
+
+    print("R-PA-8 自验 mode：构造合成用例验证检测逻辑...")
+
+    # 临时仓库结构（不污染真实仓库）
+    cases_passed = 0
+    cases_failed = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+
+        # ─── Positive 用例（必须命中） ────────────────────────────────
+        # P1: Phase B 文档 glob 命中 (v0.6.2-foo.md)
+        (tmpdir / "docs" / "plans").mkdir(parents=True)
+        synth_v062 = tmpdir / "docs" / "plans" / "v0.6.2-synthetic-leak.md"
+        synth_v062.write_text("# synthetic Phase B PATCH leak")
+        # 切到 tmp 模拟扫描
+        global REPO
+        original_repo = REPO
+        REPO = tmpdir
+        try:
+            doc_hits = find_phase_b_doc_files()
+            if any(str(h) == "docs/plans/v0.6.2-synthetic-leak.md" for h in doc_hits):
+                cases_passed += 1
+                print("  ✅ P1: v0.6.2-*.md 文档 glob 命中")
+            else:
+                cases_failed.append("P1: v0.6.2-*.md 文档 glob 应命中但未命中")
+
+            # P2: v0.6.5-*.md (扩展 glob 内)
+            synth_v065 = tmpdir / "docs" / "plans" / "v0.6.5-future.md"
+            synth_v065.write_text("# synthetic")
+            doc_hits2 = find_phase_b_doc_files()
+            if any(str(h) == "docs/plans/v0.6.5-future.md" for h in doc_hits2):
+                cases_passed += 1
+                print("  ✅ P2: v0.6.5-*.md 扩展 glob 命中（v0.6.0.22 加固）")
+            else:
+                cases_failed.append("P2: v0.6.5-*.md 应命中但未命中（v0.6.0.22 扩展 glob 失效）")
+
+            # P3: v0.7.0-*.md 命中
+            synth_v07 = tmpdir / "docs" / "plans" / "v0.7.0-major.md"
+            synth_v07.write_text("# synthetic")
+            doc_hits3 = find_phase_b_doc_files()
+            if any(str(h) == "docs/plans/v0.7.0-major.md" for h in doc_hits3):
+                cases_passed += 1
+                print("  ✅ P3: v0.7.*-*.md 命中")
+            else:
+                cases_failed.append("P3: v0.7.0-*.md 应命中但未命中")
+
+            # ─── Negative 用例（不能命中 — 豁免）─────────────────────
+            # N1: phase-b-proposal-draft.md 豁免
+            exempt1 = tmpdir / "docs" / "plans" / "phase-b-proposal-draft.md"
+            exempt1.write_text("# Phase B proposal — exempt by name")
+            # phase-b-* 不属 v0.6.x-*.md 或 v0.7.x-*.md glob，本来就不会命中
+            # 这里验证 EXCLUDE_RE 对 phase-b-* 字面豁免
+            if not EXCLUDE_RE.search("docs/plans/phase-b-proposal-draft.md"):
+                cases_failed.append("N1: phase-b-proposal-draft.md 应被 EXCLUDE_RE 豁免")
+            else:
+                cases_passed += 1
+                print("  ✅ N1: phase-b-proposal-draft.md 豁免（EXCLUDE_RE）")
+
+            # N2: phase-b-early-review-*.md 豁免（v0.6.0.22 新加）
+            if not EXCLUDE_RE.search("docs/plans/phase-b-early-review-2026-05-21.md"):
+                cases_failed.append("N2: phase-b-early-review-*.md 应被 EXCLUDE_RE 豁免（v0.6.0.22 新加）")
+            else:
+                cases_passed += 1
+                print("  ✅ N2: phase-b-early-review-*.md 豁免（v0.6.0.22 通配豁免）")
+
+            # N3: v0.6.0.19-locked.md 豁免（hotfix LOCKED 手册）
+            if not EXCLUDE_RE.search("docs/plans/v0.6.0.19-desensitize-3-3-locked.md"):
+                cases_failed.append("N3: v0.6.0.19-*.md 应被 EXCLUDE_RE 豁免")
+            else:
+                cases_passed += 1
+                print("  ✅ N3: v0.6.0.x-*.md hotfix LOCKED 手册豁免")
+
+            # N4: CLAUDE.md 豁免（路线图引用）
+            if not EXCLUDE_RE.search("CLAUDE.md"):
+                cases_failed.append("N4: CLAUDE.md 应被 EXCLUDE_RE 豁免")
+            else:
+                cases_passed += 1
+                print("  ✅ N4: CLAUDE.md 豁免")
+
+            # N5: 本工具自身豁免
+            if not EXCLUDE_RE.search("scripts/check_phase_b_leakage.py"):
+                cases_failed.append("N5: 本工具自身应被 EXCLUDE_RE 豁免（R-PA-14 自指环）")
+            else:
+                cases_passed += 1
+                print("  ✅ N5: 本工具自身豁免（R-PA-14 自指环）")
+
+        finally:
+            REPO = original_repo
+
+    # ─── 字面 PATCH 边界用例（非 tmpdir，验证 PHASE_B_LITERAL_TERMS） ────
+    # 必须能拆出原字面：multi-tenant / logicform / semantic_layer_v2 等
+    expected_literals = {"multi-tenant", "logicform", "semantic_layer_v2",
+                         "phase_b_started", "phase-b-started"}
+    actual_literals = set(PHASE_B_LITERAL_TERMS)
+    if actual_literals != expected_literals:
+        cases_failed.append(
+            f"P4: PHASE_B_LITERAL_TERMS 应为 {expected_literals}，实际 {actual_literals}"
+        )
+    else:
+        cases_passed += 1
+        print("  ✅ P4: PHASE_B_LITERAL_TERMS 5 项字面齐全")
+
+    print()
+    if cases_failed:
+        print(f"R-PA-8 自验 FAIL — {len(cases_failed)} 用例失败：")
+        for f in cases_failed:
+            print(f"   - {f}")
+        return 1
+
+    print(f"R-PA-8 自验 PASS — {cases_passed}/{cases_passed} 用例通过 (Codex §APPENDIX D gate)")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="R-PA-8 内测期 Phase B 准备性内容守护")
     parser.add_argument("--strict", action="store_true",
                         help="严格模式：任何命中都 exit 1（默认行为相同）")
+    parser.add_argument("--self-test", action="store_true",
+                        help="自验模式：构造合成用例验证检测逻辑（v0.6.0.22 + Codex §APPENDIX D gate）")
     args = parser.parse_args()
+
+    if args.self_test:
+        return run_self_test()
 
     print("R-PA-8 内测期 Phase B 准备性守护扫描...")
     print(f"  REPO: {REPO}")
