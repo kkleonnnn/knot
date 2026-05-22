@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.0.20 · R-PA-5 内测期 · admin 默认账号强制改密 middleware（1.0 公测前必清的安全债 — 守护者 §A-II 漏 1）
+> **当前版本** v0.6.0.21 · R-PA-5 内测期 · schema 表数上限 20 → 40（扩大业务表覆盖；OpenRouter Claude 200k 上下文充裕）
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.0.20）
+## 技术栈（v0.6.0.21）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

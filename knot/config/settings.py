@@ -77,7 +77,9 @@ DEFAULT_DB_DATABASE = os.getenv("DB_DATABASE", "")
 
 # ── Safety limits ──────────────────────────────────────────────────────
 MAX_RESULT_ROWS       = 500
-MAX_TABLES_IN_SCHEMA  = 20
+# v0.6.0.21 — schema cap 20 → 40（资深 announce 扩大业务表覆盖；schema prompt
+# token 成本~翻倍但 OpenRouter Claude 200k 上下文充裕；运维仍可用 env 进一步调）
+MAX_TABLES_IN_SCHEMA  = 40
 MAX_TOKENS_PER_QUERY  = 1024
 SQL_TEMPERATURE       = 0
 MAX_RETRY_COUNT       = 2
@@ -88,7 +90,8 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(_project_root / "knot" / "data"
 
 # ── Feature flags ──────────────────────────────────────────────────────
 AGENT_MAX_STEPS          = int(os.getenv("AGENT_MAX_STEPS",          "5"))
-SCHEMA_FILTER_MAX_TABLES = int(os.getenv("SCHEMA_FILTER_MAX_TABLES", "25"))
+# v0.6.0.21 — RAG schema filter 默认 25 → 40，与 MAX_TABLES_IN_SCHEMA 对齐
+SCHEMA_FILTER_MAX_TABLES = int(os.getenv("SCHEMA_FILTER_MAX_TABLES", "40"))
 RAG_TOP_K                = int(os.getenv("RAG_TOP_K",                "5"))
 FEW_SHOT_MAX_EXAMPLES    = int(os.getenv("FEW_SHOT_MAX_EXAMPLES",    "4"))
 STRICT_READONLY_GRANTS   = os.getenv("STRICT_READONLY_GRANTS", "0") == "1"
