@@ -107,6 +107,43 @@ Agent 的生命周期与 **MINOR 版本号**绑定，不与 PATCH 绑定：
 
 PATCH 内（v0.5.0 → v0.5.1 → …）**不切换角色**，仍由同一执行者完成所有 PATCH 的三阶段循环。
 
+#### R-LP-v3-EX-1：方向决策 Stage 2 跳过例外条款（v0.6.0.19 立约首例）
+
+**触发**：v3 三阶段评审中，若 PATCH 性质为**方向选择 / 路线评估类决策**（非代码落地），
+Stage 2 辅助 AI 初审的 redline 维度（破契约 / 命名 / 副作用）对决策无边际价值，
+此时**允许跳过 Stage 2**，但必须满足以下条件：
+
+**适用条件（3 条同时满足）**：
+1. PATCH 涉及 **0 行业务代码** + **0 红线新立**（纯决策类 docs）
+2. 守护者 Stage 3 终审主动认可"跳过 Stage 2 合理"
+3. 资深架构师在拍板前已明示知悉本例外
+
+**强制替代（3 条护栏）**：
+1. **30 分钟等效初审** — 由资深架构师召集独立第三方（Codex / 资深工程师 AI / 不同
+   Claude lineage 的 subagent）做 ≤ 500 字红线评审
+2. **真独立第三方** — 等效初审者不得是同一会话内 Claude lineage（否则等于自审）
+3. **累计触发 ≥3 次** — 强制召集**远古守护者**复核滥用倾向，防例外条款被泛化滥用
+
+**首例引用**：`docs/plans/phase-b-early-review-2026-05-21.md`（Phase B 提前评估，
+v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent subagent 等效初审）
+
+**治理意义**：本条款由 v0.5 守护者 §VI 提出 + Codex 等效初审 C-5 强化（3 护栏）+ 资深 2026-05-22 拍板立约。
+属 Loop Protocol v3 首次明示的"方向决策 Stage 2 可由等效初审替代"例外。
+
+#### R-PA-PB-V1：Phase B UI 视觉延续性立约（v0.6.0.19 立约）
+
+**触发**：v0.5 守护者 2026-05-14 Phase B 评估意见 §7 提议；v0.6.0.19 正式落地立约。
+
+**内容**：Phase B 及之后所有 PATCH（含 v0.6.2.0 TOTP enroll / v0.7.x 5 层语义等）
+涉及 UI 改动时，必须严守 v0.5.x 锁定的视觉设计语言：
+- OKLCH 单色系统（buildTheme 25 字段）
+- I icon library（36 names）
+- brandSoft 8% inset + borderLeft 3px 25% 设计语言铁律
+- HarmonyOS Sans SC / PingFang SC / JetBrains Mono 字体
+- 18 屏 byte-equal 守护（除当前 PATCH 目标屏外 git diff 0 行）
+
+**违反代价**：破 R-PA-PB-V1 = 视觉一致性回退；需重做并补补丁说明。
+
 #### v3 协议施行历史
 
 - v2（v0.4.x 期间生效）：3 角色（执行者 + 守护者 + 辅助 AI 初审组）
@@ -291,6 +328,19 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 分支策略：`main`（默认分支 + 集成 + tag；PR squash merge 直入）/ `feat|fix|chore|hotfix/*`（开发分支）
 
 > **历史**：早期协议设计 `main` 仅打 tag / `develop` 集成。实际自 v0.3.0 起所有 PR 都直合 `main`，`develop` 事实废弃停留 v0.2.4（落后 9+ PATCH）。v0.5.1 后正式将 GitHub default branch 切到 `main`、CLAUDE.md 同步现状；`develop` 分支保留作 v0.2.4 历史快照不再使用。
+
+### v0.6.0.x → v0.6.2.0 版本号教训（v0.6.0.19 立约归档）
+
+**症状**：2026-05-21 一晚连续发 v0.6.0.14 ~ v0.6.0.18 共 5 个 PATCH，其中 v0.6.0.16（内测指标屏 = 新 admin 屏 + 新 endpoint + 新 schema 列）+ v0.6.0.18（admin 用户查询历史屏 = 同上）按 §MINOR 规则**应是 MINOR 级别**（"阶段性大节点"），实际被打成 PATCH。
+
+**根因**：v0.6.1 tag 早于 v0.6.0.13 存在（指向 Phase B 时间语义引擎 #78），执行者把 tag 当 main HEAD 状态，为避免命名冲突线性退到 v0.6.0.x。
+
+**纪律修正**：
+- **MINOR**：新顶层屏 / 新 endpoint + schema 改动 / 业务能力大节点 → MINOR
+- **PATCH**：bug fix / lint 治理 / docs / 配置 / 微调 → PATCH
+- **MAJOR**：内测 → 公测 / 公测 → 生产 / 业务模型重构 → MAJOR
+- **跳号原则**：若 MINOR 数被 tag 占用（如 v0.6.1）→ **跳过该数字**，下一 MINOR 直接用 v0.6.2.0
+- **不动历史**：已 merge 的 PATCH 号不追溯调整（避免 force-push 风险 + 历史值得保留反映"中间过程"）
 
 ## 已知技术债
 
