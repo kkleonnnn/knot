@@ -36,6 +36,7 @@ LIMITS = {
     "knot/services/llm_prompt_builder.py":         250,
     "knot/services/_llm_invoke.py":                250,
     "knot/services/query_steps.py":                250,
+    "knot/services/desensitize.py":                150,  # v0.6.0.19 新增 (脱敏链 3/3 后端模块)
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
     # 2 主文件
     "frontend/src/screens/Chat.jsx":  350,
