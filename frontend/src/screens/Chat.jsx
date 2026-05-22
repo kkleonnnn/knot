@@ -57,6 +57,8 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
       justCreatedConvId.current = null;
       return;
     }
+    // v0.6.0.27 — conv 切换时清掉上次 thinking events（防 AgentThinkingPanel 残留）
+    setAgentEvents([]);
     if (activeConvId) loadMessages(activeConvId); else setMessages([]);
   }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
@@ -305,9 +307,11 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
               connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
               onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
-      {/* v0.6.0.13 #5：仅按 activeConvId 决定（去掉 messages.length===0 — sendQuery 间隙
-          messages 短暂为 [] 时 ChatEmpty 闪回首页是 bug 根因之一）*/}
-      {!activeConvId
+      {/* v0.6.0.13 #5：仅按 activeConvId 决定，防 sendQuery 间隙 messages=[] 闪回首页
+          v0.6.0.27：恢复 messages.length===0 + !loading 兜底 — 新建对话 / 切换到空 conv
+          时显示 ChatEmpty hero（避免空白主区域）。!loading 守护防 sendQuery 间隙
+          ——React 18 批 setState 同步发，setLoading(true) 已 batch 进同一 render，不闪 */}
+      {!activeConvId || (messages.length === 0 && !loading)
         ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
                      hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
