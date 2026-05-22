@@ -67,6 +67,7 @@ LIMITS = {
     "frontend/src/Shell.jsx":                      220,
     # ── v0.6.0.1 LOCKED §1 ─────────────────────────────────────
     "scripts/check_phase_b_leakage.py":            350,  # R-PA-8 守护工具 (v0.6.0.22 加 --self-test mode)
+    "knot/api/_rate_limit.py":                     150,  # v0.6.0.23 in-memory rate limiter
     "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试
     # ── v0.6.0.2 LOCKED §1 — ResultBlock 6 子组件拆分（R-341 偿还）──────────
     "frontend/src/screens/chat/ResultBlock/MetricCard.jsx":      50,

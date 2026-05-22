@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot import config as cfg
 from knot.api._audit_helpers import audit
+from knot.api._rate_limit import rate_limit_change_pwd, rate_limit_login
 from knot.api.deps import create_token, get_current_user
 from knot.api.schemas import ChangePasswordRequest, LoginRequest
 from knot.services import auth_service
@@ -9,7 +10,9 @@ from knot.services import auth_service
 router = APIRouter()
 
 
-@router.post("/api/auth/login")
+# v0.6.0.23 — login rate limit（10 次/60s/IP）防字典攻击；与 v0.6.0.20 admin
+# 强制改密互补：强制改密把默认密码漏洞补上，rate limit 把暴力破解关口收窄
+@router.post("/api/auth/login", dependencies=[Depends(rate_limit_login)])
 async def login(req: LoginRequest, request: Request):
     username = req.username.strip()
     user = auth_service.authenticate(username, req.password)
@@ -47,7 +50,8 @@ async def me(user=Depends(get_current_user)):
     }
 
 
-@router.post("/api/auth/change-password")
+@router.post("/api/auth/change-password",
+             dependencies=[Depends(rate_limit_change_pwd)])
 async def change_password(req: ChangePasswordRequest, request: Request,
                           user=Depends(get_current_user)):
     """v0.6.0.20 修改密码 + 解除 must_change_password 守护。
