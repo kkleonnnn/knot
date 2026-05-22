@@ -36,6 +36,12 @@ def _master_key_for_tests(monkeypatch):
         get_crypto_adapter.cache_clear()
     except ImportError:
         pass  # commit #1 之前 crypto 模块还没建
+    # v0.6.0.23 — 重置 rate limiter（测试 client 共享同 IP；防 login 限流跨测试污染）
+    try:
+        from knot.api._rate_limit import _reset_for_tests
+        _reset_for_tests()
+    except ImportError:
+        pass  # v0.6.0.23 之前 _rate_limit 模块还没建
     yield
     try:
         from knot.core.crypto.fernet import get_crypto_adapter
