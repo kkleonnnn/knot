@@ -47,4 +47,10 @@ async def get_messages(conv_id: int, user=Depends(get_current_user)):
         for m in msgs:
             m.pop("sql_text", None)
             m.pop("sql", None)
+        # v0.6.0.19 — 脱敏链 3/3：explanation + db_error 文本中的业务表全名 → 业务别名
+        # （reverse catalog.lexicon → {table_full_name: business_alias}）
+        # 延迟 import 避免启动期循环（services → api 单向依赖；本调用是 api 内层）
+        from knot.services.agents import catalog as catalog_loader
+        from knot.services.desensitize import desensitize_messages_for_non_admin
+        desensitize_messages_for_non_admin(msgs, catalog_loader.LEXICON)
     return msgs
