@@ -25,7 +25,7 @@ LIMITS = {
     "knot/services/agents/sql_planner.py": 350,
     "knot/services/llm_client.py":         300,
     "knot/services/agents/orchestrator.py": 220,
-    "knot/api/query.py":                   315,  # v0.5.2 SSE 样板 310 → v0.6.0.16 +5（latency_ms 跟踪 3 save_message 调用）
+    "knot/api/query.py":                   320,  # v0.6.0.24 +5 (query rate limit 注入 2 endpoint)
     # 9 个新建模块（v0.5.2）
     "knot/services/agents/sql_planner_prompts.py": 250,
     "knot/services/agents/sql_planner_tools.py":   250,

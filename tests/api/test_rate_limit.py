@@ -110,6 +110,33 @@ def test_change_pwd_over_limit_returns_429(client):
     assert "Retry-After" in r.headers
 
 
+# ─── v0.6.0.24 query rate limit ────────────────────────────────────────
+
+
+def test_query_rate_limit_per_user_independent():
+    """v0.6.0.24 — query 限流按 user_id（不是 IP）；不同 user 独立 bucket。"""
+    from fastapi import HTTPException
+
+    from knot.api._rate_limit import _reset_for_tests, enforce_query_rate_limit
+    _reset_for_tests()
+
+    # user 1 打满 30 次（30 次/60s 上限）
+    for _ in range(30):
+        enforce_query_rate_limit(user_id=1)  # 不抛 = 通过
+
+    # user 1 第 31 次 → 429
+    with pytest.raises(HTTPException) as exc_info:
+        enforce_query_rate_limit(user_id=1)
+    assert exc_info.value.status_code == 429
+    assert "Retry-After" in exc_info.value.headers
+    detail = exc_info.value.detail
+    assert "zh" in detail and "30 次" in detail["zh"]
+
+    # user 2 第 1 次 → 通过（不受 user 1 影响）
+    enforce_query_rate_limit(user_id=2)
+    _reset_for_tests()
+
+
 # ─── 内存上限守护 ──────────────────────────────────────────────────────
 
 

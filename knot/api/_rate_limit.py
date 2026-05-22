@@ -25,9 +25,12 @@ from fastapi import HTTPException, Request
 # 默认限流配置：(limit, window_sec)
 # login: 10 次 / 60s / IP — 防字典攻击（admin/admin123 + v0.6.0.20 强制改密兜底）
 # change_pwd: 5 次 / 60s / IP — 改密接口更严
+# query: 30 次 / 60s / user_id — 防 LLM cost burning（v0.6.0.24 加；按 user 维度
+# 而非 IP，认证后用户身份唯一；DAU 5-20 内测期 1 query/2s 已经很激进）
 _DEFAULT_LIMITS = {
     "login": (10, 60),
     "change_pwd": (5, 60),
+    "query": (30, 60),
 }
 
 # 内存有上限守护：单个 key bucket 最大长度 = limit + 1（自然限制）
@@ -104,6 +107,26 @@ def rate_limit_login(request: Request) -> None:
 def rate_limit_change_pwd(request: Request) -> None:
     """改密限流：5 次/60s/IP（严于登录）。"""
     _enforce(request, "change_pwd")
+
+
+def enforce_query_rate_limit(user_id: int) -> None:
+    """v0.6.0.24 query 限流：30 次/60s/user_id（防 LLM cost burning）。
+
+    本函数不走 Depends — 由 query.py route 在拿到 user 后显式调用。
+    避免 _rate_limit.py → knot.api.deps 循环 import（_rate_limit 是底层）。
+    """
+    limit, window = _DEFAULT_LIMITS["query"]
+    key = f"query:{user_id}"
+    ok, retry_after = _bucket.check(key, limit, window)
+    if not ok:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "ja": "Query rate limit exceeded; please wait and retry.",
+                "zh": f"查询过于频繁（30 次/分钟上限），请 {int(retry_after) + 1} 秒后再试",
+            },
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
 
 
 # ─── 测试辅助 — 重置桶（仅 tests 用） ───────────────────────────────────
