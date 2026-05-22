@@ -17,7 +17,8 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client():
+def client(tmp_db_path):  # noqa: ARG001 — tmp_db_path 用于创建带 admin 的隔离 SQLite
+    """TestClient + tmp_db_path 确保 users 表存在（CI 无预存 DB）。"""
     from knot.api._rate_limit import _reset_for_tests
     from knot.main import app
     _reset_for_tests()
