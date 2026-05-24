@@ -13,6 +13,7 @@
 动态读取（不要 `from catalog_loader import LEXICON` 一次性快照），admin 修改后调用
 `catalog_loader.reload()` 即可在不重启进程的情况下生效。
 """
+from __future__ import annotations  # Python 3.9 兼容 dict | None type hint
 
 import importlib
 import importlib.util
@@ -31,7 +32,9 @@ def _load_from_files() -> tuple:
     source_tag ∈ real/example/empty。
     v0.4.1.1 R-S3：老 catalog 文件无 RELATIONS 常量时 getattr 返 [] 不抛 AttributeError。"""
     try:
-        m = importlib.import_module("_local_catalog")
+        # v0.6.1.4: 修旧 bug — top-level "_local_catalog" 永远 import 不到（不在 PYTHONPATH）
+        # 用 full module path 才能命中 knot/services/agents/_local_catalog.py
+        m = importlib.import_module("knot.services.agents._local_catalog")
         return (
             getattr(m, "LEXICON", {}) or {},
             getattr(m, "TABLES", []) or [],
@@ -105,21 +108,72 @@ def _load_from_db() -> tuple:
     return lex, tables, rules, relations, found
 
 
+def _merge_lexicons(file_lex: dict, db_lex: dict) -> dict:
+    """v0.6.1.4: 智能合并 file + DB lexicon。
+
+    同一关键词存在两边时，合并 value list（保留两边表）；
+    由 pick_http_route entity-aware 决定优先级。
+    """
+    if not file_lex and not db_lex:
+        return {}
+    if not file_lex:
+        return dict(db_lex)
+    if not db_lex:
+        return dict(file_lex)
+    merged: dict = dict(db_lex)
+    for key, file_val in file_lex.items():
+        if not isinstance(file_val, list):
+            file_val = [file_val] if file_val else []
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = list(file_val)
+            continue
+        if not isinstance(existing, list):
+            existing = [existing] if existing else []
+        for t in file_val:
+            if t not in existing:
+                existing.append(t)
+        merged[key] = existing
+    return merged
+
+
 def reload() -> str:
     """v0.5.44 — 重新加载 catalog；返回 source 标签。
     DB 4 键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。
-    RELATIONS 现也走 DB 覆盖（admin UI v0.5.44 落地，根因解防 cartesian）。"""
+    RELATIONS 现也走 DB 覆盖（admin UI v0.5.44 落地，根因解防 cartesian）。
+
+    v0.6.1.4: HTTP 虚拟表（source_type=http）从 file merge 进 DB catalog。
+    理由：HTTP 表是部署方代码层配置（OSS 模式），不应被 admin DB 编辑覆盖；
+          SQL 表仍由 DB 主导（admin 后台编辑）。
+    """
     global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
 
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
 
-    LEXICON = db_lex if db_lex else f_lex
-    TABLES = db_tables if db_tables else f_tables
+    # v0.6.1.4: TABLES — DB 主导 SQL 表，file 始终追加 HTTP 虚拟表
+    base_tables = list(db_tables) if db_tables else list(f_tables)
+    if db_tables:  # DB 已主导 SQL 表时，单独 merge file 中 HTTP 表
+        http_from_file = [
+            t for t in (f_tables or [])
+            if t.get("source_type") == "http"
+        ]
+        existing_names = {f"{t.get('db')}.{t.get('table')}" for t in base_tables}
+        for t in http_from_file:
+            full = f"{t.get('db')}.{t.get('table')}"
+            if full not in existing_names:
+                base_tables.append(t)
+    TABLES = base_tables
+
+    # v0.6.1.4: LEXICON — 智能合并（不简单覆盖）
+    # 同一关键词在 file 和 DB 都存在时 → value list 合并（保留两边的表）
+    # 由 pick_http_route entity-aware ranking 决定优先级
+    LEXICON = _merge_lexicons(f_lex, db_lex)
+
     BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
     RELATIONS = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
 
-    _SOURCE = "db" if db_found else f_src
+    _SOURCE = "db+file_http" if (db_found and any(t.get("source_type") == "http" for t in TABLES)) else ("db" if db_found else f_src)
     return _SOURCE
 
 
@@ -148,6 +202,68 @@ def get_relations() -> list:
     """返当前 RELATIONS 全量。R-S3：老 catalog 无此常量时上面 _load_from_files
     已经 fallback 成 []，本函数永不 KeyError / AttributeError。"""
     return list(RELATIONS)
+
+
+# ── v0.6.1.4: HTTP 虚拟表支持（OVERRIDE #3 — catalog-driven endpoint metadata）──
+def is_http_table(table_full_name: str) -> bool:
+    """检查 table_full_name 是否为 source_type=http 的虚拟表。
+
+    Args:
+        table_full_name: 格式 "db.table" (与 get_table_full_names 一致)
+
+    Returns:
+        True 是 HTTP 虚拟表，False 是 SQL 表或未注册
+    """
+    if "." not in table_full_name:
+        return False
+    db, table = table_full_name.split(".", 1)
+    for t in TABLES:
+        if t.get("db") == db and t.get("table") == table:
+            return t.get("source_type", "db") == "http"
+    return False
+
+
+def get_http_spec(table_full_name: str) -> dict | None:
+    """取 HTTP 虚拟表的 endpoint spec（喂给 knot.adapters.http.executor.execute）。
+
+    Args:
+        table_full_name: 格式 "db.table"
+
+    Returns:
+        dict (HTTPEndpointSpec 形态) 或 None（非 HTTP 表或未配 http_spec）
+    """
+    if not is_http_table(table_full_name):
+        return None
+    db, table = table_full_name.split(".", 1)
+    for t in TABLES:
+        if t.get("db") == db and t.get("table") == table:
+            return t.get("http_spec")
+    return None
+
+
+def get_field_mapping(table_full_name: str) -> dict:
+    """取虚拟表的 field_mapping（API 字段 → 业务字段重映射）。
+
+    Returns: dict 或空 dict（未配映射）
+    """
+    if "." not in table_full_name:
+        return {}
+    db, table = table_full_name.split(".", 1)
+    for t in TABLES:
+        if t.get("db") == db and t.get("table") == table:
+            return t.get("field_mapping", {}) or {}
+    return {}
+
+
+def get_http_tables() -> list:
+    """返所有 source_type=http 的表的全名 list。
+
+    用途：query.py 路由层启动期可检查"含 HTTP 表 → 必须设 KNOT_HTTP_ALLOWED_HOSTS env"。
+    """
+    return [
+        f"{t['db']}.{t['table']}" for t in TABLES
+        if t.get("source_type", "db") == "http"
+    ]
 
 
 def get_relations_for_tables(selected: list) -> str:

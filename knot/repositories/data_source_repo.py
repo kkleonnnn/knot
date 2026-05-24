@@ -9,7 +9,8 @@ from knot.core.crypto.fernet import CryptoConfigError
 from knot.models.errors import ConfigMissingError
 from knot.repositories.base import get_conn
 
-_DS_ENCRYPTED_COLS = ("db_password",)
+# v0.6.1.4: http_config 也含敏感字段 (auth_value)；整 JSON 串 Fernet 加密入库
+_DS_ENCRYPTED_COLS = ("db_password", "http_config")
 
 
 def _decrypt_ds_row(row) -> dict | None:
@@ -40,14 +41,26 @@ def get_datasource(source_id: int) -> dict | None:
 
 
 def create_datasource(user_id, name, description, db_host, db_port,
-                      db_user, db_password, db_database, db_type="doris") -> int:
+                      db_user, db_password, db_database, db_type="doris",
+                      http_config: str = "") -> int:
+    """v0.6.1.4: 支持 db_type='http' — DB 字段可空，http_config (JSON str) Fernet 加密.
+
+    http_config JSON 形态:
+      {"base_url": "...", "auth_header": "key", "auth_value": "...",
+       "allowed_hosts": "h1,h2", "timeout_sec": 5}
+    """
     enc_pw = encrypt(db_password) if db_password else db_password
+    enc_http = encrypt(http_config) if http_config else ""
     conn = get_conn()
     cur = conn.execute(
         "INSERT INTO data_sources "
-        "(user_id, name, description, db_host, db_port, db_user, db_password, db_database, db_type) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
-        (user_id, name, description, db_host, db_port, db_user, enc_pw, db_database, db_type),
+        "(user_id, name, description, db_host, db_port, db_user, db_password, "
+        " db_database, db_type, http_config) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (user_id, name, description,
+         db_host or "", db_port or 0, db_user or "",
+         enc_pw, db_database or "",
+         db_type, enc_http),
     )
     sid = cur.lastrowid
     conn.commit()
