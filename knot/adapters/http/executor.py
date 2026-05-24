@@ -61,7 +61,7 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
 
     # spec 完整性检查
     if not url_template:
-        raise HTTPAdapterError(f"HTTPEndpointSpec.url_template 缺失")
+        raise HTTPAdapterError("HTTPEndpointSpec.url_template 缺失")
 
     # v0.6.1.4 OVERRIDE #4: 双模式 — 直填值 vs env 引用
     # 模式 A (直填): spec 含 "base_url" / "auth_header" / "auth_value" — admin UI / DB 注入
@@ -75,7 +75,7 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
         base_url_env = spec.get("base_url_env")
         if not base_url_env:
             raise HTTPAdapterError(
-                f"HTTPEndpointSpec 必须含 base_url（直填）或 base_url_env（env 引用）"
+                "HTTPEndpointSpec 必须含 base_url（直填）或 base_url_env（env 引用）"
             )
         base_url = os.environ.get(base_url_env, "").rstrip("/")
         if not base_url:

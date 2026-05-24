@@ -120,6 +120,7 @@ async def admin_list_datasources(admin=Depends(require_admin)):
         if s.get("db_type") == "http":
             try:
                 import json as _json
+
                 import requests as _rq
                 cfg_str = s.get("http_config") or ""
                 if not cfg_str:
@@ -207,6 +208,7 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
     # v0.6.1.4: http_config 同模式 — 空 / mask 占位时保留原值（防 admin UI 编辑误清空 token）
     if "http_config" in kwargs:
         import json as _json
+
         from knot.api._secret import should_update_secret
         existing = data_source_repo.get_datasource(source_id) or {}
         existing_http = existing.get("http_config") or ""
