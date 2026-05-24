@@ -85,6 +85,15 @@ def init_db():
     if "latency_ms" not in msg_cols_after_intent:
         conn.execute("ALTER TABLE messages ADD COLUMN latency_ms INTEGER")
 
+    # v0.6.1.4 OVERRIDE #4: data_sources.http_config — HTTP 类型数据源专用配置
+    # JSON 字符串，Fernet 加密（含 auth_value 敏感字段）
+    # 形态：{"base_url": "...", "auth_header": "key", "auth_value": "bitda",
+    #        "allowed_hosts": "host1,host2", "timeout_sec": 5}
+    # db_type 现有 default='doris' → 加 'http' 选项
+    ds_cols = {row[1] for row in conn.execute("PRAGMA table_info(data_sources)").fetchall()}
+    if "http_config" not in ds_cols:
+        conn.execute("ALTER TABLE data_sources ADD COLUMN http_config TEXT DEFAULT ''")
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""

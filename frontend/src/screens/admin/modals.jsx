@@ -100,20 +100,35 @@ export function UserFormModal({ T, data, sources, onClose, onSave }) {
 
 export function SourceFormModal({ T, data, onClose, onSave }) {
   const isEdit = !!data;
+  // v0.6.1.4 OVERRIDE #4: 数据源 first-class — type=http 时显示 HTTP 字段
+  // http_config 是后端 JSON 字符串，前端拆分为 4 字段编辑
+  const parsedHttpCfg = (() => {
+    try { return data?.http_config ? JSON.parse(data.http_config) : {}; }
+    catch { return {}; }
+  })();
   const [form, setForm] = useState({
     name: data?.name || '',
     description: data?.description || '',
+    db_type: data?.db_type || 'doris',
+    // SQL 字段
     db_host: data?.db_host || '',
     db_port: data?.db_port || 9030,
     db_user: data?.db_user || '',
     db_password: '',
     db_database: data?.db_database || '',
-    db_type: data?.db_type || 'doris',
+    // v0.6.1.4 HTTP 字段
+    http_base_url: parsedHttpCfg.base_url || '',
+    http_auth_header: parsedHttpCfg.auth_header || 'key',
+    http_auth_value: '',
+    http_allowed_hosts: parsedHttpCfg.allowed_hosts || '',
+    http_timeout_sec: parsedHttpCfg.timeout_sec || 5,
   });
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const isHttp = form.db_type === 'http';
 
   const testConn = async () => {
     setTesting(true); setTestResult(null);
@@ -125,10 +140,34 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
   };
 
   const submit = async () => {
-    if (!form.name.trim() || !form.db_host.trim()) { toast('名称和主机必填', true); return; }
+    if (!form.name.trim()) { toast('名称必填', true); return; }
+    if (isHttp) {
+      if (!form.http_base_url.trim()) { toast('HTTP Base URL 必填', true); return; }
+    } else if (!form.db_host.trim()) {
+      toast('SQL 类型: Host 必填', true); return;
+    }
     setLoading(true);
     try {
-      const body = { ...form, db_port: Number(form.db_port) };
+      // 构造 body — HTTP / SQL 不同
+      const body = isHttp ? {
+        name: form.name, description: form.description, db_type: 'http',
+        // SQL 字段留空
+        db_host: '', db_port: 0, db_user: '', db_password: '', db_database: '',
+        // HTTP 配置 JSON 串
+        http_config: JSON.stringify({
+          base_url: form.http_base_url.trim(),
+          auth_header: form.http_auth_header.trim(),
+          auth_value: form.http_auth_value,
+          allowed_hosts: form.http_allowed_hosts.trim(),
+          timeout_sec: Number(form.http_timeout_sec) || 5,
+        }),
+      } : {
+        name: form.name, description: form.description, db_type: form.db_type,
+        db_host: form.db_host, db_port: Number(form.db_port),
+        db_user: form.db_user, db_password: form.db_password,
+        db_database: form.db_database,
+        http_config: '',
+      };
       if (isEdit) await api.put(`/api/admin/datasources/${data.id}`, body);
       else await api.post('/api/admin/datasources', body);
       toast(isEdit ? '已更新' : '已添加');
@@ -138,31 +177,57 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
   };
 
   return (
-    <Modal T={T} onClose={onClose} width={480}>
+    <Modal T={T} onClose={onClose} width={520}>
       <ModalHeader T={T} title={isEdit ? '编辑数据源' : '添加数据源'} onClose={onClose}/>
       <div style={{ padding: '16px 20px', maxHeight: '70vh', overflowY: 'auto' }} className="cb-sb">
-        <Input T={T} label="名称" value={form.name} onChange={v => set('name', v)} required placeholder="trading_core"/>
-        <Input T={T} label="说明" value={form.description} onChange={v => set('description', v)} optional placeholder="交易核心库"/>
-        <Select T={T} label="数据库类型" value={form.db_type} onChange={v => set('db_type', v)} options={[{ value: 'doris', label: 'Apache Doris' }, { value: 'mysql', label: 'MySQL' }, { value: 'clickhouse', label: 'ClickHouse' }]}/>
-        <Input T={T} label="Host" value={form.db_host} onChange={v => set('db_host', v)} required placeholder="127.0.0.1" mono/>
-        <Input T={T} label="Port" value={String(form.db_port)} onChange={v => set('db_port', v)} required placeholder="9030" mono/>
-        <Input T={T} label="User" value={form.db_user} onChange={v => set('db_user', v)} required placeholder="root" mono/>
-        <Input T={T} label="Password" value={form.db_password} onChange={v => set('db_password', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
-        <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="knot_demo 或 demo_dwd,demo_ads" mono/>
-        <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
+        <Input T={T} label="名称" value={form.name} onChange={v => set('name', v)} required placeholder={isHttp ? 'futures_admin' : 'trading_core'}/>
+        <Input T={T} label="说明" value={form.description} onChange={v => set('description', v)} optional placeholder={isHttp ? '撮合 admin API' : '交易核心库'}/>
+        <Select T={T} label="数据源类型" value={form.db_type} onChange={v => set('db_type', v)} options={[
+          { value: 'doris', label: 'Apache Doris (SQL)' },
+          { value: 'mysql', label: 'MySQL (SQL)' },
+          { value: 'clickhouse', label: 'ClickHouse (SQL)' },
+          { value: 'http', label: 'HTTP API (REST)' },
+        ]}/>
+        {isHttp ? (
+          // v0.6.1.4 OVERRIDE #4: HTTP API form
+          <>
+            <Input T={T} label="Base URL" value={form.http_base_url} onChange={v => set('http_base_url', v)} required placeholder="http://futuresadmin.0t.oh" mono/>
+            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>API 根地址（不带 path）；K8s 内部部署用 service 域名</div>
+
+            <Input T={T} label="Auth Header 字段名" value={form.http_auth_header} onChange={v => set('http_auth_header', v)} required placeholder="key 或 Authorization" mono/>
+            <Input T={T} label="Auth Header 值" value={form.http_auth_value} onChange={v => set('http_auth_value', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
+            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>Fernet 加密入库；显示为 ••••last4</div>
+
+            <Input T={T} label="允许的 Host 白名单" value={form.http_allowed_hosts} onChange={v => set('http_allowed_hosts', v)} optional placeholder="futuresadmin.0t.oh,futuresadmin.0p.oh" mono/>
+            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>逗号分隔；空 = 沿用 KNOT_HTTP_ALLOWED_HOSTS env</div>
+
+            <Input T={T} label="Timeout (秒)" value={String(form.http_timeout_sec)} onChange={v => set('http_timeout_sec', v)} placeholder="5" mono/>
+          </>
+        ) : (
+          // 既有 SQL form
+          <>
+            <Input T={T} label="Host" value={form.db_host} onChange={v => set('db_host', v)} required placeholder="127.0.0.1" mono/>
+            <Input T={T} label="Port" value={String(form.db_port)} onChange={v => set('db_port', v)} required placeholder="9030" mono/>
+            <Input T={T} label="User" value={form.db_user} onChange={v => set('db_user', v)} required placeholder="root" mono/>
+            <Input T={T} label="Password" value={form.db_password} onChange={v => set('db_password', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
+            <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="knot_demo 或 demo_dwd,demo_ads" mono/>
+            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
+          </>
+        )}
         {/* R-302.5 emoji 业务豁免 sustained — ✓/✗ 是 testResult 业务状态指示器 */}
         {testResult && (
-          <div style={{ padding: '8px 12px', borderRadius: 6, background: testResult.connected ? T.successSoft : T.accentSoft, color: testResult.connected ? T.success : T.accent, fontSize: 12.5, marginBottom: 12 }}>
+          <div style={{ padding: '8px 12px', borderRadius: 6, background: testResult.connected ? T.successSoft : T.accentSoft, color: testResult.connected ? T.success : T.accent, fontSize: 12.5, marginBottom: 12, marginTop: 8 }}>
             {testResult.connected ? '✓ ' : '✗ '}{testResult.message}
           </div>
         )}
       </div>
       <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button onClick={testConn} disabled={testing} style={pillBtn(T)}>
-          {testing ? <><Spinner size={11}/> 测试中…</> : <><I.wifi/> 测试连接</>}
-        </button>
+        {!isHttp && (
+          <button onClick={testConn} disabled={testing} style={pillBtn(T)}>
+            {testing ? <><Spinner size={11}/> 测试中…</> : <><I.wifi/> 测试连接</>}
+          </button>
+        )}
         <button onClick={onClose} style={pillBtn(T)}>取消</button>
-        {/* v0.5.24 R-484 Spinner color hex 偿还 */}
         <button onClick={submit} disabled={loading} style={pillBtn(T, true)}>
           {loading ? <Spinner size={12} color={T.sendFg}/> : '保存'}
         </button>

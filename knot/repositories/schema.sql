@@ -68,12 +68,16 @@ CREATE TABLE IF NOT EXISTS data_sources (
     user_id     INTEGER,
     name        TEXT    NOT NULL,
     description TEXT    DEFAULT '',
-    db_host     TEXT    NOT NULL,
+    -- v0.6.1.4 OVERRIDE #4: db_type='http' 时下列 db_* 字段可为空字符串
+    db_host     TEXT    DEFAULT '',
     db_port     INTEGER DEFAULT 9030,
-    db_user     TEXT    NOT NULL,
-    db_password TEXT    NOT NULL,
-    db_database TEXT    NOT NULL,
-    db_type     TEXT    DEFAULT 'doris',
+    db_user     TEXT    DEFAULT '',
+    db_password TEXT    DEFAULT '',
+    db_database TEXT    DEFAULT '',
+    db_type     TEXT    DEFAULT 'doris',  -- doris / mysql / http
+    -- v0.6.1.4: HTTP 类型数据源专用配置 (JSON 字符串, Fernet 加密入库)
+    -- 形态: {"base_url","auth_header","auth_value","allowed_hosts","timeout_sec"}
+    http_config TEXT    DEFAULT '',
     is_active   INTEGER DEFAULT 1,
     created_at  TEXT    DEFAULT (datetime('now','localtime'))
 );

@@ -95,7 +95,7 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
                 <div style={{ minWidth: 0, overflow: 'hidden' }}>
                   <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, fontSize: 11, letterSpacing: '0.02em', fontFamily: T.mono }}>{s.db_type || 'doris'}</span>
                 </div>
-                <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.db_host}:{s.db_port}/{s.db_database}</div>
+                <div title={s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`} style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`}</div>
                 <div title="后端数据对接中 (v0.6+)" style={{ color: T.muted, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>—</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: s.status === 'online' ? T.success : T.warn, minWidth: 0, overflow: 'hidden' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.status === 'online' ? T.success : T.warn, flexShrink: 0 }}/>

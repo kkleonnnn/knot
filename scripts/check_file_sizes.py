@@ -25,7 +25,7 @@ LIMITS = {
     "knot/services/agents/sql_planner.py": 350,
     "knot/services/llm_client.py":         300,
     "knot/services/agents/orchestrator.py": 220,
-    "knot/api/query.py":                   320,  # v0.6.0.24 +5 (query rate limit 注入 2 endpoint)
+    "knot/api/query.py":                   440,  # v0.6.1.4 +120 (HTTP 路由分流 + R-PB2-4 跨源 hard raise + agent_start/done/final SSE event 链路)
     # 9 个新建模块（v0.5.2）
     "knot/services/agents/sql_planner_prompts.py": 250,
     "knot/services/agents/sql_planner_tools.py":   250,
@@ -53,13 +53,13 @@ LIMITS = {
     "frontend/src/screens/AdminQueryHistory.jsx":  250,  # v0.6.0.18 新增 (查询历史屏 — filter strip + CSS grid table + drawer detail)
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,  # v0.5.30 80→100 (suggestion icons spark/flow 扩张)
     "frontend/src/screens/chat/Conversation.jsx":  250,
-    "frontend/src/screens/chat/ThinkingCard.jsx":  220,  # v0.5.39 160→220 (Trace 4th step + 信任度推导)
+    "frontend/src/screens/chat/ThinkingCard.jsx":  240,  # v0.6.1.4 220→240 (HTTP path Trace 分支 + _shouldHideClarifierApproach)
     "frontend/src/screens/chat/Composer.jsx":      100,  # v0.5.11 R-260 收紧 250→100
     "frontend/src/screens/admin/tab_access.jsx":   250,
     "frontend/src/screens/admin/tab_resources.jsx": 250,
     "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 250→440 (Knowledge + Few-shot 完整 UI demo 重写)
     "frontend/src/screens/admin/tab_system.jsx":   250,
-    "frontend/src/screens/admin/modals.jsx":       250,
+    "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 +70 (SourceFormModal HTTP type 5 字段 + isHttp 分支 + parsedHttpCfg 反序列化)
     # ── v0.5.7 R-176 ──────────────────────────────────────────
     "frontend/src/screens/Login.jsx":              200,
     "frontend/src/decor/NarrativeMotif.jsx":       120,

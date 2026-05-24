@@ -109,7 +109,8 @@ def test_catalog_put_business_rules_then_reset(client, auth_headers):
         headers=auth_headers,
     )
     assert r.status_code == 200, r.text
-    assert r.json()["source"] == "db"
+    # v0.6.1.4: source 可能 "db" 或 "db+file_http"（_local_catalog 含 HTTP 表时）
+    assert r.json()["source"].startswith("db"), f"应 db 主导；实际 {r.json()['source']}"
 
     # GET 应返回 db 来源
     r2 = client.get("/api/admin/catalog", headers=auth_headers)

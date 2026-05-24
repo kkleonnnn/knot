@@ -55,12 +55,16 @@ class UpdateUserRequest(BaseModel):
 class DataSourceRequest(BaseModel):
     name: str
     description: str = ""
-    db_host: str
+    # v0.6.1.4 OVERRIDE #4: db_type='http' 时 DB 字段可空字符串
+    db_host: str = ""
     db_port: int = 9030
-    db_user: str
-    db_password: str
-    db_database: str
-    db_type: str = "doris"
+    db_user: str = ""
+    db_password: str = ""
+    db_database: str = ""
+    db_type: str = "doris"  # doris / mysql / http
+    # v0.6.1.4: HTTP 类型 — JSON 字符串
+    # {"base_url","auth_header","auth_value","allowed_hosts","timeout_sec"}
+    http_config: str = ""
 
 
 class UpdateDataSourceRequest(BaseModel):
@@ -72,6 +76,7 @@ class UpdateDataSourceRequest(BaseModel):
     db_password: Optional[str] = None
     db_database: Optional[str] = None
     db_type: Optional[str] = None
+    http_config: Optional[str] = None  # v0.6.1.4 OVERRIDE #4
     is_active: Optional[int] = None
 
 
