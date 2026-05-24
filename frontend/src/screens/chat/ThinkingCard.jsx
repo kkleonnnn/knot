@@ -46,14 +46,12 @@ function _deriveTrace(sql, confidence) {
   if (!sql || typeof sql !== 'string') return null;
   const trustLabel = confidence === 'low' ? 'low' : confidence === 'medium' ? 'medium' : 'high';
   // v0.6.1.4 — HTTP route 文案：sql 形态 "GET {base_url}/path" 或 "POST ..."
-  const httpMatch = sql.match(/^(GET|POST)\s+(.+)$/i);
+  // 不暴露 endpoint path（OSS / 非 admin 视角防内部路由泄漏 — v0.6.1.5 admin 调试视图可单独显）
+  const httpMatch = sql.match(/^(GET|POST)\s+/i);
   if (httpMatch) {
     const method = httpMatch[1].toUpperCase();
-    const url = httpMatch[2].trim();
-    // 提取 endpoint path（去掉 {base_url} 占位 / 真实 base_url 前缀）
-    const path = url.replace(/^\{base_url\}/, '').replace(/^https?:\/\/[^/]+/, '') || url;
     return {
-      text: `本次结果由外部 HTTP API 返回，→ 1 次 ${method} 请求 ${path}。`,
+      text: `本次结果由外部 HTTP API 返回，→ 1 次 ${method} 请求。`,
       confidence: trustLabel,
     };
   }
