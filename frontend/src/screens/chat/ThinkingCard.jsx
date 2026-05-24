@@ -41,15 +41,28 @@ export function ThinkingCard({ T, agentEvents = [] }) {
 }
 
 // v0.5.39 — Trace 推导（前端从 sql + presenter output 派生）；demo thinking.jsx L268-271 风格
+// v0.6.1.4 — 加 HTTP 路径分支文案（检测 sql 以 GET / POST 开头 = HTTP route）
 function _deriveTrace(sql, confidence) {
   if (!sql || typeof sql !== 'string') return null;
-  // 源表数: FROM / JOIN 后的表名（去重）
+  const trustLabel = confidence === 'low' ? 'low' : confidence === 'medium' ? 'medium' : 'high';
+  // v0.6.1.4 — HTTP route 文案：sql 形态 "GET {base_url}/path" 或 "POST ..."
+  const httpMatch = sql.match(/^(GET|POST)\s+(.+)$/i);
+  if (httpMatch) {
+    const method = httpMatch[1].toUpperCase();
+    const url = httpMatch[2].trim();
+    // 提取 endpoint path（去掉 {base_url} 占位 / 真实 base_url 前缀）
+    const path = url.replace(/^\{base_url\}/, '').replace(/^https?:\/\/[^/]+/, '') || url;
+    return {
+      text: `本次结果由外部 HTTP API 返回，→ 1 次 ${method} 请求 ${path}。`,
+      confidence: trustLabel,
+    };
+  }
+  // SQL 路径（原 v0.5.39 推导）
   const tableRe = /\b(?:FROM|JOIN)\s+([a-zA-Z_][\w.]*)/gi;
   const tables = new Set();
   let m; while ((m = tableRe.exec(sql)) !== null) tables.add(m[1].toLowerCase());
   const hasJoin = /\bJOIN\b/i.test(sql);
   const hasAgg  = /\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY)\b/i.test(sql);
-  const trustLabel = confidence === 'low' ? 'low' : confidence === 'medium' ? 'medium' : 'high';
   const parts = [
     `本次结果由 ${tables.size || 1} 张原表生成`,
     `→ 1 条 SQL`,
@@ -57,6 +70,12 @@ function _deriveTrace(sql, confidence) {
     hasAgg ? '含聚合函数' : '无聚合函数',
   ];
   return { text: parts.join('，') + '。', confidence: trustLabel };
+}
+
+// v0.6.1.4 — Clarifier approach 字段在 HTTP path 下常带 SQL-flavored 幻觉（"X 表不可查" 等），
+// 而 HTTP path 实际能查 → 检测 sql 形态决定是否渲染 approach。
+function _shouldHideClarifierApproach(sqlPlannerOutput) {
+  return /^(GET|POST)\s+/i.test(sqlPlannerOutput?.sql || '');
 }
 
 export function AgentThinkingPanel({ T, events, visible, user }) {
@@ -148,7 +167,8 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
               <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
                 <div style={{ color: T.muted, fontSize: 10.5, marginBottom: 2 }}>精确问题</div>
                 <div style={{ color: T.text }}>{output.refined_question}</div>
-                {output?.approach && <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
+                {output?.approach && !_shouldHideClarifierApproach(sqlPlannerOutput) &&
+                  <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
               </div>
             )}
 
