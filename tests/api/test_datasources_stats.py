@@ -10,13 +10,22 @@ from __future__ import annotations
 
 
 def test_endpoint_returns_200_with_empty_db(client, auth_headers):
-    """空 DB（无 data_source）时 endpoint 不应 500；返回合法空状态。"""
+    """空 DB（无 data_source）时 endpoint 不应 500；返回合法空状态。
+
+    v0.6.1.4 更新：HTTP 虚拟表从 catalog（_template_catalog.py + _local_catalog.py）
+    加载，与 data_sources 表行无关。即使 0 SQL source，HTTP catalog 仍可能 ≥ 0 表。
+    断言放宽为 ≥ 0 + heartbeat None（无 SQL 探针成功 → 心跳保持 None）。
+    """
+    from knot.services.agents import catalog as _catalog
+    http_count = len(_catalog.get_http_tables())  # catalog 静态加载，独立于 DB
     r = client.get("/api/admin/datasources-stats", headers=auth_headers)
     assert r.status_code == 200, r.text
     data = r.json()
     assert set(data.keys()) == {"total_schemas", "total_tables", "last_heartbeat"}
     assert data["total_schemas"] == 0
-    assert data["total_tables"] == 0
+    assert data["total_tables"] == http_count, (
+        f"empty DB + HTTP catalog → total_tables 应 == {http_count}（HTTP 虚拟表 count）"
+    )
     assert data["last_heartbeat"] is None
 
 
