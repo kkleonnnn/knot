@@ -5,6 +5,137 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.1.4 (Phase B 二刀) HTTP API Adapter 窄域接入 + first-class 数据源 UI
+
+> **Loop Protocol v3 第 30 次施行** — Phase B 决议 B 修订版第二个正式 PATCH
+> 推动者：撮合 admin 持仓查询业务需求 + 老板 demo 跨源能力展示
+> 治理特征：施行期内累计 4 次 OVERRIDE → 触发 R-LP-v3-EX-2（OVERRIDE 治理条款）立约 + 远古守护者 retroactive 复核（推迟到 demo 后周一）
+
+### F1 — adapters/http Protocol + 通用 executor（commit 1/7）
+
+#### F1.1 knot/adapters/http/base.py [NEW 72 行]
+- `HTTPEndpointSpec` TypedDict — `url_template / method / response_path / timeout_sec` + dual-mode 字段（直填 `base_url/auth_header/auth_value` 或 env 引用 `base_url_env/auth_header_env/auth_value_env`）
+- 4 typed error 类: `HTTPAdapterError` (基类) / `HTTPAuthError` (env/allowlist 缺失) / `HTTPTimeout` / `HTTPUnavailable`
+
+#### F1.2 knot/adapters/http/executor.py [NEW 184 行]
+通用 `execute(spec, params) → list[dict]`（不写死路径，OSS-friendly）：
+1. URL allowlist 守护（`KNOT_HTTP_ALLOWED_HOSTS` env）
+2. 双模式 base_url + auth 解析（直填 / env）
+3. URL template 渲染 + params 拼接
+4. `requests.get/post` 调用（timeout 默认 5s）
+5. 状态码分流 → typed errors（401/403 → AuthError, 5xx → Unavailable）
+6. JSON 解析 + 业务码检查
+7. `response_path` dot path 提取 rows
+
+#### F1.3 knot/adapters/http/url_allowlist.py [NEW 75 行]
+- `check_url_allowed(url)` — env-driven host whitelist；secure by default（空 env = all deny → fail-fast）
+- R-PB2-3 落地
+
+### F2 — catalog source_type=http + admin UI first-class（commit 2/7 — OVERRIDE #4）
+
+#### F2.1 数据源 admin UI 升格 first-class（OVERRIDE #4）
+**OVERRIDE #4 决策**：HTTP API 从"catalog textarea 后端配置"升格为"admin UI 数据源 first-class，与 doris/MySQL 并列"。
+- frontend/src/screens/admin/modals.jsx — SourceFormModal 新增 `db_type='http'` 选项 + 5 字段（base_url / auth_header / auth_value / allowed_hosts / timeout_sec）；编辑模式 parsedHttpCfg 反序列化 + auth_value mask 保护
+- frontend/src/screens/admin/tab_access.jsx — 主机列 HTTP type 显 base_url（非 SQL 的 `:0/`）
+
+#### F2.2 Fernet 加密扩展到 http_config（R-PB2-9）
+- knot/repositories/data_source_repo.py — `_DS_ENCRYPTED_COLS` 加 `"http_config"`；create/update 透明加解密
+- knot/repositories/schema.sql — `data_sources.http_config TEXT` 列；db_* 字段 nullable string
+- knot/repositories/base.py — startup ALTER TABLE 幂等 migration
+
+#### F2.3 GET /datasources HTTP 探针 + base_url 透出
+- knot/api/admin.py `_test_source` — HTTP type 走 `requests.head(base_url, timeout=5)`，任何 HTTP 响应 = online（仅 Timeout/ConnectionError = error）
+- response 加 `base_url` 字段（R-39 不漏 auth_value）
+- GET /datasources-stats — `db_database` 逗号分隔多 schema 拆分 + HTTP 虚拟表 count 累加 + `BASE TABLE` filter 0 命中时退到全表 count 兜底
+
+#### F2.4 catalog source_type=http 扩展（R-PB2-13 reload 立即生效）
+- knot/services/agents/catalog.py — `_merge_lexicons()` smart merge（DB lexicon + file HTTP lexicon 值列表合并不互覆盖）；reload() 时 HTTP 虚拟表从 _local_catalog/template 文件 always merge；新增 `is_http_table` / `get_http_spec` / `get_http_tables` 3 helpers
+- knot/services/agents/_template_catalog.py — HTTP source_type 示例条目模板（OSS-friendly）
+
+### F3 — http_planner.py + clarifier.md HTTP prompt（commit 3/7）
+
+#### F3.1 knot/services/http_planner.py [NEW 353 行]
+- `pick_http_route(refined_question)` — lexicon 匹配 + entity-aware ranking（user_id 出现 → user_pending 优先于 position_list）
+- `extract_params_for_endpoint(refined_question, endpoint_key)` — regex 抽取 user_id/market/side
+- `redact_pii(rows)` — R-PB2-10 defensive：9 类敏感字段（email/phone/mobile/id_card/passport/real_name/address/wechat/bank_card）truncate 兜底
+- `truncate_rows(rows, max_n=20)` — R-PB2-10 row count 上限
+- `run_http_step(...)` — 编排：resolve_spec → executor.execute → redact_pii → truncate_rows
+- `resolve_spec(catalog_spec)` — OVERRIDE #4：source_id 解析为 datasource Fernet-decrypted 直填值（admin UI 改后立即生效）
+- `CrossSourceJoinNotSupported` — R-PB2-4 跨源 hard raise
+
+#### F3.2 knot/prompts/clarifier.md 加 "HTTP 虚拟表" 段（R-PB2-16）
+4 rules: 必填参数严抽取 / 不质疑表存在性 / 跨源不在 clarifier 处理 / 参数语义豁免
+
+### F4 — api/query.py HTTP 路由分流（commit 4/7）
+
+knot/api/query.py — query_stream SSE generator 内 clarifier 之后 / sql_planner 之前新增分流（+107 行）：
+1. `CrossSourceJoinNotSupported` 捕获 → 友好 `error_kind=cross_source_unsupported` + user_message（R-PB2-4）
+2. `pick_http_route()` 命中 → 走 HTTP 路径（agent_start "调用 HTTP API" SSE → run_http_step → agent_done → 失败 ErrorBanner / 成功 presenter → final）
+3. `http_route is None` → 走原有 SQL 路径（既有链路 byte-equal）
+
+### F5 — 守护测试（commit 5/7）
+
+tests/services/test_http_planner.py [NEW 250 行 / 18 tests]：
+- R-PB2-3 (4): env/allowlist 缺失 fail-fast (HTTPAuthError)
+- R-PB2-10 (4): PII redact + truncate_rows
+- R-PB2-4 (3): pick_http_route 跨源
+- extract_params (6): user_id / market / side regex
+- R-PB2-1 stability (1): HTTPEndpointSpec TypedDict 签名 byte-equal
+
+### 红线 R-PB2-1~16（v0.6.1.4 立约）
+
+| # | 红线 | 落地 |
+|---|---|---|
+| R-PB2-1 | HTTPEndpointSpec TypedDict 签名 byte-equal | adapters/http/base.py |
+| R-PB2-2 | catalog source_type='http' 扩展 | services/agents/catalog.py |
+| R-PB2-3 | env / URL allowlist 缺失 fail-fast | adapters/http/{executor,url_allowlist} |
+| R-PB2-4 | 跨源 JOIN 硬 raise → 友好错误 | services/http_planner.py + api/query.py |
+| R-PB2-5 | fail-soft typed error → ErrorBanner | api/query.py HTTP path |
+| R-PB2-6 | adapter scope 极简（不复用 sql_planner 防御） | adapters/http/executor.py |
+| R-PB2-7 | (预留) | — |
+| R-PB2-8 | (预留) | — |
+| R-PB2-9 | Fernet 双路径加解密（http_config） | repositories/data_source_repo.py |
+| R-PB2-10 | PII redact + truncate(20) defensive | services/http_planner.py |
+| R-PB2-11 | (预留 — HTTP rate limit per endpoint 推 v0.6.1.5) | — |
+| R-PB2-12 | (预留 — query.http audit_log action 推 v0.6.1.5) | — |
+| R-PB2-13 | catalog reload 立即生效 | services/agents/catalog.py |
+| R-PB2-14 | (预留 — error_translator http_unavailable kind 推 v0.6.1.5) | — |
+| R-PB2-15 | HTTP timeout 默认 5s | adapters/http/executor.py |
+| R-PB2-16 | clarifier 不质疑 HTTP 虚拟表存在性 | prompts/clarifier.md |
+
+### OVERRIDE 治理记录（R-LP-v3-EX-2 立约首例）
+
+PATCH 施行期内累计 **4 次 OVERRIDE**：
+
+| # | 决策 | 触发 | 治理动作 |
+|---|---|---|---|
+| #1 | Phase B 二刀（HTTP adapter）提前于 LOCKED 路线图建议 | 业务方持仓查询需求 + 老板 demo 时间窗 | R-PA-5 Day 1 Phase B 启动（已含本 PATCH 在范围内） |
+| #2 | hardcoded 业务方 adapter → 通用 catalog-driven | OSS-friendly 考量（"knot之后会是一个开源项目"） | 守护者 §IV P2-2 替代方案 — 影响 commit 1/3 实现 |
+| #3 | catalog 后端 textarea → admin UI first-class 数据源 | 用户偏好（"我希望的是可以作为数据源的一种，自己配"） | 影响 commit 2 — Fernet 扩展 + UI form + 状态探针 |
+| #4 | endpoint 路径不写死，从 catalog 注入 | OSS 开源 readiness | 影响 commit 1 executor.py 实现 |
+
+**R-LP-v3-EX-2 立约**：单个 PATCH 累计 OVERRIDE ≥3 次 → 强制召集远古守护者 retroactive 复核（防 OVERRIDE 滥用泛化）。
+本 PATCH 累计 4 次（含 #1 范围扩展），retroactive 复核**推迟到 demo 后周一**（资深架构师拍板）。
+
+### 版本同步（R-72 守护）
+
+- knot/main.py: 0.6.0.25 → 0.6.1.4
+- frontend/src/Shell.jsx: v0.6.0.25 → v0.6.1.4
+- frontend/src/screens/Login.jsx: v0.6.0.25 → v0.6.1.4 · build 202605242335
+- tests/test_rename_smoke.py: 0.6.0.25 → 0.6.1.4
+
+### Pending / OOS（推 v0.6.1.5）
+
+- F9 业务方 sign-off — Quicksilver robot token 实接 + 4 项手测 + sign-off 归档（commit 7/7，post-demo）
+- R-PB2-11 HTTP rate limit per endpoint（业务方 API 侧已限流，KNOT 侧 v0.6.1.5 加）
+- R-PB2-12 query.http audit_log action（mutation 审计入口扩展）
+- R-PB2-14 frontend ErrorBanner ERROR_KIND_META 注册 `http_unavailable` kind
+- catalog 表 form 加 source_id 下拉（link 虚拟表到数据源 row）
+- HTTP form test connection 按钮 + 字段映射可视化编辑器
+- 远古守护者 retroactive 复核（OVERRIDE #4 触发，demo 后周一）
+
+---
+
 ## [Unreleased] - v0.6.1 (Phase B 决议 B 修订版首个正式 PATCH) 窄场景宣告 + 时间语义引擎
 
 > **Loop Protocol v3 第 29 次施行** — Phase B 评估预 LOCKED §6.1 决议 B 修订版 v0.6.1 落点确认
