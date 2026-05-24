@@ -19,25 +19,25 @@ import pytest
 
 
 def test_executor_base_url_env_missing_raises_auth_error(monkeypatch):
-    """env KNOT_FUTURES_ADMIN_BASE_URL 缺失 → HTTPAuthError (R-PB2-3 sustained)."""
-    monkeypatch.delenv("KNOT_FUTURES_ADMIN_BASE_URL", raising=False)
-    monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", "futuresadmin.0t.oh")
-    monkeypatch.setenv("KNOT_FUTURES_ADMIN_AUTH_HEADER", "key")
-    monkeypatch.setenv("KNOT_FUTURES_ADMIN_AUTH_VALUE", "bitda")
+    """env <BASE_URL_ENV> 缺失 → HTTPAuthError (R-PB2-3 sustained)."""
+    monkeypatch.delenv("KNOT_TEST_API_BASE_URL", raising=False)
+    monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", "api.example.com")
+    monkeypatch.setenv("KNOT_TEST_API_AUTH_HEADER", "key")
+    monkeypatch.setenv("KNOT_TEST_API_AUTH_VALUE", "test-token-value")
 
     from knot.adapters.http import HTTPAuthError, execute
 
     spec = {
         "method": "GET",
-        "url_template": "{base_url}/admin/api/v1/position/list",
-        "base_url_env": "KNOT_FUTURES_ADMIN_BASE_URL",
-        "auth_header_env": "KNOT_FUTURES_ADMIN_AUTH_HEADER",
-        "auth_value_env": "KNOT_FUTURES_ADMIN_AUTH_VALUE",
+        "url_template": "{base_url}/v1/items",
+        "base_url_env": "KNOT_TEST_API_BASE_URL",
+        "auth_header_env": "KNOT_TEST_API_AUTH_HEADER",
+        "auth_value_env": "KNOT_TEST_API_AUTH_VALUE",
         "response_path": "data.records",
     }
 
-    with pytest.raises(HTTPAuthError, match=r"KNOT_FUTURES_ADMIN_BASE_URL.*R-PB2-3"):
-        execute(spec, {"market": "BTCUSDT", "side": 1})
+    with pytest.raises(HTTPAuthError, match=r"KNOT_TEST_API_BASE_URL.*R-PB2-3"):
+        execute(spec, {"q": "test"})
 
 
 def test_url_allowlist_secure_by_default(monkeypatch):
@@ -47,7 +47,7 @@ def test_url_allowlist_secure_by_default(monkeypatch):
     from knot.adapters.http.url_allowlist import get_allowed_hosts, is_url_allowed
 
     assert get_allowed_hosts() == set()
-    assert is_url_allowed("http://futuresadmin.0t.oh/some/path") is False
+    assert is_url_allowed("http://api.example.com/some/path") is False
     assert is_url_allowed("http://internal-api.example.com/x") is False
 
 
@@ -55,14 +55,14 @@ def test_url_allowlist_host_match(monkeypatch):
     """env 设了 host → 该 host 通过；其他 host 仍拒绝."""
     monkeypatch.setenv(
         "KNOT_HTTP_ALLOWED_HOSTS",
-        "futuresadmin.0t.oh,api.example.com",
+        "api.example.com,api2.example.com",
     )
 
     from knot.adapters.http.url_allowlist import get_allowed_hosts, is_url_allowed
 
-    assert get_allowed_hosts() == {"futuresadmin.0t.oh", "api.example.com"}
-    assert is_url_allowed("http://futuresadmin.0t.oh/admin/api/v1/x") is True
-    assert is_url_allowed("http://api.example.com/v1/y") is True
+    assert get_allowed_hosts() == {"api.example.com", "api2.example.com"}
+    assert is_url_allowed("http://api.example.com/v1/x") is True
+    assert is_url_allowed("http://api2.example.com/v1/y") is True
     # 其他 host 拒绝
     assert is_url_allowed("http://attacker.com/x") is False
     assert is_url_allowed("http://internal-secret.local/dump") is False
