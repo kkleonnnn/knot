@@ -35,7 +35,8 @@ def test_db_override_takes_precedence(tmp_db_path):
 
     set_app_setting("catalog.business_rules", "## DB-injected\nRule A")
     catalog.reload()
-    assert catalog._SOURCE == "db"
+    # v0.6.1.4: _SOURCE 可能是 "db" 或 "db+file_http"（当 _local_catalog.py 含 HTTP 虚拟表时）
+    assert catalog._SOURCE.startswith("db"), f"应 db 主导；实际 {catalog._SOURCE}"
     assert "DB-injected" in catalog.BUSINESS_RULES
 
 
@@ -46,7 +47,8 @@ def test_reset_db_falls_back_to_example(tmp_db_path):
 
     set_app_setting("catalog.business_rules", "X")
     catalog.reload()
-    assert catalog._SOURCE == "db"
+    # v0.6.1.4: _SOURCE 可能是 "db" 或 "db+file_http"
+    assert catalog._SOURCE.startswith("db"), f"应 db 主导；实际 {catalog._SOURCE}"
 
     set_app_setting("catalog.business_rules", "")
     catalog.reload()
