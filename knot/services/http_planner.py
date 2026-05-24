@@ -189,6 +189,44 @@ def truncate_rows(rows: list[dict], max_n: int = _TRUNCATE_LIMIT) -> tuple[list[
     return rows[:max_n], True
 
 
+# v0.6.1.4 #2 — Unix timestamp 字段人类化（UTC ISO 字符串）─────────────
+# 命中规则：字段名以 _time / _at / _ts 结尾 且 值是 number 且 > 10^9（年 2001+，避免误把 leverage=10 当时间）
+
+_TS_SUFFIXES = ("_time", "_at", "_ts")
+_TS_MIN = 1_000_000_000  # 2001-09-09 UTC — 业务上不会有更早时间戳
+
+
+def humanize_timestamps(rows: list[dict]) -> list[dict]:
+    """把 Unix timestamp (秒/秒.毫秒) 字段转 UTC ISO 字符串。
+
+    示例: update_time=1779639784.18 → "2026-05-25T00:23:04Z"
+    对 None / 非数字 / 0 / < 10^9 透传不动（防误伤）。
+    """
+    if not rows:
+        return rows
+    from datetime import datetime, timezone
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        new_row = dict(row)
+        for field, val in list(new_row.items()):
+            if not any(field.lower().endswith(s) for s in _TS_SUFFIXES):
+                continue
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                continue
+            if val < _TS_MIN:
+                continue
+            try:
+                dt = datetime.fromtimestamp(val, tz=timezone.utc)
+                new_row[field] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            except (OverflowError, OSError, ValueError):
+                pass  # 异常值透传
+        out.append(new_row)
+    return out
+
+
 # ─── HTTP step 执行（query_stream 调）──────────────────────────────────
 
 
@@ -305,9 +343,10 @@ async def run_http_step(refined_question: str, table_full_name: str, http_spec: 
         }
 
     original_count = len(raw_rows) if isinstance(raw_rows, list) else 0
-    # R-PB2-10 双过滤
+    # R-PB2-10 双过滤 + Unix timestamp 人类化
     truncated_rows, was_truncated = truncate_rows(raw_rows or [])
-    safe_rows = redact_pii(truncated_rows)
+    humanized_rows = humanize_timestamps(truncated_rows)
+    safe_rows = redact_pii(humanized_rows)
 
     return {
         "success": True,

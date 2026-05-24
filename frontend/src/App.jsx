@@ -46,9 +46,10 @@ export default function App() {
     api.get('/api/conversations').then(setConvs).catch(() => { /* prefetch 失败不阻塞 UI */ });
     api.get('/api/db/status').then(d => setDbOk(d.connected)).catch(() => setDbOk(false));
     if (user.role === 'admin') {
-      api.get('/api/admin/sources')
+      // v0.6.1.4 fix: endpoint is /api/admin/datasources not /api/admin/sources
+      api.get('/api/admin/datasources')
          .then(ds => setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1))
-         .catch(() => { /* admin sources 失败不阻塞 UI */ });
+         .catch(() => { /* admin datasources 失败不阻塞 UI */ });
     }
   }, [user?.id]);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
