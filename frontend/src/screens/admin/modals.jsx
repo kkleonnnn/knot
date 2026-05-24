@@ -120,7 +120,6 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
     http_base_url: parsedHttpCfg.base_url || '',
     http_auth_header: parsedHttpCfg.auth_header || 'key',
     http_auth_value: '',
-    http_allowed_hosts: parsedHttpCfg.allowed_hosts || '',
     http_timeout_sec: parsedHttpCfg.timeout_sec || 5,
   });
   const [loading, setLoading] = useState(false);
@@ -153,12 +152,11 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
         name: form.name, description: form.description, db_type: 'http',
         // SQL 字段留空
         db_host: '', db_port: 0, db_user: '', db_password: '', db_database: '',
-        // HTTP 配置 JSON 串
+        // HTTP 配置 JSON 串（v0.6.1.4 fix: 不再发 allowed_hosts — http_planner.py 仅消费 env）
         http_config: JSON.stringify({
           base_url: form.http_base_url.trim(),
           auth_header: form.http_auth_header.trim(),
           auth_value: form.http_auth_value,
-          allowed_hosts: form.http_allowed_hosts.trim(),
           timeout_sec: Number(form.http_timeout_sec) || 5,
         }),
       } : {
@@ -180,8 +178,8 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
     <Modal T={T} onClose={onClose} width={520}>
       <ModalHeader T={T} title={isEdit ? '编辑数据源' : '添加数据源'} onClose={onClose}/>
       <div style={{ padding: '16px 20px', maxHeight: '70vh', overflowY: 'auto' }} className="cb-sb">
-        <Input T={T} label="名称" value={form.name} onChange={v => set('name', v)} required placeholder={isHttp ? 'futures_admin' : 'trading_core'}/>
-        <Input T={T} label="说明" value={form.description} onChange={v => set('description', v)} optional placeholder={isHttp ? '撮合 admin API' : '交易核心库'}/>
+        <Input T={T} label="名称" value={form.name} onChange={v => set('name', v)} required placeholder={isHttp ? 'my_api_source' : 'analytics_db'}/>
+        <Input T={T} label="说明" value={form.description} onChange={v => set('description', v)} optional placeholder={isHttp ? '外部业务 API（如风控 / 持仓查询）' : '分析数仓 / 业务库'}/>
         <Select T={T} label="数据源类型" value={form.db_type} onChange={v => set('db_type', v)} options={[
           { value: 'doris', label: 'Apache Doris (SQL)' },
           { value: 'mysql', label: 'MySQL (SQL)' },
@@ -191,15 +189,16 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
         {isHttp ? (
           // v0.6.1.4 OVERRIDE #4: HTTP API form
           <>
-            <Input T={T} label="Base URL" value={form.http_base_url} onChange={v => set('http_base_url', v)} required placeholder="http://futuresadmin.0t.oh" mono/>
+            <Input T={T} label="Base URL" value={form.http_base_url} onChange={v => set('http_base_url', v)} required placeholder="https://api.example.com" mono/>
             <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>API 根地址（不带 path）；K8s 内部部署用 service 域名</div>
 
             <Input T={T} label="Auth Header 字段名" value={form.http_auth_header} onChange={v => set('http_auth_header', v)} required placeholder="key 或 Authorization" mono/>
             <Input T={T} label="Auth Header 值" value={form.http_auth_value} onChange={v => set('http_auth_value', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
             <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>Fernet 加密入库；显示为 ••••last4</div>
 
-            <Input T={T} label="允许的 Host 白名单" value={form.http_allowed_hosts} onChange={v => set('http_allowed_hosts', v)} optional placeholder="futuresadmin.0t.oh,futuresadmin.0p.oh" mono/>
-            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>逗号分隔；空 = 沿用 KNOT_HTTP_ALLOWED_HOSTS env</div>
+            {/* v0.6.1.4 fix: 删 "允许的 Host 白名单" 字段 — 当前 http_planner.py 仅消费
+                KNOT_HTTP_ALLOWED_HOSTS env（注释明示 "demo MVP" + "v0.6.1.5 可加 per-source"）；
+                字段存在反误导用户以为可覆盖 env。v0.6.1.5 实现真 per-source allowlist 时恢复。 */}
 
             <Input T={T} label="Timeout (秒)" value={String(form.http_timeout_sec)} onChange={v => set('http_timeout_sec', v)} placeholder="5" mono/>
           </>
