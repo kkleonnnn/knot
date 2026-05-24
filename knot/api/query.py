@@ -232,6 +232,113 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                                    "intent": clarifier_result.get("intent")}})
             await asyncio.sleep(0)
 
+            # ─── v0.6.1.4 HTTP 路由分流（OVERRIDE #3）─────────────────────
+            # 在 clarifier 之后 / sql_planner 之前判定走 HTTP 还是 SQL 路径
+            from knot.services import http_planner
+            try:
+                http_route = http_planner.pick_http_route(clarifier_result["refined_question"])
+            except http_planner.CrossSourceJoinNotSupported as e:
+                # R-PB2-4: 跨源 JOIN 硬 raise → 友好错误
+                logger.info(f"cross-source guard triggered: {e}")
+                err_mid = message_repo.save_message(
+                    conv_id=conv_id, question=req.question, sql="",
+                    explanation=str(e), confidence="low", rows=[],
+                    db_error="cross_source_unsupported",
+                    cost_usd=0, input_tokens=0, output_tokens=0,
+                    retry_count=0, intent=clarifier_result.get("intent"),
+                    agent_kind="sql_planner",
+                    latency_ms=int((time.time() - t0) * 1000),
+                )
+                yield emit({
+                    "type": "final", "message_id": err_mid,
+                    "sql": "", "rows": [], "error": str(e),
+                    "error_kind": "cross_source_unsupported",
+                    "user_message": "暂不支持跨源查询，请拆分提问（先查 SQL 数据再查 HTTP API）",
+                    "is_retryable": False,
+                })
+                return
+
+            if http_route is not None:
+                # ─── HTTP 路径 ───────────────────────────────────────
+                table_full_name, http_spec = http_route
+                logger.info(f"HTTP route hit: {table_full_name}")
+                yield emit({"type": "agent_start", "agent": "sql_planner", "label": "调用 HTTP API"})
+                await asyncio.sleep(0)
+                http_result = await http_planner.run_http_step(
+                    clarifier_result["refined_question"], table_full_name, http_spec,
+                )
+                yield emit({"type": "agent_done", "agent": "sql_planner",
+                            "output": {"sql": f"GET {http_spec.get('url_template', '')}",
+                                       "params": http_result["params"]}})
+                await asyncio.sleep(0)
+
+                if not http_result["success"]:
+                    # HTTP 失败 → ErrorBanner
+                    err_mid = message_repo.save_message(
+                        conv_id=conv_id, question=req.question, sql="",
+                        explanation=http_result["error"], confidence="low", rows=[],
+                        db_error=http_result["error"],
+                        cost_usd=0, input_tokens=0, output_tokens=0,
+                        retry_count=0, intent=clarifier_result.get("intent"),
+                        agent_kind="sql_planner",
+                        latency_ms=int((time.time() - t0) * 1000),
+                    )
+                    yield emit({
+                        "type": "final", "message_id": err_mid,
+                        "sql": "", "rows": [], "error": http_result["error"],
+                        "error_kind": http_result["error_kind"] or "http_unavailable",
+                        "user_message": "数据源（外部 API）暂不可达，请稍后重试或联系 admin",
+                        "is_retryable": True,
+                    })
+                    return
+
+                # HTTP 成功 → 走 presenter 整理
+                http_rows = http_result["rows"]
+                yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
+                await asyncio.sleep(0)
+                presenter_result = await query_steps.run_presenter_step(
+                    req.question, f"GET {http_spec.get('url_template', '')}", http_rows,
+                    query_steps.select_agent_key("presenter", user_agent_cfg, model_key, api_key, openrouter_api_key),
+                    api_key, openrouter_api_key, agent_buckets,
+                )
+                confidence = presenter_result.get("confidence", "high")
+                query_time_ms = int((time.time() - t0) * 1000)
+                intent = clarifier_result.get("intent")
+                total_cost, _total_tokens = cost_service.aggregate_agent_costs(agent_buckets)
+                total_input = clarifier_result["input_tokens"] + presenter_result["input_tokens"]
+                total_output = clarifier_result["output_tokens"] + presenter_result["output_tokens"]
+                yield emit({"type": "agent_done", "agent": "presenter",
+                            "output": {"insight": presenter_result["insight"], "confidence": confidence}})
+                http_mid = message_repo.save_message(
+                    conv_id=conv_id, question=req.question,
+                    sql=f"GET {http_spec.get('url_template', '')} params={http_result['params']}",
+                    explanation=clarifier_result["analysis_approach"] or presenter_result.get("insight", ""),
+                    confidence=confidence, rows=http_rows, db_error="",
+                    cost_usd=total_cost, input_tokens=total_input, output_tokens=total_output,
+                    retry_count=0, intent=intent, agent_kind="sql_planner",
+                    recovery_attempt=0, latency_ms=query_time_ms,
+                    **cost_service.to_save_message_kwargs(agent_buckets),
+                )
+                if len(message_repo.get_messages(conv_id)) == 1:
+                    title = req.question[:30] + ("…" if len(req.question) > 30 else "")
+                    conversation_repo.update_conversation_title(conv_id, title)
+                user_repo.update_user_usage(user["id"], total_input, total_output, total_cost, query_time_ms)
+                yield emit({
+                    "type": "final", "message_id": http_mid,
+                    "sql": f"GET {http_spec.get('url_template', '')}",
+                    "rows": http_rows,
+                    "explanation": presenter_result.get("insight", ""),
+                    "confidence": confidence,
+                    "input_tokens": total_input, "output_tokens": total_output,
+                    "cost_usd": total_cost,
+                    "agent_costs": cost_service.to_sse_payload(agent_buckets),
+                    "intent": intent,
+                    "row_count_original": http_result["row_count"],
+                    "truncated": http_result["truncated"],
+                })
+                return
+
+            # ─── SQL 路径（原有） ─────────────────────────────────────
             yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
             await asyncio.sleep(0)
             sql_result, recovery_attempt = await query_steps.run_sql_planner_step(
