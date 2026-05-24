@@ -358,20 +358,6 @@ async def set_api_keys(payload: dict = Body(...), request: Request = None, admin
     return {"ok": True}
 
 
-# ── Stats ─────────────────────────────────────────────────────────────
-
-@router.get("/api/admin/stats")
-async def admin_stats(admin=Depends(require_admin)):
-    users = user_repo.list_users()
-    sources = data_source_repo.list_datasources()
-    return {
-        "total_users":     len(users),
-        "total_admins":    sum(1 for u in users if u["role"] == "admin"),
-        "total_sources":   len(sources),
-        "monthly_cost_usd": user_repo.get_monthly_cost(),
-    }
-
-
 # ── Budgets (v0.4.3 R-18/R-21) ─────────────────────────────────────────
 
 class BudgetUpsertRequest(BaseModel):
