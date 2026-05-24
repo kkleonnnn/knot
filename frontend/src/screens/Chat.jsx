@@ -30,6 +30,11 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
   // v0.6.0.13 内测反馈 #5 bug 修：只在首次 convs 加载后做一次 stale check
   // 否则 sendQuery 末尾 api.get refresh 也会触发，把刚创建的 conv 误判为 stale → 清空 activeConvId → 退回首页
   const initialStaleCheckDone = useRef(false);
+  // v0.6.0.26 — Home 屏直接发问题时 race fix：sendQuery 创建新 conv 后 setActiveConvId
+  // 会触发 useEffect[activeConvId] → loadMessages(newId) → server 返 [] → setMessages([])
+  // 覆盖 SSE handler 刚 setMessages 的 in-flight tempMsg。
+  // 用 ref 标记"刚由 sendQuery 创建的 convId"，让 useEffect 跳过 loadMessages 这一次。
+  const justCreatedConvId = useRef(null);
   // v0.6.0.14 lint sweep：stale check + activeConvId 切换是 SPA 路由必要副作用，整块 disable
   /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -46,7 +51,16 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     try { const d = await api.get(`/api/conversations/${cid}/messages`); setMessages(d); }
     catch { /* 加载历史失败保持当前 messages 不变（async fetch fail-soft） */ }
   };
-  useEffect(() => { if (activeConvId) loadMessages(activeConvId); else setMessages([]); }, [activeConvId]);
+  useEffect(() => {
+    // v0.6.0.26 — 跳过 sendQuery 刚创建 conv 的 loadMessages（避免覆盖 in-flight tempMsg）
+    if (justCreatedConvId.current === activeConvId) {
+      justCreatedConvId.current = null;
+      return;
+    }
+    // v0.6.0.27 — conv 切换时清掉上次 thinking events（防 AgentThinkingPanel 残留）
+    setAgentEvents([]);
+    if (activeConvId) loadMessages(activeConvId); else setMessages([]);
+  }, [activeConvId]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
@@ -78,6 +92,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
       try {
         const d = await api.post('/api/conversations', { title: '新对话' });
         setConvs(prev => [d, ...prev]);
+        // v0.6.0.26 — 标记 conv 是 sendQuery 刚创建的，让 useEffect[activeConvId] 跳过
+        // loadMessages（避免空 server 数据覆盖即将由 SSE 写入的 tempMsg）
+        justCreatedConvId.current = d.id;
         setActiveConvId(d.id);
         setMessages([]);
         convId = d.id;
@@ -290,9 +307,11 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
               connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
               onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
-      {/* v0.6.0.13 #5：仅按 activeConvId 决定（去掉 messages.length===0 — sendQuery 间隙
-          messages 短暂为 [] 时 ChatEmpty 闪回首页是 bug 根因之一）*/}
-      {!activeConvId
+      {/* v0.6.0.13 #5：仅按 activeConvId 决定，防 sendQuery 间隙 messages=[] 闪回首页
+          v0.6.0.27：恢复 messages.length===0 + !loading 兜底 — 新建对话 / 切换到空 conv
+          时显示 ChatEmpty hero（避免空白主区域）。!loading 守护防 sendQuery 间隙
+          ——React 18 批 setState 同步发，setLoading(true) 已 batch 进同一 render，不闪 */}
+      {!activeConvId || (messages.length === 0 && !loading)
         ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
                      hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
