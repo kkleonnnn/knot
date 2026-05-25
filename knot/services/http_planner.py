@@ -99,7 +99,15 @@ def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
 
 # ─── 参数提取 ──────────────────────────────────────────────────────────
 
-_USER_ID_RE = re.compile(r"用户\s*(\d{3,})|user[\s_]?id[\s=:]+(\d{3,})")
+# v0.6.1.7 fix: 兼容三种 user_id 表达
+# - "用户 1000260 ..." / "用户1000260"（中文 prefix）
+# - "user_id=1000260" / "user_id: 1000260"（key=value 形式）
+# - 裸 7-12 位数字（如直接问 "1000260当前持仓"）— 但不能在小数 / 数量 context 里
+_USER_ID_RE = re.compile(
+    r"用户\s*(\d{3,})"                            # 中文 prefix
+    r"|user[\s_]?id[\s=:]+(\d{3,})"               # key=value 形式
+    r"|(?<![\d.])(\d{7,12})(?![\d.])"             # 裸 7-12 位（user_id 业务范围）+ 排除小数和数列
+)
 
 # v0.6.1.4 fix: \b 在中文+ASCII 混合时不识别边界（"台BTC" 不命中）；
 # 改用 lookbehind/ahead 排除两侧的 ASCII 字母 + 数字（中文/空格/标点算"非字母数字" → 匹配通过）
@@ -153,10 +161,10 @@ def extract_params_for_endpoint(refined_question: str, endpoint_key: str | None 
     params: dict[str, Any] = {}
     q = refined_question
 
-    # user_id
+    # user_id — 3 个 alternation 分支取第一个非空
     m = _USER_ID_RE.search(q)
     if m:
-        params["user_id"] = int(m.group(1) or m.group(2))
+        params["user_id"] = int(m.group(1) or m.group(2) or m.group(3))
 
     # market（先匹配完整 BTCUSDT / 1000SHIBUSDT 形态，再 fallback 短名走字典 + USDT 默认）
     m = _MARKET_RE.search(q)
