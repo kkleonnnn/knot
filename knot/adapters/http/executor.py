@@ -102,6 +102,10 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
         headers[header_name] = header_value
 
     # HTTP 调用
+    # v0.6.1.4 fix: user-facing error 不露完整 URL（防内部路由泄漏）；完整 URL 留在 logger 给 admin 排查
+    import logging as _log
+    _logger = _log.getLogger(__name__)
+
     try:
         if method == "GET":
             resp = requests.get(url, params=params, headers=headers, timeout=timeout_sec)
@@ -110,40 +114,41 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
         else:
             raise HTTPAdapterError(f"不支持的 HTTP method: {method}")
     except requests.Timeout as e:
-        raise HTTPTimeout(f"HTTP {method} {url} 超时 ({timeout_sec}s): {e}") from e
+        _logger.error(f"HTTP {method} {url} 超时 ({timeout_sec}s): {e}")
+        raise HTTPTimeout(f"外部 HTTP API {method} 超时 ({timeout_sec}s)") from e
     except requests.ConnectionError as e:
-        raise HTTPUnavailable(f"HTTP {method} {url} 不可达: {e}") from e
+        _logger.error(f"HTTP {method} {url} 不可达: {e}")
+        raise HTTPUnavailable(f"外部 HTTP API {method} 不可达") from e
     except requests.RequestException as e:
-        raise HTTPAdapterError(f"HTTP {method} {url} 请求异常: {e}") from e
+        _logger.error(f"HTTP {method} {url} 请求异常: {e}")
+        raise HTTPAdapterError(f"外部 HTTP API {method} 请求异常") from e
 
     # 状态码分流
     if resp.status_code in (401, 403):
-        raise HTTPAuthError(
-            f"HTTP {method} {url} auth 失败 (HTTP {resp.status_code})"
-        )
+        _logger.error(f"HTTP {method} {url} auth 失败 (HTTP {resp.status_code})")
+        raise HTTPAuthError(f"外部 HTTP API auth 失败 (HTTP {resp.status_code})")
     if resp.status_code == 404:
-        raise HTTPAdapterError(
-            f"HTTP {method} {url} 路由 404 — base_url 或 path 错误"
-        )
+        _logger.error(f"HTTP {method} {url} 路由 404 — base_url 或 path 错误")
+        raise HTTPAdapterError("外部 HTTP API 路由 404 — 请联系管理员检查配置")
     if resp.status_code >= 500:
-        raise HTTPUnavailable(
-            f"HTTP {method} {url} 服务异常 (HTTP {resp.status_code})"
-        )
+        _logger.error(f"HTTP {method} {url} 服务异常 (HTTP {resp.status_code})")
+        raise HTTPUnavailable(f"外部 HTTP API 服务异常 (HTTP {resp.status_code})")
     if resp.status_code != 200:
-        raise HTTPAdapterError(
-            f"HTTP {method} {url} 非预期状态码: {resp.status_code}"
-        )
+        _logger.error(f"HTTP {method} {url} 非预期状态码: {resp.status_code}")
+        raise HTTPAdapterError(f"外部 HTTP API 非预期状态码: {resp.status_code}")
 
     # JSON 解析
     try:
         body = resp.json()
     except ValueError as e:
-        raise HTTPAdapterError(f"HTTP {method} {url} response 非 JSON: {e}") from e
+        _logger.error(f"HTTP {method} {url} response 非 JSON: {e}")
+        raise HTTPAdapterError("外部 HTTP API response 非 JSON 格式") from e
 
     # 业务码检查（约定：code=0 表示成功；可在 spec 中重写约定）
     if isinstance(body, dict) and "code" in body and body["code"] != 0:
+        _logger.error(f"HTTP {method} {url} 业务错误 code={body['code']} msg={body.get('msg')!r}")
         raise HTTPAdapterError(
-            f"HTTP {method} {url} 业务错误 code={body['code']} msg={body.get('msg')!r}"
+            f"外部 HTTP API 业务错误 code={body['code']} msg={body.get('msg')!r}"
         )
 
     # response_path dot path 提取 rows
