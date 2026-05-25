@@ -283,12 +283,16 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                         agent_kind="sql_planner",
                         latency_ms=int((time.time() - t0) * 1000),
                     )
+                    # v0.6.1.4: 优先用 http_result.user_message（如 missing_required_param 友好文案），
+                    # 否则 fallback "数据源不可达" 通用文案；missing_required_param 非 retryable（让用户补参）
+                    kind = http_result["error_kind"] or "http_unavailable"
+                    fallback_msg = "数据源（外部 API）暂不可达，请稍后重试或联系 admin"
                     yield emit({
                         "type": "final", "message_id": err_mid,
                         "sql": "", "rows": [], "error": http_result["error"],
-                        "error_kind": http_result["error_kind"] or "http_unavailable",
-                        "user_message": "数据源（外部 API）暂不可达，请稍后重试或联系 admin",
-                        "is_retryable": True,
+                        "error_kind": kind,
+                        "user_message": http_result.get("user_message") or fallback_msg,
+                        "is_retryable": kind != "missing_required_param",
                     })
                     return
 
