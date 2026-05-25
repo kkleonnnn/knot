@@ -100,10 +100,36 @@ def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
 # ─── 参数提取 ──────────────────────────────────────────────────────────
 
 _USER_ID_RE = re.compile(r"用户\s*(\d{3,})|user[\s_]?id[\s=:]+(\d{3,})")
+
 # v0.6.1.4 fix: \b 在中文+ASCII 混合时不识别边界（"台BTC" 不命中）；
-# 改用 lookbehind/ahead 排除两侧的 ASCII 字母（中文/空格/标点都算"非字母" → 匹配通过）
-_MARKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{3,}USDT|[A-Z]{2,}USD)(?![A-Za-z])")
-_SHORT_MARKET_RE = re.compile(r"(?<![A-Za-z])(BTC|ETH|SOL|BNB|XRP|ADA|DOT|MATIC|LINK|AVAX)(?![A-Za-z])", re.I)
+# 改用 lookbehind/ahead 排除两侧的 ASCII 字母 + 数字（中文/空格/标点算"非字母数字" → 匹配通过）
+# 长形态：BTCUSDT / 1000SHIBUSDT / BTCUSXT（变种结算） / BTCUSD（旧）
+_MARKET_RE = re.compile(
+    r"(?<![A-Za-z0-9])(1000[A-Z]{2,}USDT|[A-Z]{2,}USDT|[A-Z]{2,}USXT|[A-Z]{2,}USD)(?![A-Za-z0-9])"
+)
+
+# v0.6.1.4 fix: 短币种 → market 字典（覆盖业务方 dropdown 24+ 币种 + 1000x 前缀币种）
+# 不在此字典的币种 → fallback {coin}USDT
+_COIN_TO_MARKET = {
+    "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT",
+    "DOGE": "DOGEUSDT", "TON": "TONUSDT", "LTC": "LTCUSDT",
+    "XRP": "XRPUSDT", "BCH": "BCHUSDT", "ADA": "ADAUSDT",
+    "UNI": "UNIUSDT", "SUI": "SUIUSDT", "AVAX": "AVAXUSDT",
+    "SAND": "SANDUSDT", "TRUMP": "TRUMPUSDT", "MELANIA": "MELANIAUSDT",
+    "ETC": "ETCUSDT", "DOT": "DOTUSDT", "XLM": "XLMUSDT",
+    "OP": "OPUSDT", "DYDX": "DYDXUSDT", "LINK": "LINKUSDT",
+    "BNB": "BNBUSDT", "MATIC": "MATICUSDT",
+    # 1000x prefix coins（业务方 dropdown 形态）
+    "SHIB": "1000SHIBUSDT", "PEPE": "1000PEPEUSDT",
+}
+# 按长度倒序生成 regex，防 "ETC" 抢先匹配 "ETH" 之类（lookahead 已防但保险）
+_SHORT_MARKET_RE = re.compile(
+    r"(?<![A-Za-z0-9])("
+    + "|".join(sorted(_COIN_TO_MARKET.keys(), key=len, reverse=True))
+    + r")(?![A-Za-z0-9])",
+    re.I,
+)
+
 _SIDE_LONG_WORDS = ("多头", "多仓", "long", "buy", "做多", "看多", "买入", "买多")
 _SIDE_SHORT_WORDS = ("空头", "空仓", "short", "sell", "做空", "看空", "卖出", "卖空")
 
@@ -132,14 +158,16 @@ def extract_params_for_endpoint(refined_question: str, endpoint_key: str | None 
     if m:
         params["user_id"] = int(m.group(1) or m.group(2))
 
-    # market（先匹配完整 BTCUSDT 形态，再 fallback BTC 短名）
+    # market（先匹配完整 BTCUSDT / 1000SHIBUSDT 形态，再 fallback 短名走字典 + USDT 默认）
     m = _MARKET_RE.search(q)
     if m:
-        params["market"] = m.group(1)
+        params["market"] = m.group(1).upper()
     else:
         m = _SHORT_MARKET_RE.search(q)
         if m:
-            params["market"] = (m.group(1) or "").upper() + "USDT"
+            coin = (m.group(1) or "").upper()
+            # 优先查字典（覆盖 1000x prefix 等特殊形态）；未命中 → 默认 {coin}USDT
+            params["market"] = _COIN_TO_MARKET.get(coin, coin + "USDT")
 
     # side: 多头=2 / 空头=1
     q_lower = q.lower()
@@ -298,6 +326,22 @@ async def run_http_step(refined_question: str, table_full_name: str, http_spec: 
     # endpoint_key 从 table name 推断（用于参数 default 处理）
     endpoint_key = table_full_name.rsplit(".", 1)[-1]
     params = extract_params_for_endpoint(refined_question, endpoint_key)
+
+    # v0.6.1.4 闸门：required_params 必填校验 — 缺则直接友好错误，不打 API（防 30002 类业务错误）
+    required = http_spec.get("required_params", []) or []
+    missing = [p for p in required if p not in params or params[p] in (None, "", 0)]
+    # user_id=0 也认为缺失（业务上无 user 0）；其他 numeric 0 (如 page=0) 不应进 required 列
+    if missing:
+        # 中文友好名映射
+        friendly = {"user_id": "用户ID", "market": "市场（如 BTCUSDT / BTC）", "side": "方向（多头 / 空头）"}
+        missing_zh = "、".join(friendly.get(p, p) for p in missing)
+        return {
+            "success": False, "rows": [], "row_count": 0, "truncated": False,
+            "error": f"缺必填参数: {', '.join(missing)}",
+            "error_kind": "missing_required_param",
+            "user_message": f"请补充 {missing_zh} 后重新提问",
+            "params": params, "endpoint_url": http_spec.get("url_template", ""),
+        }
 
     # v0.6.1.4 OVERRIDE #4: resolve source_id → 直填 spec（兼容 env 路径）
     try:
