@@ -100,10 +100,12 @@ def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
 # ─── 参数提取 ──────────────────────────────────────────────────────────
 
 _USER_ID_RE = re.compile(r"用户\s*(\d{3,})|user[\s_]?id[\s=:]+(\d{3,})")
-_MARKET_RE = re.compile(r"\b([A-Z]{3,}USDT|[A-Z]{2,}USD)\b")
-_SHORT_MARKET_RE = re.compile(r"\b(BTC|ETH|SOL|BNB|XRP|ADA|DOT|MATIC|LINK|AVAX)\b", re.I)
-_SIDE_LONG_WORDS = ("多头", "多仓", "long", "buy", "做多", "看多")
-_SIDE_SHORT_WORDS = ("空头", "空仓", "short", "sell", "做空", "看空")
+# v0.6.1.4 fix: \b 在中文+ASCII 混合时不识别边界（"台BTC" 不命中）；
+# 改用 lookbehind/ahead 排除两侧的 ASCII 字母（中文/空格/标点都算"非字母" → 匹配通过）
+_MARKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{3,}USDT|[A-Z]{2,}USD)(?![A-Za-z])")
+_SHORT_MARKET_RE = re.compile(r"(?<![A-Za-z])(BTC|ETH|SOL|BNB|XRP|ADA|DOT|MATIC|LINK|AVAX)(?![A-Za-z])", re.I)
+_SIDE_LONG_WORDS = ("多头", "多仓", "long", "buy", "做多", "看多", "买入", "买多")
+_SIDE_SHORT_WORDS = ("空头", "空仓", "short", "sell", "做空", "看空", "卖出", "卖空")
 
 
 def extract_params_for_endpoint(refined_question: str, endpoint_key: str | None = None) -> dict[str, Any]:

@@ -163,10 +163,18 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
 
             {key === 'clarifier' && isDone && output?.refined_question && (
               <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
-                <div style={{ color: T.muted, fontSize: 10.5, marginBottom: 2 }}>精确问题</div>
-                <div style={{ color: T.text }}>{output.refined_question}</div>
-                {output?.approach && !_shouldHideClarifierApproach(sqlPlannerOutput) &&
-                  <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
+                {/* v0.6.1.4 fix: HTTP path 下 clarifier refined_question 常带 SQL-flavored 幻觉
+                    （"持仓记录表"/"数据暂不可查"等），同 approach 一并隐藏；只显「已识别为外部 API 查询」标签 */}
+                {_shouldHideClarifierApproach(sqlPlannerOutput) ? (
+                  <div style={{ color: T.muted, fontSize: 10.5 }}>已识别为外部 API 查询</div>
+                ) : (
+                  <>
+                    <div style={{ color: T.muted, fontSize: 10.5, marginBottom: 2 }}>精确问题</div>
+                    <div style={{ color: T.text }}>{output.refined_question}</div>
+                    {output?.approach &&
+                      <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
+                  </>
+                )}
               </div>
             )}
 
