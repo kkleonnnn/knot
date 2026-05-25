@@ -265,6 +265,40 @@ def humanize_timestamps(rows: list[dict]) -> list[dict]:
     return out
 
 
+# v0.6.1.8 — 字段重映射（英文 API key → 中文业务标签）─────────────────
+
+
+def _get_table_field_mapping(table_full_name: str) -> dict:
+    """从 catalog 取 table 的 field_mapping（catalog 已 reload 加载）"""
+    from knot.services.agents import catalog
+    if "." not in table_full_name:
+        return {}
+    db, table = table_full_name.split(".", 1)
+    for t in catalog.TABLES:
+        if t.get("db") == db and t.get("table") == table:
+            return t.get("field_mapping") or {}
+    return {}
+
+
+def apply_field_mapping(rows: list[dict], mapping: dict) -> list[dict]:
+    """按 mapping 把 row keys 翻译成业务标签（命中映射用中文；未命中保英文）。
+
+    mapping 形态: {"profit_unreal": "未实现盈亏", "create_time": "创建时间", ...}
+    """
+    if not rows or not mapping:
+        return rows
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        new_row = {}
+        for k, v in row.items():
+            new_row[mapping.get(k, k)] = v
+        out.append(new_row)
+    return out
+
+
 # ─── HTTP step 执行（query_stream 调）──────────────────────────────────
 
 
@@ -397,10 +431,12 @@ async def run_http_step(refined_question: str, table_full_name: str, http_spec: 
         }
 
     original_count = len(raw_rows) if isinstance(raw_rows, list) else 0
-    # R-PB2-10 双过滤 + Unix timestamp 人类化
+    # R-PB2-10 双过滤 + Unix timestamp 人类化 + 字段中文化
     truncated_rows, was_truncated = truncate_rows(raw_rows or [])
     humanized_rows = humanize_timestamps(truncated_rows)
-    safe_rows = redact_pii(humanized_rows)
+    redacted_rows = redact_pii(humanized_rows)
+    # v0.6.1.8: 应用 catalog field_mapping (英文 API key → 中文业务标签)
+    safe_rows = apply_field_mapping(redacted_rows, _get_table_field_mapping(table_full_name))
 
     return {
         "success": True,
