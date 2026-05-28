@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from loguru import logger
+
 from knot.adapters.http import HTTPAdapterError, execute
 from knot.services.agents import catalog as catalog_loader
 
@@ -37,62 +39,86 @@ class CrossSourceJoinNotSupported(Exception):
 # ─── 路由决策 ──────────────────────────────────────────────────────────
 
 
-def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
-    """根据 refined_question 在 catalog 中匹配 HTTP 虚拟表。
+# v0.6.2.1 R-PB-C2-3：exclusion regex — 命中即走 SQL（diagnostic warn 不阻断）
+# 触发场景：refined_question 含明显历史/已平仓信号 → 应走 SQL 历史表
+# 不阻断 = log warn 但 return None（query.py 后续 sql_planner 自然接管）
+# 注：clarifier prompt 已要求改写"历史持仓"→"历史平仓记录"避开"持仓"关键词；
+#     本 regex 是 belt-and-suspenders 双保险，防 clarifier 改写漏一处
+_EXCLUSION_RE = re.compile(
+    r"历史|已平仓|强平|爆仓|ADL|\d+\s*天前?|\d+\s*月前?|昨天|前天|上周|上月",
+)
 
-    匹配逻辑（lexicon 优先 + topics 兜底）：
-    1. 遍历 catalog.LEXICON，找 refined_question 包含的 key
-    2. 对应 value 列表中第一个 source_type=http 表 = 命中
-    3. R-PB2-4 守护：若同时命中 source_type=db 表 + HTTP 表 → raise CrossSourceJoinNotSupported
+
+def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
+    """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained + ε1 单 commit + Layer 2 改 Clarifier prompt）。
+
+    Layer 1（白名单主路由）：catalog source:http 表 + lexicon 关键词命中 + entity-aware ranking
+    Layer 2（模糊 entity）：clarifier prompt 在 ambiguous entity 时设 is_clear=false 弹二次确认
+        （故 Layer 2 不在本函数实现 — 由 clarifier.md 责任；refined_question 到达此函数时
+         已经是 entity 明确的 — R-12 follow-up 也通过 conversation history 自然继承）
+    Layer 3（diagnostic warn）：refined_question 命中 exclusion regex（历史/已平仓/N天前等）→ 走 SQL
 
     Returns:
         (table_full_name, http_spec) 命中 HTTP 路由
-        None — 未命中 HTTP 虚拟表（走 SQL 路径）
+        None — 未命中 HTTP（走 SQL 路径）
 
     Raises:
-        CrossSourceJoinNotSupported: 检测到混源
+        CrossSourceJoinNotSupported: 检测到混源（R-PB2-4 sustained — 真正跨源 JOIN）
     """
-    catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained: catalog 变更立即生效
-    lex = catalog_loader.LEXICON or {}
+    catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained
 
+    # Layer 3 — exclusion regex 优先（防"历史持仓"误路由 HTTP 当前持仓表）
+    # 即使 lexicon 含"持仓"关键词命中 HTTP 表，含历史信号也降级 SQL
+    if _EXCLUSION_RE.search(refined_question):
+        logger.info(
+            f"pick_http_route Layer 3 diagnostic warn: exclusion regex matched, "
+            f"refined='{refined_question[:80]}' — defaulting SQL",
+        )
+        return None
+
+    lex = catalog_loader.LEXICON or {}
     matched_db_tables: set[str] = set()
     matched_http_tables: set[str] = set()
+    matched_keywords: list[str] = []
 
     for keyword, table_names in lex.items():
         if not keyword or not isinstance(keyword, str):
             continue
         if keyword.lower() not in refined_question.lower():
             continue
+        matched_keywords.append(keyword)
         for tname in table_names or []:
             if catalog_loader.is_http_table(tname):
                 matched_http_tables.add(tname)
             else:
                 matched_db_tables.add(tname)
 
-    # v0.6.1.4 R-PB2-4 修订：lexicon 同关键词命中 SQL + HTTP 表是合理常态
-    # （DB admin UI 配的 SQL 持仓表 + file 配的 HTTP 持仓表 都关联到"持仓"关键词）。
-    # 当前规则：HTTP 优先（catalog driven 单源路由）。
-    # 真正跨源 JOIN（多表必须 JOIN 才能答）由 query.py 后续语义判定，不在 lexicon 层 raise。
+    # R-PB-C2-2：None 分支强制 logger.info 诊断（防静默 fallback 难诊断 — e38de5e76703 偿还）
     if not matched_http_tables:
+        logger.info(
+            f"pick_http_route Layer 1 no match: refined='{refined_question[:80]}', "
+            f"lex_hits={matched_keywords[:5]}, db_tables={sorted(matched_db_tables)[:3]}",
+        )
         return None
 
-    # entity-aware 路由（v0.6.1.4）：
-    # - 问题含 user_id 数字 → 偏好含 "user" 字面的 endpoint（如 futures_user_pending）
-    # - 无 user_id → 平台视图 endpoint（如 futures_position_list）
-    # 这是 demo MVP heuristic；v0.6.1.5+ 可用 LLM 调用做精准路由
+    # Layer 1 — entity-aware ranking（v0.6.1.4 sustained）
     has_user_id = bool(_USER_ID_RE.search(refined_question))
 
     def _rank(name: str) -> int:
         is_user_endpoint = "user" in name.lower()
         if has_user_id and is_user_endpoint:
-            return 0   # 最高优先
+            return 0
         if not has_user_id and not is_user_endpoint:
-            return 1   # 平台视图
-        return 2       # mismatch（仍可调，但靠后）
+            return 1
+        return 2
 
     selected = sorted(matched_http_tables, key=_rank)[0]
     spec = catalog_loader.get_http_spec(selected)
     if not spec:
+        logger.info(
+            f"pick_http_route Layer 1 spec missing: selected={selected!r}, "
+            f"http_tables={sorted(matched_http_tables)}",
+        )
         return None
     return selected, spec
 
