@@ -108,6 +108,74 @@ def _load_from_db() -> tuple:
     return lex, tables, rules, relations, found
 
 
+def _infer_source_types_from_datasources(tables: list) -> list:
+    """v0.6.2.1 R-PB-C1-1 + ε2 — fail-fast 熔断 + source_type 推断兜底。
+
+    生产 bug 链路（e38de5e76703）：admin UI 01 表目录编辑器只支持
+    {db, table, topics, summary} 4 字段，灌入 DB catalog.tables 时
+    source_type 字段被吃掉 → is_http_table() fallback 默认 "db" →
+    pick_http_route() 永返 None → 静默落 sql_planner。
+
+    修复策略（ε2 fail-fast + 业务条件触发）：
+      1. DataSource 表查询失败 → MetadataError 熔断
+         （防 BI 全盘瘫痪 — 既有 doris/mysql 不被误推断为 http）
+      2. DataSource 表查询成功但为空 → MetadataError 熔断（同上）
+      3. DataSource 表正常非空 → 对 catalog tables 中 db_name 匹配
+         db_type='http' DataSource 的表，强制 source_type='http'
+
+    设计哲学协同：
+      - 与 v0.4.5 R-37 master_key fail-fast 同精神
+      - 与 v0.5.0 R-74 双 key 探针"业务条件触发"同精神
+      - 内存态推断（passthrough mutation），不持久化回 DB
+        admin UI 字段持久化由 F1.2/F1.3 独立路径解决
+    """
+    from knot.models.errors import MetadataError
+    from knot.repositories import data_source_repo
+    try:
+        ds_list = data_source_repo.list_datasources()
+    except Exception as e:
+        raise MetadataError(
+            f"DataSource 表查询失败 — catalog source_type 推断兜底中止 "
+            f"(ε2 fail-fast — 防误推断既有 doris/mysql 为 http): {e}",
+        ) from e
+
+    if not ds_list:
+        # DataSource 表为空 — 异常状态（任何有效部署应至少有 1 个数据源）
+        # 不静默 fallback；不推断 — 防 BI 全盘瘫痪
+        raise MetadataError(
+            "DataSource 表为空 — catalog source_type 推断兜底中止 "
+            "(ε2 fail-fast — 防误推断既有 doris/mysql 为 http)",
+        )
+
+    # 业务条件触发：db_type='http' 的 DataSource db_name 集合
+    http_db_names = {
+        ds.get("db_database", "").strip()
+        for ds in ds_list
+        if ds.get("db_type") == "http" and ds.get("db_database")
+    }
+    if not http_db_names:
+        return tables  # 无 HTTP DataSource — 不推断
+
+    # 推断：catalog 表 db 字段匹配 http_db_names + 未显式 source_type → 标 http
+    inferred_count = 0
+    for t in tables:
+        if t.get("source_type"):
+            continue  # 已显式（来自 _local_catalog.py 等）→ 不动
+        if t.get("db") in http_db_names:
+            t["source_type"] = "http"
+            inferred_count += 1
+
+    if inferred_count > 0:
+        # 元数据 audit log（admin 可观察推断生效）
+        import logging
+        logging.getLogger("knot.catalog").info(
+            f"catalog source_type 推断兜底：{inferred_count} 表标记为 http "
+            f"(http DataSource db_names={sorted(http_db_names)})",
+        )
+
+    return tables
+
+
 def _merge_lexicons(file_lex: dict, db_lex: dict) -> dict:
     """v0.6.1.4: 智能合并 file + DB lexicon。
 
@@ -137,7 +205,7 @@ def _merge_lexicons(file_lex: dict, db_lex: dict) -> dict:
     return merged
 
 
-def reload() -> str:
+def reload(strict: bool = False) -> str:
     """v0.5.44 — 重新加载 catalog；返回 source 标签。
     DB 4 键覆盖 file 默认（粒度：每键独立）；某键 DB 为空则继续走 file fallback。
     RELATIONS 现也走 DB 覆盖（admin UI v0.5.44 落地，根因解防 cartesian）。
@@ -145,6 +213,11 @@ def reload() -> str:
     v0.6.1.4: HTTP 虚拟表（source_type=http）从 file merge 进 DB catalog。
     理由：HTTP 表是部署方代码层配置（OSS 模式），不应被 admin DB 编辑覆盖；
           SQL 表仍由 DB 主导（admin 后台编辑）。
+
+    v0.6.2.1 ε2 fail-fast：
+      - strict=False（默认 — 模块 import / startup 时）：source_type 推断异常 → log warning 不阻塞
+      - strict=True（admin reload / pick_http_route 触发时）：推断异常 → MetadataError 上抛
+      防 BI 全盘瘫痪：业务条件触发 fail-fast；startup 期降级为 warning。
     """
     global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
 
@@ -163,6 +236,23 @@ def reload() -> str:
             full = f"{t.get('db')}.{t.get('table')}"
             if full not in existing_names:
                 base_tables.append(t)
+
+    # v0.6.2.1 R-PB-C1-1 + ε2：source_type 推断兜底 + fail-fast 熔断
+    # strict=True（admin reload / pick_http_route 触发）→ MetadataError 上抛
+    # strict=False（startup module import）→ log warning + 不阻塞（避免 BI 启动失败）
+    # 仅在 DB 主导（admin UI 编辑场景）时启用 — file-only 模式跳过
+    if db_tables and db_found:
+        from knot.models.errors import MetadataError
+        try:
+            base_tables = _infer_source_types_from_datasources(base_tables)
+        except MetadataError:
+            if strict:
+                raise  # 业务条件触发（admin/query）→ fail-fast 上抛
+            import logging
+            logging.getLogger("knot.catalog").warning(
+                "catalog source_type 推断兜底失败（startup 期降级；admin reload 时重试）",
+                exc_info=True,
+            )
     TABLES = base_tables
 
     # v0.6.1.4: LEXICON — 智能合并（不简单覆盖）

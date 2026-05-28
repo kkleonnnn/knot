@@ -52,7 +52,7 @@ def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
     Raises:
         CrossSourceJoinNotSupported: 检测到混源
     """
-    catalog_loader.reload()  # R-PB2-13: catalog 变更立即生效
+    catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained: catalog 变更立即生效
     lex = catalog_loader.LEXICON or {}
 
     matched_db_tables: set[str] = set()
@@ -458,7 +458,7 @@ def augment_schema_with_http_tables(schema_text: str) -> str:
 
     格式与 SQL schema markdown 风格对齐（### 表名 + 字段描述）。
     """
-    catalog_loader.reload()
+    catalog_loader.reload()  # v0.6.2.1 ε2：query 时 strict=False — startup catalog warning sustained
     http_tables = [
         t for t in catalog_loader.TABLES
         if t.get("source_type", "db") == "http"

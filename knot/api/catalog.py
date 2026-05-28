@@ -7,7 +7,7 @@ catalog.py — admin 维护业务目录（v0.2.5）
   - business_rules  : str，注入到 3 个 agent system prompt 的业务规则
 
 存储：app_settings 三键（catalog.tables / catalog.lexicon / catalog.business_rules）
-读取：catalog_loader.reload() —— DB 优先，缺失时 fallback 到 _local_catalog / _template_catalog.py
+读取：catalog_loader.reload(strict=True) —— DB 优先，缺失时 fallback 到 _local_catalog / _template_catalog.py
 """
 import json
 
@@ -31,7 +31,7 @@ def _has_setting(key: str) -> bool:
 @router.get("/api/admin/catalog")
 async def get_catalog(admin=Depends(require_admin)):
     """v0.5.44 — 加 relations 字段返回；4 键全部可走 DB 覆盖。"""
-    catalog_loader.reload()
+    catalog_loader.reload(strict=True)
     return {
         "source": catalog_loader._SOURCE,
         "current": {
@@ -95,7 +95,7 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
             settings_repo.set_app_setting("catalog.relations", json.dumps(v, ensure_ascii=False))
         out["saved"].append("relations")
 
-    catalog_loader.reload()
+    catalog_loader.reload(strict=True)
     out["source"] = catalog_loader._SOURCE
     if out["saved"]:
         audit(request, admin, action="config.catalog_update", resource_type="catalog",
@@ -115,7 +115,7 @@ async def reset_catalog(payload: dict = Body(default={}), request: Request = Non
             continue
         settings_repo.set_app_setting(f"catalog.{f}", "")
         cleared.append(f)
-    catalog_loader.reload()
+    catalog_loader.reload(strict=True)
     if cleared:
         audit(request, admin, action="config.catalog_update", resource_type="catalog",
               detail={"op": "reset", "cleared": cleared})
