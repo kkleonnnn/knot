@@ -24,7 +24,13 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _reset_module_state():
-    """v0.6.2.0 NRP-2 测试隔离：清 rate limit bucket + JWT cache 防 test 间污染。"""
+    """v0.6.2.0 NRP-2 测试隔离：清 rate limit bucket + JWT cache 防 test 间污染。
+
+    守护者第 16 次 active §II.1 议题 2（信息性）：未来 `_rate_limit` 模块新增 state
+    （如 IP-based bucket / per-endpoint counter / per-route 限流）→ **本 fixture 必须同步更新**
+    否则新 state 跨 test 泄露会导致间歇性失败。
+    同理 `totp_service` 新增 module-level cache（如 user-info LRU / pyotp instance pool）也需扩。
+    """
     from knot.api._rate_limit import _bucket
     from knot.services import totp_service
     _bucket._d.clear()
@@ -75,6 +81,36 @@ def test_R_PB_B1_12_service_layer_uses_valid_window():
     src = inspect.getsource(totp_service)
     # enroll_complete + verify 必含 valid_window=1
     assert "valid_window=1" in src, "totp_service 必含 valid_window=1（R-PB-B1-12）"
+
+
+# ─── R-PB-B1-5 last_used_at 更新（守护者第 16 次议题 1 顺手补）─
+
+
+def test_R_PB_B1_5_verify_updates_last_used_at(client, auth_headers):
+    """R-PB-B1-5：verify 成功后 users.totp_last_used_at 必更新（5 次/月警报基线）。
+
+    守护者第 16 次 active §I 议题 1 — 防 set_totp_last_used_at 未来被误删。
+    """
+    from knot.services import totp_service
+
+    init = client.post("/api/totp/enroll-init", headers=auth_headers).json()
+    code = pyotp.TOTP(init["secret"]).now()
+    r = client.post("/api/totp/enroll-complete", headers=auth_headers,
+                    json={"secret": init["secret"], "code": code})
+    assert r.status_code == 200
+
+    # 直接 service.verify 触发 last_used_at 更新（API 端点也走同 service）
+    fresh_code = pyotp.TOTP(init["secret"]).now()
+    ok = totp_service.verify(1, fresh_code)
+    assert ok is True
+
+    from knot.repositories import base
+    conn = sqlite3.connect(base.SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT totp_last_used_at FROM users WHERE id=1").fetchone()
+    conn.close()
+    assert row["totp_last_used_at"] is not None, \
+        "verify 成功后 last_used_at 必更新（5 次/月警报基线）"
 
 
 # ─── R-PB-B1-1/8 Fernet enc_v1: 加密路径（集成测试）─────────────

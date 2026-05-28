@@ -260,7 +260,7 @@ sleep 10 && docker logs knot | tail -10
 
 ---
 
-## ⚠️ 部署必读 — 4 条硬约束
+## ⚠️ 部署必读 — 5 条硬约束
 
 ### 1. KNOT_MASTER_KEY 是**终身密钥** 🔐
 
@@ -305,6 +305,44 @@ location / {
 ```
 
 ✅ `audit_log` 自动 7 天 retention + timestamped 备份（F-C 已内置 — 无需额外）。
+
+### 5. TOTP 2FA — admin 三层防御 + 公测启动闸门（v0.6.2.0+）🛡️
+
+KNOT v0.6.2.0 起加强制 TOTP 2FA enroll 能力（R-PB-B1-1~13 + NRP-1/2）。
+
+**env 开关**：
+
+```bash
+# 默认 unset → 整个 TOTP enforcement off（内测期推荐 — 业务方可自愿 enroll）
+# 公测启动前 export KNOT_TOTP_REQUIRED=true → 所有用户登录强制 enroll
+export KNOT_TOTP_REQUIRED=true
+```
+
+**R-PB-B1-3 admin 三层防御**（防 admin 自锁）：
+
+| 优先级 | 条件 | 行为 | 适用场景 |
+|---|---|---|---|
+| 1（最强）| `KNOT_TOTP_BYPASS_ADMIN=true` env | 全局跳过 admin TOTP 验证 | 应急后门 / 灾备恢复 |
+| 2（兜底）| KNOT_TOTP_BYPASS_ADMIN 未设 + **0 admin 已 enroll** | admin 跳过（每次登录 logger.warn 提示）| 首次部署 bootstrap |
+| 3（自动失效）| **≥ 1 admin enroll 完成** | 上述两个 fallback 自动失效 | 正常生产 |
+
+**公测启动 checklist**（必做）：
+
+1. 资深架构师本人完成 TOTP enroll（确保 ≥1 admin enrolled → 优先级 2 自动失效）
+2. `export KNOT_TOTP_REQUIRED=true` → 整个 TOTP enforcement 打开
+3. 验证非 enrolled 用户登录 → 强制跳 Enroll 屏
+4. 验证 enrolled 用户登录 → 输入 6 位码后才能进业务屏
+
+**风险声明**（透明披露）：
+
+- 若 admin 永不 enroll + `KNOT_TOTP_REQUIRED=true` → bypass 优先级 2 永久 on（admin 实际无 2FA 保护）
+- 缓解：`KNOT_TOTP_REQUIRED=true` 仅在 ≥1 admin enrolled 后 export（业务条件触发）
+
+**R-PB-B1-3 简化论据**（v0.5 守护者第 14 次 active explicit ack）：
+原 v2 LOCKED "启动期 24h 宽限" 简化为 "≥1 admin enrolled 触发"
+- "业务时序触发" > "时钟时序窗口" 工程稳健性
+- service restart 不重置 24h 窗口（业务条件 vs 时间条件）
+- 与 v0.4.5 R-37 / v0.5.0 R-74 业务条件触发哲学一致
 
 ---
 

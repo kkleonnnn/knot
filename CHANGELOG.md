@@ -5,7 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.0-pre-governance — 治理立约 micro PATCH（docs only）
+## [Unreleased] - v0.6.2.0 — TOTP 2FA 强制 enroll（Phase B 完整版首个业务 PATCH）
+
+> **Loop Protocol v3 第 32 次施行** — Phase B 完整版 v4 LOCKED §1 段 1 B1
+> **协议**：完整三阶段（Stage 1 草案 + Stage 2 第三方 + Stage 3 守护者 + Stage 4 LOCKED）+ γ3 决策（commit 2/6 强制 active）+ R-PB-GOV-1 工期指导性预估
+> **守护者 active 4 次**：第 13 次（commit 2）/ 第 14 次（commit 3）/ 第 15 次（commit 5）/ 第 16 次（commit 6 γ3 强制）— 全 APPROVED for MERGE
+> **远古守护者**：本 PATCH 不激活（第 4 次预约 v0.6.3.0 B2 audit V2）
+
+### 范围（F1-F7 / 7 commits）
+
+| commit | 主题 | PR |
+|---|---|---|
+| 1 | F1 schema + 3 新依赖（pyotp/qrcode/cachetools）+ plan v1→v2 LOCKED | #115 |
+| 2 | F2 totp_service + Fernet + R-46-Tx + Session + valid_window=1 + JWT 吊销机制 | #116 |
+| 3 | F3 API 4 端点 + auth login 改造 + deps.py JWT +token_version + R-PB-B1-3 三层 + γ1 顺手 | #117 |
+| 4 | F4 AuditAction Literal +4（含 recovery_code_used）| #118 |
+| 5 | F5 前端 Login need_totp 二阶段 + Enroll [NEW] 4-step + admin TOTP 重置 | #119 |
+| 6 | F6 守护测试 — race 100×±5 + 时钟漂移 ±30s + JWT 吊销 e2e + 议题 2 顺手 | #120 |
+| 7 | F7 文档收官 — 4 处版本同步 + DEPLOY.md R-PB-B1-3 段 + CHANGELOG | (本 PR) |
+
+### 13 红线 + 2 NRP 子条款立约
+
+- **R-PB-B1-1/8** Fernet enc_v1: 加密路径（仅 SQLite knot.db）
+- **R-PB-B1-2** enroll 失败不锁死账号 — recovery codes 可下载
+- **R-PB-B1-3** admin 三层防御（env / 0 admin enrolled / ≥1 admin enrolled auto-expire — **简化版 v0.5 守护者第 14 次 explicit ack**）
+- **R-PB-B1-4** 公测启动闸门 — KNOT_TOTP_REQUIRED env 默认 off
+- **R-PB-B1-5** TOTP 重置流程 — admin 重置 audit + 5 次/月警报
+- **R-PB-B1-6** TOTP 验证 rate limit 5/min/user
+- **R-PB-B1-7** enroll 1 次码 + 强制 recovery codes 下载（业界标准对齐 GitHub/Google）
+- **R-PB-B1-8** Fernet 加密路径明示 — users.totp_secret + enc_v1: 前缀
+- **R-PB-B1-9** R-46-Tx SQLite 事务（secret + recovery_codes 同事务）+ 应用层 Session 验证补充防御
+- **R-PB-B1-10** R-27 race 100×±5 守护 + @pytest.mark.race CI 独立 job 标记
+- **R-PB-B1-11** audit_action +4 — `user.totp.{enroll, verify_failed, reset, recovery_code_used}`
+- **R-PB-B1-12** TOTP valid_window=1 ±30s 时钟漂移容忍 — **Stage 2 Q1 致命遗漏修复**
+- **R-PB-B1-13** user_secret_version JWT 吊销真空期防御三层 — **Stage 2 关键独立贡献**（schema + reset/change_password 触发 + cachetools TTLCache 60s）
+- **NRP-1** JWT cache 用 cachetools TTLCache 不用 lru_cache（per-key invalidate）
+- **NRP-2** race 100× + valid_window=1 测试 mock 时间锁定单步长（autouse fixture _reset_module_state）
+
+### γ1 顺手安全债清偿
+
+`change_password` 路径必 bump_token_version → 旧 JWT 立即 401 JWT_REVOKED
+**OWASP A07:2021 Stolen Credential Persistence 防御**完整落地
+
+### Stage 2 独立第三方评审三大贡献（已落地）
+
+1. **R-PB-B1-12 valid_window=1** ±30s（Stage 2 Q1 致命遗漏）
+2. **R-PB-B1-13 JWT 吊销真空期防御**（Stage 2 关键独立贡献）
+3. **R-PB-B1-11 audit_action recovery_code_used**（Stage 2 Q7）
+
+### 文件改动统计
+
+| 类别 | 新增 | 修改 |
+|---|---|---|
+| 后端 | totp_service.py / totp_repo.py / api/totp.py | user_repo / repositories/base / repositories/schema.sql / api/auth / api/deps / api/_rate_limit / models/audit / api/schemas / main |
+| 前端 | screens/Enroll.jsx | screens/Login / App / api / screens/admin/tab_access / Admin |
+| 测试 | tests/api/test_totp_2fa.py（15 守护测试）| test_rename_smoke / test_force_change_password |
+| 依赖 | pyotp + qrcode[pil] + cachetools | requirements.txt + pyproject.toml |
+| 文档 | docs/plans/v0.6.2.0-totp-2fa{,-v2,-stage2-context-pack}.md | DEPLOY.md + CHANGELOG + CLAUDE.md + README + scripts/check_file_sizes.py LIMITS |
+
+### R-PB-B1-3 修订红线立约（守护者第 14 次 explicit ack）
+
+v2 LOCKED 原"启动期 24h 宽限" → 简化为"≥1 admin enrolled 触发"
+- 详 DEPLOY.md "5. TOTP 2FA — admin 三层防御 + 公测启动闸门"段
+- 归档 `docs/governance/override-cumulative-log.md` §6（新立 R-PB-B1-3 修订纪律）
+
+### 版本同步（4 处）
+
+`knot/main.py` + `tests/test_rename_smoke.py` + `frontend/src/screens/Login.jsx` 页脚 + `README.md` 顶部 + 技术栈段：0.6.1.12 → **0.6.2.0**
+
+---
+
+## [Released] - v0.6.2.0-pre-governance — 治理立约 micro PATCH（docs only）
 
 > **Loop Protocol v3 第 31 次施行** — Phase B 完整版第 0 段（治理立约前置）
 > **协议适用**：R-LP-v3-EX-1 简化协议（docs only / 0 业务代码 / 资深 explicit ack）

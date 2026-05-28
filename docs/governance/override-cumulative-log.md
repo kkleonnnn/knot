@@ -96,3 +96,34 @@ OVERRIDE #2（2026-05-24）= v0.6.1.4 PATCH 启动决定本身。PATCH 施行期
 - **内容**：详 `docs/plans/v0.6.2.0-phase-b-roadmap-v4.md` §0.4
 - **影响**：所有 v0.6.2.0+ PATCH 节奏（不锁 1.0 公测时间窗 / 工期重估仅作参考 / 按业务方实际节奏推进）
 - **例外**：单 PATCH 内部 commit 序列工期可硬预估（守护者 Stage 3 终审依据）
+
+---
+
+## §6 v0.6.2.0 新立 R-PB-B1-3 修订纪律记录（2026-05-28 立约）
+
+### R-PB-B1-3 修订版（守护者第 14 次 active explicit ack）
+
+**admin 三层防御 — 简化版**
+
+| 优先级 | 条件 | 行为 |
+|---|---|---|
+| 1（最强）| `KNOT_TOTP_BYPASS_ADMIN=true` env | 全局跳过 admin TOTP 验证 |
+| 2（兜底）| KNOT_TOTP_BYPASS_ADMIN 未设 + **0 admin 已 enroll** | admin 跳过（每次登录 logger.warn 提示）|
+| 3（自动失效）| **≥ 1 admin enroll 完成** | 上述两个 fallback 自动失效 |
+
+**v2 LOCKED 原版**："启动期前 24h admin 登录跳过 TOTP" — **commit 3 实际落地简化为业务条件触发**
+
+**简化决策依据**（v0.5 守护者第 14 次 active §II.4 explicit ack）：
+1. **工程实现复杂度**：24h 启动期追踪需 `_startup_time` 全局状态机 + service restart 重置 — vs `_admin_bypass_active` 纯查询 DB 业务条件无状态
+2. **测试稳健性**：24h 窗口测试需 mock `datetime.utcnow()` 或 freeze_time → CI 间歇失败；业务条件测试稳定
+3. **设计哲学一致性**：与 v0.4.5 R-37 master_key + v0.5.0 R-74 双 key 探针"业务条件触发"同精神
+4. **实际安全姿态**：24h 后强制 lock out admin（即使未 enroll）→ 业务方紧急情况安全债增加；简化版 admin enroll 完成 = 正式建立才失效，更稳健
+
+**风险声明**（透明披露）：
+- admin 永不 enroll + KNOT_TOTP_REQUIRED=true → bypass 优先级 2 永久 on
+- **兜底机制 1**：R-PB-B1-4 公测启动闸门（KNOT_TOTP_REQUIRED 默认 unset）→ 整个 TOTP enforcement off
+- **兜底机制 2**：公测启动前资深必须 enroll + ack 才 `export KNOT_TOTP_REQUIRED=true`
+
+**文档落地**：`DEPLOY.md` "5. TOTP 2FA — admin 三层防御 + 公测启动闸门" 段（完整 checklist）
+
+**性质判定**：此修订**不属于 OVERRIDE**（治理纪律合规 + Stage 2 + 守护者 + 资深拍板共识 + R-LP-v3-EX-1 简化协议适用），不计入 §1 OVERRIDE 累计表。属"PATCH 内简化决策守护者 explicit ack" 类别。
