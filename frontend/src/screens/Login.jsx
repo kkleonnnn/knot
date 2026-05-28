@@ -2,13 +2,16 @@
  * Login screen — v0.5.7 1:1 复刻 demo (Claude Design pilot)
  *
  * R-170 export name + props { T, onLogin, onToggleTheme } byte-equal
- * R-171 api.login + cb_token localStorage 链路 0 改动
+ * R-171 api.login + cb_token localStorage 链路 0 改动（v0.6.2.0：支持 need_totp 二阶段）
  * R-172 error 文案 "用户名或密码错误" byte-equal
- * R-175 ≤ 200 行
- * R-181 页脚 "v0.5.7" 字面（与 main.py FastAPI version 同步守护）
+ * R-175 v0.6.2.0 ≤ 240 行（+TOTP verify step）
+ * R-181 页脚字面（与 main.py FastAPI version 同步守护）
  * R-184 input focus → T.accent 蓝青 outline/border
  * R-185 引用 KnotLogo（DOM 哨兵守护）
  * Q3   remember-me checkbox title 提示防误导
+ *
+ * v0.6.2.0 R-PB-B1-7 + R-PB-B1-9：login 成功若返 need_totp → 二阶段 6 位码验证
+ * R-227.5.1 单字母装饰豁免延伸：TOTP 步骤标题 "VERIFY" mono uppercase
  */
 import { useState } from 'react';
 import { I, KnotLogo } from '../Shared.jsx';
@@ -17,6 +20,9 @@ import NarrativeMotif from '../decor/NarrativeMotif.jsx';
 import { api } from '../api.js';
 
 export function LoginScreen({ T, onLogin, onToggleTheme }) {
+  const [step, setStep] = useState('login');   // v0.6.2.0 'login' | 'totp_verify'
+  const [interimToken, setInterimToken] = useState('');
+  const [totpCode, setTotpCode] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,11 +37,34 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
     setLoading(true); setError('');
     try {
       const data = await api.login(username.trim(), password);
+      // v0.6.2.0 need_totp 二阶段：暂不写 cb_token，跳 totp_verify 步骤
+      if (data.need_totp) {
+        setInterimToken(data.interim_token);
+        setStep('totp_verify');
+        setTotpCode('');
+        return;
+      }
       localStorage.setItem('cb_token', data.token);
       localStorage.setItem('knot_remember', remember ? '1' : '0');  // Q3 仅 UI flag
       onLogin(data.user);
     } catch {
       setError('用户名或密码错误');
+    } finally { setLoading(false); }
+  };
+
+  // v0.6.2.0 R-PB-B1-7：TOTP 6 位码 / recovery code 验证（interim_token 鉴权）
+  const submitTotp = async (e) => {
+    e.preventDefault();
+    if (!totpCode.trim()) return;
+    setLoading(true); setError('');
+    try {
+      const data = await api.totp.verify(totpCode.trim(), interimToken);
+      localStorage.setItem('cb_token', data.token);
+      localStorage.setItem('knot_remember', remember ? '1' : '0');
+      onLogin(data.user);
+    } catch (err) {
+      setError(err.detail === 'TOTP_INVALID' ? '验证码错误' :
+               err.detail === 'TOTP_LOCKED' ? '验证过于频繁，请稍后再试' : '验证失败');
     } finally { setLoading(false); }
   };
 
@@ -106,12 +135,51 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
         <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ marginBottom: 40 }}>
           <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
-            sign in
+            {step === 'login' ? 'sign in' : 'verify'}
           </div>
-          <div style={{ fontSize: 28, fontWeight: 600, color: T.text, letterSpacing: '-0.025em' }}>欢迎回来</div>
-          <div style={{ fontSize: 13, color: T.subtext, marginTop: 6 }}>使用账号登录访问你的数据空间</div>
+          <div style={{ fontSize: 28, fontWeight: 600, color: T.text, letterSpacing: '-0.025em' }}>
+            {step === 'login' ? '欢迎回来' : '验证身份'}
+          </div>
+          <div style={{ fontSize: 13, color: T.subtext, marginTop: 6 }}>
+            {step === 'login' ? '使用账号登录访问你的数据空间' : '请输入认证 APP 中显示的 6 位动态码（或 10 位 recovery code）'}
+          </div>
         </div>
 
+        {step === 'totp_verify' ? (
+          <form onSubmit={submitTotp} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 12, color: T.subtext, fontWeight: 500 }}>动态码 / Recovery Code</label>
+              <div style={fieldBox('totp')}>
+                <I.shield style={{ color: T.muted, flexShrink: 0 }}/>
+                <input autoFocus value={totpCode} onChange={e => setTotpCode(e.target.value)}
+                  onFocus={() => setFocused('totp')} onBlur={() => setFocused(null)}
+                  placeholder="123456 或 ABCDE-12345" type="text" autoComplete="one-time-code"
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                           fontSize: 16, color: T.text, fontFamily: T.mono, letterSpacing: '0.15em' }}/>
+              </div>
+            </div>
+            {error && (
+              <div style={{
+                fontSize: 12.5, padding: '8px 12px', borderRadius: 6,
+                color: 'oklch(62% 0.22 27)',
+                background: 'color-mix(in oklch, oklch(62% 0.22 27) 12%, transparent)',
+                border: '1px solid color-mix(in oklch, oklch(62% 0.22 27) 25%, transparent)',
+              }}>{error}</div>
+            )}
+            <button type="submit" disabled={loading} style={{
+              marginTop: 12, width: '100%', padding: '13px 14px', border: 'none', borderRadius: 8,
+              background: loading ? T.muted : T.accent, color: '#fff', fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}>
+              {loading ? <><Spinner size={14} color="#fff"/> 验证中…</> : <>验证 <I.send/></>}
+            </button>
+            <button type="button" onClick={() => { setStep('login'); setError(''); setTotpCode(''); }} style={{
+              fontSize: 13, color: T.subtext, background: 'transparent', border: 'none',
+              cursor: 'pointer', padding: 4, textAlign: 'center',
+            }}>← 返回登录</button>
+          </form>
+        ) : (
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {/* 账号 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -175,6 +243,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
             {loading ? <><Spinner size={14} color="#fff"/> 登录中…</> : <>进入 KNOT <I.send/></>}
           </button>
         </form>
+        )}
         </div>
 
         {/* Footer — absolute 贴右板底（与左下文案对称）；R-181 "v0.5.7" 字面同步 */}

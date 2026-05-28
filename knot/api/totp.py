@@ -68,14 +68,28 @@ def _decode_interim(token: str) -> dict:
 
 @router.post("/api/totp/enroll-init")
 async def enroll_init(request: Request, user=Depends(get_current_user)):
-    """Step 1：生成 secret + QR otpauth:// URI（不持久化）。
+    """Step 1：生成 secret + QR otpauth:// URI + 内联 PNG data URL（不持久化）。
 
-    返 {secret, qr_uri} — 用户扫码后调 enroll-complete。
+    返 {secret, qr_uri, qr_dataurl} — 前端 <img src={qr_dataurl}> 直接展示 QR。
+    qr_dataurl 服务端生成（qrcode lib commit 1 sustained）避免前端 npm 依赖。
     R-PB-B1-6 rate limit：enroll 3/hour/user 防恶意频繁。
     """
     enforce_totp_enroll_rate_limit(user["id"])
     secret, qr_uri = totp_service.enroll_init(user["id"])
-    return {"secret": secret, "qr_uri": qr_uri}
+    # v0.6.2.0 commit 5：QR PNG 内联 base64 data URL（commit 1 qrcode[pil] dep sustained）
+    import base64
+    import io
+
+    import qrcode
+
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
+    qr.add_data(qr_uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_dataurl = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return {"secret": secret, "qr_uri": qr_uri, "qr_dataurl": qr_dataurl}
 
 
 @router.post("/api/totp/enroll-complete")

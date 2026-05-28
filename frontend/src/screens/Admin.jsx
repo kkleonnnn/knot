@@ -134,6 +134,15 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     if (!confirm('删除该数据源？')) return;
     try { await api.del(`/api/admin/datasources/${id}`); loadAll(); toast('已删除'); } catch (e) { toast(String(e), true); }
   };
+  // v0.6.2.0 R-PB-B1-5：admin 重置 user TOTP（高危 — bump_token_version 触发该用户旧 JWT 失效）
+  const resetTotp = async (u) => {
+    if (!confirm(`重置 ${u.username} 的 TOTP？该用户旧 JWT 立即失效，必须重新 enroll`)) return;
+    try {
+      await api.totp.reset(u.id);
+      loadAll();
+      toast('已重置 — 用户下次登录需重新 enroll');
+    } catch (e) { toast(String(e), true); }
+  };
   const toggleModel = async (key) => {
     try { await api.post(`/api/admin/models/${key}/toggle`); loadAll(); } catch (e) { toast(String(e), true); }
   };
@@ -339,7 +348,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                      onDeleteUser={deleteUser}
                      onEditSource={(s) => setModal({ type: 'source', data: s })}
                      onDeleteSource={deleteSrc}
-                     roleChip={roleChip}/>
+                     roleChip={roleChip}
+                     onResetTotp={resetTotp}/>
         )}
 
         {tab === 'models' && (

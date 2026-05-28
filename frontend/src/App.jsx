@@ -3,6 +3,7 @@ import { useTheme, usePersist, Spinner } from './utils.jsx';
 import { api } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
 import { ForceChangePasswordScreen } from './screens/ForceChangePassword.jsx';
+import { EnrollScreen } from './screens/Enroll.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
 import { SavedReportsScreen } from './screens/SavedReports.jsx';
@@ -18,6 +19,8 @@ export default function App() {
   const [user, setUser] = usePersist('cb_user', null);
   const [screen, setScreen] = usePersist('cb_screen', 'chat');
   const [loading, setLoading] = usePersist('cb_loading', true);
+  // v0.6.2.0 R-PB-B1-4：KNOT_TOTP_REQUIRED=true + user 未 enroll → server 返 403 totp_enroll_required
+  const [needsEnroll, setNeedsEnroll] = useState(false);
   // v0.6.1.2 F1 — shared backend data lifted from ChatScreen，避免每次切屏 re-mount 时重 fetch
   const [convs, setConvs] = useState([]);
   const [dbOk, setDbOk] = useState(null);
@@ -30,7 +33,15 @@ export default function App() {
     api.me().then(u => {
       setUser(u);
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      // v0.6.2.0 R-PB-B1-4：403 totp_enroll_required → 跳 Enroll 屏（不清 token）
+      if (err && err.status === 403 && err.detail === 'totp_enroll_required') {
+        // me 端点带 detail=totp_enroll_required 时需要从 token 取 user 基本信息
+        // 简化处理：仅 set needsEnroll + 保留 token；Enroll 完成后会重新 me()
+        setNeedsEnroll(true);
+        setLoading(false);
+        return;
+      }
       localStorage.removeItem('cb_token');
       setUser(null);
       setLoading(false);
@@ -78,6 +89,16 @@ export default function App() {
     );
   }
 
+  // v0.6.2.0 R-PB-B1-4：needsEnroll = true 时（403 totp_enroll_required）强制 Enroll 屏
+  // 没 user 但有 token + needsEnroll → Enroll；Enroll 完成后调 me 拿 user
+  if (needsEnroll) {
+    const handleEnrolled = () => {
+      setNeedsEnroll(false);
+      // 重新 me 拿 user 信息（enroll 完成后 server 不再返 403）
+      api.me().then(u => { setUser(u); }).catch(handleLogout);
+    };
+    return <EnrollScreen T={T} user={user} onEnrolled={handleEnrolled} onLogout={handleLogout} onToggleTheme={toggleTheme}/>;
+  }
   if (!user) return <LoginScreen T={T} onLogin={handleLogin} onToggleTheme={toggleTheme}/>;
   // v0.6.0.20 admin 默认账号强制改密守护：has token + must_change_password=1 → 强制改密屏
   // 改密成功后 onChanged({...user, must_change_password: false}) → 解禁主应用
