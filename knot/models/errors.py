@@ -68,6 +68,14 @@ class DataSourceUnavailableError(BIAgentError):
     """v0.4.4：admin 未配数据源 / 连接失败。"""
 
 
+class MetadataError(BIAgentError):
+    """v0.6.2.1 R-PB-C1-1 + ε2：catalog 推断兜底 fail-fast 熔断。
+
+    DataSource 表查询失败 / 表为空 → 抛出此异常防止 catalog 误推断
+    （既有 doris/mysql 表被错误标记为 HTTP 虚拟表 → BI 全盘瘫痪）。
+    """
+
+
 # ── services / 资源限制 ───────────────────────────────────────────────
 class BudgetExceededError(BIAgentError):
     """v0.4.4：预算硬阈值阻断（block）。R-26-Senior：在 LLM 调用前抛。
