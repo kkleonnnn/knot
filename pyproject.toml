@@ -51,3 +51,7 @@ ignore = [
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 filterwarnings = ["ignore::DeprecationWarning"]
+# v0.6.2.0 R-PB-B1-10：race 标记测试在 CI 可单独 job 跑（γ2 折中 + NRP-2 隔离）
+markers = [
+    "race: TOTP race condition tests (rate limit 100× 守护)",
+]
