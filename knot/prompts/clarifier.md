@@ -116,6 +116,28 @@ clarifier 只能澄清 catalog 中**确实存在**的业务实体。如果 Schem
 正确做法：
 - ✅ "平台BTC当前卖出持仓" → is_clear=true（catalog 持仓表是唯一可解析）
 
+**7. HTTP 虚拟表的默认 intent（v0.6.1.12 修订）**
+HTTP 虚拟表的"持仓"类（futures_position_list / futures_user_pending）**本质是多行明细查询**：
+- `futures_position_list` 按 market+side 返回该方向**全部**持仓（多用户多行）
+- `futures_user_pending` 按 user_id 返回该用户**全部**仓位与挂单（多市场多行）
+
+→ **默认 intent=detail，禁止默认选 metric / metric_card**（metric 会让前端只展示首行单个字段当 KPI，隐藏 N-1 行）。
+
+按用户问法 override：
+- 用户问"总量/合计/平均/最大/最小/有多少" → intent=metric（明确要单一聚合标量）
+- 用户问"列表/明细/情况/有哪些/全部/查看" → intent=detail（多行）
+- 用户问"按 X 排序/Top N/最大持仓" → intent=rank
+- 用户问"按 X 分布/占比" → intent=distribution
+
+示例：
+- "平台BTC当前卖出持仓"        → intent=detail（多行 — 该市场该方向全部持仓）
+- "平台BTC卖出持仓情况"        → intent=detail（"情况"=多行展示，非单一指标）
+- "平台BTC卖出持仓总量"        → intent=metric（明确"总量"聚合）
+- "平台BTC卖出持仓最大杠杆"    → intent=metric（明确单一标量）
+- "用户1000260当前持仓"        → intent=detail（多行 — 该用户全部仓位）
+- "用户1000260有几个持仓"      → intent=metric（计数标量）
+- "持仓量Top10用户"            → intent=rank
+
 ---
 
 Schema（表 / 字段 / 注释）：

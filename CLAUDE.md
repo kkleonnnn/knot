@@ -130,6 +130,58 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 **治理意义**：本条款由 v0.5 守护者 §VI 提出 + Codex 等效初审 C-5 强化（3 护栏）+ 资深 2026-05-22 拍板立约。
 属 Loop Protocol v3 首次明示的"方向决策 Stage 2 可由等效初审替代"例外。
 
+#### R-LP-v3-EX-2：OVERRIDE 累计触发远古守护者召集义务（v0.6.2.0-pre-governance 立约）
+
+**触发**：累计 OVERRIDE 事件 **≥ 3 次** → 强制召集远古守护者参与 retroactive review。
+
+**计数维度**（资深 2026-05-25 决策 α8）：**维度 A 时间线粒度**
+- 一个 PATCH 启动决定 = 1 个 OVERRIDE（无论 PATCH 内部含几个子决策）
+- PATCH 内嵌子 OVERRIDE 在 CHANGELOG + plan 文档归档，**不重复计入全局计数**
+- 避免对集中决策 PATCH 的倍数惩罚
+
+**归档完整性义务**：每次 OVERRIDE 事件必须在 7 天内归档独立 plan 文档（事件 + 日期 + 归档文件路径登记到 `docs/governance/override-cumulative-log.md`，资深架构师亲自维护）。
+
+**首次履约**：2026-05-25 累计第 3 次 OVERRIDE（方向 ① announce） → v0.4 远古守护者第 3 次激活三任务合并评审。
+
+#### R-LP-v3-EX-2.1：OVERRIDE 治理双锁强化（v0.6.2.0-pre-governance 立约）
+
+**触发**：累计 OVERRIDE 事件 **≥ 4 次** → 强制 Q-quarter 暂停 OVERRIDE 1 个 PATCH 周期 + retroactive audit。
+
+**背景**：v0.5 守护者第 10 次 active §IV 提出 + v0.4 远古守护者第 3 次激活 §1.5 强化（≥4 次过线必须 Q-quarter 暂停防 OVERRIDE 泛化）+ 资深 2026-05-25 拍板立约。
+
+**Q-quarter 暂停期内**：
+- 不允许新 OVERRIDE 决策
+- 必须执行 retroactive audit（OVERRIDE 累计治理记录段补全）
+- 守护者 + 远古守护者协同复核所有累计 OVERRIDE 合规性
+
+**当前累计**：3 次（维度 A）→ 未触发；距过线 1 次之差。
+
+#### R-LP-v3-EX-3：承诺推迟治理（v0.6.2.0-pre-governance 立约）
+
+**触发**：执行者 / 守护者 / 资深架构师在 PATCH 文档明示的"推迟到 v0.X+"承诺，**连续 ≥ 3 PATCH 未兑现** → 升级为正式红线。
+
+**背景**：v0.5 守护者第 10 次 active §VII 守护者补丁 3 提出（v0.5.x 累计 8+ inline helpers 移入 Shared.jsx 承诺多次推迟）+ 资深 2026-05-25 拍板立约。
+
+**适用对象**：
+- 技术债推迟（如 inline helpers 移入共享组件）
+- 红线推迟兑现（如 v1.0 移除 sync LLM API）
+- 设计决策推迟评估（如 5 层语义 + LogicForm 推 v0.7+）
+
+**升级机制**：≥3 PATCH 未兑现的承诺 → 自动升级红线 R-LP-v3-EX-3-X（X 为承诺序号）；后续 PATCH 强制守护。
+
+#### R-PB-GOV-1：工期指导性预估非硬承诺纪律（v0.6.2.0-pre-governance 立约）
+
+**触发**：v0.5 守护者第 11 次 active 整合 Stage 2 工期重估 4.5-6.5 月 → 5-7 月时，资深架构师拒绝硬性工期承诺 + 立约（2026-05-25 决策 β2）。
+
+**内容**：所有 PATCH 工期标注（如 "2-2.5 周"）为**指导性预估**，**非硬承诺**：
+- PATCH 启动时机由资深架构师按业务方实际节奏决定
+- 不锁定 1.0 公测时间窗（拒绝 2026 Q3 末 / Q4 末 / 2027 Q1 等具体承诺）
+- 守护者 / 远古守护者 / Stage 2 评审员意见中"工程量重估 N 月"作为参考，不作约束
+- 当资深 announce"按计划推进"时按当前已 LOCKED PATCH 序列执行
+- **例外**：单 PATCH 内部 commit 序列工期可硬预估（守护者 Stage 3 终审依据）
+
+**违反代价**：破 R-PB-GOV-1 = 业务方信任损失 / 团队疲劳 / 决策含糊；必须返做承诺修订。
+
 #### R-PA-PB-V1：Phase B UI 视觉延续性立约（v0.6.0.19 立约）
 
 **触发**：v0.5 守护者 2026-05-14 Phase B 评估意见 §7 提议；v0.6.0.19 正式落地立约。
