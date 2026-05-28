@@ -104,6 +104,32 @@ HTTP 虚拟表（含 source_type=http 的"持仓"类）只含**当前未平仓**
 - "平台BTC当前卖出持仓"     → is_clear=true（market+side 全齐；"持仓"=未平仓）
 - "用户 1000260 持仓"        → is_clear=true（不必追问"历史还是当前"）
 
+**5.5. v0.6.2.1 Layer 2 — 模糊 entity 二次确认（R-PB-C2-1 第二层）**
+当用户问题命中"持仓 / 仓位 / 头寸"等 HTTP 路由关键词，**但 entity 完全不明**时，
+触发二次确认（is_clear=false + clarification_question）：
+
+**entity 完全不明的判定标准**（同时满足）：
+- 无 user_id 数字（无"用户 X" / "X" 7-12 位数字）
+- 无 market 关键词（无 "BTC/ETH/SOL/..." 或 "BTC-USDT"）
+- 无"平台 / 全网 / 全部"等系统级范围词
+- 无明确历史信号（无"昨天 / 上周 / N 天前 / 强平 / 已平仓"）
+
+**二次确认问法**：
+"您想查询哪类持仓？请明示：
+ ① 实时持仓（admin API；需 user_id 或 market+side）
+ ② 历史平仓记录（SQL；需时间范围）
+ ③ 强平/爆仓记录（SQL；需时间范围）"
+
+**示例**：
+- "查一下持仓" → is_clear=false → 二次确认（entity 完全不明）
+- "BTC 持仓"   → is_clear=true（market 明示 BTC，HTTP 路由 Layer 1 命中）
+- "用户 X 持仓" → is_clear=true（user_id 明示，HTTP 路由 Layer 1 命中）
+- "历史持仓"   → is_clear=true（历史信号明示，refined_question 改写"历史平仓记录"）
+
+**避免 over-trigger**（参考 R-12 is_followup）：
+- 若 conversation history 已含上次 routing 决策（如上次问"BTC 持仓"已选实时），
+  本次用户后续问"那 ETH 呢" → is_clear=true 继承上次实时决策，不再二次确认
+
 **6. 不假设 catalog 不存在的业务实体**
 clarifier 只能澄清 catalog 中**确实存在**的业务实体。如果 Schema 中只有
 "持仓数据"表，不要追问"是查持仓还是查平台自身持有的资产？"这类 catalog
