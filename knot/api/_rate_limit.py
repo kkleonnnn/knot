@@ -31,6 +31,10 @@ _DEFAULT_LIMITS = {
     "login": (10, 60),
     "change_pwd": (5, 60),
     "query": (30, 60),
+    # v0.6.2.0 R-PB-B1-6：TOTP 验证 5/min/user（防 brute force）
+    "totp_verify": (5, 60),
+    # v0.6.2.0：enroll 限流 3/hour/user（防恶意频繁触发 secret 生成）
+    "totp_enroll": (3, 3600),
 }
 
 # 内存有上限守护：单个 key bucket 最大长度 = limit + 1（自然限制）
@@ -107,6 +111,43 @@ def rate_limit_login(request: Request) -> None:
 def rate_limit_change_pwd(request: Request) -> None:
     """改密限流：5 次/60s/IP（严于登录）。"""
     _enforce(request, "change_pwd")
+
+
+def enforce_totp_verify_rate_limit(user_id: int) -> None:
+    """v0.6.2.0 R-PB-B1-6：TOTP 验证 5 次/60s/user_id（防 brute force）。
+
+    本函数不走 Depends — 由 api/totp.py 在 verify 端点解析 interim_token 拿到 user_id
+    后显式调用（interim_token 阶段 get_current_user 还不能完整 totp_verified gate）。
+    沿用 enforce_query_rate_limit 模式（v0.6.0.24）。
+    """
+    limit, window = _DEFAULT_LIMITS["totp_verify"]
+    key = f"totp_verify:{user_id}"
+    ok, retry_after = _bucket.check(key, limit, window)
+    if not ok:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "ja": "TOTP verification too frequent; please wait and retry.",
+                "zh": f"TOTP 验证过于频繁，请 {int(retry_after) + 1} 秒后再试",
+            },
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
+def enforce_totp_enroll_rate_limit(user_id: int) -> None:
+    """v0.6.2.0：TOTP enroll 3 次/3600s/user_id（防恶意频繁触发 secret 生成）。"""
+    limit, window = _DEFAULT_LIMITS["totp_enroll"]
+    key = f"totp_enroll:{user_id}"
+    ok, retry_after = _bucket.check(key, limit, window)
+    if not ok:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "ja": "TOTP enroll too frequent; please wait and retry.",
+                "zh": f"TOTP enroll 过于频繁，请 {int(retry_after) + 1} 秒后再试",
+            },
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
 
 
 def enforce_query_rate_limit(user_id: int) -> None:

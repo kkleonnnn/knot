@@ -14,6 +14,27 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+# v0.6.2.0 TOTP 2FA — enroll / verify / reset 4 端点共用 schema
+class TotpEnrollCompleteRequest(BaseModel):
+    """enroll Step 2：用户扫码后输入 1 次 6 位动态码完成 enroll（R-PB-B1-7）。
+
+    secret 是 Step 1 enroll-init 返回的；前端必须原样回传（KNOT 不持久化中间态）。
+    """
+    secret: str
+    code: str  # 6-digit TOTP code
+
+
+class TotpVerifyRequest(BaseModel):
+    """login 后 verify 步骤：用 interim_token + 6 位码完成完整登录。"""
+    interim_token: str
+    code: str
+
+
+class TotpResetRequest(BaseModel):
+    """admin 重置 user TOTP — admin 调用，target_user_id 是被重置的 user。"""
+    target_user_id: int
+
+
 class CreateConversationRequest(BaseModel):
     title: str = "新对话"
 

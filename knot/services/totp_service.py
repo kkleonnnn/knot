@@ -186,11 +186,15 @@ def bump_token_version_only(user_id: int) -> int:
 
     与 reset 不同：不清 TOTP；只让旧 JWT 失效。
     """
+    # 守护者第 13 次 active 议题 1 — 与 enroll_complete / reset 一致 explicit rollback
     from knot.repositories.base import get_conn
     conn = get_conn()
     try:
         new_ver = user_repo.bump_token_version_in_tx(conn, user_id)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
     invalidate_token_version_cache(user_id)

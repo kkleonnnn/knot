@@ -76,33 +76,42 @@ def test_must_change_password_allows_auth_paths(client):
 
 
 def test_change_password_success_unblocks_business_api(client):
-    """v0.6.0.20：旧密匹配 + 新密合规 → must_change_password=0 + 业务 API 解禁。"""
+    """v0.6.0.20：旧密匹配 + 新密合规 → must_change_password=0 + 业务 API 解禁。
+
+    v0.6.2.0 R-PB-B1-13 + γ1 安全债清偿：change_password 必 bump token_version → 旧 JWT 立即失效。
+    用户必须重新登录才能继续业务调用（业界 OWASP 推荐 — 防 stolen credential persistence）。
+    """
     from knot.repositories import user_repo
     from knot.services.auth_service import hash_password
     admin = user_repo.get_user_by_username("admin")
     user_repo.update_user(admin["id"], password_hash=hash_password("admin123"), must_change_password=1)
 
     r = _login(client, "admin", "admin123")
-    token = r.json()["token"]
+    old_token = r.json()["token"]
 
     # 改密
     new_pwd = "new-secure-pwd-2026"
     r = client.post(
         "/api/auth/change-password",
         json={"old_password": "admin123", "new_password": new_pwd},
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {old_token}"},
     )
     assert r.status_code == 200, r.text
     assert r.json()["ok"] is True
 
-    # 业务 API 解禁
-    r = client.get("/api/conversations", headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 200, f"改密后业务 API 应解禁；实际 {r.status_code}：{r.text}"
+    # v0.6.2.0 R-PB-B1-13：改密后旧 JWT 立即失效（token_version bumped）
+    r = client.get("/api/conversations", headers={"Authorization": f"Bearer {old_token}"})
+    assert r.status_code == 401, f"R-PB-B1-13 旧 JWT 应失效；实际 {r.status_code}"
+    assert r.json()["detail"] == "JWT_REVOKED"
 
-    # 用新密码重登 → must_change_password=false
+    # 用新密码重登 → 新 JWT + must_change_password=false → 业务 API 解禁
     r = _login(client, "admin", new_pwd)
     assert r.status_code == 200
+    new_token = r.json()["token"]
     assert r.json()["user"]["must_change_password"] is False
+
+    r = client.get("/api/conversations", headers={"Authorization": f"Bearer {new_token}"})
+    assert r.status_code == 200, f"新 JWT 业务 API 应解禁；实际 {r.status_code}：{r.text}"
 
     # 还原（影响后续测试）
     user_repo.update_user(admin["id"], password_hash=hash_password("admin123"))
