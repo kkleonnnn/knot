@@ -151,7 +151,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
               padding: '13px 14px', border: 'none', borderRadius: 8,
               background: (loading || code.length < 6) ? T.muted : T.accent, color: '#fff',
               fontSize: 14, fontWeight: 600, cursor: (loading || code.length < 6) ? 'not-allowed' : 'pointer',
-            }}>{loading ? <><Spinner size={14} color="#fff"/> 验证中…</> : '验证 + 继续'}</button>
+            }}>{loading ? <><Spinner size={14} color={T.sendFg}/> 验证中…</> : '验证 + 继续'}</button>
             <button type="button" onClick={() => setStep(1)} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none', cursor: 'pointer', padding: 4,
             }}>← 返回扫码</button>
