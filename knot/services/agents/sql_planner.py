@@ -171,6 +171,11 @@ def run_sql_agent(
             observation = observation[len("__REJECT_FAN_OUT__:"):]
             # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
 
+        # v0.6.2.1 R-PB-C3-1：非 SELECT 起手拒绝 — 不 break，反馈 LLM 重生成
+        # 防 LLM 输出"无法直接 SQL 查询 HTTP 虚拟表"中文 → fail-open 当 SQL 给 presenter
+        if observation.startswith("__REJECT_NON_SQL__:"):
+            observation = observation[len("__REJECT_NON_SQL__:"):]
+
         # v0.6.0-hotfix R-PA-9：fallback 收紧 — 仅真实成功 execute_sql 触发（与
         # sql_planner_tools._run_tool 的 cartesian/fan-out 守护联动）；改用显式
         # startswith("查询成功") 避免 REJECT 路径 strip 前缀后误触发 fallback 重跑。
@@ -320,6 +325,10 @@ async def arun_sql_agent(
         if observation.startswith("__REJECT_FAN_OUT__:"):
             observation = observation[len("__REJECT_FAN_OUT__:"):]
             # 不动 final_sql；继续 messages append 让 LLM 看到 observation 重写
+
+        # v0.6.2.1 R-PB-C3-1：非 SELECT 起手拒绝（async path 同 sync）
+        if observation.startswith("__REJECT_NON_SQL__:"):
+            observation = observation[len("__REJECT_NON_SQL__:"):]
 
         # v0.6.0-hotfix R-PA-9：fallback 收紧 — 仅真实成功 execute_sql 触发（与
         # sql_planner_tools._run_tool 的 cartesian/fan-out 守护联动）；改用显式

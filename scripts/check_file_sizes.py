@@ -22,7 +22,7 @@ from pathlib import Path
 LIMITS = {
     # ── 后端 (v0.5.2 R-94) ───────────────────────────────────
     # 4 主文件
-    "knot/services/agents/sql_planner.py": 350,
+    "knot/services/agents/sql_planner.py": 365,  # v0.6.2.1 commit 3 +R-PB-C3-1 __REJECT_NON_SQL__ sync+async 双分支
     "knot/services/llm_client.py":         300,
     "knot/services/agents/orchestrator.py": 220,
     "knot/api/query.py":                   440,  # v0.6.1.4 +120 (HTTP 路由分流 + R-PB2-4 跨源 hard raise + agent_start/done/final SSE event 链路)
