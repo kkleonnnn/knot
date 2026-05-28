@@ -34,6 +34,11 @@ AuditAction = Literal[
     "export.csv", "export.xlsx",
     # 用户反馈（v0.6.0.3 F-A）
     "feedback.submit",
+    # v0.6.2.0 TOTP 2FA（R-PB-B1-11 修订 +4 — 含守护者第 12 次 §III.5 立约 recovery_code_used）
+    "user.totp.enroll",              # 首次 enroll 成功（含 recovery codes 生成）
+    "user.totp.verify_failed",       # TOTP 6 位码 / recovery code 验证失败（含 enroll / login 两路径）
+    "user.totp.reset",               # admin 重置 user TOTP（高危 — bump_token_version 触发旧 JWT 失效）
+    "user.totp.recovery_code_used",  # recovery code 单次使用（高危 — 2FA 兜底使用必入 audit）
     # 审计自身（meta-audit, R-57）
     "audit.retention_change", "audit.purge",
 ]
