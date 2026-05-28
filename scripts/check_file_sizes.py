@@ -40,7 +40,7 @@ LIMITS = {
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
     # 2 主文件
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 380,  # v0.5.44 360→380 (catalog state 加 relations 字段)
+    "frontend/src/screens/Admin.jsx": 400,  # v0.5.44 360→380; v0.6.2.0 commit 5 380→400（+resetTotp handler + onResetTotp wiring）
     # 12 个新建模块（v0.5.3）
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
@@ -61,7 +61,8 @@ LIMITS = {
     "frontend/src/screens/admin/tab_system.jsx":   250,
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 +70 (SourceFormModal HTTP type 5 字段 + isHttp 分支 + parsedHttpCfg 反序列化)
     # ── v0.5.7 R-176 ──────────────────────────────────────────
-    "frontend/src/screens/Login.jsx":              200,
+    "frontend/src/screens/Login.jsx":              270,  # v0.6.2.0 commit 5 +TOTP verify step（2 阶段 login）
+    "frontend/src/screens/Enroll.jsx":             240,  # v0.6.2.0 commit 5 NEW — 4-step TOTP enroll 流程
     "frontend/src/decor/NarrativeMotif.jsx":       120,
     # ── v0.5.9 R-205 ──────────────────────────────────────────
     "frontend/src/Shell.jsx":                      220,
