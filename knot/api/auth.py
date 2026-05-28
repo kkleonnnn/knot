@@ -24,6 +24,17 @@ async def login(req: LoginRequest, request: Request):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     audit(request, actor=user, action="auth.login_success",
           resource_type="user", resource_id=user["id"])
+
+    # v0.6.2.0 R-PB-B1-9：login 成功 + totp_enrolled → interim_token（短期，仅 verify）
+    # 用户必须再走 /api/totp/verify 提供 6 位码才能拿完整 JWT。
+    if user.get("totp_enrolled_at"):
+        from knot.api.totp import create_interim_token
+        return {
+            "need_totp": True,
+            "interim_token": create_interim_token(user["id"], int(user.get("token_version", 1))),
+            # 不返完整 user — verify 通过后再返
+        }
+
     return {
         "token": create_token(user["id"]),
         "user": {
@@ -70,4 +81,7 @@ async def change_password(req: ChangePasswordRequest, request: Request,
           detail={"reason": msg} if not ok else None)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    # v0.6.2.0 R-PB-B1-13 + γ1 顺手安全债：change_password 必 bump token_version → 旧 JWT 立即 401
+    from knot.services import totp_service
+    totp_service.bump_token_version_only(user["id"])
     return {"ok": True, "message": msg}

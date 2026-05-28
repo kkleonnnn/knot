@@ -25,6 +25,7 @@ from knot.api import frontend_errors as frontend_errors_router
 from knot.api import prompts as prompts_router
 from knot.api import saved_reports as saved_reports_router
 from knot.api import templates as templates_router
+from knot.api import totp as totp_router
 from knot.core.logging_setup import logger, new_request_id, set_request_id
 from knot.repositories import init_db
 
@@ -204,7 +205,8 @@ for _router in [auth.router, conversations.router, query.router, database.router
                 few_shots_router.router, prompts_router.router, templates_router.router,
                 catalog_router.router, exports_router.router, saved_reports_router.router,
                 audit_router.router, feedback_router.router,
-                frontend_errors_router.router]:
+                frontend_errors_router.router,
+                totp_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"
