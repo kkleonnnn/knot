@@ -99,6 +99,10 @@ EXCLUDE_RE = re.compile(
     r"docs/plans/v0\.6\.0-|"
     r"docs/plans/v0\.6\.0\.\d+-|"      # v0.6.0.x LOCKED 手册全豁免（hotfix / micro PATCH）
     r"docs/plans/v0\.6\.1-|"           # R-PA-PB-7（v0.6.1 已正式启动）
+    r"docs/plans/v0\.6\.1\.\d+-|"      # v0.6.1.x LOCKED 手册全豁免（v0.6.1.4 HTTP adapter / v0.6.1.x ops checklist）
+    r"docs/plans/v0\.6\.2\.\d+-|"      # v0.6.2.x LOCKED 手册全豁免（R-PA-PB-7 延伸 — v0.6.2.0 Stage 4 LOCKED 后正式启动）
+    r"docs/plans/v0\.6\.x-|"           # v0.6.x 整体审核 4 份产物归档（如 v0.6.x-code-structure-assessment-*.md）
+    r"docs/governance/|"               # docs/governance/* 治理 source-of-truth（R-LP-v3-EX-2/2.1/3 立约期间记录 multi-tenant 等 OOS 立场）
     r"docs/plans/phase-b-|"            # phase-b-proposal-draft / phase-b-early-review-* 等
     r"CHANGELOG\.md|"
     r"CLAUDE\.md|"

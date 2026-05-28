@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.2.0-pre-governance — 治理立约 micro PATCH（docs only）
+
+> **Loop Protocol v3 第 31 次施行** — Phase B 完整版第 0 段（治理立约前置）
+> **协议适用**：R-LP-v3-EX-1 简化协议（docs only / 0 业务代码 / 资深 explicit ack）
+> **触发**：v0.6.2.0+ Phase B 完整版路线图 v4 Stage 4 LOCKED §0.1 修订项 — 治理类剥离独立 micro PATCH（资深 2026-05-25 β1 拍板）
+
+### 范围
+- F1 R-LP-v3-EX-3 承诺推迟治理立约
+- F2 R-LP-v3-EX-2.1 OVERRIDE 治理双锁强化立约
+- F3 OVERRIDE 累计治理记录段独立文件（`docs/governance/override-cumulative-log.md`）
+- 2 份归档补建（OVERRIDE 断裂偿还 — v0.4 远古守护者第 3 次激活 §1.6 发现）
+- R-PB-GOV-1 工期指导性预估非硬承诺纪律立约（资深 β2）
+- KNOT 元数据 (SQLite) vs 业务查询库 (Doris/MySQL) 架构明示
+
+### 关键产物
+
+#### F1 — CLAUDE.md 新增 4 治理条款
+
+- `R-LP-v3-EX-2`：OVERRIDE 累计 ≥3 次召集远古守护者义务（维度 A 时间线粒度 — 资深 α8）
+- `R-LP-v3-EX-2.1`：OVERRIDE 累计 ≥4 次强制 Q-quarter 暂停 + retroactive audit
+- `R-LP-v3-EX-3`：承诺推迟 ≥3 PATCH 未兑现升级正式红线
+- `R-PB-GOV-1`：工期指导性预估非硬承诺纪律（拒绝 1.0 公测硬时间窗承诺）
+
+#### F2 — `docs/governance/override-cumulative-log.md` [NEW]
+
+OVERRIDE 累计治理 source-of-truth（资深架构师亲自维护，与 PATCH 路线图脱钩）：
+- §1 累计表（维度 A 时间线粒度）— 当前 3 次累计
+- §2 v0.6.1.4 PATCH 内嵌 4 子 OVERRIDE 附录（不重复计数）
+- §3 治理纪律（维度选择 + R-LP-v3-EX-2/2.1/3 触发条件 + 归档完整性义务）
+- §5 R-PB-GOV-1 新立治理纪律记录
+
+#### F3 — 归档断裂偿还（v0.4 远古守护者发现）
+
+- `docs/plans/phase-b-early-review-2026-05-21.md` [NEW] — OVERRIDE #1 追溯归档（R-PA-5 buffer Day 7 提前评估）
+- `docs/plans/phase-b-narrow-2-http-adapter-2026-05-24.md` [NEW] — OVERRIDE #2 追溯归档（v0.6.1.4 PATCH 启动 + 内嵌 4 子决策附录）
+
+#### F4 — Phase B 完整版路线图 v1→v4 演进归档
+
+- `docs/plans/v0.6.2.0-phase-b-roadmap.md` (v1 Stage 1 草案)
+- `docs/plans/v0.6.2.0-phase-b-roadmap-v2.md` (v0.5 守护者第 10 次 + 资深 10 项决策)
+- `docs/plans/v0.6.2.0-phase-b-roadmap-stage3-guardian-v05.md` (v0.5 守护者第 10 次 active 终审独立归档)
+- `docs/plans/v0.6.2.0-phase-b-roadmap-stage2-context-pack.md` (Stage 2 评审 context pack)
+- `docs/plans/v0.6.2.0-phase-b-roadmap-v3.md` (v0.4 远古守护者第 3 次激活 + 资深 α1-α8)
+- `docs/plans/v0.6.2.0-phase-b-roadmap-v4.md` (Stage 2 + 守护者第 11 次 + 资深 β1-β3 = Stage 4 LOCKED) ✓
+
+### 立约累计
+- 33 条新立红线（R-PB-* + R-OAR-* + R-LP-v3-EX-*）
+- 1 治理纪律（R-PB-GOV-1）
+- v0.6.2.0 启动前置条件全部满足 ✓
+
+### Stage 4 LOCKED 决策（21 项 — 资深 2026-05-25 累计拍板）
+- 第一批 10 项（v2 整合 v0.5 守护者第 10 次终审）
+- 第二批 8 项 α1-α8（v3 整合 v0.4 远古守护者第 3 次激活）
+- 第三批 3 项 β1-β3（v4 整合 Stage 2 独立第三方评审 + 守护者第 11 次 active）
+
+### OVERRIDE 治理透明度声明
+本 micro PATCH **不是** OVERRIDE 事件（治理立约本身合规 + Stage 4 LOCKED 共识 + R-LP-v3-EX-1 简化协议适用），不计入 `override-cumulative-log.md` §1 累计表。
+
+---
+
 ## [Unreleased] - v0.6.1.4 (Phase B 二刀) HTTP API Adapter 窄域接入 + first-class 数据源 UI
 
 > **Loop Protocol v3 第 30 次施行** — Phase B 决议 B 修订版第二个正式 PATCH
