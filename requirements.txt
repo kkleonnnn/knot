@@ -16,3 +16,7 @@ sqlglot>=25.0.0
 loguru>=0.7.2
 cryptography>=41,<46
 requests>=2.31.0
+# v0.6.2.0 TOTP 2FA — RFC 6238 标准实现 + QR code 渲染 + JWT 吊销 cache（R-PB-B1-1/12/13）
+pyotp>=2.9.0
+qrcode[pil]>=7.4.2
+cachetools>=5.3.0

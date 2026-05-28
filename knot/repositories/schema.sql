@@ -17,8 +17,28 @@ CREATE TABLE IF NOT EXISTS users (
     -- v0.6.0.20: admin 默认账号 admin/admin123 强制改密守护（1.0 公测前必清的安全债）
     -- 0=已改 / 1=必须改密；admin seed 时设 1，change-password 端点改 0
     must_change_password INTEGER DEFAULT 0,
+    -- v0.6.2.0 TOTP 2FA（R-PB-B1-1/8 Fernet enc_v1: 前缀 — 仅 SQLite knot.db）
+    totp_secret       TEXT,                              -- Fernet 加密；NULL = 未 enroll
+    totp_enrolled_at  TEXT,                              -- enroll 完成时间；NULL = 未 enroll
+    totp_last_used_at TEXT,                              -- 最近一次验证成功时间（5 次/月 警报基线）
+    -- v0.6.2.0 R-PB-B1-13 JWT 吊销真空期防御（reset/change_password 时 +1 → 旧 JWT 失效）
+    token_version     INTEGER NOT NULL DEFAULT 1,
     created_at     TEXT    DEFAULT (datetime('now','localtime'))
 );
+
+-- v0.6.2.0 TOTP recovery codes（R-PB-B1-2 不锁死兜底；R-PB-B1-11 user.totp.recovery_code_used audit）
+-- code_hash: bcrypt hash（与 password_hash 同精神 — 单向；明文不留 DB）
+-- used_at NULL = 未使用；R-PB-B1-7 强制下载后 enroll 完成才 INSERT
+CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    code_hash  TEXT    NOT NULL,
+    used_at    TEXT,
+    created_at TEXT    DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_totp_recovery_user_unused
+    ON totp_recovery_codes(user_id) WHERE used_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS conversations (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

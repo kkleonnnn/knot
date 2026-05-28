@@ -94,6 +94,39 @@ def init_db():
     if "http_config" not in ds_cols:
         conn.execute("ALTER TABLE data_sources ADD COLUMN http_config TEXT DEFAULT ''")
 
+    # v0.6.2.0 TOTP 2FA — users 表加 4 列（R-PB-B1-1/8/13）
+    # totp_secret: Fernet 加密 enc_v1: 前缀（仅 SQLite knot.db；不涉 Doris）
+    # totp_enrolled_at / totp_last_used_at: 时间戳（5 次/月 警报基线）
+    # token_version: JWT 吊销机制（R-PB-B1-13 — reset/change_password 时 +1 → 旧 JWT 失效）
+    users_cols_v062 = [
+        ("totp_secret",       "TEXT"),
+        ("totp_enrolled_at",  "TEXT"),
+        ("totp_last_used_at", "TEXT"),
+        ("token_version",     "INTEGER NOT NULL DEFAULT 1"),
+    ]
+    users_cols_after = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    for col, definition in users_cols_v062:
+        if col not in users_cols_after:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
+
+    # v0.6.2.0 TOTP recovery codes 表（R-PB-B1-2 不锁死兜底）
+    # code_hash: bcrypt（与 password_hash 同；明文不留 DB）
+    # used_at NULL = 未使用；INSERT 在 enroll 完成时（R-PB-B1-7 强制下载之后）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            code_hash  TEXT    NOT NULL,
+            used_at    TEXT,
+            created_at TEXT    DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_totp_recovery_user_unused
+            ON totp_recovery_codes(user_id) WHERE used_at IS NULL
+    """)
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""
