@@ -14,7 +14,11 @@ from knot.core.crypto.fernet import CryptoConfigError
 from knot.models.errors import ConfigMissingError
 from knot.repositories.base import get_conn
 
-_USER_ENCRYPTED_COLS = ("api_key", "openrouter_api_key", "embedding_api_key", "doris_password")
+_USER_ENCRYPTED_COLS = (
+    "api_key", "openrouter_api_key", "embedding_api_key", "doris_password",
+    # v0.6.2.0 TOTP 2FA — R-PB-B1-1/8 Fernet enc_v1: 前缀
+    "totp_secret",
+)
 
 
 def _decrypt_user_row(row) -> dict | None:
@@ -139,3 +143,78 @@ def set_user_agent_model_config(user_id: int, config: dict):
     conn.execute("UPDATE users SET agent_model_config=? WHERE id=?", (v, user_id))
     conn.commit()
     conn.close()
+
+
+# ─── v0.6.2.0 TOTP 2FA support ─────────────────────────────────────────
+# R-PB-B1-9 R-46-Tx：set/clear 走传入 conn 实现 secret + recovery_codes 同事务
+# R-PB-B1-13：bump_token_version 触发 reset / change_password 时旧 JWT 立即失效
+
+
+def set_totp_in_tx(conn: sqlite3.Connection, user_id: int,
+                   secret_plain: str, enrolled_at: str) -> None:
+    """R-PB-B1-9 R-46-Tx：在传入 conn 事务中写 totp_secret + enrolled_at。
+
+    secret 经 Fernet 加密 enc_v1: 前缀（R-PB-B1-1/8）；不 commit / 不 close，
+    由调用方（totp_service.enroll_complete）统一 commit 或 rollback。
+    """
+    enc_secret = encrypt(secret_plain)
+    conn.execute(
+        "UPDATE users SET totp_secret=?, totp_enrolled_at=? WHERE id=?",
+        (enc_secret, enrolled_at, user_id),
+    )
+
+
+def clear_totp_in_tx(conn: sqlite3.Connection, user_id: int) -> None:
+    """R-PB-B1-9：reset 时事务中清除 secret + enrolled_at + last_used_at。
+
+    配合 totp_repo.delete_all_for_user_in_tx + bump_token_version 三步同事务，
+    保证 admin 重置 → 用户旧 JWT 立即失效 + 必须重新 enroll。
+    """
+    conn.execute(
+        "UPDATE users SET totp_secret=NULL, totp_enrolled_at=NULL, "
+        "totp_last_used_at=NULL WHERE id=?",
+        (user_id,),
+    )
+
+
+def set_totp_last_used_at(user_id: int, dt_str: str) -> None:
+    """verify 成功时调用 — 独立 commit（不需事务保证）。
+
+    R-PB-B1-5 月 ≥5 次警报基线：last_used_at 用于审计聚合。
+    """
+    conn = get_conn()
+    conn.execute(
+        "UPDATE users SET totp_last_used_at=? WHERE id=?", (dt_str, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_token_version(user_id: int) -> int:
+    """R-PB-B1-13：JWT 验证读 users.token_version；不匹配 → 401 JWT_REVOKED。
+
+    Service 层 totp_service.get_token_version_cached 包一层 cachetools TTLCache。
+    本函数永远走 DB（cache miss / invalidate 后调用）。
+    """
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT token_version FROM users WHERE id=?", (user_id,),
+    ).fetchone()
+    conn.close()
+    return int(row["token_version"]) if row else 0
+
+
+def bump_token_version_in_tx(conn: sqlite3.Connection, user_id: int) -> int:
+    """R-PB-B1-13：reset / change_password 触发 +1 → 旧 JWT 立即失效。
+
+    返回新版本号；调用方负责 cache invalidate（totp_service.invalidate_token_version_cache）。
+    传入 conn 模式 — 与 set/clear_totp 同事务。
+    """
+    conn.execute(
+        "UPDATE users SET token_version = token_version + 1 WHERE id=?",
+        (user_id,),
+    )
+    row = conn.execute(
+        "SELECT token_version FROM users WHERE id=?", (user_id,),
+    ).fetchone()
+    return int(row["token_version"]) if row else 0
