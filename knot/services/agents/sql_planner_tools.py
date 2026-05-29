@@ -27,6 +27,34 @@ def _strip_sql(s: str) -> str:
     return s.strip().strip("`").strip()
 
 
+# v0.6.2.1 R-PB-C3-1：SQL 起手 token 检测（防 LLM 输出非 SQL 中文/拒答 fail-open 通过）
+# Stage 2 Q3 修订 — 不用粗暴 startswith；strip + tokenize + 跳行/块注释 + 首关键字
+_LINE_COMMENT_RE = re.compile(r"--[^\n]*")
+_BLOCK_COMMENT_RE = re.compile(r"/\*[\s\S]*?\*/")
+
+
+def _get_first_sql_keyword(sql: str) -> str:
+    """提取 SQL 首个有效关键字（uppercase）— 跳 markdown / 注释 / 空白。
+
+    返空字符串 = 无法提取（如纯中文 / 空 / 全注释）。
+    用于 R-PB-C3-1 拒识：首关键字 ∉ {SELECT, WITH} → 非合法 SELECT SQL。
+    """
+    s = _strip_sql(sql)
+    if not s:
+        return ""
+    # 剥 SQL 块/行注释
+    s = _BLOCK_COMMENT_RE.sub(" ", s)
+    s = _LINE_COMMENT_RE.sub("", s)
+    s = s.strip()
+    # 提首 token（连续字母+数字+下划线）
+    m = re.match(r"^([A-Za-z][A-Za-z0-9_]*)", s)
+    return m.group(1).upper() if m else ""
+
+
+# v0.6.2.1 R-PB-C3-1：接受 SQL 起手关键字（SELECT 主路径 + WITH CTE 路径）
+_VALID_SQL_OPENERS = frozenset({"SELECT", "WITH"})
+
+
 def _parse_agent_output(text: str) -> tuple[str, str, str]:
     thought = action = action_input = ""
 
@@ -163,6 +191,18 @@ def _run_tool(action: str, action_input: str, engine, schema_text: str) -> str:
         # v0.4.1.1 C 升级：final_answer 时 runtime 守护反模式
         # v0.5.1 R-85：cartesian 优先（更基础错误，先于 fan-out 细分聚合错误）
         candidate = _strip_sql(action_input)
+        # v0.6.2.1 R-PB-C3-1：首关键字检测 — 防 LLM 输出非 SQL 中文 fail-open 通过 validator
+        # Stage 2 Q3 修订：strip + tokenize（跳 markdown/注释）+ 首关键字 ∈ {SELECT, WITH}
+        # 生产 e38de5e76703 类 bug 偿还：LLM 输出"无法直接 SQL 查询 HTTP 虚拟表"中文 → 误进 presenter
+        opener = _get_first_sql_keyword(candidate)
+        if opener not in _VALID_SQL_OPENERS:
+            preview = (candidate[:80] + "...") if len(candidate) > 80 else candidate
+            return (
+                f"__REJECT_NON_SQL__:LLM 输出不是合法 SELECT/WITH 起手 SQL"
+                f"（首关键字={opener!r}）。预览：{preview!r}。"
+                f"若本问题应走外部 API（HTTP 数据源），请用 final_answer 返 "
+                f"'该问题需要外部 API，不适用 SQL 查询'；否则重新生成以 SELECT/WITH 起手的 SQL。"
+            )
         is_cart, cart_reason = sql_validator.is_cartesian(candidate)
         if is_cart:
             return (
