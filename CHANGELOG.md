@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.2.1 — HTTP 路由稳态收尾（Phase B 完整版段 2）
+
+> **Loop Protocol v3 第 33 次施行** — Phase B 完整版 v4 LOCKED §2 段 2（C1+C2+C3）
+> **协议**：完整三阶段（Stage 1 草案 + Stage 2 第三方 4.1/5 + Stage 3 守护者第 18 次草案评 4.5/5 + Stage 4 LOCKED）+ R-PB-GOV-1 工期指导性
+> **守护者 active 2 次**：第 18 次（Stage 1 草案 CONDITIONAL APPROVED）/ 第 19 次（commit 2 C2 三层路由强复核 APPROVED）
+> **推动者**：v0.6.1.4 HTTP adapter 上线后 3 个稳态债（生产 e38de5e76703 链路调查）
+> **资深决策 ε1-ε4**：commit 2 不拆（强 active 补 review）/ catalog fail-fast 熔断 / R-PB-C2-4 立约 / NRP-C1/C2/C3 全立约
+
+### F1 — C1 catalog source_type 产品级（commit 1 / R-PB-C1-1/2 + ε2 fail-fast）
+
+- `knot/services/agents/catalog._load_from_db`：source_type 推断兜底 + **ε2 fail-fast 熔断**
+  - DataSource 表非空 + db 名不在表里 → 推断 `source_type="http"`
+  - DataSource 表查询失败/为空 → MetadataException 熔断（防既有 doris/mysql 被误推断 http — Stage 2 Q2 ❌ 严重风险偿还）
+- `tests/api/test_catalog_source_type_inference.py` [NEW] — 8 守护测试
+
+### F2 — C2 pick_http_route 三层路由（commit 2 / R-PB-C2-1/2/3/4 — 守护者第 19 次强复核 APPROVED）
+
+- `knot/services/http_planner.pick_http_route` 三层路由决策：
+  - **Layer 3（exclusion regex 优先短路）**：`历史|已平仓|强平|爆仓|ADL|\d+天前?|...` 命中 → 走 SQL + diagnostic warn
+  - **Layer 1（白名单主路由）**：catalog source:http 表 + lexicon 关键词 + entity-aware ranking
+  - **Layer 2（模糊 entity）**：由 clarifier.md §5.5 prompt 处理（is_clear=false 二次确认）
+- **3 logger.info 强制诊断**（R-PB-C2-2 — 防 e38de5e76703 类静默 fallback 难诊断）
+- `knot/prompts/clarifier.md` §5.5：Layer 2 模糊 entity 二次确认段 + over-trigger 防御四标准
+- **R-PB-C2-4（ε3 立约）**：Clarifier 二次确认通过 R-12 conversation history **自然继承** routing 决策（不引入 payload field — 比前端 Session 缓存更稳健；FastAPI 无状态死循环防御）
+
+> **议题 2 — 三层路由代码顺序 vs v4 §3.3 字面顺序**（守护者第 19 次 §I.Q1 ack）：
+> v4 §3.3 LOCKED 字面顺序为逻辑分类「① 白名单 → ② Clarifier → ③ diagnostic」（按业务优先级）；
+> 代码实际顺序为工程短路优化「① Layer 3 exclusion 优先短路 → ② Layer 1 白名单 + entity-aware」（按命中成本）。
+> 两者**语义等价** — Layer 3 优先短路防 lexicon "持仓" 误命中 HTTP 当前持仓表（生产 e38de5e76703 根因）；Layer 2 由 clarifier LLM 阶段处理（职责分离）。
+
+### F3 — C3 sql_planner 非 SELECT 起手拒识（commit 3 / R-PB-C3-1/2）
+
+- `knot/services/agents/sql_planner_tools._get_first_sql_keyword`：strip + tokenize（剥 markdown / 跳行块注释）+ 首关键字 ∈ `{SELECT, WITH}`（Stage 2 Q3 修订 — 不用粗暴 startswith）
+- `final_answer` 分支：首关键字 ∉ 白名单 → `__REJECT_NON_SQL__:...`（优先于 cartesian/fan-out）
+- `knot/services/agents/sql_planner.py`（sync + async）：`__REJECT_NON_SQL__` 信号反馈 LLM 重生成
+  - 防生产 e38de5e76703 类 bug：LLM 输出"无法直接 SQL 查询 HTTP 虚拟表"中文 → 不再 fail-open 当 SQL 给 presenter
+- R-PB-C3-2：sql_validator fail-open warn log 既有 sustained（4 处 logger.warning）
+- `tests/services/test_sql_planner_reject.py` [NEW] — 22 守护测试（Stage 2 Q3 边界全覆盖）
+
+### F4 — 守护测试 + e2e 回归（commit 4）
+
+- `tests/services/test_http_route_layers.py` [NEW] — C2 三层路由 + 议题 1 边界 3 case（复合句误触/命中合理/N天时间词）
+- `tests/services/test_routing_e2e_smoke.py` [NEW] — e38de5e76703 类链路回归 + NRP-C3 mock 边界
+
+### F5 — 文档收官 + 4 处版本同步（commit 5 — 本 commit）
+
+- 4 处版本同步 0.6.2.0 → 0.6.2.1（main.py + test_rename_smoke + Login.jsx 页脚 + README）
+- CHANGELOG v0.6.2.1 段（本段）+ CLAUDE.md v0.6.x 路线图
+
+### 立约累计（7 红线 sustained v4 §3.3 + 1 新立 R-PB-C2-4 + 3 NRP）
+
+- R-PB-C1-1/2 + R-PB-C2-1/2/3 + R-PB-C3-1/2（v4 §3.3 sustained）
+- **R-PB-C2-4 新立**（ε3）— Clarifier 二次确认 R-12 history 自然继承
+- **NRP-C1/C2/C3 立约**（ε4 全立约）— catalog reload 协同 / Clarifier prompt admin UI 协同 / e2e mock 边界
+- 45 守护测试（8 catalog + 22 sql_planner + 15 route/e2e）
+
+### 性质判定（OVERRIDE 治理）
+
+本 PATCH **不属于 OVERRIDE**（v4 §3.3 R-PB-C* 红线落地实施，非新方向 / 非范围 override）。`docs/governance/override-cumulative-log.md` §1 累计表不变（sustained 3 次）。
+
+---
+
 ## [Unreleased] - v0.6.2.0 — TOTP 2FA 强制 enroll（Phase B 完整版首个业务 PATCH）
 
 > **Loop Protocol v3 第 32 次施行** — Phase B 完整版 v4 LOCKED §1 段 1 B1
