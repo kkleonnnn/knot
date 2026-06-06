@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.2.1 · Phase B 完整版段 2 · HTTP 路由稳态收尾（C1 catalog source_type 兜底 + C2 三层路由 + C3 sql_planner 非 SELECT 拒识；7 红线 R-PB-C1/C2/C3）
+> **当前版本** v0.6.2.2 · Phase B 完整版段 2 余项 · SQL planner 复合 metric 修复（一句问 2+ 指标 → MetricCard 多值网格 + clarifier/sql_planner 中文别名/CTE 指引；R-PB-A5-1/2 + NRP-A5-1/2）
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.2.1）
+## 技术栈（v0.6.2.2）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

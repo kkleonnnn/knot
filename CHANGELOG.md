@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.6.2.2 — SQL planner 复合 metric 修复（Phase B 完整版段 2 余项）
+
+> **Loop Protocol v3 第 34 次施行** — Phase B 完整版 v4 §2 段 2 余项 A5
+> **协议**：Stage 1 草案 + **Stage 2 资深裁量跳过**（§治理标注）+ Stage 3 守护者第 21 次草案评 4.4/5 + Stage 4 LOCKED
+> **守护者 active 2 次**：第 21 次（Stage 1 草案 CONDITIONAL APPROVED + 4 修订）/ 第 22 次轻量复核并入 PATCH 终审
+> **推动者**：Task #17 生产 bug（"今日合约交易量和充值情况" 复合 metric 返 0/NULL）
+> **资深决策 η1/η2**：MetricCard LIMIT 50→80 / NRP-A5-1/A5-2 全立约
+
+### 根因（commit 1 调查闭环）
+
+数据流：SQL → ResultBlock numericCols（全部数值列正确）→ MetricCard。
+**bug 完全在前端** `MetricCard.jsx` 只渲染 `numericCols[0]` → 复合 metric 第 2+ 指标丢弃 / 首列 0 时显 0。
+SQL 层：同表复合 metric SQL 正确（纯前端 bug）；跨表场景 sql_planner 可能 fan-out（F3 prompt 指引 + runtime v0.5.1 AST 守护兜底）。
+
+### F1 — MetricCard 多值网格（commit 1 #127）
+
+- `numericCols.length > 1` → `_MultiStatGrid`（`repeat(auto-fit, minmax(160px,1fr))` — v0.5.18 R-461 设计语言复用 + NRP-A5-1 >6 列自然换行）
+- `numericCols.length <= 1` → `_SingleMetric`（**R-PB-A5-1 与 v0.6.0.2 抽出版 byte-equal** — _fmt 抽共用）
+- MetricCard LIMIT 50 → 80（η1 选项 A 双分支同文件内聚）
+
+### F2 — clarifier 复合 metric 识别（commit 2 #128）
+
+clarifier.md §8：一句问 2+ 聚合 → intent=metric sustained + refined 保留全部指标 + analysis_approach 提示同表/跨表处理。
+
+### F3 — sql_planner 复合 metric 指引（commit 2 #128）
+
+sql_planner.md 复合 metric 段：同表单 SELECT 多聚合 / 跨表 WITH CTE 预聚合（复用既有 fan-out 防御）+ 每聚合列中文别名 `AS 交易量`（前端多值卡片 label）。
+
+### F4 — 守护测试（commit 3 — 本 commit）
+
+`tests/test_v0_6_2_2_composite_metric.py` [NEW] — 8 守护测试：
+- F1 多值网格 dispatch + NRP-A5-1 auto-fit + R-PB-A5-1 单值分支保留（静态源断言；前端无 JS test runner）
+- F2/F3 clarifier/sql_planner 复合 metric 段落断言
+- **NRP-A5-2**：复合 metric 跨表直接 JOIN → 既有 v0.5.1 `_is_fan_out` 拦截；CTE 预聚合不误杀
+- 同表复合 metric 非 fan-out（commit 1 调查印证纯前端 bug）
+
+### F5 — 文档收官（commit 3）
+
+- 4 处版本同步 0.6.2.1 → 0.6.2.2（main.py + smoke + Login 页脚 + README）
+- CHANGELOG（本段）+ CLAUDE.md v0.6.x 路线图
+
+### 立约（2 新红线 + 2 NRP）
+
+- **R-PB-A5-1**：MetricCard 单值路径 byte-equal sustained（git diff 单值分支结构不变）
+- **R-PB-A5-2**（守护粒度澄清）：复合 metric 多表 CTE 预聚合 — **prompt 指引层（软约束 F3）+ runtime v0.5.1 AST 硬守护（`__REJECT_FAN_OUT__` 不重造）双层**
+- **NRP-A5-1**：多值网格 auto-fit >6 列自然换行 fallback
+- **NRP-A5-2**：fan-out runtime 守护澄清（prompt ≠ 硬守护；测试覆盖既有 AST reject）
+
+### Stage 2 资深裁量跳过（治理标注）
+
+- ζ1 原决定"补做 Stage 2" → 资深 2026-05-29 反转跳过
+- **R-LP-v3-EX-1 不完全适用**（本 PATCH 含业务代码 MetricCard + 新立 R-PB-A5-1/2，非"0 业务代码 + 0 红线"）→ 属**资深裁量跳过**，非正式 EX-1
+- 守护者第 21 次草案评已覆盖大面（含 fan-out 守护粒度核心判断）→ 实质风险可控
+- **闭合**：守护者第 22 次轻量复核并入 PATCH 终审；资深连续 announce 继续推进 ack
+- 性质：非 OVERRIDE（不计入 override-cumulative-log §1）；属 Stage 2 流程裁量
+
+### 性质判定
+
+本 PATCH **不属于 OVERRIDE**（v4 §2 A5 路线图既有项落地实施）。`override-cumulative-log.md` §1 累计表不变（sustained 3 次）。
+
+---
+
 ## [Unreleased] - v0.6.2.1 — HTTP 路由稳态收尾（Phase B 完整版段 2）
 
 > **Loop Protocol v3 第 33 次施行** — Phase B 完整版 v4 LOCKED §2 段 2（C1+C2+C3）
