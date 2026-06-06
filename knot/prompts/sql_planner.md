@@ -96,6 +96,23 @@ LEFT JOIN (SELECT key, SUM(y) AS total FROM t_table GROUP BY key) t ON m.key = t
 - 顶层 SELECT 含 ≥ 2 个 SUM/COUNT/AVG/MIN/MAX
 - AND ≥ 2 个 LEFT JOIN 到具名表（非子查询）
 
+## 复合 metric — 一句问 2+ 聚合指标（v0.6.2.2 A5）
+
+用户一句问多指标（如"今日交易量和充值"）时：
+
+1. **同表多指标** → 单 SELECT 多聚合列：
+   ```sql
+   SELECT SUM(volume) AS 交易量, SUM(deposit_amount) AS 充值额 FROM 同一明细表 WHERE ...
+   ```
+2. **跨表多指标**（交易额在成交表、充值额在充值表）→ 各自 CTE 预聚合再合并（**复用上方 fan-out 防御**）：
+   ```sql
+   WITH t AS (SELECT SUM(volume) AS v FROM 成交表 WHERE ...),
+        d AS (SELECT SUM(amount) AS a FROM 充值表 WHERE ...)
+   SELECT t.v AS 交易量, d.a AS 充值额 FROM t, d
+   ```
+3. **每个聚合列必给中文别名**（`AS 交易量`）— 前端复合 metric 多值卡片用别名做 label；英文 SQL 别名（`SUM(volume)`）UX 差。
+4. 返回**单行多列**（每指标一列）— 前端 MetricCard 自动渲染多值网格。
+
 ## 数据库环境
 {db_env}
 
