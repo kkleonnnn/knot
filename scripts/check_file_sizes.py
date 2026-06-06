@@ -71,7 +71,7 @@ LIMITS = {
     "knot/api/_rate_limit.py":                     200,  # v0.6.0.23 in-memory rate limiter; v0.6.2.0 commit 3 +totp_verify/enroll
     "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试
     # ── v0.6.0.2 LOCKED §1 — ResultBlock 6 子组件拆分（R-341 偿还）──────────
-    "frontend/src/screens/chat/ResultBlock/MetricCard.jsx":      50,
+    "frontend/src/screens/chat/ResultBlock/MetricCard.jsx":      80,  # v0.6.2.2 A5 复合 metric 多值网格双分支（η1 选项 A 50→80）
     "frontend/src/screens/chat/ResultBlock/TableContainer.jsx":  100,  # chart + table 复合最大
     "frontend/src/screens/chat/ResultBlock/InsightCard.jsx":     50,
     "frontend/src/screens/chat/ResultBlock/BudgetBanner.jsx":    60,
