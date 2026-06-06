@@ -164,6 +164,19 @@ HTTP 虚拟表的"持仓"类（futures_position_list / futures_user_pending）**
 - "用户1000260有几个持仓"      → intent=metric（计数标量）
 - "持仓量Top10用户"            → intent=rank
 
+**8. 复合 metric — 一句问 2+ 聚合指标（v0.6.2.2 A5）**
+用户一句话问多个聚合指标（"X 和 Y" / "X、Y、Z" / "X 以及 Y"）→ intent=metric（sustained 单标量类）+ **refined_question 保留全部指标**（不丢弃第 2+ 个）。
+
+提示 sql_planner（写入 analysis_approach）：
+- 多指标**同表**优先单 SELECT 多聚合列（`SELECT SUM(a) AS 中文名a, SUM(b) AS 中文名b FROM 同表`）
+- 多指标**跨表**（如交易额在成交表、充值额在充值表）→ 必先各自按 grain CTE 预聚合再 JOIN（防 fan-out 行数膨胀）
+- 每个聚合列**必给中文别名**（`AS 交易量`）— 前端多值卡片用别名做 label，英文 SQL 别名 UX 差
+
+示例：
+- "今日合约交易量和充值情况"     → intent=metric；refined 保留"交易量"+"充值"两指标；approach 提示"跨表（成交表+充值表）各自 CTE 预聚合 + 中文别名"
+- "昨天 GMV 和订单数"            → intent=metric；同表则单 SELECT 多聚合
+- "本月新增用户、活跃用户、付费用户" → intent=metric；3 指标多值卡片
+
 ---
 
 Schema（表 / 字段 / 注释）：
