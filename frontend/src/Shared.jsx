@@ -1,5 +1,6 @@
-// v0.6.0.14 lint sweep：Shared.jsx 是 Foundation 契约文件（v0.5.6 R-158 锁定 25 字段 buildTheme +
-// I 36 icons + 5 charts）— helpers (I dict / buildTheme / iconBtn) 与 components (KnotMark/Logo/Charts)
+// v0.6.2.3 R-365 退役：Shared.jsx 自 v0.5.6 冻结后首次受准修改（additive-only）；12→26 exports（+14 整合 helper）
+// Foundation 契约（v0.5.6 R-158 + v0.6.2.3 修正）：buildTheme 25 设计 token（+dark 透传 = 26 runtime keys）+
+// I 38 icons（v0.6.0.3 +thumbsUp/Down）+ 5 charts — helpers (I dict / buildTheme / iconBtn) 与 components (KnotMark/Logo/Charts)
 // 必须共存以维持单一 import 入口。fast refresh 暖代价 = 单文件改动整文件 reload，可接受。
 /* eslint-disable react-refresh/only-export-components */
 import { useRef, useEffect } from 'react';

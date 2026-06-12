@@ -5,7 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.2 — SQL planner 复合 metric 修复（Phase B 完整版段 2 余项）
+## [Unreleased] - v0.6.2.3 — Shared.jsx inline helper 整合（Phase B 段 3 · PATCH-1）
+
+> **Loop Protocol v3 第 35 次施行** — 完整三阶段 + 守护强 active 逐 commit 复核
+> **R-365 退役**：自 v0.5.6 Foundation 冻结以来**首次受准修改 Shared.jsx**（红线演进非撤回，资深 2026-06-12 ack）；
+>   「git-diff=0 绝对红线」→「既有 export byte-equal + additive-only（静态 decl + 计数 + cycle 守护）」
+> **技术债清偿**：v0.5.17~v0.5.22 累积 6 PATCH「8+ inline helper 移入 Shared」承诺
+
+### Shared.jsx 12 → 26 exports（+14 helper 整合）
+- commit 2 **SvgPath**（5 文件 byte-equal：SavedReports + ResultBlock + BudgetBanner/InsightCard/TokenMeter）
+- commit 3 **KpiCard**（双屏 AdminMetrics + AdminRecovery — R-PB-SH-5 多屏一次性提取试金石）
+- commit 4 **chip 簇 7**：StatusDot / NumChip / OverrideChip / SourceTag / FileIcon / LetterChip / DoneCheck
+- commit 5 **style 簇 5**：FormRow(←Row) / FilterField(←Field) / statCardStyle / statValueStyle / preStyle
+
+### 红线 R-PB-SH-1~12（4 组）+ NRP-SH-1/2
+- 契约：SH-1 additive-only / SH-2 既有 12+8 byte-equal / SH-3 buildTheme 26 keys / SH-4 I 38 names
+- 执行：SH-5 多屏一次性提取铁律 / SH-6 PATCH-1 机械搬运 / SH-7 PATCH-2 drift 调和
+- 守护基础设施：SH-8 cycle / SH-9 LIMIT / SH-11 stale-doc 自验证
+- 范围：SH-10 in-scope 预声明 / SH-12 format-util 排除
+
+### 机制 + 契约修正
+- additive-only **Python text guard** 替代 react-test-renderer Shadow Run（前端零测试栈避新依赖；确定性渲染 byte-equal⟹deepEqual 超集）
+- buildTheme **26 keys 口径锁定**（25 设计 token + dark 透传；守护者 §II.1 awk 漏 shorthand 公开自纠）
+- I icon dict **36 → 38** 文档修正（v0.6.0.3 +thumbsUp/thumbsDown）
+- check_file_sizes 纳入 Shared.jsx(560)/utils.jsx(200)
+
+### 守护 + 验证
+- 守护者 active 4 次全 APPROVED（Stage 3 终审 4.5/5 + commit 1/2/3 直读 worktree 亲验 + commit 4+5 PATCH-2 项零误删验）
+- 6 foundation additive guard + npm build exit 0 + 18 屏视觉肉眼无变化（机械搬运 0 漂移 — additive guard 数学保证）
+- 7 contracts KEPT
+- 详 [docs/plans/v0.6.2.3-shared-consolidation.md](docs/plans/v0.6.2.3-shared-consolidation.md)
+
+## v0.6.2.2 — SQL planner 复合 metric 修复（Phase B 完整版段 2 余项）
 
 > **Loop Protocol v3 第 34 次施行** — Phase B 完整版 v4 §2 段 2 余项 A5
 > **协议**：Stage 1 草案 + **Stage 2 资深裁量跳过**（§治理标注）+ Stage 3 守护者第 21 次草案评 4.4/5 + Stage 4 LOCKED
