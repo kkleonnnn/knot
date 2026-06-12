@@ -1,30 +1,6 @@
 // v0.5.3 extracted from Chat.jsx；v0.5.12 (C5+) Thinking 屏复刻 R-266~R-291
 // R-227.5.1 单字母装饰豁免：K/N/O letter chip 是导航标识，不构成完整 KNOT 字面
-import { TypingDots } from '../../Shared.jsx';
-
-// letter chip K/N/O 22×22 Inter 800 flex 居中（R-277/R-289）
-function LetterChip({ T, letter }) {
-  return (
-    <span style={{
-      width: 22, height: 22, borderRadius: 5,
-      background: T.accent, color: T.sendFg,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 11, fontWeight: 800,
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-      flexShrink: 0,
-    }}>{letter}</span>
-  );
-}
-
-// done 态 svg checkmark 11×11 stroke 2.5（R-281）
-function DoneCheck({ T }) {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.success}
-         strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  );
-}
+import { TypingDots, LetterChip, DoneCheck } from '../../Shared.jsx';
 
 export function ThinkingCard({ T, agentEvents = [] }) {
   const AGENT_LABELS = { clarifier: '理解问题', sql_planner: '生成 SQL', presenter: '整理洞察' };
