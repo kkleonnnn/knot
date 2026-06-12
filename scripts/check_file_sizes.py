@@ -84,6 +84,12 @@ LIMITS = {
     "frontend/src/screens/AdminErrors.jsx":        150,   # 姊妹屏（视觉沿用 AdminAudit/Recovery）
     # ── v0.6.1 LOCKED §1 F2 — 时间语义引擎（R-PA-PB-2 守护）──────────────
     "knot/core/time_resolver.py":                  350,  # ~235 行 + 后续预留扩展
+    # ── v0.6.2.3 R-PB-SH-9 — Foundation 解冻后纳入 CI 行数闸门 ──────────────
+    # R-365 退役（首次受准修改 Shared.jsx）后两文件可增长 → 须 cap 防无界膨胀。
+    # 注意路径在 frontend/src/（非 frontend/src/screens/）。当前 Shared 374 / utils 121；
+    # PATCH-1 加 14 export 后 Shared ~514，留头寸 560；PATCH-2 再增可 ack 微调。
+    "frontend/src/Shared.jsx":                     560,  # v0.6.2.3 新增 (inline helper 整合)
+    "frontend/src/utils.jsx":                      200,  # v0.6.2.3 新增 (Foundation 纳管;PATCH-1 不动)
 }
 # v0.6.0.2 R-PA-PB-V0.5：ResultBlock.jsx 主文件 LIMIT 460 → 280 收紧（拆分后）
 # v0.6.0.3 F-A: 280 → 290 (FeedbackBar import + 调用 ~5 行；子组件已抽出主体逻辑)
