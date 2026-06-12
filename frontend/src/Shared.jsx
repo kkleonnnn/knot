@@ -47,6 +47,13 @@ export const I = {
   thumbsDown: (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>,
 };
 
+// v0.6.2.3 commit 2a (R-PB-SH-5/6) — SvgPath 从 5 文件整合（byte-equal md5 d4c943a4）：
+// SavedReports + chat/ResultBlock + ResultBlock/{BudgetBanner,InsightCard,TokenMeter}
+export const SvgPath = ({ d, size = 14, fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
+       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+);
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
