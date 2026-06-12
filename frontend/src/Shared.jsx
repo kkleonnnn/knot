@@ -54,6 +54,29 @@ export const SvgPath = ({ d, size = 14, fill = 'none' }) => (
        strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
 );
 
+// v0.6.2.3 commit 3a (R-PB-SH-5 双屏) — KpiCard 从 AdminMetrics + AdminRecovery 整合（byte-equal md5 7058f47b）
+export function KpiCard({ T, label, value, unit, hint, accent }) {
+  return (
+    <div style={{
+      background: T.card, border: `1px solid ${T.border}`,
+      borderRadius: 12, padding: '18px 20px',
+      display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0,
+    }}>
+      <div style={{ fontSize: 12, color: T.muted, letterSpacing: '0.01em' }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <div style={{
+          fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em',
+          color: accent ? T.accent : T.text,
+          fontFamily: T.sans, lineHeight: 1.05,
+          transition: 'color 0.2s',
+        }}>{value}</div>
+        {unit && <div style={{ fontSize: 14, color: T.muted, fontWeight: 500 }}>{unit}</div>}
+      </div>
+      <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.02em' }}>{hint}</div>
+    </div>
+  );
+}
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
