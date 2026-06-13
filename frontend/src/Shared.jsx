@@ -266,6 +266,53 @@ export const theadStyle = (T) => ({
   fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
 });
 
+// v0.6.2.4 commit 5 (R-PB-SH-15) — btn 族强制 lift 3 distinct（0 fold：pillBtn 6px11px/r8 ≠ btn 族 8px14px/r6 + pageBtnStyle disabled 参）
+// + input 族 lift 2 distinct（inputStyleField←AdminAudit inputStyle / inputStyleMono←AdminBudgets inpStyle）；fieldStyle 单用 DEFER inline
+export function inputStyleField(T) {
+  return {
+    width: '100%', padding: '8px 10px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: T.inputBg, color: T.text,
+    fontSize: 13, fontFamily: 'inherit', outline: 'none',
+  };
+}
+
+export const inputStyleMono = (T) => ({
+  height: 34, padding: '0 12px', fontSize: 13,
+  background: T.inputBg, color: T.text,
+  border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+  fontFamily: T.mono, outline: 'none',
+});
+
+export function ghostBtnStyle(T) {
+  return {
+    padding: '8px 14px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: 'transparent',
+    color: T.subtext, cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13,
+  };
+}
+
+export function primaryBtnStyle(T) {
+  return {
+    padding: '8px 14px', borderRadius: 6,
+    border: `1px solid ${T.accent}`, background: T.accent,
+    color: T.sendFg, cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+  };
+}
+
+export function pageBtnStyle(T, disabled) {
+  return {
+    padding: '6px 14px', borderRadius: 6,
+    border: `1px solid ${T.border}`,
+    background: 'transparent',
+    color: disabled ? T.muted : T.text,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'inherit', fontSize: 12.5,
+    opacity: disabled ? 0.5 : 1,
+  };
+}
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
