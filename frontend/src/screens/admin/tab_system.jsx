@@ -1,49 +1,8 @@
 // v0.5.3: extracted from Admin.jsx L516-561 (Catalog tab JSX)
 // D4 mapping: System (Catalog) — 系统与治理（Audit / Recovery 是独立页面 AdminAudit.jsx / AdminRecovery.jsx）
 // v0.5.22: 视觉重构 — Inset 8% 闭环第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
-import { pillBtn } from '../../Shared.jsx';
+import { pillBtn, NumChip, OverrideChip, SourceTag } from '../../Shared.jsx';
 import { Spinner } from '../../utils.jsx';
-
-// R-557 Section number chip — 22×22 brandSoft 8% + T.accent + mono + fontWeight 600 + 01/02/03（v0.6 候选移入 Shared）
-function NumChip({ T, num }) {
-  return (
-    <span style={{
-      width: 22, height: 22, borderRadius: 5,
-      background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-      color: T.accent,
-      fontSize: 11, fontFamily: T.mono, fontWeight: 600,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      letterSpacing: '0.04em', flexShrink: 0,
-    }}>{num}</span>
-  );
-}
-
-// R-560/R-566/R-567 OverrideChip — hex 双残留偿还（v0.5.x 蓝色 hex 唯一残留正式清零）
-function OverrideChip({ T }) {
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: 999,
-      background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
-      color: T.accent,
-      fontSize: 10.5, fontWeight: 600,
-      fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.02em',
-    }}>DB 覆盖中</span>
-  );
-}
-
-// v0.5.29 #27 SourceTag — section 标题后的源标识（demo `<Tag tone="neutral">` byte-equal）
-// neutral 风格：T.bg bg + T.subtext color + T.mono uppercase；与 brand OverrideChip 视觉分离
-function SourceTag({ T, children }) {
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: 4,
-      background: T.bg, color: T.subtext,
-      fontSize: 10.5, fontWeight: 500,
-      fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.04em',
-      border: `1px solid ${T.border}`,
-    }}>{children}</span>
-  );
-}
 
 export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField }) {
   // v0.5.44 — 加第 4 section 表关系（RELATIONS）— 笛卡尔积根因解 (admin UI 替代 gitignored .py)

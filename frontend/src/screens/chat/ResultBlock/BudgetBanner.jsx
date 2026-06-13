@@ -1,13 +1,9 @@
+import { SvgPath } from '../../../Shared.jsx';
 // v0.6.0.2 F4 — BudgetBanner 子组件抽出（v0.4.3 R-16~23 budget 状态映射 byte-equal）
 // v0.5.13 R-304 emoji → SvgPath shield/triangle byte-equal
 // v0.4.3 R-20 sessionStorage 降噪逻辑保留在父组件（dismissKey 父级管控）
 const SHIELD_PATH = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
 const TRIANGLE_PATH = 'M12 3L2 21h20L12 3zM12 10v6M12 18v.01';
-
-const SvgPath = ({ d, size = 14, fill = 'none' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
-       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-);
 
 export function BudgetBanner({ T, budget_status, budget_meta, onDismiss }) {
   if (!budget_meta) return null;

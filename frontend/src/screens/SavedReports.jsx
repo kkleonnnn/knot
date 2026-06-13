@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
-import { I, iconBtn } from '../Shared.jsx';
+import { I, iconBtn, SvgPath } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
-
-const SvgPath = ({ d, size = 14, fill = 'none' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
-       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-);
 
 const SAVED_SVG = {
   bookmark:   'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',

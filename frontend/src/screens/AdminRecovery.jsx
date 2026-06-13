@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LineChart } from '../Shared.jsx';
+import { KpiCard, LineChart } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -9,29 +9,6 @@ import { api } from '../api.js';
 // admin 顶层屏三部曲收官 (v0.5.17 Audit + v0.5.18 Budgets + v0.5.19 Recovery)
 
 const PERIOD_LABELS = { '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days' };
-
-// R-473/R-491 KpiCard inline helper — transition color 0.2s 动效（v0.6 候选移入 Shared）
-function KpiCard({ T, label, value, unit, hint, accent }) {
-  return (
-    <div style={{
-      background: T.card, border: `1px solid ${T.border}`,
-      borderRadius: 12, padding: '18px 20px',
-      display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0,
-    }}>
-      <div style={{ fontSize: 12, color: T.muted, letterSpacing: '0.01em' }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <div style={{
-          fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em',
-          color: accent ? T.accent : T.text,
-          fontFamily: T.sans, lineHeight: 1.05,
-          transition: 'color 0.2s',
-        }}>{value}</div>
-        {unit && <div style={{ fontSize: 14, color: T.muted, fontWeight: 500 }}>{unit}</div>}
-      </div>
-      <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.02em' }}>{hint}</div>
-    </div>
-  );
-}
 
 // v0.5.41 PeriodTab — 字体对齐 pillBtn helper（fontSize 12.5 / inherit / fontWeight 500 / letterSpacing -0.005em）；
 // 与 Audit "导出 CSV" + Admin tabs "新建账号" 等 topbar button 一致

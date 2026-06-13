@@ -3,7 +3,7 @@
 // v0.5.23: 视觉重构 — Inset 8% 闭环字面文件总数 8→9 第十处扩张 + thead R-480（2 处）+ Hex 偿还
 // v0.5.35: Knowledge 完整 UI — stats + drag-drop upload + 8-col 表（demo knowledge.jsx 重写）
 import { useRef, useState } from 'react';
-import { I, iconBtn, pillBtn } from '../../Shared.jsx';
+import { I, iconBtn, pillBtn, FileIcon } from '../../Shared.jsx';
 import { Spinner } from '../../utils.jsx';
 
 // v0.5.38 — 共享 thead style：bg brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；
@@ -14,21 +14,6 @@ const theadStyle = (T) => ({
   fontSize: 11, color: T.muted, fontFamily: T.mono,
   fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
 });
-
-// v0.5.35 FileIcon — demo knowledge.jsx L39-47 byte-equal；ext 推断类型 + PDF warn / 其他 brand 双色
-function FileIcon({ T, type }) {
-  const isPdf = type === 'pdf';
-  return (
-    <span style={{
-      width: 32, height: 32, borderRadius: 8,
-      background: isPdf ? `color-mix(in oklch, ${T.warn} 12%, transparent)` : `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-      color: isPdf ? T.warn : T.accent,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 9, fontWeight: 700, fontFamily: T.mono, letterSpacing: '0.04em',
-      flexShrink: 0,
-    }}>{(type || 'doc').toUpperCase()}</span>
-  );
-}
 
 // v0.5.35 relative time helper（demo "2 小时前 / 昨天 / 3 天前 / 1 周前 / 2 周前 / 上月"）
 function _relativeTime(iso) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn, pillBtn } from '../Shared.jsx';
+import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -40,16 +40,6 @@ function _sinceFromPreset(preset) {
   return new Date(now.getTime() - ms).toISOString();
 }
 
-// v0.5.32 — Field helper（demo audit.jsx L30-35 byte-equal）label mono uppercase + 子元素
-function Field({ T, label, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
-      <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
-      {children}
-    </div>
-  );
-}
-
 // v0.5.32 — 客户端 CSV 导出 helper（topbar 导出 CSV button — demo audit.jsx L64）
 function exportAuditCsv(items) {
   if (!items || items.length === 0) return;
@@ -64,16 +54,6 @@ function exportAuditCsv(items) {
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `knot-audit-${Date.now()}.csv`;
   a.click();
-}
-
-// R-412 StatusDot inline helper（v0.6 候选 → 移入 Shared 与 ResultBlock/AdminBudgets 共用）
-function StatusDot({ T, ok }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: ok ? T.success : T.warn, fontSize: 11.5 }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }}/>
-      {ok ? '成功' : '失败'}
-    </span>
-  );
 }
 
 export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
@@ -223,7 +203,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 18px',
             display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap',
           }}>
-            <Field T={T} label="时段">
+            <FilterField T={T} label="时段">
               <select value={filter.sincePreset} onChange={e => setFilter({...filter, sincePreset: e.target.value})}
                       style={inputStyle(T)}>
                 <option value="">全部</option>
@@ -231,19 +211,19 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
                 <option value="7d">最近 7 天</option>
                 <option value="30d">最近 30 天</option>
               </select>
-            </Field>
-            <Field T={T} label="用户 ID">
+            </FilterField>
+            <FilterField T={T} label="用户 ID">
               <input value={filter.actor_id} onChange={e => setFilter({...filter, actor_id: e.target.value})}
                      placeholder="数字 ID..." style={inputStyle(T)}/>
-            </Field>
-            <Field T={T} label="动作">
+            </FilterField>
+            <FilterField T={T} label="动作">
               <input value={filter.action} onChange={e => setFilter({...filter, action: e.target.value})}
                      placeholder="如 auth.login" style={inputStyle(T)}/>
-            </Field>
-            <Field T={T} label="资源关键词">
+            </FilterField>
+            <FilterField T={T} label="资源关键词">
               <input value={filter.resource_type} onChange={e => setFilter({...filter, resource_type: e.target.value})}
                      placeholder="如 user / budget" style={inputStyle(T)}/>
-            </Field>
+            </FilterField>
             <div style={{ flex: 1, minWidth: 0 }}/>
             <button onClick={() => { setFilter({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' }); setPage(1); }}
                     style={ghostBtnStyle(T)}>重置</button>
@@ -414,20 +394,8 @@ function KV({ T, k, v, mono }) {
 
 // v0.5.32 — 旧 Field helper 已上移至 L44（demo audit.jsx L30-35 byte-equal flex:1 minWidth:130）
 
-function statCardStyle(T) {
-  return {
-    background: T.card, border: `1px solid ${T.border}`,
-    borderRadius: 10, padding: '14px 16px',
-    display: 'flex', flexDirection: 'column', gap: 4,
-  };
-}
-
 function statLabelStyle(T) {
   return { fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' };
-}
-
-function statValueStyle(T) {
-  return { fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono, letterSpacing: '-0.02em' };
 }
 
 function inputStyle(T) {
@@ -466,15 +434,5 @@ function pageBtnStyle(T, disabled) {
     cursor: disabled ? 'not-allowed' : 'pointer',
     fontFamily: 'inherit', fontSize: 12.5,
     opacity: disabled ? 0.5 : 1,
-  };
-}
-
-function preStyle(T) {
-  return {
-    background: T.bg, padding: 12, borderRadius: 6,
-    fontSize: 11.5, fontFamily: T.mono, color: T.text,
-    overflow: 'auto', maxHeight: '50vh',
-    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-    border: `1px solid ${T.border}`, margin: 0,
   };
 }

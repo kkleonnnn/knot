@@ -2,7 +2,7 @@
 // 6 子组件抽出到 chat/ResultBlock/* — 主文件仅 layout 调度 + intent 分支 + import
 // v0.5.13/14/15 字面分流体系 sustained — R-227.5/R-227.5.1/R-302.5/R-323/R-325/R-327
 import { useState } from 'react';
-import { I, iconBtn } from '../../Shared.jsx';
+import { I, iconBtn, SvgPath } from '../../Shared.jsx';
 import { toast } from '../../utils.jsx';
 import { api } from '../../api.js';
 import { resolveEffectiveHint } from './intent_helpers.js';
@@ -13,12 +13,6 @@ import { ErrorBanner } from './ResultBlock/ErrorBanner.jsx';
 import { TokenMeter } from './ResultBlock/TokenMeter.jsx';
 import { TableContainer } from './ResultBlock/TableContainer.jsx';
 import { FeedbackBar } from './ResultBlock/FeedbackBar.jsx';
-
-// SVG path helper（不依赖 Shared.jsx 36 names — 局部 inline；agent_costs chips + bookmark 用）
-const SvgPath = ({ d, size = 14, fill = 'none' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
-       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-);
 
 // 主文件残留 RB_SVG —  bookmark（收藏按钮）+ agent_costs chip icons
 // 拆分后子组件各自含独立 path 字面 — 主文件保留这 5 个

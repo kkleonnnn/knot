@@ -1,12 +1,8 @@
+import { SvgPath } from '../../../Shared.jsx';
 // v0.6.0.2 F3 — InsightCard 子组件抽出（v0.5.14 R-323 brandSoft 8% inset byte-equal）
 // v0.5.14 R-227.5.1 OBSERVATION 装饰豁免延伸 sustained
 // 字面与 RB_SVG.info 解耦 — 直接 inline info path（避免 import RB_SVG dict）
 const INFO_PATH = 'M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0M12 8v4M12 16h.01';
-
-const SvgPath = ({ d, size = 14, fill = 'none' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
-       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-);
 
 export function InsightCard({ T, insight }) {
   if (!insight) return null;
