@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.2.3 · Phase B 段 3 · PATCH-1 · Shared.jsx inline helper 整合（R-365 退役 — Foundation 首次受准修改；12→26 exports 偿还 v0.5.17~v0.5.22 技术债；R-PB-SH-1~12）
+> **当前版本** v0.6.2.4 · Phase B 段 3 · PATCH-2 · Shared drift 调和（drift 参数化绝对 0 位移 + Avatar/theadStyle/btn·input 族整合；Shared 26→38 exports 段 3 收官；R-PB-SH-13~20）
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.2.3）
+## 技术栈（v0.6.2.4）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
