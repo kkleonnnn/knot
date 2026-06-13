@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle } from '../Shared.jsx';
+import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle, statLabelStyle } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -155,21 +155,21 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
           {/* v0.5.40 Stat 4-card grid — 真数据 from /api/admin/audit-stats（{total, today, failed, distinct_users}）*/}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>总记录数</span>
+              <span style={statLabelStyle(T, 10.5)}>总记录数</span>
               <span style={statValueStyle(T)}>{stats ? stats.total.toLocaleString() : '—'}</span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>今日</span>
+              <span style={statLabelStyle(T, 10.5)}>今日</span>
               <span style={statValueStyle(T)}>{stats ? stats.today.toLocaleString() : '—'}</span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>失败数</span>
+              <span style={statLabelStyle(T, 10.5)}>失败数</span>
               <span style={{ ...statValueStyle(T), color: stats && stats.failed > 0 ? T.warn : T.text }}>
                 {stats ? stats.failed.toLocaleString() : '—'}
               </span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>涉及用户</span>
+              <span style={statLabelStyle(T, 10.5)}>涉及用户</span>
               <span style={statValueStyle(T)}>{stats ? stats.distinct_users.toLocaleString() : '—'}</span>
             </div>
           </div>
@@ -393,10 +393,6 @@ function KV({ T, k, v, mono }) {
 }
 
 // v0.5.32 — 旧 Field helper 已上移至 L44（demo audit.jsx L30-35 byte-equal flex:1 minWidth:130）
-
-function statLabelStyle(T) {
-  return { fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' };
-}
 
 function inputStyle(T) {
   return {

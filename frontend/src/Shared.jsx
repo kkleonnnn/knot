@@ -212,6 +212,37 @@ export function preStyle(T) {
   };
 }
 
+// v0.6.2.4 commit 2 (R-PB-SH-13 drift 0 位移参数化) — PeriodTab/TagChip/statLabelStyle 从 3+3+2 屏整合
+// canonical 默认 = AdminMetrics/AdminRecovery/AdminBudgets 现值；drift 屏（AdminQueryHistory/AdminAudit）显式传参 → render byte-equal
+export function PeriodTab({ T, label, active, onClick, height = 30, radius = 8, fontSize = 12.5, letterSpacing = '-0.005em', shadow = true }) {
+  return (
+    <button onClick={onClick} style={{
+      height, padding: '0 12px',
+      background: active ? T.accent : 'transparent',
+      color: active ? T.sendFg : T.subtext,
+      border: `1px solid ${active ? T.accent : T.border}`,
+      borderRadius: radius, fontSize, fontFamily: 'inherit',
+      fontWeight: 500, letterSpacing, cursor: 'pointer',
+      boxShadow: active && shadow ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
+    }}>{label}</button>
+  );
+}
+
+export function TagChip({ T, children, kind = 'accent' }) {
+  const colors = { accent: T.accent, warn: T.warn, success: T.success, muted: T.muted };
+  const c = colors[kind] || T.accent;
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 4,
+      background: `color-mix(in oklch, ${c} 12%, transparent)`,
+      color: c, fontSize: 11, fontWeight: 500, fontFamily: T.mono,
+      flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
+    }}>{children}</span>
+  );
+}
+
+export const statLabelStyle = (T, fontSize = 11) => ({ fontSize, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand

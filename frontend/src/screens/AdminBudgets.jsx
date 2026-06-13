@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
-import { pillBtn, FormRow } from '../Shared.jsx';
+import { pillBtn, FormRow, statLabelStyle } from '../Shared.jsx';
 import { api } from '../api.js';
 
 // 输入框 style — demo L45-50 byte-equal
@@ -14,9 +14,6 @@ const inpStyle = (T) => ({
   border: `1px solid ${T.inputBorder}`, borderRadius: 8,
   fontFamily: T.mono, outline: 'none',
 });
-
-// stat label / value 复用风格
-const statLabelStyle = (T) => ({ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
 
 export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   // v0.5.42 — 5 字段单 form state + Hero stats

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KpiCard, LineChart } from '../Shared.jsx';
+import { KpiCard, LineChart, PeriodTab, TagChip } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -9,35 +9,6 @@ import { api } from '../api.js';
 // admin 顶层屏三部曲收官 (v0.5.17 Audit + v0.5.18 Budgets + v0.5.19 Recovery)
 
 const PERIOD_LABELS = { '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days' };
-
-// v0.5.41 PeriodTab — 字体对齐 pillBtn helper（fontSize 12.5 / inherit / fontWeight 500 / letterSpacing -0.005em）；
-// 与 Audit "导出 CSV" + Admin tabs "新建账号" 等 topbar button 一致
-function PeriodTab({ T, label, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      height: 30, padding: '0 12px',
-      background: active ? T.accent : 'transparent',
-      color: active ? T.sendFg : T.subtext,
-      border: `1px solid ${active ? T.accent : T.border}`,
-      borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit',
-      fontWeight: 500, letterSpacing: '-0.005em', cursor: 'pointer',
-      boxShadow: active ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
-    }}>{label}</button>
-  );
-}
-
-// R-447 TagChip inline helper — uppercase mono brandSoft 12%（局部内嵌）
-function TagChip({ T, children }) {
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: 4,
-      background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
-      color: T.accent,
-      fontSize: 11, fontWeight: 500, fontFamily: T.mono,
-      flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
-    }}>{children}</span>
-  );
-}
 
 export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [period, setPeriod] = useState('30d');
