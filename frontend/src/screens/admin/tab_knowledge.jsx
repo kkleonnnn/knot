@@ -3,17 +3,8 @@
 // v0.5.23: 视觉重构 — Inset 8% 闭环字面文件总数 8→9 第十处扩张 + thead R-480（2 处）+ Hex 偿还
 // v0.5.35: Knowledge 完整 UI — stats + drag-drop upload + 8-col 表（demo knowledge.jsx 重写）
 import { useRef, useState } from 'react';
-import { I, iconBtn, pillBtn, FileIcon } from '../../Shared.jsx';
+import { I, iconBtn, pillBtn, FileIcon, theadStyle } from '../../Shared.jsx';
 import { Spinner } from '../../utils.jsx';
-
-// v0.5.38 — 共享 thead style：bg brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；
-// v0.5.19 R-480 brandSoft 8% 第六处铁律加冕局部撤回 — 仅 thead bg；Avatar/chip/icon brand bg 保留）
-const theadStyle = (T) => ({
-  background: T.bg,
-  borderBottom: `1px solid ${T.border}`,
-  fontSize: 11, color: T.muted, fontFamily: T.mono,
-  fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
-});
 
 // v0.5.35 relative time helper（demo "2 小时前 / 昨天 / 3 天前 / 1 周前 / 2 周前 / 上月"）
 function _relativeTime(iso) {

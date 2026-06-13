@@ -1,7 +1,7 @@
 // v0.5.3: extracted from Admin.jsx L345-420 (Models tab — API Keys + Agent Models + Models Table)
 // D4 mapping: Resources (Models) — 资源（Budgets 是独立页面 AdminBudgets.jsx）
 // v0.5.21: 视觉重构 — Inset 8% 闭环字面第八处扩展（文件总数 6→7）+ thead R-480 + KeyInput mono trailing + Hex 偿还
-import { I, iconBtn, pillBtn } from '../../Shared.jsx';
+import { I, iconBtn, pillBtn, theadStyle } from '../../Shared.jsx';
 import { Input, Spinner } from '../../utils.jsx';
 
 export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, onSaveApiKeys,
@@ -88,11 +88,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px',
-          padding: '9px 16px',
-          background: T.bg,
-          fontSize: 11, color: T.muted, fontFamily: T.mono,
-          fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
-          borderBottom: `1px solid ${T.border}`,
+          padding: '9px 16px', ...theadStyle(T),
         }}>
           <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>上下文</div><div>状态</div><div></div>
         </div>

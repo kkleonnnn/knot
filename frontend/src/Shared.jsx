@@ -257,6 +257,15 @@ export function Avatar({ T, children, size = 22, fontSize = 10.5, lineHeight }) 
   return <span style={style}>{children}</span>;
 }
 
+// v0.6.2.4 commit 4 (R-PB-SH-18) — theadStyle typography 子集（仅排版；禁 grid/flex 进 Shared）
+// tab_knowledge formal + tab_access/tab_resources inline 整合；各表 gridTemplateColumns+padding 保 inline spread
+export const theadStyle = (T) => ({
+  background: T.bg,
+  borderBottom: `1px solid ${T.border}`,
+  fontSize: 11, color: T.muted, fontFamily: T.mono,
+  fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+});
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
