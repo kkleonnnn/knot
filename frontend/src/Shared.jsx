@@ -243,6 +243,20 @@ export function TagChip({ T, children, kind = 'accent' }) {
 
 export const statLabelStyle = (T, fontSize = 11) => ({ fontSize, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
 
+// v0.6.2.4 commit 3 (R-PB-SH-17 / NRP-SH-2) — Avatar 从 3 屏真 avatar 提取
+// AST 三条件（width+height+initial+brandSoft）：AdminAudit/AdminRecovery byte-equal + tab_access lineHeight drift；
+// 其余 6 个 50% 圆（StatusDot/装饰）不动。children=initial（保各屏 initial 表达式 byte-equal）；tab_access 传 lineHeight={1}
+export function Avatar({ T, children, size = 22, fontSize = 10.5, lineHeight }) {
+  const style = {
+    width: size, height: size, borderRadius: '50%',
+    background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+    color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize, fontWeight: 600, flexShrink: 0,
+  };
+  if (lineHeight != null) style.lineHeight = lineHeight;
+  return <span style={style}>{children}</span>;
+}
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand

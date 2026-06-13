@@ -2,7 +2,7 @@
 // D4 mapping: Access (Users + Sources) — 访问与连接
 // v0.5.40: Sources Hero card 真数据 from /api/admin/datasources-stats
 import { useEffect, useState } from 'react';
-import { I, iconBtn } from '../../Shared.jsx';
+import { I, iconBtn, Avatar } from '../../Shared.jsx';
 import { api } from '../../api.js';
 
 // v0.5.40 — 上次心跳 relative time helper
@@ -36,9 +36,7 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
             <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 110px', padding: '11px 16px', borderBottom: i < users.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, overflow: 'hidden' }}>
                 {/* R-500~R-503/R-516 Avatar 22 brandSoft 8% + T.accent + inline-flex + lineHeight:1 + fontSize:10.5（与 AdminAudit R-410 + AdminRecovery R-479 字面 byte-equal；R-376 hex 债务清偿）*/}
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 600, lineHeight: 1, flexShrink: 0 }}>
-                  {(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}
-                </div>
+                <Avatar T={T} lineHeight={1}>{(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}</Avatar>
                 <span style={{ color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.display_name || u.username}</span>
               </div>
               <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</div>

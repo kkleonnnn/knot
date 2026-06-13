@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle, statLabelStyle } from '../Shared.jsx';
+import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle, statLabelStyle, Avatar } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -264,12 +264,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
                     <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.created_at}</span>
                     {/* R-410 Avatar 22 brandSoft + role chip mono */}
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: '50%',
-                        background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-                        color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10.5, fontWeight: 600, flexShrink: 0,
-                      }}>{displayInitial}</span>
+                      <Avatar T={T}>{displayInitial}</Avatar>
                       <span style={{ fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                       {row.actor_role && <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, textTransform: 'uppercase', flexShrink: 0 }}>{row.actor_role}</span>}
                     </span>

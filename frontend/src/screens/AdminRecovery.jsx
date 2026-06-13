@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KpiCard, LineChart, PeriodTab, TagChip } from '../Shared.jsx';
+import { KpiCard, LineChart, PeriodTab, TagChip, Avatar } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -146,12 +146,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                           <span style={{ fontFamily: T.mono, color: T.accent, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
                           {/* R-479 Avatar 22 brandSoft 8% (R-480 闭环本文件第二处命中) + username + id mono muted */}
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
-                            <span style={{
-                              width: 22, height: 22, borderRadius: '50%',
-                              background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-                              color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 10.5, fontWeight: 600, flexShrink: 0,
-                            }}>{(u.username || 'U').charAt(0).toUpperCase()}</span>
+                            <Avatar T={T}>{(u.username || 'U').charAt(0).toUpperCase()}</Avatar>
                             <span style={{ fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</span>
                             <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>id={u.user_id}</span>
                           </span>
