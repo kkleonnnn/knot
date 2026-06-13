@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { I, iconBtn, SvgPath } from '../Shared.jsx';
+import { I, iconBtn, SvgPath, pillBtnCompact } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -242,21 +242,21 @@ function DetailView({ T, report, onChanged }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {editing ? (
             <>
-              <button onClick={handleSaveEdit} style={pillBtn(T, true)}>保存</button>
-              <button onClick={() => setEditing(false)} style={pillBtn(T)}>取消</button>
+              <button onClick={handleSaveEdit} style={pillBtnCompact(T, true)}>保存</button>
+              <button onClick={() => setEditing(false)} style={pillBtnCompact(T)}>取消</button>
             </>
           ) : (
             <>
-              <button onClick={() => setEditing(true)} style={pillBtn(T)} title="改名 / 备注">
+              <button onClick={() => setEditing(true)} style={pillBtnCompact(T)} title="改名 / 备注">
                 <SvgPath d={SAVED_SVG.pencil} size={12}/> 编辑
               </button>
-              <button onClick={handleRun} disabled={running} style={pillBtn(T, true)}>
+              <button onClick={handleRun} disabled={running} style={pillBtnCompact(T, true)}>
                 <SvgPath d={SAVED_SVG.refresh} size={12}/> {running ? '运行中…' : '重跑'}
               </button>
-              <button onClick={() => handleExport('csv')} style={pillBtn(T)} title="导出 CSV">
+              <button onClick={() => handleExport('csv')} style={pillBtnCompact(T)} title="导出 CSV">
                 <SvgPath d={SAVED_SVG.download} size={12}/> CSV
               </button>
-              <button onClick={() => handleExport('xlsx')} style={pillBtn(T)} title="导出 Excel xlsx（5000 行硬限）">
+              <button onClick={() => handleExport('xlsx')} style={pillBtnCompact(T)} title="导出 Excel xlsx（5000 行硬限）">
                 <SvgPath d={SAVED_SVG.table} size={12}/> Excel
               </button>
             </>
@@ -360,16 +360,4 @@ function DetailView({ T, report, onChanged }) {
 function safeParseRows(json) {
   if (!json) return [];
   try { return JSON.parse(json); } catch { return []; }
-}
-
-// R-361 pillBtn primary color → T.sendFg
-function pillBtn(T, primary = false) {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 4,
-    padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
-    border: `1px solid ${primary ? T.accent : T.border}`,
-    background: primary ? T.accent : 'transparent',
-    color: primary ? T.sendFg : T.text,
-    cursor: 'pointer', fontFamily: 'inherit',
-  };
 }

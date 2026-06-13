@@ -313,6 +313,31 @@ export function pageBtnStyle(T, disabled) {
   };
 }
 
+// v0.6.2.4 commit 6 — FilledChip（tab_resources trailingChip 闭包→prop 形态 R-529）+ pillBtnCompact（R-PB-SH-19 SavedReports 同名异体 lift）
+// pillBtnCompact ❌ 0 fold Shared.pillBtn（实证异体 6px12px/r6/gap4 ≠ 6px11px/r8/gap6）；actionColor/ActionChip DEFER 留 AdminAudit
+export function FilledChip({ T, value }) {
+  return (
+    <span style={{
+      fontSize: 10,
+      color: value ? T.success : T.muted,
+      fontFamily: T.mono,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+    }}>{value ? '已填写' : '未填写'}</span>
+  );
+}
+
+export function pillBtnCompact(T, primary = false) {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
+    border: `1px solid ${primary ? T.accent : T.border}`,
+    background: primary ? T.accent : 'transparent',
+    color: primary ? T.sendFg : T.text,
+    cursor: 'pointer', fontFamily: 'inherit',
+  };
+}
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
