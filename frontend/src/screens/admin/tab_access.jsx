@@ -2,7 +2,7 @@
 // D4 mapping: Access (Users + Sources) — 访问与连接
 // v0.5.40: Sources Hero card 真数据 from /api/admin/datasources-stats
 import { useEffect, useState } from 'react';
-import { I, iconBtn } from '../../Shared.jsx';
+import { I, iconBtn, Avatar, theadStyle } from '../../Shared.jsx';
 import { api } from '../../api.js';
 
 // v0.5.40 — 上次心跳 relative time helper
@@ -29,16 +29,14 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
       {tab === 'users' && (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
           {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 110px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 110px', padding: '9px 16px', ...theadStyle(T) }}>
             <div>用户</div><div>账号</div><div>角色</div><div>状态</div><div></div>
           </div>
           {users.map((u, i) => (
             <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 110px', padding: '11px 16px', borderBottom: i < users.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, overflow: 'hidden' }}>
                 {/* R-500~R-503/R-516 Avatar 22 brandSoft 8% + T.accent + inline-flex + lineHeight:1 + fontSize:10.5（与 AdminAudit R-410 + AdminRecovery R-479 字面 byte-equal；R-376 hex 债务清偿）*/}
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 600, lineHeight: 1, flexShrink: 0 }}>
-                  {(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}
-                </div>
+                <Avatar T={T} lineHeight={1}>{(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}</Avatar>
                 <span style={{ color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.display_name || u.username}</span>
               </div>
               <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</div>
@@ -84,7 +82,7 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
             {/* v0.5.38 thead bg brandSoft 8% → T.bg gray（v0.5.28 #23 局部撤回 — 资深"底色改成灰色"）*/}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.4fr 0.6fr 0.8fr 80px', padding: '9px 16px', background: T.bg, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.4fr 0.6fr 0.8fr 80px', padding: '9px 16px', ...theadStyle(T) }}>
               <div>名称</div><div>类型</div><div>主机</div><div>表数</div><div>状态</div><div></div>
             </div>
             {sources.map((s, i) => (

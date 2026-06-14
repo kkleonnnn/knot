@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KpiCard } from '../Shared.jsx';
+import { KpiCard, PeriodTab, TagChip } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -9,32 +9,6 @@ import { api } from '../api.js';
 // 复用 v0.5.19 KpiCard + PeriodTab + TagChip pattern（v0.6.x Shared 移植承诺加强）
 
 const PERIOD_LABELS = { '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days' };
-
-function PeriodTab({ T, label, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      height: 30, padding: '0 12px',
-      background: active ? T.accent : 'transparent',
-      color: active ? T.sendFg : T.subtext,
-      border: `1px solid ${active ? T.accent : T.border}`,
-      borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit',
-      fontWeight: 500, letterSpacing: '-0.005em', cursor: 'pointer',
-      boxShadow: active ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
-    }}>{label}</button>
-  );
-}
-
-function TagChip({ T, children }) {
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: 4,
-      background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
-      color: T.accent,
-      fontSize: 11, fontWeight: 500, fontFamily: T.mono,
-      flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
-    }}>{children}</span>
-  );
-}
 
 const fmtPct = (rate) => `${(rate * 100).toFixed(1)}`;
 const fmtCost = (usd) => usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle } from '../Shared.jsx';
+import { I, iconBtn, pillBtn, StatusDot, FilterField, statCardStyle, statValueStyle, preStyle, statLabelStyle, Avatar, inputStyleField, ghostBtnStyle, primaryBtnStyle, pageBtnStyle } from '../Shared.jsx';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -155,21 +155,21 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
           {/* v0.5.40 Stat 4-card grid — 真数据 from /api/admin/audit-stats（{total, today, failed, distinct_users}）*/}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>总记录数</span>
+              <span style={statLabelStyle(T, 10.5)}>总记录数</span>
               <span style={statValueStyle(T)}>{stats ? stats.total.toLocaleString() : '—'}</span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>今日</span>
+              <span style={statLabelStyle(T, 10.5)}>今日</span>
               <span style={statValueStyle(T)}>{stats ? stats.today.toLocaleString() : '—'}</span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>失败数</span>
+              <span style={statLabelStyle(T, 10.5)}>失败数</span>
               <span style={{ ...statValueStyle(T), color: stats && stats.failed > 0 ? T.warn : T.text }}>
                 {stats ? stats.failed.toLocaleString() : '—'}
               </span>
             </div>
             <div style={statCardStyle(T)}>
-              <span style={statLabelStyle(T)}>涉及用户</span>
+              <span style={statLabelStyle(T, 10.5)}>涉及用户</span>
               <span style={statValueStyle(T)}>{stats ? stats.distinct_users.toLocaleString() : '—'}</span>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
           }}>
             <FilterField T={T} label="时段">
               <select value={filter.sincePreset} onChange={e => setFilter({...filter, sincePreset: e.target.value})}
-                      style={inputStyle(T)}>
+                      style={inputStyleField(T)}>
                 <option value="">全部</option>
                 <option value="24h">最近 24h</option>
                 <option value="7d">最近 7 天</option>
@@ -214,15 +214,15 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             </FilterField>
             <FilterField T={T} label="用户 ID">
               <input value={filter.actor_id} onChange={e => setFilter({...filter, actor_id: e.target.value})}
-                     placeholder="数字 ID..." style={inputStyle(T)}/>
+                     placeholder="数字 ID..." style={inputStyleField(T)}/>
             </FilterField>
             <FilterField T={T} label="动作">
               <input value={filter.action} onChange={e => setFilter({...filter, action: e.target.value})}
-                     placeholder="如 auth.login" style={inputStyle(T)}/>
+                     placeholder="如 auth.login" style={inputStyleField(T)}/>
             </FilterField>
             <FilterField T={T} label="资源关键词">
               <input value={filter.resource_type} onChange={e => setFilter({...filter, resource_type: e.target.value})}
-                     placeholder="如 user / budget" style={inputStyle(T)}/>
+                     placeholder="如 user / budget" style={inputStyleField(T)}/>
             </FilterField>
             <div style={{ flex: 1, minWidth: 0 }}/>
             <button onClick={() => { setFilter({ actor_id: '', action: '', resource_type: '', sincePreset: '7d' }); setPage(1); }}
@@ -264,12 +264,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
                     <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.created_at}</span>
                     {/* R-410 Avatar 22 brandSoft + role chip mono */}
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: '50%',
-                        background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-                        color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10.5, fontWeight: 600, flexShrink: 0,
-                      }}>{displayInitial}</span>
+                      <Avatar T={T}>{displayInitial}</Avatar>
                       <span style={{ fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                       {row.actor_role && <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, textTransform: 'uppercase', flexShrink: 0 }}>{row.actor_role}</span>}
                     </span>
@@ -301,7 +296,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
             </span>
             <div style={{ flex: 1 }}/>
             <select value={size} onChange={e => { setSize(parseInt(e.target.value)); setPage(1); }}
-                    style={{...inputStyle(T), width: 'auto', height: 28, fontSize: 11.5}}>
+                    style={{...inputStyleField(T), width: 'auto', height: 28, fontSize: 11.5}}>
               {_PAGE_SIZES.map(s => <option key={s} value={s}>{s} / 页</option>)}
             </select>
             <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
@@ -390,49 +385,4 @@ function KV({ T, k, v, mono }) {
       <div style={{ fontSize: 13, color: T.text, fontFamily: mono ? T.mono : 'inherit' }}>{v}</div>
     </div>
   );
-}
-
-// v0.5.32 — 旧 Field helper 已上移至 L44（demo audit.jsx L30-35 byte-equal flex:1 minWidth:130）
-
-function statLabelStyle(T) {
-  return { fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' };
-}
-
-function inputStyle(T) {
-  return {
-    width: '100%', padding: '8px 10px', borderRadius: 6,
-    border: `1px solid ${T.border}`, background: T.inputBg, color: T.text,
-    fontSize: 13, fontFamily: 'inherit', outline: 'none',
-  };
-}
-
-function ghostBtnStyle(T) {
-  return {
-    padding: '8px 14px', borderRadius: 6,
-    border: `1px solid ${T.border}`, background: 'transparent',
-    color: T.subtext, cursor: 'pointer',
-    fontFamily: 'inherit', fontSize: 13,
-  };
-}
-
-// R-416 primary btn — T.sendFg 替代 hex 白（严禁 'white' 字面 — v0.5.15 Q4 sustained）
-function primaryBtnStyle(T) {
-  return {
-    padding: '8px 14px', borderRadius: 6,
-    border: `1px solid ${T.accent}`, background: T.accent,
-    color: T.sendFg, cursor: 'pointer',
-    fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-  };
-}
-
-function pageBtnStyle(T, disabled) {
-  return {
-    padding: '6px 14px', borderRadius: 6,
-    border: `1px solid ${T.border}`,
-    background: 'transparent',
-    color: disabled ? T.muted : T.text,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: 'inherit', fontSize: 12.5,
-    opacity: disabled ? 0.5 : 1,
-  };
 }

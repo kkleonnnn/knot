@@ -5,7 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.3 — Shared.jsx inline helper 整合（Phase B 段 3 · PATCH-1）
+## [Unreleased] - v0.6.2.4 — Shared drift 调和（Phase B 段 3 · PATCH-2 · 段 3 收官）
+
+> **Loop Protocol v3 第 36 次施行** — 守护者全程强制 active 逐 commit 直读 worktree 亲验（7 commit）
+> **承接 v0.6.2.3**：PATCH-1 搬 single-copy/byte-equal 机械项；PATCH-2 处理需 canonical-body 决策的 drift
+> **段 3 收官**：Shared.jsx 26 → 38 export，inline helper 整合技术债全清
+
+### Shared.jsx 26 → 38 exports（+12 helper）
+- commit 2 **组 A drift 参数化（PATCH-2 灵魂 · R-PB-SH-13 双向 0 位移）**：
+    PeriodTab({...height=30,radius=8,fontSize=12.5,letterSpacing,shadow=true}) — AdminMetrics/Recovery 默认 canonical / AdminQueryHistory 显式 28/6/12/normal/false
+    TagChip({...kind='accent'}) superset — 默认 accent = canonical / AdminQueryHistory kind= 传参
+    statLabelStyle(T, fontSize=11) — AdminBudgets 默认 / AdminAudit (T, 10.5)
+- commit 3 **Avatar**（R-PB-SH-17 / NRP-SH-2 AST 三条件子集）：3 真 avatar（22×22+initial+brandSoft）提取；50% 圆 11→9 文件，5 装饰圆 0 误伤
+- commit 4 **theadStyle**（R-PB-SH-18 typography 子集）：仅排版进 Shared，禁 grid/flex；各表 gridTemplateColumns 保 inline spread
+- commit 5 **btn 族 lift 3 distinct（R-PB-SH-15 强制 lift 0 fold）** + input 族 lift 2 distinct：
+    ghostBtnStyle/primaryBtnStyle/pageBtnStyle（实证 pillBtn 6px11px/r8 ≠ btn 族 8px14px/r6 + pageBtnStyle disabled → fold 必破 0 位移）
+    inputStyleField(←inputStyle) / inputStyleMono(←inpStyle)
+- commit 6 **FilledChip**（trailingChip 闭包→prop）+ **pillBtnCompact**（R-PB-SH-19 SavedReports 同名异体 lift，0 fold Shared.pillBtn）
+
+### 红线 R-PB-SH-13~20（14 撤回）+ 5 判断题收敛
+- R-PB-SH-13 drift 0 位移 / 15 btn 强制 lift / 16 actionColor DEFER / 17 Avatar AST / 18 theadStyle 禁 grid / 19 pillBtnCompact / 20 snapshot rebaseline
+- **~~R-PB-SH-14 KVRow 合并~~ 撤回 → DEFER 两者**（执行者实证 KV/DetailRow k+v 两轴 drift + 各单屏单用 → SparkIcon 先例；资深拍板）
+- **DEFER**：actionColor/ActionChip（audit-domain 留 AdminAudit）/ fieldStyle（单用 ForceChangePassword）/ KV/DetailRow（单屏）
+- 3 雷区预锁全兑现（I.spark/flow 不进 dict / drift 0 位移参数化 / SavedReports pillBtn 碰撞 lift）
+
+### 治理
+- 守护者三度修正自身（buildTheme 25→26 → 双维度 → 规模不拆）+ 执行者两度反向修正（buildTheme 口径 + KVRow 正交）— 规则治权非人治 R-137
+- buildTheme 26 / I 38 契约全程不动 + 7 contracts KEPT + 静态重建
+- 详 [docs/plans/v0.6.2.4-shared-drift.md](docs/plans/v0.6.2.4-shared-drift.md)
+
+## v0.6.2.3 — Shared.jsx inline helper 整合（Phase B 段 3 · PATCH-1）
 
 > **Loop Protocol v3 第 35 次施行** — 完整三阶段 + 守护强 active 逐 commit 复核
 > **R-365 退役**：自 v0.5.6 Foundation 冻结以来**首次受准修改 Shared.jsx**（红线演进非撤回，资深 2026-06-12 ack）；

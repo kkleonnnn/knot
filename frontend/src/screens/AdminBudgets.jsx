@@ -4,19 +4,8 @@
 import { useState, useEffect } from 'react';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
-import { pillBtn, FormRow } from '../Shared.jsx';
+import { pillBtn, FormRow, statLabelStyle, inputStyleMono } from '../Shared.jsx';
 import { api } from '../api.js';
-
-// 输入框 style — demo L45-50 byte-equal
-const inpStyle = (T) => ({
-  height: 34, padding: '0 12px', fontSize: 13,
-  background: T.inputBg, color: T.text,
-  border: `1px solid ${T.inputBorder}`, borderRadius: 8,
-  fontFamily: T.mono, outline: 'none',
-});
-
-// stat label / value 复用风格
-const statLabelStyle = (T) => ({ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
 
 export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   // v0.5.42 — 5 字段单 form state + Hero stats
@@ -124,7 +113,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '4px 24px 20px' }}>
               <FormRow T={T} label="月度 token 上限" hint="单组织全局上限，超出后所有调用降级">
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="number" style={{ ...inpStyle(T), width: 200 }}
+                  <input type="number" style={{ ...inputStyleMono(T), width: 200 }}
                          value={cfg.monthly_token_cap}
                          onChange={e => setCfg({ ...cfg, monthly_token_cap: parseInt(e.target.value) || 0 })}/>
                   <span style={{ fontSize: 12, color: T.muted }}>tokens / 月</span>
@@ -132,7 +121,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               </FormRow>
               <FormRow T={T} label="单次对话上限" hint="一次 conversation 内累计 token，超出后阻断追问">
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="number" style={{ ...inpStyle(T), width: 200 }}
+                  <input type="number" style={{ ...inputStyleMono(T), width: 200 }}
                          value={cfg.per_conv_token_cap}
                          onChange={e => setCfg({ ...cfg, per_conv_token_cap: parseInt(e.target.value) || 0 })}/>
                   <span style={{ fontSize: 12, color: T.muted }}>tokens</span>
@@ -140,7 +129,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               </FormRow>
               <FormRow T={T} label="告警阈值" hint="超过该百分比时，在用户首页顶部显示提醒">
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="number" min="0" max="100" style={{ ...inpStyle(T), width: 100 }}
+                  <input type="number" min="0" max="100" style={{ ...inputStyleMono(T), width: 100 }}
                          value={cfg.warn_pct}
                          onChange={e => setCfg({ ...cfg, warn_pct: parseInt(e.target.value) || 0 })}/>
                   <span style={{ fontSize: 12, color: T.muted }}>%</span>
@@ -149,7 +138,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               <FormRow T={T} label="默认模型" hint="新对话默认走该模型，可在 API & 模型 页配置">
                 <select value={cfg.default_model}
                         onChange={e => setCfg({ ...cfg, default_model: e.target.value })}
-                        style={{ ...inpStyle(T), width: 280, fontFamily: T.sans, cursor: 'pointer' }}>
+                        style={{ ...inputStyleMono(T), width: 280, fontFamily: T.sans, cursor: 'pointer' }}>
                   <option value={cfg.default_model}>{cfg.default_model}</option>
                   {models.filter(m => m.enabled !== false && m.model_id !== cfg.default_model).map(m => (
                     <option key={m.model_id} value={m.model_id}>{m.name} · {m.provider}</option>
@@ -158,7 +147,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               </FormRow>
               <FormRow T={T} label="限流策略" hint="单用户每分钟最多请求次数，防止 SQL planner 死循环" last>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="number" min="1" style={{ ...inpStyle(T), width: 100 }}
+                  <input type="number" min="1" style={{ ...inputStyleMono(T), width: 100 }}
                          value={cfg.rate_limit_per_min}
                          onChange={e => setCfg({ ...cfg, rate_limit_per_min: parseInt(e.target.value) || 0 })}/>
                   <span style={{ fontSize: 12, color: T.muted }}>req / min · 用户</span>

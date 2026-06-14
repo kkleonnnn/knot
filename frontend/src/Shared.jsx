@@ -212,6 +212,132 @@ export function preStyle(T) {
   };
 }
 
+// v0.6.2.4 commit 2 (R-PB-SH-13 drift 0 位移参数化) — PeriodTab/TagChip/statLabelStyle 从 3+3+2 屏整合
+// canonical 默认 = AdminMetrics/AdminRecovery/AdminBudgets 现值；drift 屏（AdminQueryHistory/AdminAudit）显式传参 → render byte-equal
+export function PeriodTab({ T, label, active, onClick, height = 30, radius = 8, fontSize = 12.5, letterSpacing = '-0.005em', shadow = true }) {
+  return (
+    <button onClick={onClick} style={{
+      height, padding: '0 12px',
+      background: active ? T.accent : 'transparent',
+      color: active ? T.sendFg : T.subtext,
+      border: `1px solid ${active ? T.accent : T.border}`,
+      borderRadius: radius, fontSize, fontFamily: 'inherit',
+      fontWeight: 500, letterSpacing, cursor: 'pointer',
+      boxShadow: active && shadow ? `0 2px 8px color-mix(in oklch, ${T.accent} 20%, transparent)` : 'none',
+    }}>{label}</button>
+  );
+}
+
+export function TagChip({ T, children, kind = 'accent' }) {
+  const colors = { accent: T.accent, warn: T.warn, success: T.success, muted: T.muted };
+  const c = colors[kind] || T.accent;
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 4,
+      background: `color-mix(in oklch, ${c} 12%, transparent)`,
+      color: c, fontSize: 11, fontWeight: 500, fontFamily: T.mono,
+      flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
+    }}>{children}</span>
+  );
+}
+
+export const statLabelStyle = (T, fontSize = 11) => ({ fontSize, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
+
+// v0.6.2.4 commit 3 (R-PB-SH-17 / NRP-SH-2) — Avatar 从 3 屏真 avatar 提取
+// AST 三条件（width+height+initial+brandSoft）：AdminAudit/AdminRecovery byte-equal + tab_access lineHeight drift；
+// 其余 6 个 50% 圆（StatusDot/装饰）不动。children=initial（保各屏 initial 表达式 byte-equal）；tab_access 传 lineHeight={1}
+export function Avatar({ T, children, size = 22, fontSize = 10.5, lineHeight }) {
+  const style = {
+    width: size, height: size, borderRadius: '50%',
+    background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
+    color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize, fontWeight: 600, flexShrink: 0,
+  };
+  if (lineHeight != null) style.lineHeight = lineHeight;
+  return <span style={style}>{children}</span>;
+}
+
+// v0.6.2.4 commit 4 (R-PB-SH-18) — theadStyle typography 子集（仅排版；禁 grid/flex 进 Shared）
+// tab_knowledge formal + tab_access/tab_resources inline 整合；各表 gridTemplateColumns+padding 保 inline spread
+export const theadStyle = (T) => ({
+  background: T.bg,
+  borderBottom: `1px solid ${T.border}`,
+  fontSize: 11, color: T.muted, fontFamily: T.mono,
+  fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+});
+
+// v0.6.2.4 commit 5 (R-PB-SH-15) — btn 族强制 lift 3 distinct（0 fold：pillBtn 6px11px/r8 ≠ btn 族 8px14px/r6 + pageBtnStyle disabled 参）
+// + input 族 lift 2 distinct（inputStyleField←AdminAudit inputStyle / inputStyleMono←AdminBudgets inpStyle）；fieldStyle 单用 DEFER inline
+export function inputStyleField(T) {
+  return {
+    width: '100%', padding: '8px 10px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: T.inputBg, color: T.text,
+    fontSize: 13, fontFamily: 'inherit', outline: 'none',
+  };
+}
+
+export const inputStyleMono = (T) => ({
+  height: 34, padding: '0 12px', fontSize: 13,
+  background: T.inputBg, color: T.text,
+  border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+  fontFamily: T.mono, outline: 'none',
+});
+
+export function ghostBtnStyle(T) {
+  return {
+    padding: '8px 14px', borderRadius: 6,
+    border: `1px solid ${T.border}`, background: 'transparent',
+    color: T.subtext, cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13,
+  };
+}
+
+export function primaryBtnStyle(T) {
+  return {
+    padding: '8px 14px', borderRadius: 6,
+    border: `1px solid ${T.accent}`, background: T.accent,
+    color: T.sendFg, cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+  };
+}
+
+export function pageBtnStyle(T, disabled) {
+  return {
+    padding: '6px 14px', borderRadius: 6,
+    border: `1px solid ${T.border}`,
+    background: 'transparent',
+    color: disabled ? T.muted : T.text,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'inherit', fontSize: 12.5,
+    opacity: disabled ? 0.5 : 1,
+  };
+}
+
+// v0.6.2.4 commit 6 — FilledChip（tab_resources trailingChip 闭包→prop 形态 R-529）+ pillBtnCompact（R-PB-SH-19 SavedReports 同名异体 lift）
+// pillBtnCompact ❌ 0 fold Shared.pillBtn（实证异体 6px12px/r6/gap4 ≠ 6px11px/r8/gap6）；actionColor/ActionChip DEFER 留 AdminAudit
+export function FilledChip({ T, value }) {
+  return (
+    <span style={{
+      fontSize: 10,
+      color: value ? T.success : T.muted,
+      fontFamily: T.mono,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+    }}>{value ? '已填写' : '未填写'}</span>
+  );
+}
+
+export function pillBtnCompact(T, primary = false) {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
+    border: `1px solid ${primary ? T.accent : T.border}`,
+    background: primary ? T.accent : 'transparent',
+    color: primary ? T.sendFg : T.text,
+    cursor: 'pointer', fontFamily: 'inherit',
+  };
+}
+
 export function buildTheme(dark) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
   // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand

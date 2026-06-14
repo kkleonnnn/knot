@@ -1,23 +1,12 @@
 // v0.5.3: extracted from Admin.jsx L345-420 (Models tab — API Keys + Agent Models + Models Table)
 // D4 mapping: Resources (Models) — 资源（Budgets 是独立页面 AdminBudgets.jsx）
 // v0.5.21: 视觉重构 — Inset 8% 闭环字面第八处扩展（文件总数 6→7）+ thead R-480 + KeyInput mono trailing + Hex 偿还
-import { I, iconBtn, pillBtn } from '../../Shared.jsx';
+import { I, iconBtn, pillBtn, theadStyle, FilledChip } from '../../Shared.jsx';
 import { Input, Spinner } from '../../utils.jsx';
 
 export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, onSaveApiKeys,
                               agentCfg, setAgentCfg, agentSaving, onSaveAgentCfg,
                               onToggleModel, onSetDefaultModel, onSyncOrCatalog, orSyncing }) {
-  // R-529 KeyInput trailing mono uppercase helper — "已填写"/"未填写" 工业感
-  const trailingChip = (value) => (
-    <span style={{
-      fontSize: 10,
-      color: value ? T.success : T.muted,
-      fontFamily: T.mono,
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-    }}>{value ? '已填写' : '未填写'}</span>
-  );
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* R-527/R-528 API Keys Card — padding 16→20 + radius 10→12 + header 14/600/-0.01em + desc 1.55 */}
@@ -28,11 +17,11 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
           <Input T={T} label="OpenRouter API Key" value={apiKeys.openrouter_api_key}
                  onChange={v => setApiKeys(s => ({ ...s, openrouter_api_key: v }))}
                  type="password" placeholder="sk-or-v1-…" mono
-                 trailing={trailingChip(apiKeys.openrouter_api_key)}/>
+                 trailing={<FilledChip T={T} value={apiKeys.openrouter_api_key}/>}/>
           <Input T={T} label="Embedding API Key" value={apiKeys.embedding_api_key}
                  onChange={v => setApiKeys(s => ({ ...s, embedding_api_key: v }))}
                  type="password" placeholder="sk-…（OpenAI / 兼容端点）" mono
-                 trailing={trailingChip(apiKeys.embedding_api_key)}/>
+                 trailing={<FilledChip T={T} value={apiKeys.embedding_api_key}/>}/>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
           {/* R-536 Spinner color hex 偿还 — 白色字面 → T.sendFg（R-484 sustained） */}
@@ -88,11 +77,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px',
-          padding: '9px 16px',
-          background: T.bg,
-          fontSize: 11, color: T.muted, fontFamily: T.mono,
-          fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
-          borderBottom: `1px solid ${T.border}`,
+          padding: '9px 16px', ...theadStyle(T),
         }}>
           <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>上下文</div><div>状态</div><div></div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { iconBtn } from '../Shared.jsx';
+import { iconBtn, PeriodTab, TagChip } from '../Shared.jsx';
 import { toast, Spinner, Modal, ModalHeader, Input } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -18,32 +18,6 @@ const KIND_LABELS = {
   presenter: 'Presenter（洞察）',
 };
 const ERROR_LABELS = { '': '所有', 'true': '只看错误', 'false': '只看成功' };
-
-function PeriodTab({ T, label, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      height: 28, padding: '0 12px',
-      background: active ? T.accent : 'transparent',
-      color: active ? T.sendFg : T.subtext,
-      border: `1px solid ${active ? T.accent : T.border}`,
-      borderRadius: 6, fontSize: 12, fontFamily: 'inherit', fontWeight: 500,
-      cursor: 'pointer',
-    }}>{label}</button>
-  );
-}
-
-function TagChip({ T, children, kind = 'accent' }) {
-  const colors = { accent: T.accent, warn: T.warn, success: T.success, muted: T.muted };
-  const c = colors[kind] || T.accent;
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: 4,
-      background: `color-mix(in oklch, ${c} 12%, transparent)`,
-      color: c, fontSize: 11, fontWeight: 500, fontFamily: T.mono,
-      flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.02em',
-    }}>{children}</span>
-  );
-}
 
 function fmt(ms) { return ms == null ? '—' : (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`); }
 function fmtCost(c) { return c == null ? '—' : (c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(2)}`); }
@@ -99,6 +73,7 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
           <div style={{ display: 'flex', gap: 6 }}>
             {['7d', '30d', '90d'].map(p => (
               <PeriodTab key={p} T={T} label={PERIOD_LABELS[p]}
+                         height={28} radius={6} fontSize={12} letterSpacing="normal" shadow={false}
                          active={period === p} onClick={() => { setPeriod(p); setPage(1); }}/>
             ))}
           </div>
