@@ -127,6 +127,41 @@ def init_db():
             ON totp_recovery_codes(user_id) WHERE used_at IS NULL
     """)
 
+    # ── v0.6.2.5 段 4 (A1): single-tenant 多 catalog 切换 — 迁移地基 ─────────────
+    # OOS-1 死线（R-PB-A1-1）：catalogs 表 + users.active_catalog_id 严禁 tenant_id/project_id；
+    #   catalog_id = 语义层水平切分（per-user active catalog）≠ 租户数据隔离。
+    # users.active_catalog_id：每用户 active catalog（NULL → 兜底 catalog id=1）
+    users_cols_v0625 = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "active_catalog_id" not in users_cols_v0625:
+        conn.execute("ALTER TABLE users ADD COLUMN active_catalog_id INTEGER")
+
+    # audit_log.catalog_id：R-PB-A1-5 ③ — 操作关联的 catalog（NULL = 无关 catalog 的操作）
+    audit_cols_v0625 = {row[1] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
+    if "catalog_id" not in audit_cols_v0625:
+        conn.execute("ALTER TABLE audit_log ADD COLUMN catalog_id INTEGER")
+
+    # catalogs 表 seed — 现有 app_settings 4-key catalog 内容搬为 catalog id=1（byte-equal copy）
+    # 幂等：仅 catalogs 空时执行；app_settings 空（fresh install）→ 空内容行
+    #   （与现状一致 — catalog_loader 内容为空时回退 file 默认；commit 3 reload 改读本表）
+    if conn.execute("SELECT COUNT(*) FROM catalogs").fetchone()[0] == 0:
+        _cat_kv = {
+            row[0]: row[1]
+            for row in conn.execute(
+                "SELECT key, value FROM app_settings WHERE key IN "
+                "('catalog.tables', 'catalog.lexicon', 'catalog.business_rules', 'catalog.relations')"
+            ).fetchall()
+        }
+        conn.execute(
+            "INSERT INTO catalogs (id, name, description, tables, lexicon, business_rules, relations) "
+            "VALUES (1, '默认 Catalog', '', ?, ?, ?, ?)",
+            (
+                _cat_kv.get("catalog.tables", ""),
+                _cat_kv.get("catalog.lexicon", ""),
+                _cat_kv.get("catalog.business_rules", ""),
+                _cat_kv.get("catalog.relations", ""),
+            ),
+        )
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""
