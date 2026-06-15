@@ -37,6 +37,7 @@ LIMITS = {
     "knot/services/_llm_invoke.py":                250,
     "knot/services/query_steps.py":                250,
     "knot/services/desensitize.py":                150,  # v0.6.0.19 新增 (脱敏链 3/3 后端模块)
+    "knot/repositories/catalog_repo.py":           250,  # v0.6.2.5 段 4 (A1) catalogs CRUD + per-user active
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
     # 2 主文件
     "frontend/src/screens/Chat.jsx":  350,
