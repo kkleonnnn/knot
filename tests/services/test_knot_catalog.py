@@ -29,11 +29,11 @@ def test_example_fallback_loaded_when_no_db_no_real(tmp_db_path):
 
 
 def test_db_override_takes_precedence(tmp_db_path):
-    """DB 三键非空时优先于文件 fallback。"""
-    from knot.repositories.settings_repo import set_app_setting
+    """DB 非空时优先于文件 fallback。v0.6.2.5：DB 源 = catalogs 表默认行 id=1（替代 app_settings）。"""
+    from knot.repositories import catalog_repo
     from knot.services.agents import catalog
 
-    set_app_setting("catalog.business_rules", "## DB-injected\nRule A")
+    catalog_repo.update_catalog(1, business_rules="## DB-injected\nRule A")
     catalog.reload()
     # v0.6.1.4: _SOURCE 可能是 "db" 或 "db+file_http"（当 _local_catalog.py 含 HTTP 虚拟表时）
     assert catalog._SOURCE.startswith("db"), f"应 db 主导；实际 {catalog._SOURCE}"
@@ -41,16 +41,16 @@ def test_db_override_takes_precedence(tmp_db_path):
 
 
 def test_reset_db_falls_back_to_example(tmp_db_path):
-    """清空 DB 三键 → 回退到文件 example/real。"""
-    from knot.repositories.settings_repo import set_app_setting
+    """清空 catalog id=1 字段 → 回退到文件 example/real。v0.6.2.5：清 catalogs 表默认行。"""
+    from knot.repositories import catalog_repo
     from knot.services.agents import catalog
 
-    set_app_setting("catalog.business_rules", "X")
+    catalog_repo.update_catalog(1, business_rules="X")
     catalog.reload()
     # v0.6.1.4: _SOURCE 可能是 "db" 或 "db+file_http"
     assert catalog._SOURCE.startswith("db"), f"应 db 主导；实际 {catalog._SOURCE}"
 
-    set_app_setting("catalog.business_rules", "")
+    catalog_repo.update_catalog(1, business_rules="")
     catalog.reload()
     assert catalog._SOURCE in ("example", "real")
 
