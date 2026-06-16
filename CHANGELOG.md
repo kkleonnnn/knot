@@ -5,7 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.3.0 — audit V2（B2）+ 数据脱敏链 V2（B3）（Phase B 段 5 · 聚焦缺口）
+## [Unreleased] - v0.6.3.1 — OSS readiness 工具链（D1）+ 公测 onboarding docs 三视角（D2）（Phase B 段 6 · docs-only）
+
+> **Loop Protocol v3 第 40 次施行 — 轻量 v3**（资深拍板跳 Stage 2 / 保守护者 Stage 3 轻量终审；docs-only 无破契约/命名/副作用维度）
+> **奥卡姆剃刀界定缺口**：v0.6.0.15 已有 80% OSS 工具链（LICENSE/SECURITY/CONTRIBUTING/.env.example/pre-commit/ci）不重做；本 PATCH 只补缺口
+> **双向实证文化（R-137）**：守护者直读 c45bef2 抓出单方草案 4 盲点（R-PB-D-2 漏 semantic_layer_v2/phase_b_started + users. 前缀 / R-PB-D-5 漏 3+1 admin 屏 / §0 CONTRIBUTING 死链 premise 不实 / README L11 纪律）；守护者自校正 1（SLA/PRIVACY 路径）；**执行者 git show 反向校正守护者 README L11 三度误读**（守护者读 local main `a938446` 而非 base `c45bef2`；origin/main 健康 = v0.6.3.0）
+
+### Added
+- **D2 公测 onboarding docs 三视角**：
+  - `docs/ONBOARDING.md` — 三视角导航 hub（业务方 / admin / 运维 / 贡献者）；运维段薄导航指向 DEPLOY.md（奥卡姆不重造）
+  - `docs/ANALYST_GUIDE.md` — 业务方：提问 / 4-step + 7 可视化 / 收藏导出 / **能做不能做（与 README §能做不能做字面一致 R-PA-PB-1）** / FAQ
+  - `docs/ADMIN_GUIDE.md` — admin day-1 walkthrough：登录+改密+TOTP enroll / 数据源 / API Key+模型 / 业务目录 catalog（语义层中文）/ 知识库 few-shot prompt / 用户 / 预算 / 审计 / 可观测性屏 / TOTP reset + day-1 检查清单
+- **D1 OSS readiness 工具链补漏**：
+  - `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1（GitHub 自动识别社区标准）
+  - `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md` + `.github/PULL_REQUEST_TEMPLATE.md`
+
+### Changed
+- `README.md` — CI + Apache-2.0 两 badges + beta/无 SLA 诚实声明（MAJOR=0 + best-effort 对齐 docs/SLA.md）+ §文档导航段指向 onboarding hub + 当前版本行 v0.6.3.0→v0.6.3.1
+- `CONTRIBUTING.md` — 行为准则段加链接指向 CODE_OF_CONDUCT.md（保内联摘要 + OSS 标准独立文件）
+
+### Notes
+- **R-PB-D-1~7** 立约：窄场景诚实 / OOS-1 docs 死线（新 guides 非 EXCLUDE_RE → 真被 R-PA-8 literal scan → 引 canonical 8 字面 5 LITERAL+3 SCHEMA，述多租户/语义层全中文）/ 无 SLA 诚实 / 0 业务码 / admin 准确性 / 交叉链接 0 死链 / VRP+R-PA-8 sustained
+- **0 业务代码**（docs/config-only；唯一代码改动 = version 串三同步 main.py+smoke+Login footer R-72/R-181）
+- **README 当前版本行纳入收官 checklist**（守护者补强 — L11 不在 R-72/R-181 三同步守护内，靠手工每收官 bump）
+- ⚠️ scope 外（守护者 §III 上报，另案）：local main repo checkout 在偏离 chore 分支（parent 错挂旧基线，README 继承旧版本，未推 origin）；origin/main = c45bef2 健康
+- 本机 python 坏（homebrew 3.14 libexpat）→ pytest（R-72 smoke）走 CI；live UI（onboarding 链路 + GitHub 模板/badges 渲染）部署后 knot.0p.oh + GitHub
+
+详见 [docs/plans/v0.6.3.1-oss-readiness-onboarding.md](docs/plans/v0.6.3.1-oss-readiness-onboarding.md)
+
+---
+
+## [Released] - v0.6.3.0 — audit V2（B2）+ 数据脱敏链 V2（B3）（Phase B 段 5 · 聚焦缺口）
 
 > **Loop Protocol v3 第 39 次施行** — 守护者全程 active 逐 commit 直读 worktree（3 commit）+ **v0.4 远古守护者第 4 次激活**（6 audit_action 联合复核 — 首次「双初审整合」履约：守护者终审 + 远古复核产物并入归档）
 > **聚焦缺口范围**（资深拍板「聚焦缺口」而非全量重构）：B3 关闭收藏报表表名泄漏缺口（与 conversations 脱敏平行）+ B2 补 audit V2 6 新 action 的 PII / R-62 同步债
