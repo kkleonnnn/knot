@@ -48,7 +48,13 @@ LIMITS = {
     "frontend/src/screens/chat/sse_handler.js":    150,
     "frontend/src/screens/chat/ResultBlock.jsx":   460,  # v0.5.39 440→460 (Trace 4th step 推导 + suggestions chevron 改造)
     "frontend/src/screens/SavedReports.jsx":       380,  # v0.5.15 R-363 新增 (Favorites 屏复刻)
-    "frontend/src/screens/AdminAudit.jsx":         490,  # v0.6.0.5 F-C 430→490 (Retention + 立即清理 banner)
+    "frontend/src/screens/AdminAudit.jsx":         210,  # v0.6.3.2 C5 490→210 (6 视觉段抽 audit/ 子组件;编排层瘦身)
+    "frontend/src/screens/audit/AuditStatGrid.jsx":     50,   # v0.6.3.2 C5 AdminAudit 拆分
+    "frontend/src/screens/audit/AuditRetentionBar.jsx": 60,   # v0.6.3.2 C5 AdminAudit 拆分
+    "frontend/src/screens/audit/AuditFilterStrip.jsx":  70,   # v0.6.3.2 C5 AdminAudit 拆分
+    "frontend/src/screens/audit/AuditTable.jsx":        120,  # v0.6.3.2 C5 AdminAudit 拆分
+    "frontend/src/screens/audit/AuditPagination.jsx":   40,   # v0.6.3.2 C5 AdminAudit 拆分
+    "frontend/src/screens/audit/AuditDetailDrawer.jsx": 110,  # v0.6.3.2 C5 AdminAudit 拆分
     "frontend/src/screens/AdminBudgets.jsx":       380,  # v0.5.18 R-460 新增 (AdminBudgets 屏复刻)
     "frontend/src/screens/AdminRecovery.jsx":      380,  # v0.5.19 R-490 新增 (AdminRecovery 屏复刻;admin 三部曲收官)
     "frontend/src/screens/AdminMetrics.jsx":       200,  # v0.6.0.16 新增 (内测指标屏 — 4 KPI cards + period tabs + rules)
