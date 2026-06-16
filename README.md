@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.3.0 · Phase B 段 5 · audit V2（B2）+ 数据脱敏链 V2（B3）聚焦缺口 · saved_reports 非 admin strip(sql_text)+desensitize(db_error)（与 conversations 平行 — 闭收藏报表表名泄漏缺口）+ R-62 同步偿还（_PII_BLACKLIST 扩 totp_secret）+ 6 audit_action v0.4 远古守护者第 4 次激活联合复核（首次双初审整合）；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.3.1 · Phase B 段 6 · OSS readiness 工具链（D1）+ 公测 onboarding docs 三视角（D2）· 业务方/admin/运维三视角导航（docs/ONBOARDING.md hub + ANALYST_GUIDE + ADMIN_GUIDE）+ CODE_OF_CONDUCT + README badges/beta 声明 + .github 模板 · docs-only 0 业务代码 · 奥卡姆补缺口（不重做 v0.6.0.15 已有 80% OSS 工具链）；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
@@ -189,7 +189,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.3.0）
+## 技术栈（v0.6.3.1）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
