@@ -113,6 +113,8 @@ KNOT 内部所有 PATCH 走 4 阶段：
 - 技术分歧通过 issue / PR 讨论，不在私信攻击
 - 严重违规请联系 kk@100xex.com
 
+> 完整行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)（Contributor Covenant 2.1）。
+
 ## License
 
 提交 PR 即表示你同意你的贡献以 Apache-2.0 协议授权（与本项目一致）。

@@ -1,6 +1,11 @@
 # KNOT
 
+[![CI](https://github.com/kkleonnnn/knot/actions/workflows/ci.yml/badge.svg)](https://github.com/kkleonnnn/knot/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 公司内部用的 AI 取数助手：自然语言 → SQL → 图表 + 洞察。
+
+> ⚠️ **内测阶段**（MAJOR=0 · 团队内部工具，日活 5-20 人）。无 uptime SLA 承诺（best-effort，详 [docs/SLA.md](docs/SLA.md)）；公开对外部署前请落实 HTTPS / 监控 / 防暴力破解（见 [DEPLOY.md](DEPLOY.md) + [SECURITY.md](SECURITY.md)）。
 
 ## Demo
 
@@ -9,6 +14,15 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
 > **当前版本** v0.6.3.0 · Phase B 段 5 · audit V2（B2）+ 数据脱敏链 V2（B3）聚焦缺口 · saved_reports 非 admin strip(sql_text)+desensitize(db_error)（与 conversations 平行 — 闭收藏报表表名泄漏缺口）+ R-62 同步偿还（_PII_BLACKLIST 扩 totp_secret）+ 6 audit_action v0.4 远古守护者第 4 次激活联合复核（首次双初审整合）；⚠️ OOS-1 死线 sustained
+
+## 文档导航
+
+按角色上手 —— 入口 [docs/ONBOARDING.md](docs/ONBOARDING.md)（三视角导航）：
+
+- 业务方 / 分析师 → [业务方使用指南](docs/ANALYST_GUIDE.md)
+- 管理员 → [管理员指南](docs/ADMIN_GUIDE.md)（day-1 走查）
+- 运维 / SRE → [DEPLOY.md](DEPLOY.md) · [SLA.md](docs/SLA.md) · [PRIVACY.md](docs/PRIVACY.md)
+- 贡献者 → [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## 角色
 
