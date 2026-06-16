@@ -307,9 +307,14 @@ def test_R_PB_B1_11_audit_action_literal_contains_4_totp():
 
 
 def test_routes_count_v062_totp_endpoints():
-    """v0.6.2.0 commit 3+5 加 4 TOTP endpoints；R-72 routes 必含全 4 个。"""
+    """v0.6.2.0 commit 3+5 加 4 TOTP endpoints；R-72 routes 必含全 4 个。
+
+    v0.6.2.5 commit 7：经 app_route_paths 动态展平（FastAPI 0.137+ _IncludedRouter 懒包装）。
+    """
     from knot.main import app
-    paths = {r.path for r in app.routes}
+
+    from tests._route_count import app_route_paths
+    paths = app_route_paths(app)
     expected = {"/api/totp/enroll-init", "/api/totp/enroll-complete",
                 "/api/totp/verify", "/api/totp/reset"}
     assert expected <= paths, f"4 TOTP endpoints 必全存在；缺失 {expected - paths}"

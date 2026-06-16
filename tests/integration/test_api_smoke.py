@@ -26,9 +26,13 @@ def test_app_routes_at_least_80(client):
     v0.4.6: +audit-log GET (1) + audit-config GET/PUT (2) → 69 → 72。
     v0.5.40: +audit-stats / budgets-stats / datasources-stats → 72 → 75。
     v0.5.42: +budget-config GET/PUT → 75 → 77。
-    v0.6.0.3: F-A +POST/GET msg feedback + GET admin feedback → 77 → 80。"""
+    v0.6.0.3: F-A +POST/GET msg feedback + GET admin feedback → 77 → 80。
+    v0.6.2.5 commit 7: 经 flatten_app_routes 动态展平（FastAPI 0.137+ include_router 不再展平
+    进 app.routes 而是追加 _IncludedRouter 懒包装；P-1/P-5 动态计数治本，对上游实现变更鲁棒）。"""
     from knot.main import app
-    assert len(app.routes) >= 80
+
+    from tests._route_count import flatten_app_routes
+    assert len(flatten_app_routes(app)) >= 80
 
 
 # ── 登录链路（api → services.auth_service → repositories.user_repo） ──

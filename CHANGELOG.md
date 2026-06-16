@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   api/catalog.py 旧 3 路由（GET/PUT/reset）读写 catalog id=1，**响应 byte-equal**（前端 0 改 D5）
 - `check_file_sizes` Admin.jsx 400→420（+多 catalog state/handlers — 状态容器 ack 微调先例；实际 416）
 
+### Fixed
+- **路由计数守护对 FastAPI 0.137 上游漂移鲁棒化（commit 7 — P-1/P-5 动态计数治本兑现）**：
+  CI 装到 fastapi 0.137.1（requirements `>=0.111.0` 未 pin），其 `include_router` 不再把子路由展平进
+  `app.routes`，而是追加 `_IncludedRouter` 懒包装（dataclass 无 `.path`，子路由在 `.original_router.routes`）→
+  `len(app.routes)` 从 ~80 降到 24 + `{r.path for r in app.routes}` 撞无 `.path`，打破 3 个路由计数测试
+  （test_api_smoke / test_totp_2fa / test_rename_smoke — 与 catalog 功能 0 关系，648 测试含全部 route-hitting 通过）。
+  新 `tests/_route_count.py` 递归经 `original_router.routes` 下钻还原叶子路由（兼容 <0.137 扁平 + 0.137+ 懒包装），
+  3 测试改用 → 路由守护不再依赖 app.routes 扁平结构，对上游 include_router 内部实现变更鲁棒。
+
 ### Notes
 - **本机 python 环境不可用**（homebrew 3.14 libexpat 符号缺失）→ 完整 pytest（test_catalog_repo 14 + test_catalog_switch_route 8 + 既有回归）走 CI 干净 env；
   执行者本地用 stdlib sqlite3 镜像真实 SQL + py_compile + check_file_sizes 验证逻辑/语法

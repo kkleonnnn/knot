@@ -140,9 +140,16 @@ def test_R72_routes_count_unchanged():
     历史上是 == 严格相等：v0.5.40 +3 / v0.5.42 +2 / v0.6.0.13 +3 每次都触发 4 处硬编码 drift。
     短期改 >= 防"路由蒸发"+ 允许加路由不触发 CI 红；
     长期由 v0.6.0.13 P-1/P-5 决议（动态计数 / 直接撤回守护对象）治本。
+
+    v0.6.2.5 commit 7：P-1/P-5「动态计数治本」兑现 — 经 flatten_app_routes 递归展平
+    FastAPI 0.137+ _IncludedRouter 懒包装（include_router 不再展平进 app.routes），
+    路由计数守护对上游 FastAPI/Starlette include_router 内部实现变更鲁棒。
     """
     from knot.main import app
-    assert len(app.routes) >= 80, f"路由数下限应 ≥ 80（防路由蒸发）；实际：{len(app.routes)}"
+
+    from tests._route_count import flatten_app_routes
+    routes = flatten_app_routes(app)
+    assert len(routes) >= 80, f"路由数下限应 ≥ 80（防路由蒸发）；实际：{len(routes)}"
 
 
 def test_R72_import_knot_main_succeeds():
