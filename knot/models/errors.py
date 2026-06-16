@@ -76,6 +76,23 @@ class MetadataError(BIAgentError):
     """
 
 
+class CatalogContextException(BIAgentError):
+    """v0.6.2.6 段 4 (A1 并发半) R-PB-A1-16：Connection Context 隔离第②层 assert 失败。
+
+    SQL 执行前断言「当前请求 ContextVar 的 active catalog_id == 入口捕获的 catalog_id」失败
+    → async 上下文 catalog 漂移（隔离漏洞）→ raise（不静默服务错 catalog）。
+    meta 含 {attempted_catalog_id, expected_catalog_id}，由 context_violation audit 落库（R-PB-A1-23）。
+    用户可见文案：「查询上下文发生安全冲突，请重试」（D4）。
+    """
+
+    def __init__(self, attempted_catalog_id=None, expected_catalog_id=None):
+        self.attempted_catalog_id = attempted_catalog_id
+        self.expected_catalog_id = expected_catalog_id
+        super().__init__(
+            f"catalog context violation: attempted={attempted_catalog_id} expected={expected_catalog_id}"
+        )
+
+
 # ── services / 资源限制 ───────────────────────────────────────────────
 class BudgetExceededError(BIAgentError):
     """v0.4.4：预算硬阈值阻断（block）。R-26-Senior：在 LLM 调用前抛。

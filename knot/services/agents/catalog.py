@@ -15,6 +15,7 @@
 """
 from __future__ import annotations  # Python 3.9 兼容 dict | None type hint
 
+import contextvars
 import importlib
 import importlib.util
 import json
@@ -25,6 +26,47 @@ TABLES: list = []
 BUSINESS_RULES: str = ""
 RELATIONS: list = []  # v0.4.1.1: 多表关联元数据，list[tuple(left_t, left_c, right_t, right_c, semantics)]
 _SOURCE: str = "empty"  # "db" | "real" | "example" | "empty"
+
+# ── v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离 ──────────────────────────
+# per-request active catalog 内容（请求作用域 ContextVar）；未 set → current_catalog() 回退模块全局
+# （D1 / R-PB-A1-15 byte-equal — 非 query 路径 startup/admin/http_planner/conversations 脱敏不受影响）。
+_active_catalog_ctx: contextvars.ContextVar = contextvars.ContextVar(
+    "_active_catalog_ctx", default=None
+)
+
+
+def current_catalog() -> dict:
+    """当前请求生效的 catalog 内容（ContextVar 优先 + 模块全局回退）。
+
+    query 链路（query_helper 入口捕获 per-user active catalog → set_active_catalog_ctx）→ 读 ContextVar；
+    非 query 路径（startup / admin reload / http_planner / conversations 脱敏）→ ContextVar 未 set →
+    回退模块全局（D1 / R-PB-A1-15 — 与直读 LEXICON/TABLES/... 等价 byte-equal）。
+    返回 {lexicon, tables, business_rules, relations, catalog_id}（catalog_id 全局回退时 None）。
+    """
+    ctx = _active_catalog_ctx.get()
+    if ctx is not None:
+        return ctx
+    return {
+        "lexicon": LEXICON,
+        "tables": TABLES,
+        "business_rules": BUSINESS_RULES,
+        "relations": RELATIONS,
+        "catalog_id": None,
+    }
+
+
+def set_active_catalog_ctx(catalog_content: dict) -> contextvars.Token:
+    """query 入口设当前请求 active catalog 内容（请求作用域）；返回 Token 供出口 reset。
+
+    catalog_content 形态须与 current_catalog 一致：{lexicon, tables, business_rules, relations, catalog_id}
+    （已解析 — lexicon dict / tables list / relations list）。
+    """
+    return _active_catalog_ctx.set(catalog_content)
+
+
+def reset_active_catalog_ctx(token: contextvars.Token) -> None:
+    """请求出口 reset ContextVar（R-PB-A1-22 — 不泄漏到下一请求；与 set 的 Token 配对）。"""
+    _active_catalog_ctx.reset(token)
 
 
 def _load_from_files() -> tuple:
