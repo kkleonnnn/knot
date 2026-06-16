@@ -58,18 +58,44 @@ def _parse_catalog_content(row: dict) -> dict:
 
 
 def capture_active_catalog(user: dict):
-    """query 入口捕获 per-user active catalog → set ContextVar；返回 Token（fail-soft 失败回退全局）。
+    """query 入口捕获 per-user active catalog → set ContextVar；返回捕获的 catalog_id（fail-soft 失败回退全局返 None）。
 
     fail-soft：active catalog 解析失败（真空期 / DB 错）→ 不 set ContextVar → current_catalog() 回退全局
-    （query 不阻断 — 可用性优先；隔离一致性由 commit 3 第②层 SQL 执行前 assert 兜底）。
+    （query 不阻断 — 可用性优先；隔离一致性由第②层 assert_catalog_context 兜底）。
+    返回 catalog_id（expected）供第②层 assert（SSE generate() 内验 ContextVar 传播 + Q4 race 漂移）。
     """
     try:
         from knot.repositories import catalog_repo
-        row = catalog_repo.get_active_catalog(user["id"])
-        return catalog_loader.set_active_catalog_ctx(_parse_catalog_content(row))
+        content = _parse_catalog_content(catalog_repo.get_active_catalog(user["id"]))
+        catalog_loader.set_active_catalog_ctx(content)  # Token 弃 — reset 由 commit 4 中间件
+        return content["catalog_id"]
     except Exception:
         logger.warning("per-user active catalog 捕获失败 — query 降级回退全局 catalog", exc_info=False)
         return None
+
+
+def assert_catalog_context(expected_catalog_id, user: dict) -> None:
+    """隔离三层第②层（SQL 执行前 assert）+ 第③层（失败 audit + raise）。
+
+    验当前 ContextVar 的 active catalog_id == 入口捕获的 expected（防 async race 漂移 / ContextVar 未传播）。
+    漂移 → catalog.context_violation audit（attempted/expected 落库 R-PB-A1-23）+ raise CatalogContextException
+    （error_translator → 「查询上下文发生安全冲突，请重试」D4）。
+    当前 async 单 Task（Q4 实证 0 create_task）→ ContextVar 不漂移 → assert 通过；SSE generate() 内验传播；
+    expected None（capture fail-soft 回退全局）→ 跳过 assert（已降级全局，无 per-user 一致性可验）。
+    """
+    if expected_catalog_id is None:
+        return
+    current = catalog_loader.current_catalog()["catalog_id"]
+    if current != expected_catalog_id:
+        from knot.models.errors import CatalogContextException
+        from knot.services import audit_service
+        audit_service.log(
+            actor=user, action="catalog.context_violation", resource_type="catalog",
+            resource_id=expected_catalog_id, success=False,
+            detail={"attempted_catalog_id": current, "expected_catalog_id": expected_catalog_id},
+            catalog_id=expected_catalog_id,
+        )
+        raise CatalogContextException(attempted_catalog_id=current, expected_catalog_id=expected_catalog_id)
 
 
 def release(token) -> None:

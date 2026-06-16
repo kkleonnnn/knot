@@ -192,6 +192,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             return f"data: {json.dumps(event, ensure_ascii=False, default=_default)}\n\n"
 
         try:
+            # v0.6.2.6 隔离三层①：generate() 内重捕获 per-user active catalog（保 ContextVar 落在
+            # generator 执行上下文 — handler L167 已为 schema_filter set；本处保 clarifier/sql_planner 链）
+            expected_cat = query_helper.capture_active_catalog(user)
             yield emit({"type": "agent_start", "agent": "clarifier", "label": "理解问题"})
             await asyncio.sleep(0)  # R-26-SSE：让 event loop 推送给前端
             clarifier_result = await query_steps.run_clarifier_step(
@@ -349,6 +352,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 return
 
             # ─── SQL 路径（原有） ─────────────────────────────────────
+            # v0.6.2.6 隔离三层②：SQL 生成/执行前 assert ContextVar catalog_id == 入口捕获（防 async race 漂移
+            # / ContextVar 未传播）；漂移 → 第③层 context_violation audit + raise（上面 except BIAgentError 捕获）
+            query_helper.assert_catalog_context(expected_cat, user)
             yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
             await asyncio.sleep(0)
             sql_result, recovery_attempt = await query_steps.run_sql_planner_step(
