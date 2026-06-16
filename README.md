@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.2.4 · Phase B 段 3 · PATCH-2 · Shared drift 调和（drift 参数化绝对 0 位移 + Avatar/theadStyle/btn·input 族整合；Shared 26→38 exports 段 3 收官；R-PB-SH-13~20）
+> **当前版本** v0.6.2.5 · Phase B 段 4 · A1 多 catalog 切换（结构半）· single-tenant 多 catalog（catalogs 表 + per-user active_catalog_id 切换 + catalog.switch audit；⚠️ OOS-1 死线 0 tenant_id = 语义层水平切分 ≠ 租户隔离；query 解析待 v0.6.2.6 并发半）
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.2.4）
+## 技术栈（v0.6.2.5）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

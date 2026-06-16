@@ -51,6 +51,9 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     overrides: { tables: false, lexicon: false, business_rules: false, relations: false },
   });
   const [catalogSaving, setCatalogSaving] = useState({});
+  // v0.6.2.5 段 4 (A1): 多 catalog 切换（list + per-user active）
+  const [catalogs, setCatalogs] = useState([]);
+  const [activeCatalogId, setActiveCatalogId] = useState(1);
   // v0.6.1.2 F2 — tab fetch loading state；区分"加载中"与"暂无XXX"，消除误导性空提示
   const [tabLoading, setTabLoading] = useState(true);
 
@@ -98,6 +101,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
             overrides: d.db_overrides || { tables: false, lexicon: false, business_rules: false, relations: false },
           });
         }
+        const cl = await api.get('/api/admin/catalogs').catch(() => null);
+        if (cl) { setCatalogs(cl.catalogs || []); setActiveCatalogId(cl.active_catalog_id || 1); }
       }
       // v0.6.0.14 lint sweep: 删 /api/admin/stats 调用 — 返回数据无消费者
     } catch { /* tab fetch 失败保持当前数据视图，由 toast 上层处理 */ }
@@ -287,6 +292,26 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     } catch (e) { toast(String(e), true); }
   };
 
+  // v0.6.2.5 段 4 (A1): 多 catalog 切换 / 新建 / 删除
+  const reloadCatalogs = async () => {
+    const cl = await api.get('/api/admin/catalogs').catch(() => null);
+    if (cl) { setCatalogs(cl.catalogs || []); setActiveCatalogId(cl.active_catalog_id || 1); }
+  };
+  const switchCatalog = async (id) => {
+    try { await api.post('/api/catalog/switch', { catalog_id: id }); setActiveCatalogId(id); toast('已切换 active catalog'); loadAll(); }
+    catch (e) { toast(String(e), true); }
+  };
+  const createCatalog = async (name) => {
+    if (!name?.trim()) { toast('catalog 名称必填', true); return; }
+    try { await api.post('/api/admin/catalogs', { name: name.trim() }); toast(`已新建 catalog「${name.trim()}」`); reloadCatalogs(); }
+    catch (e) { toast(String(e), true); }
+  };
+  const deleteCatalog = async (id) => {
+    if (!confirm('删除该 catalog？（默认 catalog 不可删）')) return;
+    try { await api.del(`/api/admin/catalogs/${id}`); toast('已删除 catalog'); reloadCatalogs(); }
+    catch (e) { toast(String(e), true); }
+  };
+
   const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录' };
 
   const roleChip = (role) => {
@@ -376,7 +401,10 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
           <TabSystem T={T} catalog={catalog} setCatalog={setCatalog}
                      catalogSaving={catalogSaving}
                      onSaveCatalogField={saveCatalogField}
-                     onResetCatalogField={resetCatalogField}/>
+                     onResetCatalogField={resetCatalogField}
+                     catalogs={catalogs} activeCatalogId={activeCatalogId}
+                     onSwitchCatalog={switchCatalog} onCreateCatalog={createCatalog}
+                     onDeleteCatalog={deleteCatalog}/>
         )}
       </div>
 

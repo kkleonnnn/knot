@@ -63,21 +63,40 @@ def _load_from_files() -> tuple:
 
 
 def _load_from_db() -> tuple:
-    """v0.5.44 — 返回 (lexicon, tables, business_rules, relations, found_any)。
+    """v0.6.2.5 段 4 — 改读 catalogs 表默认行（id=1）；app_settings 4-key 降级 legacy 兜底。
 
-    relations 新加（4 键 → 4 字段全部走 DB 覆盖；之前 v0.4.x R-S3 仅 3 字段）。
+    源切换（资深 A 拍板 / R-PB-A1-8）：catalogs id=1（commit 1 seed 自 app_settings → byte-equal）
+    为主源；catalog id=1 行缺失（迁移前 / 被清空）→ app_settings 4-key legacy 兜底。
+    兜底熔断（Stage 2 修订 3 / ε2 fail-fast 精神）：catalogs id=1 缺失 + app_settings 也无法读
+      （异常）→ 真空期 → raise MetadataError（strict 与否由 reload 决定 — 沿用既有 ε2 模式）。
+    返回 (lexicon, tables, business_rules, relations, found_any)。
+    relations 4 键全走 DB 覆盖（v0.5.44；之前 v0.4.x R-S3 仅 3 字段）。
     """
+    raw_tables = raw_lex = rules = raw_rel = ""
+    got = False
     try:
-        from knot.repositories.settings_repo import get_app_setting
+        from knot.repositories import catalog_repo
+        cat = catalog_repo.get_catalog(1)
+        if cat is not None:
+            raw_tables = cat.get("tables") or ""
+            raw_lex = cat.get("lexicon") or ""
+            rules = cat.get("business_rules") or ""
+            raw_rel = cat.get("relations") or ""
+            got = True
     except Exception:
-        return {}, [], "", [], False
-    try:
-        raw_tables = get_app_setting("catalog.tables") or ""
-        raw_lex = get_app_setting("catalog.lexicon") or ""
-        rules = get_app_setting("catalog.business_rules") or ""
-        raw_rel = get_app_setting("catalog.relations") or ""
-    except Exception:
-        return {}, [], "", [], False
+        pass  # catalogs 表访问失败 → 落 app_settings legacy 兜底
+    if not got:
+        try:
+            from knot.repositories.settings_repo import get_app_setting
+            raw_tables = get_app_setting("catalog.tables") or ""
+            raw_lex = get_app_setting("catalog.lexicon") or ""
+            rules = get_app_setting("catalog.business_rules") or ""
+            raw_rel = get_app_setting("catalog.relations") or ""
+        except Exception as e:
+            from knot.models.errors import MetadataError
+            raise MetadataError(
+                "catalog 双源不可用（catalogs id=1 缺失 + app_settings legacy 无法读）— 真空期熔断",
+            ) from e
 
     tables, lex, relations = [], {}, []
     if raw_tables.strip():
@@ -221,8 +240,23 @@ def reload(strict: bool = False) -> str:
     """
     global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
 
+    from knot.models.errors import MetadataError
+
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
-    db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
+    # v0.6.2.5 兜底熔断（Stage 2 修订 3）：catalogs id=1 缺失 + app_settings 无法读 → 真空期。
+    # 沿用 ε2 strict 模式：strict=True（admin/query）→ fail-fast 上抛；strict=False（startup）→ 降级。
+    try:
+        db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
+    except MetadataError:
+        if strict:
+            raise
+        # startup 期常见为 DB 表未就绪（init_db 前模块级 reload / 全新部署首启）— 一行降级提示，
+        # 不打 traceback（避免吓到运维；干净首启）；strict=True（admin/query）仍 fail-fast 上抛全栈。
+        import logging
+        logging.getLogger("knot.catalog").warning(
+            "catalog 双源暂不可达（DB 表未就绪/未配置）— startup 降级空覆盖，init_db / admin reload 后生效",
+        )
+        db_lex, db_tables, db_rules, db_relations, db_found = {}, [], "", [], False
 
     # v0.6.1.4: TABLES — DB 主导 SQL 表，file 始终追加 HTTP 虚拟表
     base_tables = list(db_tables) if db_tables else list(f_tables)

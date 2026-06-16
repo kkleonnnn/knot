@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS users (
     totp_last_used_at TEXT,                              -- 最近一次验证成功时间（5 次/月 警报基线）
     -- v0.6.2.0 R-PB-B1-13 JWT 吊销真空期防御（reset/change_password 时 +1 → 旧 JWT 失效）
     token_version     INTEGER NOT NULL DEFAULT 1,
+    -- v0.6.2.5 段 4 (A1): 每用户 active catalog（per-user 切换 — R-PB-A1-1 OOS-1 死线：
+    -- catalog_id = 语义层水平切分 ≠ 租户隔离；NULL → 兜底 catalog id=1）
+    active_catalog_id INTEGER,
     created_at     TEXT    DEFAULT (datetime('now','localtime'))
 );
 
@@ -146,6 +149,25 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- v0.6.2.5 段 4 (A1): single-tenant 多 catalog 切换
+-- ⚠️ OOS-1 死线（R-PB-A1-1 守护者强化）：严禁 tenant_id / project_id 列 —
+--    catalog_id = 语义层水平切分（admin/user 切 active catalog）≠ 租户数据隔离；
+--    数据库连接共享（engine_cache key 不动）→ 非多租户隔离架构。真多租户隔离推 v1.x+。
+-- 取代 app_settings 4-key 全局单例（catalog.tables/lexicon/business_rules/relations）；
+-- per-user active 由 users.active_catalog_id 解析（本表不设 is_active 全局标记）。
+-- 4 字段 JSON 形状与 app_settings 4-key byte-equal（R-PB-A1-7）。
+CREATE TABLE IF NOT EXISTS catalogs (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT    NOT NULL,
+    description    TEXT    DEFAULT '',
+    tables         TEXT    DEFAULT '',   -- JSON list（对应 catalog.tables）
+    lexicon        TEXT    DEFAULT '',   -- JSON dict（对应 catalog.lexicon）
+    business_rules TEXT    DEFAULT '',   -- text（对应 catalog.business_rules）
+    relations      TEXT    DEFAULT '',   -- JSON list（对应 catalog.relations）
+    created_at     TEXT    DEFAULT (datetime('now','localtime')),
+    updated_at     TEXT    DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS few_shots (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     question   TEXT    NOT NULL,
@@ -214,6 +236,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     client_ip     TEXT,
     user_agent    TEXT,
     request_id    TEXT,
+    -- v0.6.2.5 段 4 (R-PB-A1-5 ③): 操作关联的 catalog（NULL = 无关 catalog 的操作）
+    catalog_id    INTEGER,
     created_at    TEXT DEFAULT (datetime('now','localtime'))
 );
 

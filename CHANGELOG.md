@@ -5,7 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.4 — Shared drift 调和（Phase B 段 3 · PATCH-2 · 段 3 收官）
+## [Unreleased] - v0.6.2.5 — 多 catalog 切换（Phase B 段 4 · A1 结构半）
+
+> **Loop Protocol v3 第 37 次施行** — 守护者全程 active 逐 commit 直读 worktree 亲验（6 commit）
+> **D1 拆 2 PATCH**：v0.6.2.5 结构半（catalogs 表 + 切换 API/UI + audit）/ v0.6.2.6 并发半（ContextVar 隔离三层）
+> **依据**：query.py 12 行余量（428/440）实证 — 守护者钉死 LIMIT 440 / AuditAction 38 草案对（自曝初查工具缺陷，与 buildTheme 25→26 互补印证「实证钉死真实值」）
+
+### Added
+- **catalogs 表**（single-tenant 多 catalog 切换）：id/name/description/tables/lexicon/business_rules/relations/created_at/updated_at —
+  ⚠️ **OOS-1 死线 R-PB-A1-1：0 tenant_id/project_id** — catalog_id = 语义层水平切分（per-user active catalog）≠ 租户数据隔离；
+  数据库连接共享（engine_cache key 不动）→ 非 multi-tenant；真 multi-tenant 推 v1.x+
+- **users.active_catalog_id**（per-user active catalog；NULL → 兜底 catalog id=1）+ **audit_log.catalog_id**（R-PB-A1-5 ③）
+- `knot/repositories/catalog_repo.py`：CRUD（list/get/create/update/delete）+ per-user active 解析（get/set_user_active_catalog）
+  + `get_active_catalog` 兜底熔断（catalogs 真空期 → MetadataError，ε2 fail-fast）；update 显式白名单 _UPDATABLE 6 字段（OOS-1 防 tenant 注入）
+- **POST /api/catalog/switch**（per-user active 切换 + `catalog.switch` audit 落 catalog_id）+ 管理路由 GET/POST/PUT/DELETE /api/admin/catalogs（id=1 不可删兜底）
+- **AuditAction +catalog.switch（38→39）** + audit_service.log / audit_repo.insert 加 catalog_id 末位可选参（R-PB-A1-10；33+ 既有调用 byte-equal 默认 None→NULL；INSERT 11→12 列）
+- 前端 tab_system.jsx「多 Catalog 切换」选择器卡（list + active badge + 切换/删除/新建）— R-PA-PB-V1 视觉延续（复用 Shared SourceTag/pillBtn + Inset 8% + OKLCH）
+
+### Changed
+- **catalog 内容真源切换（资深 AskUserQuestion 拍「A 完整切换」）**：`app_settings` 4-key → **catalogs 表默认行 id=1**；
+  `catalog_loader._load_from_db` 改读 catalog id=1（app_settings legacy 兜底，仅 id=1 缺失时）+ 完整熔断（catalogs 缺 + app_settings 无法读 → MetadataError，沿用 ε2 strict：startup 降级 warning / admin·query fail-fast）；
+  api/catalog.py 旧 3 路由（GET/PUT/reset）读写 catalog id=1，**响应 byte-equal**（前端 0 改 D5）
+- `check_file_sizes` Admin.jsx 400→420（+多 catalog state/handlers — 状态容器 ack 微调先例；实际 416）
+
+### Fixed
+- **路由计数守护对 FastAPI 0.137 上游漂移鲁棒化（commit 7 — P-1/P-5 动态计数治本兑现）**：
+  CI 装到 fastapi 0.137.1（requirements `>=0.111.0` 未 pin），其 `include_router` 不再把子路由展平进
+  `app.routes`，而是追加 `_IncludedRouter` 懒包装（dataclass 无 `.path`，子路由在 `.original_router.routes`）→
+  `len(app.routes)` 从 ~80 降到 24 + `{r.path for r in app.routes}` 撞无 `.path`，打破 3 个路由计数测试
+  （test_api_smoke / test_totp_2fa / test_rename_smoke — 与 catalog 功能 0 关系，648 测试含全部 route-hitting 通过）。
+  新 `tests/_route_count.py` 递归经 `original_router.routes` 下钻还原叶子路由（兼容 <0.137 扁平 + 0.137+ 懒包装），
+  3 测试改用 → 路由守护不再依赖 app.routes 扁平结构，对上游 include_router 内部实现变更鲁棒。
+
+### Notes
+- **本机 python 环境不可用**（homebrew 3.14 libexpat 符号缺失）→ 完整 pytest（test_catalog_repo 14 + test_catalog_switch_route 8 + 既有回归）走 CI 干净 env；
+  执行者本地用 stdlib sqlite3 镜像真实 SQL + py_compile + check_file_sizes 验证逻辑/语法
+- **live UI 人测推部署后 knot.0p.oh**（新路由本机/8000 旧码不可达）；本地证编辑器 0 漂移 + VRP + npm build exit 0
+- §9.4 列项执行者据既有约定据实裁定 3 次（catalog.switch 归 commit 4 / schemas dict body / api.js 0 改通用 verb）— 守护者均确认对齐
+
+详见 [docs/plans/v0.6.2.5-multi-catalog-switch.md](docs/plans/v0.6.2.5-multi-catalog-switch.md)
+
+---
+
+## [Released] - v0.6.2.4 — Shared drift 调和（Phase B 段 3 · PATCH-2 · 段 3 收官）
 
 > **Loop Protocol v3 第 36 次施行** — 守护者全程强制 active 逐 commit 直读 worktree 亲验（7 commit）
 > **承接 v0.6.2.3**：PATCH-1 搬 single-copy/byte-equal 机械项；PATCH-2 处理需 canonical-body 决策的 drift

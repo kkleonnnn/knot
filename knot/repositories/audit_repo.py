@@ -25,6 +25,7 @@ def insert(
     client_ip: str | None = None,
     user_agent: str | None = None,
     request_id: str | None = None,
+    catalog_id: int | None = None,  # v0.6.2.5 R-PB-A1-10：操作关联 catalog（NULL = 无关）
 ) -> int:
     """单行 INSERT；返回 lastrowid。"""
     payload = json.dumps(detail_json or {}, ensure_ascii=False)
@@ -32,10 +33,10 @@ def insert(
     cur = conn.execute(
         "INSERT INTO audit_log "
         "(actor_id, actor_role, actor_name, action, resource_type, resource_id, "
-        " success, detail_json, client_ip, user_agent, request_id) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " success, detail_json, client_ip, user_agent, request_id, catalog_id) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (actor_id, actor_role, actor_name, action, resource_type, resource_id,
-         success, payload, client_ip, user_agent, request_id),
+         success, payload, client_ip, user_agent, request_id, catalog_id),
     )
     aid = cur.lastrowid
     conn.commit()
