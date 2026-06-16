@@ -106,15 +106,24 @@ jobs:
           export JWT_SECRET="boot-smoke-jwt-32-chars-min-length-pad"
           # title=KNOT / version 动态读 main.py（v0.5.8 R-187 治本模式）
           # routes 改为 >= 下限（v0.6.0.3 守护者 P-2 救火 — 防路由蒸发）
+          # v0.6.2.5 commit 7: 动态展平 FastAPI 0.137+ _IncludedRouter 懒包装（与 tests/_route_count 同逻辑）
           python -c "
           import re
           src = open('knot/main.py').read()
           expected = re.search(r'version=\"([\d.]+)\"', src).group(1)
           from knot.main import app
+          def _flat(routes):
+              out = []
+              for r in routes:
+                  o = getattr(r, 'original_router', None)
+                  if o is not None and hasattr(o, 'routes'): out.extend(_flat(o.routes))
+                  else: out.append(r)
+              return out
+          routes = _flat(app.routes)
           assert app.title == 'KNOT', f'title={app.title}'
           assert app.version == expected, f'version={app.version} expected={expected}'
-          assert len(app.routes) >= 80, f'routes={len(app.routes)} (下限 80 防路由蒸发)'
-          print(f'boot smoke OK: title=KNOT version={app.version} routes={len(app.routes)}')
+          assert len(routes) >= 80, f'routes={len(routes)} (下限 80 防路由蒸发)'
+          print(f'boot smoke OK: title=KNOT version={app.version} routes={len(routes)}')
           "
 
   # v0.6.0.1 G-5 守护者立约：docker build CI 自动闸门

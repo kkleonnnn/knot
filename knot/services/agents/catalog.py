@@ -250,10 +250,11 @@ def reload(strict: bool = False) -> str:
     except MetadataError:
         if strict:
             raise
+        # startup 期常见为 DB 表未就绪（init_db 前模块级 reload / 全新部署首启）— 一行降级提示，
+        # 不打 traceback（避免吓到运维；干净首启）；strict=True（admin/query）仍 fail-fast 上抛全栈。
         import logging
         logging.getLogger("knot.catalog").warning(
-            "catalog 双源不可用 — startup 期降级为空 DB 覆盖（admin reload 时重试）",
-            exc_info=True,
+            "catalog 双源暂不可达（DB 表未就绪/未配置）— startup 降级空覆盖，init_db / admin reload 后生效",
         )
         db_lex, db_tables, db_rules, db_relations, db_found = {}, [], "", [], False
 
