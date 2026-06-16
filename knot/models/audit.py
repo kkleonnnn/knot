@@ -28,6 +28,9 @@ AuditAction = Literal[
     "config.catalog_update", "config.few_shots_change",
     # v0.6.2.5 段 4 (A1): 多 catalog 切换（per-user active catalog；AuditAction 38→39）
     "catalog.switch",
+    # v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离第②层 assert 失败（async race 漂移；39→40）
+    # detail 含 attempted_catalog_id + expected_catalog_id（R-PB-A1-23 下游风控）
+    "catalog.context_violation",
     # Saved Report
     "saved_report.create", "saved_report.update",
     "saved_report.delete", "saved_report.run",

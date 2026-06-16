@@ -36,6 +36,7 @@ LIMITS = {
     "knot/services/llm_prompt_builder.py":         250,
     "knot/services/_llm_invoke.py":                250,
     "knot/services/query_steps.py":                250,
+    "knot/services/query_helper.py":               120,  # v0.6.2.6 段 4 (A1 并发半) D3 Extract Method (ContextVar 入口捕获)
     "knot/services/desensitize.py":                150,  # v0.6.0.19 新增 (脱敏链 3/3 后端模块)
     "knot/repositories/catalog_repo.py":           250,  # v0.6.2.5 段 4 (A1) catalogs CRUD + per-user active
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────

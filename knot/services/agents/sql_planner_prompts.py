@@ -33,7 +33,10 @@ def _load_default_prompt(name: str) -> str:
 
 
 def _business_rules() -> str:
-    return getattr(_cl, "BUSINESS_RULES", "") if _cl else ""
+    # v0.6.2.6 段 4 (A1 并发半) D2：经 current_catalog() 读 per-request active catalog 的 business_rules
+    # （ContextVar 优先 + 全局回退）；clarifier/presenter/sql_planner 经本 helper 注入 → 全链 per-catalog，
+    # agent 0 直改（守护者实证修正 Stage 2 概念层）；非 query 路径回退全局 byte-equal（R-PB-A1-15）。
+    return _cl.current_catalog()["business_rules"] if _cl else ""
 
 
 def _relations_for_schema(schema_text: str) -> str:

@@ -18,6 +18,7 @@ from knot.models.errors import (
     BIAgentError,
     BudgetExceededError,
     BusinessDBError,
+    CatalogContextException,
     ConfigMissingError,
     CrossGroupSQLError,
     DataSourceUnavailableError,
@@ -52,6 +53,9 @@ _TRANSLATIONS: list = [
      "数据库未配置或连接失败，请联系管理员",                                True),
     (ConfigMissingError,         "config_missing",
      "服务配置缺失（API Key 或模型），请联系管理员",                        False),
+    # v0.6.2.6 段 4 (A1 并发半) D4：Connection Context 隔离第②层 assert 失败（catalog 上下文漂移）
+    (CatalogContextException,    "internal",
+     "查询上下文发生安全冲突，请重试",                                      True),
 ]
 
 

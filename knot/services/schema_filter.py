@@ -23,11 +23,14 @@ except Exception:
 
 
 def _lex():
-    return getattr(_cl, "LEXICON", {}) if _cl else {}
+    # v0.6.2.6 段 4 (A1 并发半) D2：经 current_catalog() 读 per-request active catalog（ContextVar 优先
+    # + 全局回退）；非 query 路径 ContextVar 未 set → 回退全局 LEXICON byte-equal（R-PB-A1-15）。
+    return _cl.current_catalog()["lexicon"] if _cl else {}
 
 
 def _cat_tables():
-    return getattr(_cl, "TABLES", []) if _cl else []
+    # v0.6.2.6 D2：同上 — current_catalog() per-request active tables（ContextVar 优先 + 全局回退）。
+    return _cl.current_catalog()["tables"] if _cl else []
 
 
 def _cat_lookup():
