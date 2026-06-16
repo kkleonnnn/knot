@@ -26,6 +26,8 @@ AuditAction = Literal[
     # 配置变更
     "config.agent_models_update", "config.prompt_update",
     "config.catalog_update", "config.few_shots_change",
+    # v0.6.2.5 段 4 (A1): 多 catalog 切换（per-user active catalog；AuditAction 38→39）
+    "catalog.switch",
     # Saved Report
     "saved_report.create", "saved_report.update",
     "saved_report.delete", "saved_report.run",

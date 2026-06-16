@@ -109,6 +109,21 @@ def test_update_catalog_ignores_non_whitelisted_fields(tmp_db_path):
     assert "tenant_id" not in cat
 
 
+def test_delete_catalog(tmp_db_path):
+    cid = catalog_repo.create_catalog("ToDelete")
+    catalog_repo.delete_catalog(cid)
+    assert catalog_repo.get_catalog(cid) is None
+
+
+def test_delete_catalog_dangling_active_falls_back(tmp_db_path):
+    """删除某用户 active catalog → get_active_catalog 优雅兜底 id=1（dangling 不崩）。"""
+    admin_id = get_conn().execute("SELECT id FROM users WHERE username='admin'").fetchone()[0]
+    cid = catalog_repo.create_catalog("ToDelete")
+    catalog_repo.set_user_active_catalog(admin_id, cid)
+    catalog_repo.delete_catalog(cid)
+    assert catalog_repo.get_active_catalog(admin_id)["id"] == 1
+
+
 # ─── per-user active 解析 ────────────────────────────────────────────
 
 def test_active_id_fallback_to_1_when_null(tmp_db_path):

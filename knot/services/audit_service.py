@@ -80,6 +80,7 @@ def log(
     client_ip: str | None = None,
     user_agent: str | None = None,
     request_id: str | None = None,
+    catalog_id: int | None = None,  # v0.6.2.5 R-PB-A1-10：末位可选 — 33+ 既有调用 byte-equal
 ) -> None:
     """fire-and-log（R-47）：业务路径必须 try-free 调用。
 
@@ -101,6 +102,7 @@ def log(
             client_ip=client_ip,
             user_agent=user_agent,
             request_id=request_id,
+            catalog_id=catalog_id,
         )
     except Exception as e:
         # R-47 fail-soft：业务不阻断

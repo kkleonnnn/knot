@@ -80,6 +80,20 @@ def update_catalog(catalog_id: int, **fields) -> None:
         conn.close()
 
 
+def delete_catalog(catalog_id: int) -> None:
+    """删除 catalog（默认 catalog id=1 不可删的守护在 api 层）。
+
+    删除后仍以 active_catalog_id 指向本行的用户 → get_active_catalog 解析时
+    get_catalog 返 None → 兜底 catalog id=1（dangling active 优雅降级，不崩）。
+    """
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM catalogs WHERE id=?", (catalog_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_user_active_catalog_id(user_id: int) -> int:
     """per-user active catalog_id；users.active_catalog_id 为 NULL/缺失 → 兜底 catalog id=1。"""
     conn = get_conn()
