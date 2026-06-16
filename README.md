@@ -154,7 +154,7 @@ docker logs knot | tail -10
 
 ## v0.4.x → v0.6.0 升级路径（dev 用户）
 
-> v0.5.0 R-67/68/74 双源兼容承诺已于 v0.6.0 Phase A 撤回（详 [CHANGELOG v0.6.0](CHANGELOG.md#unreleased---v060-phase-a)）。v0.4.x dev 用户需手动完成以下两步迁移：
+> v0.5.0 R-67/68/74 双源兼容承诺已于 v0.6.0 Phase A 撤回（详 [CHANGELOG v0.6.0 (Phase A)](CHANGELOG.md)）。v0.4.x dev 用户需手动完成以下两步迁移：
 
 ### 1. DB 文件 rename
 
