@@ -5,7 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.5 — 多 catalog 切换（Phase B 段 4 · A1 结构半）
+## [Unreleased] - v0.6.2.6 — Connection Context 隔离三层（Phase B 段 4 · A1 并发半 = 段 4 A1 完整收官）
+
+> **Loop Protocol v3 第 38 次施行** — 守护者全程强制 active 逐 commit 直读 worktree（5 commit · 最高并发风险）
+> **承接 v0.6.2.5 结构半**：结构半记录 per-user active 切换但 query 仍用全局 catalog id=1；本并发半让 query **真正用 per-user active catalog** + 并发安全
+> **守护者最大发现（D2 实证修正）**：catalog 注入是 helper 层（schema_filter / `_business_rules()` / `get_relations()`），**非 agent 直读**（grep 钉死 sql_planner/presenter 0 直读）→ Stage 2 概念层"改 sql_planner/presenter"会致改造错位（btn 族 fold / buildTheme 同模式实证推翻概念层）
+
+### Added
+- **Connection Context 隔离三层**（query 时按 per-user `users.active_catalog_id` 解析 catalog 内容 + 并发安全）：
+  - 第①层（应用层捕获）：`query_helper.capture_active_catalog(user)` — query 入口读 active_catalog_id → 解析 catalogs 行 → `catalog_loader.set_active_catalog_ctx`（请求作用域 ContextVar `_active_catalog_ctx`）；fail-soft 失败回退全局
+  - 第②层（SQL 执行前 assert）：`query_helper.assert_catalog_context` — ContextVar catalog_id == 入口捕获（防 async race 漂移 / ContextVar 未传播）
+  - 第③层（context_violation）：assert 失败 → `catalog.context_violation` audit（**AuditAction 39→40**；attempted/expected 落库 R-PB-A1-23）+ raise `CatalogContextException`（500 + 「查询上下文发生安全冲突，请重试」D4）
+- `catalog_loader.current_catalog()`（ContextVar 优先 + 模块全局回退 D1）+ set/reset_active_catalog_ctx
+- `knot/services/query_helper.py`（隔离三层①入口捕获 + ②③assert — D3 Extract Method，query.py 仅调用）
+- `CatalogContextException`（models/errors.py — BIAgentError 子类 + attempted/expected meta）
+
+### Changed
+- **D2 helper 注入层 `current_catalog()` 化（agent 0 直改 — 守护者实证修正）**：
+  schema_filter `_lex/_cat_tables` + sql_planner_prompts `_business_rules()` + catalog `get_relations()` → `current_catalog()`；
+  clarifier/presenter/sql_planner 经这些 helper 注入 → catalog 内容全链 per-catalog（agent 业务文件 0 新增直读）；
+  非 query 路径 ContextVar 未 set → 回退全局 byte-equal（R-PB-A1-15）
+
+### Tested
+- **race 100× 0 交叉污染（布尔严格非 TOTP ±5 容差）**（@race mark CI 独立 job）：asyncio.gather 100 并发各灌不同 catalog_id → 每 query 读自己（catalog 数据串仓 1 次即隔离失败）
+- 出口不泄漏（copy_context + 并发 task 默认 None）+ assert 端到端（match/mismatch+audit/None skip）
+
+### Notes
+- **R-PB-A1-22 机制更新**：Stage 2 修订 2"中间件出口 reset"在 SSE+query.py 440cap 双约束下技术不可行
+  （StreamingResponse generator 时序 — call_next 返回后流才发，中途 reset 断 ContextVar）→ 改 **asyncio task 隔离**
+  （FastAPI 每请求独立 Task + PEP 567 copy_context 天然不泄漏，无需显式 reset；race 100×/copy_context test 证之）
+- **OOS-1 死线 sustained**（0 tenant_id 新增）；**D2.1** conversations 脱敏保全局（资深拍板 — 非 query 路径 + 历史消息跨多 catalog）
+- per-user catalog = DB SQL 内容；file HTTP 虚拟表 merge 保持全局（HTTP 表非 per-catalog — OOS）
+- 本机 python 不可用（homebrew 3.14 libexpat）→ 完整 pytest（race @mark + assert/audit 端到端 + 既有回归）走 CI 干净 env；执行者本地 stdlib 镜像 + py_compile + WebFetch 源码确认
+- live UI 人测推部署后 knot.0p.oh（切 catalog → query 用新 catalog 端到端）
+- **🏛️ 段 4 A1 single-tenant 多 catalog 完整收官**（结构半 v0.6.2.5 catalogs 表 + 切换 + 选择器 / 并发半 v0.6.2.6 ContextVar 隔离 + per-user 解析）
+
+详见 [docs/plans/v0.6.2.6-connection-context-isolation.md](docs/plans/v0.6.2.6-connection-context-isolation.md)
+
+---
+
+## [Released] - v0.6.2.5 — 多 catalog 切换（Phase B 段 4 · A1 结构半）
 
 > **Loop Protocol v3 第 37 次施行** — 守护者全程 active 逐 commit 直读 worktree 亲验（6 commit）
 > **D1 拆 2 PATCH**：v0.6.2.5 结构半（catalogs 表 + 切换 API/UI + audit）/ v0.6.2.6 并发半（ContextVar 隔离三层）
