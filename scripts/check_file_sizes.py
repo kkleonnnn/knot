@@ -41,7 +41,7 @@ LIMITS = {
     # ── 前端 (v0.5.3 R-111) ──────────────────────────────────
     # 2 主文件
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 400,  # v0.5.44 360→380; v0.6.2.0 commit 5 380→400（+resetTotp handler + onResetTotp wiring）
+    "frontend/src/screens/Admin.jsx": 420,  # v0.5.44 360→380; v0.6.2.0 380→400; v0.6.2.5 段4 400→420（+多 catalog 切换 state/handlers — 状态容器 ack 微调先例）
     # 12 个新建模块（v0.5.3）
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,

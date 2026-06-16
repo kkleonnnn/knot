@@ -177,13 +177,14 @@ def _serialize_catalog_payload(payload: dict) -> dict:
 
 @router.get("/api/admin/catalogs")
 async def list_all_catalogs(admin=Depends(require_admin)):
-    """所有 catalog 元信息（id/name/description）— admin 多 catalog 选择器用（不返重内容字段）。"""
+    """所有 catalog 元信息（id/name/description）+ 当前 admin active_catalog_id — 选择器用。"""
     return {
         "catalogs": [
             {"id": c["id"], "name": c["name"], "description": c["description"],
              "created_at": c["created_at"], "updated_at": c["updated_at"]}
             for c in catalog_repo.list_catalogs()
         ],
+        "active_catalog_id": catalog_repo.get_user_active_catalog_id(admin["id"]),
     }
 
 

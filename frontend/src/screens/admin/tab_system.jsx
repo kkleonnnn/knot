@@ -1,10 +1,14 @@
 // v0.5.3: extracted from Admin.jsx L516-561 (Catalog tab JSX)
 // D4 mapping: System (Catalog) — 系统与治理（Audit / Recovery 是独立页面 AdminAudit.jsx / AdminRecovery.jsx）
 // v0.5.22: 视觉重构 — Inset 8% 闭环第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
+import { useState } from 'react';
 import { pillBtn, NumChip, OverrideChip, SourceTag } from '../../Shared.jsx';
 import { Spinner } from '../../utils.jsx';
 
-export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField }) {
+export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField,
+                            catalogs = [], activeCatalogId = 1, onSwitchCatalog, onCreateCatalog, onDeleteCatalog }) {
+  // v0.6.2.5 段 4 (A1): 新建 catalog 名称输入（UI-local 受控态）
+  const [newCatalogName, setNewCatalogName] = useState('');
   // v0.5.44 — 加第 4 section 表关系（RELATIONS）— 笛卡尔积根因解 (admin UI 替代 gitignored .py)
   const sections = [
     { num: '01', key: 'tables', title: '表目录', source: 'tables', hint: 'JSON 数组：[{db, table, topics:[], summary}]，给 schema_filter 做主题加分。', mono: true },
@@ -33,6 +37,47 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
         <div>
           业务目录注入到 schema 检索 + 3 个 Agent prompt。优先级：DB（本面板编辑）→ 仓库 _local_catalog.py（部署方填）→ _template_catalog.py（仓库默认）。
           当前生效来源：<b style={{ color: T.text }}>{catalog.source || '...'}</b>。任一字段保存即覆盖默认；点"恢复默认"清空 DB 覆盖。
+        </div>
+      </div>
+
+      {/* v0.6.2.5 段 4 (A1): 多 catalog 切换选择器 — VRP 视觉延续（Inset 8% + 25% border + SourceTag/pillBtn）*/}
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 14, padding: '14px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>多 Catalog 切换</div>
+          <SourceTag T={T}>active</SourceTag>
+          <div style={{ flex: 1 }}/>
+          <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>per-user 切换 · query 生效 v0.6.2.6</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {catalogs.map(c => {
+            const isActive = c.id === activeCatalogId;
+            return (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                background: isActive ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : T.inputBg,
+                border: `1px solid ${isActive ? `color-mix(in oklch, ${T.accent} 25%, transparent)` : T.border}`,
+                borderRadius: 8,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
+                <span style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono }}>#{c.id}</span>
+                {c.description && <span style={{ fontSize: 11.5, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</span>}
+                <div style={{ flex: 1 }}/>
+                {isActive
+                  ? <SourceTag T={T}>当前 active</SourceTag>
+                  : <button onClick={() => onSwitchCatalog(c.id)} style={{ ...pillBtn(T), padding: '4px 10px', fontSize: 11.5 }}>切换</button>}
+                {c.id !== 1 && <button onClick={() => onDeleteCatalog(c.id)} style={{ ...pillBtn(T), padding: '4px 10px', fontSize: 11.5 }}>删除</button>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <input
+            value={newCatalogName}
+            onChange={e => setNewCatalogName(e.target.value)}
+            placeholder="新 catalog 名称..."
+            style={{ flex: 1, background: T.inputBg, color: T.text, fontSize: 12, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
+          />
+          <button onClick={() => { onCreateCatalog(newCatalogName); setNewCatalogName(''); }} style={{ ...pillBtn(T, true), padding: '6px 14px', fontSize: 11.5 }}>新建 catalog</button>
         </div>
       </div>
 
