@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.3.1 — OSS readiness 工具链（D1）+ 公测 onboarding docs 三视角（D2）（Phase B 段 6 · docs-only）
+## [Unreleased] - v0.6.3.2 — C5 AdminAudit.jsx 子组件拆分（Phase B 段 7 · 纯重构）
+
+> **Loop Protocol v3 第 41 次施行 — 全 v3 三阶段**（资深拍板纯重构不走简化协议）
+> **先例**：v0.6.0.2 ResultBlock.jsx 449→279 + 6 子组件拆分模板
+> **双向实证（R-137）**：Stage 1 + Stage 2 双双带错（挂载点写成 Admin.jsx）→ 第三方 critique grounded 复核抓出（真实挂载 = App.jsx，grep AdminAudit Admin.jsx = 0）→ 执行者实证采纳；守护者（v0.5 血缘 — 本屏原作者）§二 钉死 VRP 真实基线（thead 灰 T.bg 非 R-409 brandSoft，v0.5.38 已回退）
+
+### Changed
+- **`frontend/src/screens/AdminAudit.jsx` 388→163**（编排层瘦身）：保 10 state + 3 effects + triggerPurge/saveRetention/load handler + `_relPurge` 格式化器 + `_sinceFromPreset`/`exportAuditCsv`（load + topbar 编排）+ AppShell + 组合 6 子组件
+- **新建 `frontend/src/screens/audit/`**（资深拍 D1 — 与 v0.5.3 `chat/` family 子文件夹先例一致；不污染 `admin/` tab dumb 组件语义）6 dumb presentational 子组件：
+  - `AuditStatGrid` `{T,stats}` · `AuditRetentionBar` `{T,relPurgeText,...}`（父算 `_relPurge` 字符串传 `relPurgeText`，子纯展示）
+  - `AuditFilterStrip` `{T,filter,setFilter,onReset,onQuery}` · `AuditTable` `{T,items,loading,onOpenDrawer}`（含 `actionColor`+`ActionChip`+`Spinner`）
+  - `AuditPagination` `{T,items,page,size,setPage,setSize}`（含 `_PAGE_SIZES`）· `AuditDetailDrawer` `{T,drawerRow,onClose}`（含 `DetailJsonView`+`KV`+`_REDACTED_RE`）
+- `scripts/check_file_sizes.py`：AdminAudit 490→210 + 6 子（50/60/70/120/40/110）
+
+### Notes
+- **R-PB-C5-1~7 立约**：契约 byte-equal（**App.jsx 挂载点 git diff 0 行** — critique 校正 Admin.jsx→App.jsx）/ 业务逻辑 byte-equal（逐子组件 props 表 + 常量随消费者迁移）/ **VRP 0 视觉漂移**（灰 thead T.bg 未回退 + root-element 铁律子组件返原段 root 无 wrapper + 既有守护 ✕/rgba/R-428/R-429/R-430 原样平移）/ 0 后端 0 业务屏 / Shared.jsx 0 改 + utils 按需 import / check_file_sizes / R-PA-8
+- **0 业务逻辑/后端变更**（纯 React 组件提取；唯一代码改动 = version 串三同步 main.py+smoke+Login footer R-72/R-181）
+- **Stage 2 质量信号**：辅助 AI 初审 4.9/5 但未读源（ratify Admin.jsx 错 + 编造 Tailwind/logs/activeLog）→ 降级，契约由执行者实证 + 守护者 Stage 3 重验
+- 本机 python 坏（homebrew 3.14 libexpat）→ R-72 smoke 走 CI；live UI（AdminAudit 屏全功能 + light/dark VRP）部署后 knot.0p.oh
+- **定 C5 系列拆分先例**（后续 5 同类 admin 屏拆分目录约定 = `screens/<screen>/`）
+
+详见 [docs/plans/v0.6.3.2-adminaudit-split.md](docs/plans/v0.6.3.2-adminaudit-split.md)
+
+---
+
+## [Released] - v0.6.3.1 — OSS readiness 工具链（D1）+ 公测 onboarding docs 三视角（D2）（Phase B 段 6 · docs-only）
 
 > **Loop Protocol v3 第 40 次施行 — 轻量 v3**（资深拍板跳 Stage 2 / 保守护者 Stage 3 轻量终审；docs-only 无破契约/命名/副作用维度）
 > **奥卡姆剃刀界定缺口**：v0.6.0.15 已有 80% OSS 工具链（LICENSE/SECURITY/CONTRIBUTING/.env.example/pre-commit/ci）不重做；本 PATCH 只补缺口
