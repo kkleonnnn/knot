@@ -105,7 +105,7 @@ async def enroll_complete(req: TotpEnrollCompleteRequest, request: Request,
     if not codes:
         audit(request, actor=user, action="user.totp.verify_failed",
               resource_type="user", resource_id=user["id"], success=False,
-              detail={"phase": "enroll"})
+              detail={"phase": "enroll", "recovery": False})  # v0.6.3.0 远古补3 schema 统一 {phase, recovery}
         raise HTTPException(status_code=400, detail="验证码错误，请重新扫码后再试")
     audit(request, actor=user, action="user.totp.enroll",
           resource_type="user", resource_id=user["id"])
@@ -133,7 +133,7 @@ async def verify(req: TotpVerifyRequest, request: Request):
     if not ok:
         audit(request, actor=user, action="user.totp.verify_failed",
               resource_type="user", resource_id=user_id, success=False,
-              detail={"recovery": is_recovery})
+              detail={"phase": "login", "recovery": is_recovery})  # v0.6.3.0 远古补3 schema 统一 {phase, recovery}
         raise HTTPException(status_code=401, detail="TOTP 验证失败")
 
     if is_recovery:

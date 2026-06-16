@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.2.6 — Connection Context 隔离三层（Phase B 段 4 · A1 并发半 = 段 4 A1 完整收官）
+## [Unreleased] - v0.6.3.0 — audit V2（B2）+ 数据脱敏链 V2（B3）（Phase B 段 5 · 聚焦缺口）
+
+> **Loop Protocol v3 第 39 次施行** — 守护者全程 active 逐 commit 直读 worktree（3 commit）+ **v0.4 远古守护者第 4 次激活**（6 audit_action 联合复核 — 首次「双初审整合」履约：守护者终审 + 远古复核产物并入归档）
+> **聚焦缺口范围**（资深拍板「聚焦缺口」而非全量重构）：B3 关闭收藏报表表名泄漏缺口（与 conversations 脱敏平行）+ B2 补 audit V2 6 新 action 的 PII / R-62 同步债
+> **双向实证文化贯穿**（R-137 实证治权双向）：执行者实证修正自己 §9.4 预扫描「password_change ~1 gap」→ **0 gap**（change_password 既有审计 `user.password_reset`）；守护者校正自己终审 explanation 措辞 —— 草案 / 守护者 / 远古 / 执行者预扫描皆服从实地代码
+
+### Added
+- **B3 saved_reports 数据脱敏 V2**（非 admin 收藏报表表名泄漏缺口闭合 — 与 conversations 脱敏平行）：
+  - `_scrub_report_for_user(report, user)` — 非 admin strip `sql_text` / `sql`（admin 完整保留）
+  - `_scrub_run_result(result, user)` — 非 admin 重跑失败 `error` 走 `desensitize_text(build_table_alias_map(LEXICON))`（业务表名 → 别名）；fail-open（脱敏异常不阻断业务）
+  - 应用于 4 端点：list / pin / run / update（saved_reports 无 explanation 列 — db_error 在 run result `error` 字段）
+- **B2 audit V2 远古复核**：v0.4 远古守护者第 4 次激活，对 v0.6.2.0+ 6 新 audit_action（TOTP 4 含 recovery_code_used + catalog 2）detail PII 联合复核 → 0 泄漏裁定
+
+### Changed
+- **R-PB-B2-补2（R-62 同步偿还）**：`audit_service._PII_BLACKLIST` 扩 `totp_secret` / `recovery_code` / `secret`（10 字段）
+  —— v0.6.2.0 给 `user_repo._USER_ENCRYPTED_COLS` 加 `totp_secret` 时**漏同步** `_PII_BLACKLIST`（破 R-62）→ 本 PATCH 补 + 加同步断言 `_PII_BLACKLIST ⊇ _USER_ENCRYPTED_COLS`（防未来再漏）
+- **verify_failed detail schema 统一**（远古补3）：`totp.py` enroll / login 2 站点统一 `{phase, recovery}`（enroll=`{phase:"enroll", recovery:False}` / login=`{phase:"login", recovery:is_recovery}`）
+
+### Tested
+- `tests/api/test_saved_reports_desensitize_v2.py`（6 测试）：非 admin pin/list/update strip `sql_text` + admin 保留 + run 失败脱敏 fail-open
+- `tests/services/test_audit_v2_pii.py`（6 测试）：R-62 同步断言 + `_scrub` redact totp_secret/recovery_code/secret + context_violation int 标量不误 redact + verify_failed schema
+
+### Notes
+- **B2.2 = 0 gap 实证钉死**：`auth.py` change_password L14-15 既有 `audit(action="user.password_reset")`（非本 PATCH 加）→ 远古 D4「视 B2.2 扫描结果」裁定 **0 gap 不拆**（非 ≥3 gap 拆 v0.6.3.0.1）
+- **AuditAction 40 sustained**（§0 校正：v0.6.2.x 新增 6 action + 总 40 / V1 base 34；远古 wc-l 误报 41 已校正）
+- **OOS-1 死线 sustained**（0 tenant_id/project_id 新增 — saved_reports / audit_log / catalogs 全程 0 租户列）
+- **远古补1（audit_action 频次监控）**立约：推 v0.6.3.x（非本 PATCH 必做 — 中性候选）；补4/5 中性候选
+- 本机 python 不可用（homebrew 3.14 libexpat）→ 完整 pytest（12 新测试 + 既有回归）走 CI 干净 env；执行者本地 stdlib 镜像 + py_compile + WebFetch 源码确认
+- live UI 人测推部署后 knot.0p.oh（非 admin 看收藏报表 sql_text 隐藏 + 重跑失败 db_error 脱敏）
+
+详见 [docs/plans/v0.6.3.0-audit-desensitize-v2.md](docs/plans/v0.6.3.0-audit-desensitize-v2.md)
+
+---
+
+## [Released] - v0.6.2.6 — Connection Context 隔离三层（Phase B 段 4 · A1 并发半 = 段 4 A1 完整收官）
 
 > **Loop Protocol v3 第 38 次施行** — 守护者全程强制 active 逐 commit 直读 worktree（5 commit · 最高并发风险）
 > **承接 v0.6.2.5 结构半**：结构半记录 per-user active 切换但 query 仍用全局 catalog id=1；本并发半让 query **真正用 per-user active catalog** + 并发安全

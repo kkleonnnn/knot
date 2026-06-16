@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.2.6 · Phase B 段 4 · A1 多 catalog 切换（并发半 = 段 4 A1 完整收官）· Connection Context 隔离三层（ContextVar per-user active catalog 解析 + SQL 执行前 assert + catalog.context_violation audit；query 真正用 per-user active catalog；race 100× 0 交叉污染 task 隔离；⚠️ OOS-1 死线 0 tenant_id 语义层切分 ≠ 租户隔离 sustained）
+> **当前版本** v0.6.3.0 · Phase B 段 5 · audit V2（B2）+ 数据脱敏链 V2（B3）聚焦缺口 · saved_reports 非 admin strip(sql_text)+desensitize(db_error)（与 conversations 平行 — 闭收藏报表表名泄漏缺口）+ R-62 同步偿还（_PII_BLACKLIST 扩 totp_secret）+ 6 audit_action v0.4 远古守护者第 4 次激活联合复核（首次双初审整合）；⚠️ OOS-1 死线 sustained
 
 ## 角色
 
@@ -175,7 +175,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.2.6）
+## 技术栈（v0.6.3.0）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

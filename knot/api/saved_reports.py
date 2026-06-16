@@ -36,9 +36,32 @@ class UpdateSavedReportRequest(BaseModel):
     pin_note: Optional[str] = None
 
 
+# ── v0.6.3.0 B3 脱敏 V2：saved_reports 非 admin 脱敏（与 conversations v0.6.0.17/19 平行）──────────
+# 实证：saved_reports DTO 含 sql_text（无 explanation 列）；db_error 在 run 结果 error 字段。
+# 非 admin owner → 移 sql_text（防内部表名）+ desensitize run error（db_error 表名→业务别名）；
+# rows 不脱敏（owner 自己数据 — OOS-2/R-PB-B3-4）；admin 0 改动（R-PB-B3-3）；fail-open（R-PB-B3-2）。
+
+def _scrub_report_for_user(report: dict, user: dict) -> dict:
+    """非 admin → 移除 sql_text（R-PB-B3-1 — 与 conversations v0.6.0.17 平行；返回前确保 sql_text 不在）。"""
+    if report and user.get("role") != "admin":
+        report.pop("sql_text", None)
+        report.pop("sql", None)  # 防边界字段（与 conversations 一致）
+    return report
+
+
+def _scrub_run_result(result: dict, user: dict) -> dict:
+    """非 admin → desensitize run error（db_error 表名→业务别名；复用 desensitize.py）；rows 不脱敏 OOS-2。"""
+    if result and user.get("role") != "admin" and result.get("error"):
+        from knot.services.agents import catalog as catalog_loader
+        from knot.services.desensitize import build_table_alias_map, desensitize_text
+        alias_map = build_table_alias_map(catalog_loader.LEXICON)  # 全局 LEXICON — D2.1 段 4 sustained
+        result["error"] = desensitize_text(result["error"], alias_map)  # fail-open（R-脱敏-2）
+    return result
+
+
 @router.get("/api/saved-reports")
 async def list_saved_reports(user=Depends(get_current_user)):
-    return saved_report_service.list_for_user(user)
+    return [_scrub_report_for_user(r, user) for r in saved_report_service.list_for_user(user)]
 
 
 @router.post("/api/messages/{message_id}/pin")
@@ -60,7 +83,7 @@ async def pin_from_message(message_id: int, req: PinRequest, request: Request, u
     if not already:
         audit(request, user, action="saved_report.pin", resource_type="saved_report",
               resource_id=sr["id"], detail={"source_message_id": message_id, "title": sr.get("title")})
-    return {**sr, "already_pinned": already}
+    return _scrub_report_for_user({**sr, "already_pinned": already}, user)
 
 
 @router.post("/api/saved-reports/{report_id}/run")
@@ -70,7 +93,7 @@ async def run_saved_report(report_id: int, request: Request, user=Depends(get_cu
         raise HTTPException(status_code=404, detail="报表不存在或无权访问")
     audit(request, user, action="saved_report.run", resource_type="saved_report",
           resource_id=report_id, detail={"row_count": len(result.get("rows", []))})
-    return result
+    return _scrub_run_result(result, user)
 
 
 @router.put("/api/saved-reports/{report_id}")
@@ -81,7 +104,7 @@ async def update_saved_report(report_id: int, req: UpdateSavedReportRequest, req
     audit(request, user, action="saved_report.update", resource_type="saved_report",
           resource_id=report_id,
           detail={"fields": [k for k, v in {"title": req.title, "pin_note": req.pin_note}.items() if v is not None]})
-    return sr
+    return _scrub_report_for_user(sr, user)
 
 
 @router.delete("/api/saved-reports/{report_id}")

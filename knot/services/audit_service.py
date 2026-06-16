@@ -32,6 +32,10 @@ _PII_BLACKLIST = frozenset({
     "doris_password", "db_password",
     # bcrypt hash 与原始密码（与 v0.4.5 user_repo 一致）
     "password", "password_hash",
+    # v0.6.3.0 B2 R-PB-B2-补2：R-62 同步偿还 — v0.6.2.0 给 user_repo._USER_ENCRYPTED_COLS
+    # 加 totp_secret 时漏同步本黑名单（破 R-62）。补 totp_secret + recovery_code（兜底资产）+ secret（通用）。
+    # 守护测试断言 _PII_BLACKLIST ⊇ _USER_ENCRYPTED_COLS 防未来再漏。
+    "totp_secret", "recovery_code", "secret",
 })
 
 _REDACTED = "••••redacted••••"
