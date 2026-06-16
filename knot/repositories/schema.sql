@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- v0.6.2.5 段 4 (A1): single-tenant 多 catalog 切换
 -- ⚠️ OOS-1 死线（R-PB-A1-1 守护者强化）：严禁 tenant_id / project_id 列 —
 --    catalog_id = 语义层水平切分（admin/user 切 active catalog）≠ 租户数据隔离；
---    数据库连接共享（engine_cache key 不动）→ 非 multi-tenant。真 multi-tenant 推 v1.x+。
+--    数据库连接共享（engine_cache key 不动）→ 非多租户隔离架构。真多租户隔离推 v1.x+。
 -- 取代 app_settings 4-key 全局单例（catalog.tables/lexicon/business_rules/relations）；
 -- per-user active 由 users.active_catalog_id 解析（本表不设 is_active 全局标记）。
 -- 4 字段 JSON 形状与 app_settings 4-key byte-equal（R-PB-A1-7）。

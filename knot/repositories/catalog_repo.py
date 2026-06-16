@@ -2,7 +2,7 @@
 
 ⚠️ OOS-1 死线（R-PB-A1-1 守护者强化）：本仓 0 tenant_id/project_id 逻辑 —
    catalog_id = 语义层水平切分（per-user active catalog）≠ 租户数据隔离。
-   数据库连接共享（engine_cache key 不动）→ 非 multi-tenant。
+   数据库连接共享（engine_cache key 不动）→ 非多租户隔离架构。
 
 per-user active：每用户 active catalog 由 users.active_catalog_id 解析（NULL → 兜底 catalog id=1）。
 本仓只读写 catalogs 表 + users.active_catalog_id；catalog 内容 4 字段（tables/lexicon/
