@@ -26,6 +26,7 @@ from knot.services import (
     cost_service,
     error_translator,
     llm_client,  # noqa: F401  v0.5.2 R-100：test_api_smoke.py monkeypatch 兼容
+    query_helper,  # v0.6.2.6 段 4 (A1 并发半)：隔离三层①入口捕获 per-user active catalog
     query_steps,
 )
 from knot.services.engine_cache import _upload_engine, get_user_engine
@@ -86,6 +87,8 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
     # v0.6.0.24 — query rate limit 30/min/user 防 LLM cost burning
     enforce_query_rate_limit(user["id"])
     _check_conv_owner(conv_id, user["id"])
+    # v0.6.2.6 隔离三层①：set per-user active catalog ContextVar（须在 _get_engine_and_schema → schema_filter 前）
+    query_helper.capture_active_catalog(user)
     engine, schema_text = _get_engine_and_schema(req, user)
     api_key, openrouter_api_key, model_key, semantic, history = _resolve_keys_and_semantic(req, user, conv_id)
 
@@ -159,6 +162,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
     # v0.6.0.24 — query rate limit 30/min/user 防 LLM cost burning（SSE 路径同 sync）
     enforce_query_rate_limit(user["id"])
     _check_conv_owner(conv_id, user["id"])
+    # v0.6.2.6 隔离三层①：set per-user active catalog ContextVar（同 task → generate() generator 继承；
+    # 须在 _get_engine_and_schema → schema_filter 前）
+    query_helper.capture_active_catalog(user)
     engine, schema_text = _get_engine_and_schema(req, user)
     api_key, openrouter_api_key, model_key, semantic, history = _resolve_keys_and_semantic(req, user, conv_id)
 

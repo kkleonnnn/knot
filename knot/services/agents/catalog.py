@@ -366,8 +366,12 @@ def get_table_full_names() -> list:
 # ── v0.4.1.1: RELATIONS 元数据访问 + 按需渲染 ─────────────────────────────────
 def get_relations() -> list:
     """返当前 RELATIONS 全量。R-S3：老 catalog 无此常量时上面 _load_from_files
-    已经 fallback 成 []，本函数永不 KeyError / AttributeError。"""
-    return list(RELATIONS)
+    已经 fallback 成 []，本函数永不 KeyError / AttributeError。
+
+    v0.6.2.6 段 4 (A1 并发半) D2：经 current_catalog() 读 per-request active catalog 的 relations
+    （ContextVar 优先 + 全局回退）→ get_relations_for_tables / _relations_for_schema 全链 per-catalog；
+    非 query 路径 ContextVar 未 set → 回退全局 RELATIONS byte-equal（R-PB-A1-15）。"""
+    return list(current_catalog()["relations"])
 
 
 # ── v0.6.1.4: HTTP 虚拟表支持（OVERRIDE #3 — catalog-driven endpoint metadata）──
