@@ -46,6 +46,23 @@ export const I = {
   // v0.6.0.3 F-A 用户反馈（M-A1 Shared 优先 / M-A2 Feather byte-equal）
   thumbsUp:   (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>,
   thumbsDown: (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>,
+  // v0.6.4.0 UI v2 — additive 新增 16 图标（0 撞现有 38 名；viewBox 24 + stroke 1.6；路径源 knot_demo_ui/v0.6 ui.jsx）
+  attach:  (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 11.5a4.5 4.5 0 0 1-9 0V6a3 3 0 1 1 6 0v6"/></svg>,
+  flask:   (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M9 3v6L4 19a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-10V3"/><path d="M8 3h8"/></svg>,
+  edit:    (p={}) => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/></svg>,
+  chat:    (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 12a8 8 0 1 1-3-6.2L21 4l-1 4a8 8 0 0 1 1 4z"/></svg>,
+  node:    (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 7l3 3M14 10l3-3M10 14l-3 3M14 14l3 3"/></svg>,
+  flow:    (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7 7l4 9M17 7l-4 9"/></svg>,
+  arrow:   (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>,
+  spark:   (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>,
+  catalog: (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="3" y="4" width="7" height="7"/><rect x="14" y="4" width="7" height="7"/><rect x="3" y="13" width="7" height="7"/><rect x="14" y="13" width="7" height="7"/></svg>,
+  budget:  (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v9M9.5 9.5h4a1.5 1.5 0 0 1 0 3H9.5a1.5 1.5 0 0 0 0 3h5"/></svg>,
+  audit:   (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="14 3 14 9 20 9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>,
+  bookmark:(p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>,
+  bookmarkFill: (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>,
+  medal:   (p={}) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="15" r="6"/><path d="M9 9L6 3h12l-3 6"/><circle cx="12" cy="15" r="2"/></svg>,
+  info:    (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/></svg>,
+  pin:     (p={}) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 2v8"/><path d="M8 10h8l-2 5h-4z"/><path d="M12 15v6"/></svg>,
 };
 
 // v0.6.2.3 commit 2a (R-PB-SH-5/6) — SvgPath 从 5 文件整合（byte-equal md5 d4c943a4）：
@@ -354,9 +371,9 @@ export function buildTheme(dark) {
     muted:       dark ? '#5d6773' : '#6b7684',                            // ink[500]
     accent:      brand,
     accentSoft:  dark ? 'oklch(66% 0.18 195 / 0.14)' : 'oklch(97% 0.02 195)',  // brand[50]
-    success:     'oklch(72% 0.18 145)',                                   // R-167 翠绿 145°
-    successSoft: dark ? 'oklch(72% 0.18 145 / 0.16)' : 'oklch(72% 0.18 145 / 0.10)',
-    warn:        'oklch(82% 0.16 85)',                                    // R-167 琥珀 85°
+    success:     'oklch(72% 0.16 155)',                                   // v0.6.4 UI v2 翠绿 155°（145→155 微调；successSoft 同步保自洽）
+    successSoft: dark ? 'oklch(72% 0.16 155 / 0.16)' : 'oklch(72% 0.16 155 / 0.10)',
+    warn:        'oklch(78% 0.16 75)',                                    // v0.6.4 UI v2 琥珀 75°（85→75 + L82→78）
     hover:       dark ? 'rgba(255,255,255,0.04)' : '#eef1f4',             // ink[100]
     card:        dark ? '#11151b' : '#ffffff',
     codeBg:      dark ? '#1c2129' : '#f5f7f9',                            // ink[800] / ink[50]
@@ -371,6 +388,16 @@ export function buildTheme(dark) {
     mono:        '"JetBrains Mono", "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace',
   };
 }
+
+// v0.6.4.0 UI v2 — theme-无关设计 token（镜像 knot_demo_ui/v0.6 tokens.js）。
+// 仅承载 theme-无关部分（brand/ink 色阶 + radius + semantic）；theme-split 结构色仍归 buildTheme（避免双真相源）。
+// 供 primitives.jsx (Btn/Tag) + 后续屏复刻按需取色阶/radius/semantic。
+export const TOKENS_V2 = {
+  brand: { 50: 'oklch(97% 0.02 195)', 100: 'oklch(93% 0.05 195)', 200: 'oklch(86% 0.10 195)', 300: 'oklch(78% 0.14 195)', 400: 'oklch(72% 0.17 195)', 500: 'oklch(66% 0.18 195)', 600: 'oklch(58% 0.17 195)', 700: 'oklch(48% 0.14 195)', 800: 'oklch(38% 0.10 195)', 900: 'oklch(28% 0.06 195)' },
+  ink: { 0: '#ffffff', 25: '#fafbfc', 50: '#f5f7f9', 100: '#eef1f4', 200: '#dde2e8', 300: '#c4ccd5', 400: '#9aa4b1', 500: '#6b7684', 600: '#475260', 700: '#2f3742', 800: '#1c2129', 900: '#11151b', 950: '#080a0e' },
+  ok: 'oklch(72% 0.16 155)', warn: 'oklch(78% 0.16 75)', err: 'oklch(66% 0.20 25)', info: 'oklch(70% 0.15 240)',
+  radius: { xs: 4, sm: 6, md: 8, lg: 12, xl: 16, pill: 999 },
+};
 
 export const iconBtn = (T) => ({
   width: 28, height: 28, display: 'inline-grid', placeItems: 'center',
