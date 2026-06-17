@@ -286,13 +286,14 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 > **v0.6.4.2 立约**：守护者 Stage 3 挖到 `Shell.jsx` sidebar logo 右侧版本字面（自 v0.5.31 起即同步点，注释自述「三处→四处」）实际 drift 3 个 MINOR（卡 v0.6.1.4）→ 制度化为第 4 点。
 > **v0.6.4.2 commit 3 自省修正**：起初立「四处」时**漏了 README 顶部**（第 5 点，且本就 CI 强制 = KNOW-1 `test_readme_top_version_synced_with_main`），commit 2 CI 红抓出 → 升「五处」。**讽刺点**：修 stale-doc 的立约自身漏一处 = 元模式第 6 数据点 → 更印证 task #44「doc-不变量 CI 守护一揽子」必要性。
+> **⚠️ v0.6.4.3 commit 3 再修正（分类错）**：守护者 v0.6.4.3 Stage 3 §二 误把 Login footer 当「条件式（若改 Login.jsx）→ 本 PATCH 不动」，实则 **R-181 无条件 CI**（test docstring 自述「每 PATCH 三处同步：main.py + smoke + **Login.jsx 页脚**」）。执行者照错裁定不 bump → CI（R-181）抓出守护者裁定错（元模式第 8 数据点：**错在守护者 ratify 的 doc 分类 + 守护者据错 doc 裁定，仍只 CI 抓住**）。**正确模型 = 4 无条件 ★CI（main/smoke/README/Login footer）+ 1 条件无 CI（Shell L43，仅改 Shell 时）。**
 
-每 PATCH 升版本须**五处同步**（★ = 已 CI 强制；其余靠人肉 + task #44 待补 CI）：
+每 PATCH 升版本须同步以下版本字面（**1-4 = 无条件 ★CI 强制，每 PATCH 必同步；5 = 条件式「若改 Shell.jsx」+ 未 CI** → task #44 待补）：
 1. ★ `knot/main.py` FastAPI version（R-72 smoke 断言）
 2. ★ `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
 3. ★ `README.md` 顶部 1000 字符内 `v{version}` 字面（KNOW-1 守护测试）
-4. **若改 Login.jsx**：★ `frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试）
-5. **若改 Shell.jsx**：`frontend/src/Shell.jsx` sidebar logo 右侧 `v{version}` 字面（v0.6.4.2 立约；**未 CI 强制** → task #44 待补）
+4. ★ `frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试 — **无条件**，每 PATCH 必同步，**非**「若改 Login.jsx」；R-181 carve-out = 仅此 1 行 footer，不破其他屏 0-diff 铁律）
+5. **若改 Shell.jsx**：`frontend/src/Shell.jsx` sidebar logo 右侧 `v{version}` 字面（v0.6.4.2 立约；**条件式 + 未 CI 强制** → task #44 待补 — 正因无 CI 才 drift 3 MINOR）
 
 未来若复刻其他含版本字面的新屏，加对应同步红线 + 优先纳 CI（避免靠人肉）。
 
