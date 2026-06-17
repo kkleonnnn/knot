@@ -93,8 +93,9 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
       color: T.text, fontFamily: T.sans, fontSize: 13.5,
       display: 'grid', gridTemplateColumns: '1.05fr 1fr',
       position: 'relative', overflow: 'hidden',
-      // §9.3 共享 radial-gradient（brandSoft 起色 + chipBg 基底），跨两列无分屏
-      background: `radial-gradient(ellipse at 22% 18%, color-mix(in oklch, ${T.accent} 8%, transparent), transparent 55%), ${T.chipBg}`,
+      // v0.6.4.1.1 修：去 artboard 写死 radial-gradient(at 22% 18%)（宽 viewport farthest-corner ellipse 胀开/偏移破 VRP）；
+      // 回归 v0.5.7 标准 — 实底 fluid + 绿光由 motif 自身锚定（element-anchored，不随 viewport 偏移）
+      background: T.chipBg,
     }}>
       {/* 主题切换按钮 — fixed 到 viewport 右上 */}
       <button onClick={onToggleTheme} style={{
@@ -104,14 +105,14 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
         display: 'grid', placeItems: 'center', cursor: 'pointer',
       }}>{T.dark ? <I.sun/> : <I.moon/>}</button>
 
-      {/* Left narrative panel — 透明（共享渐变透出）；motif right 70%（artboard）*/}
+      {/* Left narrative panel — 透明（实底透出）；motif inset 0 铺满 left panel（v0.5.7 标准 — 绿光锚定）*/}
       <div style={{
         position: 'relative', overflow: 'hidden',
         padding: 56,
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       }}>
-        {/* motif 右 70% 铺展 */}
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '70%', pointerEvents: 'none' }}>
+        {/* motif inset 0 铺满 left panel（v0.5.7 element-anchored 标准，替 artboard 写死 right 70%）*/}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <NarrativeMotif T={T}/>
         </div>
 
@@ -240,7 +241,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 80, right: 80,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v0.6.4.1 · build 202606170400</span>
+          <span>v0.6.4.1 · build 202606170600</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>
