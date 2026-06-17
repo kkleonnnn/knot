@@ -88,6 +88,28 @@ def _named_blocks(src: str) -> dict[str, str]:
     return blocks
 
 
+# ─── R-PB-SH-12 — baseline 必须 == live（强制同步，防 silent drift）──────────
+# v0.6.4.0 守护者发现：baseline 自 ~v0.6.2.4 stale 126 行 → additive 守护对那段形同虚设。
+# 本守护强制 baseline 文件 byte-equal live → 任何动 Shared/utils 的 PATCH 必同步 re-baseline（diff≠0 即红），
+# baseline 不再 silent drift；既有 R-PB-SH-1/2 additive 语义在 baseline==live 下恒过（共存，文档 additive 意图）。
+
+@pytest.mark.parametrize(
+    "live_path, base_path",
+    [(_SHARED, _SHARED_BASE), (_UTILS, _UTILS_BASE)],
+    ids=["Shared.jsx", "utils.jsx"],
+)
+def test_R_PB_SH_12_baseline_mirrors_live(live_path: Path, base_path: Path):
+    """baseline 快照必须 byte-equal 当前 live（强制同步守护 — 防 baseline silent drift）。"""
+    assert live_path.exists() and base_path.exists()
+    live = live_path.read_text(encoding="utf-8")
+    base = base_path.read_text(encoding="utf-8")
+    assert base == live, (
+        f"R-PB-SH-12 违规：{base_path.name} 与 {live_path.name} 不同步（baseline drift）。\n"
+        f"   → 动 Shared/utils 的 PATCH 必须同步 re-baseline：cp {live_path} {base_path}\n"
+        f"   （v0.6.4.0 守护者发现 baseline 曾 stale 126 行 → additive 守护对那段失效；本守护防再现。）"
+    )
+
+
 # ─── R-PB-SH-1/2 — additive-only（既有 decl byte-equal + 仅新增）─────────────
 
 @pytest.mark.parametrize(
