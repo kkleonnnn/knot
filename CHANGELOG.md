@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.2 — UI v2 shell 屏复刻（逐屏复刻第 2 屏）
+## [Unreleased] - v0.6.4.3 — UI v2 home/ChatEmpty 屏复刻（逐屏复刻第 3 屏）
+
+> **Loop Protocol v3 — 轻量 v3**（资深 ack 跳 Stage 2；守护者严格 Stage 3 + 逐 commit 直读 + 资深 :8000 live 终判）；守护者续任 v0.5
+> **设计源**：`knot_demo_ui/v0.6/artboards/home.jsx`；**诚实定级：轻量** — greeting block v0.5.10 已复刻自同源，v2 deltas 集中 suggestion 区 + icon 偿还 + 间距
+> **双向实证（R-137）**：执行者把 v0.6.4.2 VRP 教训用对（suggestion grid `1fr 1fr`→auto-fit）；守护者纠「五处同步过度学习」→ 收回 3 处（条件规则）+ 自认 Stage 3 props 数错（9→实 10）
+
+### Changed
+- **`frontend/src/screens/chat/ChatEmpty.jsx` UI v2 视觉复刻**（92→88）：
+  - **suggestion chips** `flex-wrap + flex:'1 1 280px'` → `display:grid` + `gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))'`（**artboard 方向 = 2-col grid；本地 auto-fit 保窄屏自动 1-col fluid** — R-UI2-VRP「artboard 看方向，本地定细节」，胜 demo 写死 `1fr 1fr`）+ chip 文字色 `T.subtext`→`T.text`
+  - **icon Foundation 偿还**：删 inline `SparkIcon`/`FlowIcon`（v0.5.30 Q2 VRP 例外）→ `<I.spark/>`/`<I.flow/>`（v0.6.4.0 已加；**stroke 1.8→1.6 设计系统归一化**，path byte-equal，对 artboard 一致）
+  - **greeting gap 节奏**：容器 `gap:8` + label `marginBottom 18→4` + 副标题 `margin '12px 0 28px'→'4px 0 0'` + Composer wrap `marginTop:28`（demo L59 rhythm）
+
+### Notes
+- **R-UI2-H-1~10 立约**：ChatEmpty **10 props** 签名 byte-equal（`{T,user,question,setQuestion,loading,onSubmit,onKeyDown,activeUpload,setActiveUpload,onUpload}`）→ Chat.jsx 0 diff / `<Composer>` 调用 byte-equal → Composer.jsx 0 diff（**Composer v2 styling 留 v0.6.4.4，R-217 式 hold**，沿 v0.5.11 先例）/ VRP grep 0 写死 viewport / hex 0（dot ring 保 color-mix 非 hex alpha）/ 业务文案 byte-equal（合约交易/平台盈亏 KNOT 域 + "KNOT 可能出错" R-227.5 大写 + R-PA-PB-1 窄场景 hint）
+- **⭐ 版本同步「五处→3处」收回（守护者纠正）**：本 PATCH 改 ChatEmpty，**不碰 Login/Shell** → 只同步 3 个无条件点（main.py + smoke + README★ KNOW-1 CI）。**Login footer 有意留 v0.6.4.1 / Shell L43 有意留 v0.6.4.2**（CLAUDE.md 第 4/5 点是条件式「若改该文件」；last-touch 语义，**非 stale**；严禁为版本去碰其文件破「其他屏 0-diff」铁律）。未来复核勿误判为漏同步。
+- **task #44 升格（资深拍板近期排）**：条件规则下 Login footer（现 v0.6.4.1 落后）/ Shell L43 必然慢性半-stale → 根治 = 让其动态读 main.py 版本（单一真相源）而非硬编字面
+- 本机 python 坏 → R-72 smoke 0.6.4.3 + README KNOW-1 走 CI；live UI（home 空对话 greeting + suggestion grid auto-fit 窄/宽屏 + I.spark/flow + Composer 不破 + 业务 suggestion 点击填充）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：login（1）→ shell（2）→ **home/ChatEmpty（3/~18）** → 续 **Composer v2（v0.6.4.4，R-217 hold 到期）** / chat-results / thinking / ...
+
+详见 [docs/plans/v0.6.4.3-home.md](docs/plans/v0.6.4.3-home.md)
+
+---
+
+## [Released] - v0.6.4.2 — UI v2 shell 屏复刻（逐屏复刻第 2 屏）
 
 > **Loop Protocol v3 — 轻量 v3**（资深显式 ack 跳 Stage 2 覆盖 v0.5.9 全-v3 先例；守护者严格 Stage 3 + 逐 commit 直读 + 资深 :8000 live 终判）；守护者续任 v0.5（v0.6 同代）
 > **设计源**：`knot_demo_ui/v0.6/artboards/shell.jsx`；**R-UI2-VRP 首次强制套用**（v0.6.4.1.1 立约）
