@@ -280,14 +280,21 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 - 严禁顺手改其他屏 / Shell topbar / favicon 等不在 PATCH scope 内的资产
 - 严禁引入新 npm 依赖（若需要 → 单独 chore PATCH 评估）
 
-### 三处版本同步（v0.5.0 R-72 + v0.5.7 R-181 模板）
+> **R-199.5 KnotLogo 文件集更新（v0.6.4.2 守护者裁定）**：v0.5.9 立的「KnotLogo 仅 Shared+Login+Shell 三文件」抗诱惑约束，在 v0.6.2.0 auth 屏落地时已自然失效 —— `Enroll.jsx`（TOTP enroll）+ `ForceChangePassword.jsx` 同为 brand/auth 屏，采用 KnotLogo 合理。**当前命中 5 文件**：Shared + Login + Shell + Enroll + ForceChangePassword。后续屏复刻 KnotLogo 哨兵基线 = 5（非 3）。
 
-每 PATCH 升版本须**三处同步**：
-1. `knot/main.py` FastAPI version
-2. `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
-3. **若改 Login.jsx**：`frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试 grep）
+### 五处版本同步（v0.5.0 R-72 + v0.5.7 R-181 + v0.6.0.8 KNOW-1 + v0.6.4.2 立约）
 
-未来若复刻 home/shell 等新屏含版本字面，加对应同步红线。
+> **v0.6.4.2 立约**：守护者 Stage 3 挖到 `Shell.jsx` sidebar logo 右侧版本字面（自 v0.5.31 起即同步点，注释自述「三处→四处」）实际 drift 3 个 MINOR（卡 v0.6.1.4）→ 制度化为第 4 点。
+> **v0.6.4.2 commit 3 自省修正**：起初立「四处」时**漏了 README 顶部**（第 5 点，且本就 CI 强制 = KNOW-1 `test_readme_top_version_synced_with_main`），commit 2 CI 红抓出 → 升「五处」。**讽刺点**：修 stale-doc 的立约自身漏一处 = 元模式第 6 数据点 → 更印证 task #44「doc-不变量 CI 守护一揽子」必要性。
+
+每 PATCH 升版本须**五处同步**（★ = 已 CI 强制；其余靠人肉 + task #44 待补 CI）：
+1. ★ `knot/main.py` FastAPI version（R-72 smoke 断言）
+2. ★ `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
+3. ★ `README.md` 顶部 1000 字符内 `v{version}` 字面（KNOW-1 守护测试）
+4. **若改 Login.jsx**：★ `frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试）
+5. **若改 Shell.jsx**：`frontend/src/Shell.jsx` sidebar logo 右侧 `v{version}` 字面（v0.6.4.2 立约；**未 CI 强制** → task #44 待补）
+
+未来若复刻其他含版本字面的新屏，加对应同步红线 + 优先纳 CI（避免靠人肉）。
 
 ### 复用 v0.5.7 LOCKED 手册作模板
 

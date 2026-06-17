@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.1 · UI v2 逐屏复刻首屏 · login 屏复刻（artboard v0.6）：共享 radial-gradient 背景 + 右表单浮动 card（border/radius20/boxShadow maxWidth440）+ Btn primary lg 采纳（首个真实消费 primitives.jsx；扩 disabled/loading/type）+ error banner 迁 TOKENS_V2.err · 业务链/契约 byte-equal（api.login + need_totp 2 阶段 + Enter 键提交不断）+ race guard carve-out · 后续 v0.6.4.x 续复刻 ~17 屏；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.2 · UI v2 逐屏复刻第 2 屏 · shell 屏复刻（artboard v0.6）：floating inset 双面板（sidebar + main 各 radius14 + 全 border + light boxShadow；100vw/100vh fluid 非 artboard 写死尺寸）+ logoArea/TopBar 56 对齐 + NavItem v2（height34/radius6）+ userArea 2 行 + Foundation icon 偿还（4 inline → I.flask/catalog/budget/audit）· R-192 AppShell 13 props 宪法契约 byte-equal（9 屏 + Chat 侧栏 0 diff）+ R-181 四处版本同步立约（补 Shell L43 stale 修）· 后续 v0.6.4.x 续复刻 ~16 屏；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

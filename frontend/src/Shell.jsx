@@ -14,33 +14,36 @@ export function AppShell({
 }) {
   const isAdmin = user && user.role === 'admin';
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
+  // v0.6.4.2 UI v2 — floating inset 面板 chrome（R-313 rgba 豁免 — boxShadow；dark 无阴影）
+  const panelShadow = T.dark ? 'none' : '0 1px 3px rgba(15,30,45,0.04)';
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', display: 'flex',
+      width: '100vw', height: '100vh', display: 'flex', gap: 10, padding: 10,
       background: T.bg, color: T.text, fontFamily: T.sans,
       fontSize: 13.5, overflow: 'hidden', letterSpacing: '-0.003em', lineHeight: 1.5,
     }}>
-      {/* ═══ Sidebar (R-198: 256→224；Q2 加码 Label ellipsis) ═══ */}
+      {/* ═══ Sidebar — v0.6.4.2 floating inset 面板（radius 14 + 全 border + boxShadow） ═══ */}
       <aside style={{
-        width: 224, flexShrink: 0, height: '100%',
-        background: T.sidebar, borderRight: `1px solid ${T.border}`,
+        width: 224, flexShrink: 0,
+        background: T.sidebar, border: `1px solid ${T.border}`,
+        borderRadius: 14, overflow: 'hidden', boxShadow: panelShadow,
         display: 'flex', flexDirection: 'column',
       }}>
-        {/* Brand 区 — R-199 KnotLogo size=20（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
-            v0.5.30 #28 logoArea 56 → 52 — 与 main header 52 字节对齐
-            v0.5.31 #34 — KnotLogo 右侧加版本号（demo thinking.jsx L28 byte-equal；R-181 三处同步 → 四处同步） */}
+        {/* Brand 区 — R-199 KnotLogo（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
+            v0.6.4.2 #VRP — logoArea 56 与 TopBar 56 字节对齐；KnotLogo size 16；
+            v0.5.31 #34 版本号 — R-181 四处同步第 4 处（main.py + smoke + Login footer + 本行 L43） */}
         <div style={{
-          height: 52, padding: '0 16px', flexShrink: 0,
+          height: 56, padding: '0 16px', flexShrink: 0,
           display: 'flex', alignItems: 'center',
           borderBottom: `1px solid ${T.border}`,
         }}>
-          <KnotLogo T={T} size={20}/>
+          <KnotLogo T={T} size={16}/>
           <span style={{
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,
-            letterSpacing: '0.02em',
-          }}>v0.6.1.4</span>
+            letterSpacing: '0.06em',
+          }}>v0.6.4.2</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
@@ -76,28 +79,28 @@ export function AppShell({
                             onClick={() => onNavigate('admin-models')}/>
                 <SideNavRow T={T} icon={<I.book/>} label="知识库" active={active === 'admin-knowledge'}
                             onClick={() => onNavigate('admin-knowledge')}/>
-                {/* v0.5.26 #18 Few-shot icon zap → flask (Q2 VRP 局部例外 — Shared 无 I.flask) */}
-                <SideNavRow T={T} icon={<FlaskIcon/>} label="Few-shot 示例" active={active === 'admin-fewshots'}
+                {/* v0.6.4.2 — Few-shot icon → Foundation I.flask（v0.6.4.0 已加；偿还 v0.5.26 inline 例外） */}
+                <SideNavRow T={T} icon={<I.flask/>} label="Few-shot 示例" active={active === 'admin-fewshots'}
                             onClick={() => onNavigate('admin-fewshots')}/>
                 <SideNavRow T={T} icon={<I.pencil/>} label="Prompt 模板" active={active === 'admin-prompts'}
                             onClick={() => onNavigate('admin-prompts')}/>
-                {/* v0.5.26 #18 业务目录 icon gear → folder-tree (Q2 VRP) */}
-                <SideNavRow T={T} icon={<FolderIcon/>} label="业务目录" active={active === 'admin-catalog'}
+                {/* v0.6.4.2 — 业务目录 icon → Foundation I.catalog（4-rect 网格；artboard ADMIN_NAV byte-equal） */}
+                <SideNavRow T={T} icon={<I.catalog/>} label="业务目录" active={active === 'admin-catalog'}
                             onClick={() => onNavigate('admin-catalog')}/>
                 {/* admin 看板（R-202: emoji 前缀 → SVG icon 统一） */}
-                {/* v0.5.26 #18 预算 icon zap → wallet (Q2 VRP) */}
-                <SideNavRow T={T} icon={<WalletIcon/>} label="预算" active={active === 'admin-budgets'}
+                {/* v0.6.4.2 — 预算 icon → Foundation I.budget（$ 圆；artboard ADMIN_NAV byte-equal） */}
+                <SideNavRow T={T} icon={<I.budget/>} label="预算" active={active === 'admin-budgets'}
                             onClick={() => onNavigate('admin-budgets')}/>
                 <SideNavRow T={T} icon={<I.shield/>} label="Recovery" active={active === 'admin-recovery'}
                             onClick={() => onNavigate('admin-recovery')}/>
-                {/* v0.5.26 #18 审计日志 icon book → clipboard-check (Q2 VRP) */}
-                <SideNavRow T={T} icon={<ClipboardCheckIcon/>} label="审计日志" active={active === 'admin-audit'}
+                {/* v0.6.4.2 — 审计日志 icon → Foundation I.audit（文档+行；artboard ADMIN_NAV byte-equal） */}
+                <SideNavRow T={T} icon={<I.audit/>} label="审计日志" active={active === 'admin-audit'}
                             onClick={() => onNavigate('admin-audit')}/>
                 {/* v0.6.0.4 F-B 前端 JS 错误上报 */}
                 <SideNavRow T={T} icon={<I.x/>} label="前端错误" active={active === 'admin-errors'}
                             onClick={() => onNavigate('admin-errors')}/>
-                {/* v0.6.1.0 内测指标屏 */}
-                <SideNavRow T={T} icon={<I.zap/>} label="内测指标" active={active === 'admin-metrics'}
+                {/* v0.6.4.2 — 内测指标 icon zap → spark（解与 API&模型 zap 撞名；artboard ADMIN_NAV byte-equal） */}
+                <SideNavRow T={T} icon={<I.spark/>} label="内测指标" active={active === 'admin-metrics'}
                             onClick={() => onNavigate('admin-metrics')}/>
                 {/* v0.6.0.18 用户查询历史屏（脱敏链 2/3）*/}
                 <SideNavRow T={T} icon={<I.search/>} label="查询历史" active={active === 'admin-history'}
@@ -110,7 +113,7 @@ export function AppShell({
 
         </div>
 
-        {/* Footer: user row — R-201/R-211 渐变橘色偿还 → 纯 T.accent；高度 56px borderTop */}
+        {/* Footer: user row — v0.6.4.2 2 行布局（name + role mono）；avatar 纯 T.accent（R-201/R-211 渐变橘偿还）*/}
         <div style={{
           height: 56, padding: '0 12px', flexShrink: 0,
           display: 'flex', alignItems: 'center', gap: 10,
@@ -118,14 +121,16 @@ export function AppShell({
         }}>
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
-            background: T.accent, color: '#fff',
+            background: T.accent, color: T.sendFg,
             display: 'grid', placeItems: 'center', fontSize: 11.5, fontWeight: 600, flexShrink: 0,
           }}>{initials}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.2, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.display_name || user?.username}
-              {isAdmin && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 600 }}>ADMIN</span>}
-            </div>
+            </span>
+            <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {user?.role}
+            </span>
           </div>
           {isAdmin && (
             <button onClick={() => onNavigate('settings')} style={iconBtn(T)} title="设置"><I.gear/></button>
@@ -134,10 +139,14 @@ export function AppShell({
         </div>
       </aside>
 
-      {/* ═══ Main ═══ */}
-      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', background: T.content }}>
+      {/* ═══ Main — v0.6.4.2 floating inset 面板（radius 14 + 全 border + boxShadow） ═══ */}
+      <main style={{
+        flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+        background: T.content, border: `1px solid ${T.border}`,
+        borderRadius: 14, overflow: 'hidden', boxShadow: panelShadow,
+      }}>
         <header style={{
-          height: 52, flexShrink: 0, padding: '0 22px',
+          height: 56, flexShrink: 0, padding: '0 24px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderBottom: `1px solid ${T.border}`, background: T.content,
         }}>
@@ -183,19 +192,13 @@ export function SideHeading({ T, children }) {
   );
 }
 
-// v0.5.26 #18 — 4 inline svg icons（Q2 VRP 局部例外 — Shared 无 flask/folder/wallet/clipboard）
-const FlaskIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M9 2h6m-5 0v6L4 20a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 20l-6-12V2"/></svg>;
-const FolderIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>;
-const WalletIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
-const ClipboardCheckIcon = (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
-
 export function SideNavRow({ T, icon, label, active, onClick }) {
-  // v0.5.26 #11/#17 — active 指示纯 bg 填充 color-mix 12%
-  // （删 R-203 absolute span 3px brand bar — 资深反馈"边边很丑"，bg 填充已足够辨识）
+  // v0.5.26 #11/#17 — active 指示纯 bg 填充 color-mix 12%（资深 ack「bg 填充足够辨识」）
+  // v0.6.4.2 — 显式 height 34 + radius 6 + gap 10（UI v2 NavItem）
   return (
     <div onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
-      margin: '0 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+      display: 'flex', alignItems: 'center', gap: 10, height: 34, padding: '0 12px',
+      margin: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
       background: active ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : 'transparent',
       color: active ? T.accent : T.subtext,
       fontWeight: active ? 500 : 400,
