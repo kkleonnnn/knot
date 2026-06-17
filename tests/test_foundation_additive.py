@@ -13,10 +13,15 @@ R-365「Shared.jsx git-diff = 0 绝对红线」正式退役（演进非撤回，
 守护 4 维：
   R-PB-SH-1/2 additive-only：snapshot 内每个既有顶层 decl 在 live byte-equal（仅允许新增 export）
   R-PB-SH-3   buildTheme 返回 26 keys（25 设计 token + 1 dark 布尔透传；node 实测 Object.keys===26）
-  R-PB-SH-4   I icon dict 38 names 契约恒定
+  R-PB-SH-4   I icon dict 54 names 契约（v0.6.4.0 UI v2 +16；原 38）
   R-PB-SH-8   cycle：Shared.jsx 0 import utils / screens / api（utils→Shared 单向，反向即循环）
 
-baseline 快照：tests/foundation/{shared,utils}_foundation_base.jsx（commit 1 冻结 = v0.6.2.3 前 main 态）。
+baseline 快照：tests/foundation/{shared,utils}_foundation_base.jsx。
+  v0.6.2.3 commit 1 冻结 = v0.6.2.3 前 main 态；
+  **v0.6.4.0 UI v2 Foundation 演进 re-baseline**（资深 2026-06-17 拍 + 守护者复核）：
+  设计系统 v2 sanctioned 演进 = buildTheme 3 值微调（success/successSoft/warn）+ I 38→54，
+  非 additive（是 modification）→ baseline 重置为 UI v2 态，future v0.6.4.1+ 对此 additive。
+  （治理依据同 v0.6.2.3 retire R-365：Foundation 守护"演进非撤回"，每次重大 Foundation 节点 re-baseline。）
 """
 import re
 from pathlib import Path
@@ -129,17 +134,17 @@ def test_R_PB_SH_3_buildtheme_26_keys():
     assert "dark" in keys, "buildTheme 必须含 dark 透传字段（line 55 shorthand）"
 
 
-# ─── R-PB-SH-4 — I icon dict 38 names ────────────────────────────────────
+# ─── R-PB-SH-4 — I icon dict 54 names（v0.6.4.0 UI v2 +16）─────────────────
 
-def test_R_PB_SH_4_icon_dict_38_names():
-    """I icon dict = 38 names 契约恒定（v0.6.0.3 加 thumbsUp/thumbsDown 后为 38）。"""
+def test_R_PB_SH_4_icon_dict_54_names():
+    """I icon dict = 54 names 契约（v0.6.0.3 加 thumbsUp/Down=38；v0.6.4.0 UI v2 +16=54）。"""
     blocks = _named_blocks(_SHARED.read_text(encoding="utf-8"))
     assert "I" in blocks, "Shared.jsx 必须含 I icon dict"
     body = blocks["I"]
     # icon 键：2 空格缩进的 `name:`（注释行 `  //` 不匹配）
     names = re.findall(r"^  ([A-Za-z_$][\w$]*):\s*\(", body, re.MULTILINE)
-    assert len(names) == 38, (
-        f"R-PB-SH-4 违规：I icon dict 应 38 names，实际 {len(names)}：{names}"
+    assert len(names) == 54, (
+        f"R-PB-SH-4 违规：I icon dict 应 54 names（v0.6.4.0 UI v2），实际 {len(names)}：{names}"
     )
 
 
