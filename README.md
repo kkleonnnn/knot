@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.2 · UI v2 逐屏复刻第 2 屏 · shell 屏复刻（artboard v0.6）：floating inset 双面板（sidebar + main 各 radius14 + 全 border + light boxShadow；100vw/100vh fluid 非 artboard 写死尺寸）+ logoArea/TopBar 56 对齐 + NavItem v2（height34/radius6）+ userArea 2 行 + Foundation icon 偿还（4 inline → I.flask/catalog/budget/audit）· R-192 AppShell 13 props 宪法契约 byte-equal（9 屏 + Chat 侧栏 0 diff）+ R-181 四处版本同步立约（补 Shell L43 stale 修）· 后续 v0.6.4.x 续复刻 ~16 屏；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.3 · UI v2 逐屏复刻第 3 屏 · home/ChatEmpty 屏复刻（artboard v0.6）：suggestion chips flex-wrap→grid auto-fit（窄屏自动 1-col fluid，胜 demo 写死 2-col）+ chip 色 T.text + Foundation icon 偿还（inline Spark/Flow → I.spark/I.flow，stroke 归一化 1.6）+ greeting gap 节奏 · 业务文案/契约 byte-equal（ChatEmpty 10 props + `<Composer>` 调用 0 改 → Chat.jsx + Composer.jsx 0 diff；Composer v2 留 v0.6.4.4）· 后续 v0.6.4.x 续复刻 ~15 屏；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
