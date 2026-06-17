@@ -5,7 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.1 — UI v2 login 屏复刻（逐屏复刻首屏）
+## [Unreleased] - v0.6.4.2 — UI v2 shell 屏复刻（逐屏复刻第 2 屏）
+
+> **Loop Protocol v3 — 轻量 v3**（资深显式 ack 跳 Stage 2 覆盖 v0.5.9 全-v3 先例；守护者严格 Stage 3 + 逐 commit 直读 + 资深 :8000 live 终判）；守护者续任 v0.5（v0.6 同代）
+> **设计源**：`knot_demo_ui/v0.6/artboards/shell.jsx`；**R-UI2-VRP 首次强制套用**（v0.6.4.1.1 立约）
+> **双向实证（R-137）**：守护者 Stage 3 挖到 Shell L43 stale 版本号（drift 3 MINOR）+ 独立验证执行者透明上报的 R-199.5 KnotLogo 哨兵 stale（实 5 文件非 3，非本 PATCH 回归）→ 第 3 个「doc 宣称 vs 现实」stale（前两：v0.6.4.0 baseline 126 行 + 本 L43）
+
+### Changed
+- **`frontend/src/Shell.jsx` UI v2 视觉复刻**（211→214）：
+  - ⭐ **floating inset 双面板**：外层 `gap:10 padding:10`，sidebar + main 各 `borderRadius:14` + 全 `border` + `boxShadow`（light `0 1px 3px rgba(15,30,45,0.04)` / dark `none`，**R-313 rgba 豁免**）；**`100vw/100vh` fluid**（artboard 写死 `1280×800` 不照搬 — R-UI2-VRP）
+  - logoArea `52→56` + KnotLogo `size 20→16`；TopBar header `52→56` + padding `0 24px`（与 logoArea 字节对齐）
+  - NavItem（SideNavRow 内部）显式 `height:34` + `borderRadius 8→6` + `gap 9→10`（active bg 保本地 `color-mix 12%`）
+  - userArea 2 行化（name + `user.role` mono uppercase）；avatar `#fff`→`T.sendFg`（**hex 偿还 R-484**）
+  - **Foundation icon 偿还**：删 4 inline svg（Flask/Folder/Wallet/Clipboard，v0.5.26 Q2 VRP 例外，v0.6.4.0 已补 Foundation）→ `I.flask/catalog/budget/audit`；内测指标 `I.zap`→`I.spark`（解与 API&模型 zap 撞名；artboard ADMIN_NAV byte-equal）
+- **R-181 四处版本同步立约**（守护者 Stage 3 挖 Shell L43 stale `v0.6.1.4`）：`0.6.4.1→0.6.4.2` 四处 = `main.py` + `test_rename_smoke.py` + `Login.jsx` footer（R-181 carve-out 1 行）+ **`Shell.jsx` L43**（新增第 4 同步点）；CLAUDE.md §三处同步 → §四处同步（改 Shell 必同步 L43 防再 drift）
+- **R-199.5 KnotLogo 文件集更新**（守护者裁定）：「仅三文件」→ **5 文件**（+ Enroll + ForceChangePassword，v0.6.2.0 auth 屏自然采用）；CLAUDE.md § 抗诱惑清单补注
+- `scripts/check_file_sizes.py`：Shell 220 不动（214 ≤ 220）
+
+### Notes
+- **R-UI2-S-1~10 立约**：R-192 AppShell 13 props + SideHeading/SideNavRow 签名 byte-equal（App.jsx + 9 消费屏 + Chat.jsx + Shared/primitives/utils 0 diff）/ VRP grep-guard `1280|800|at%|width:'NN%'` = 0 真违规（守护者承诺的 VRP 闸门首次制度化）/ 业务链 0 改 / icon 对 artboard / hex 0 / 范围隔离 / R-PA-8 + R-185 哨兵
+- **元模式登记（守护者，非阻断）**：3 连「doc 宣称 vs 现实」stale（baseline 126 行 / Shell L43 版本 / R-199.5 文件集）共因 = doc 不变量无 CI 强制 → 跨 PATCH 静默 drift。建议某 chore PATCH 集中立「doc-不变量 CI 守护」（版本字面四处一致 + KnotLogo 文件集 + foundation baseline）
+- 本机 python 坏 → R-72 smoke 0.6.4.2 走 CI；live UI（shell floating inset 双面板 light/dark + 9 屏 shell 一致 + NavItem v2 观感）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：v0.6.4.1 login（1/~18）→ **v0.6.4.2 shell（2/~18）** → 续 home / chat-results / thinking / ... → 收官后 v0.7.0 语义层
+
+详见 [docs/plans/v0.6.4.2-shell.md](docs/plans/v0.6.4.2-shell.md)
+
+---
+
+## [Released] - v0.6.4.1.1 — login 背景 VRP 修复 + R-UI2-VRP 立约 (hotfix)
+
+> **性质**：v0.6.4.1 同 PATCH 周期 hotfix（version 0.6.4.1 不动，仅 build 时间戳 + 修复 — 小修补纪律）；轻量 v3（资深 :8000 live 批准 + 守护者 concur）；PR #141
+> **根因**：v0.6.4.1 login 照搬 artboard 写死 `radial-gradient(at 22% 18%)`（宽 viewport farthest-corner ellipse 胀开/偏移）+ motif `width:70%` → 破 v0.5.7 VRP「底色 fluid + element-anchored」
+
+### Fixed
+- **`frontend/src/screens/Login.jsx`**：外层 `background` → `T.chipBg` 实底（fluid 铺满，去 viewport 百分比渐变）；motif wrapper `right 70%` → `inset 0`（绿光由 NarrativeMotif 自带 `at 30% 30%` element-anchored radial-gradient 提供，宽屏不偏移）；footer build bump（version 0.6.4.1 不动）
+
+### Notes
+- **⭐ R-UI2-VRP 立约**（CLAUDE.md § 视觉模型）：**artboard 把握「整体设计方向」；本地标准把握「细节」** — artboard 写死尺寸/坐标/百分比严禁照搬，须按本地 VRP（fluid 实底 + element-anchored glow + buildTheme/TOKENS_V2 + 契约 byte-equal）重新锚定。**后续每屏复刻强制套用**
+- 守护者 concur + 自陈复核盲区（artboard 保真 ≠ VRP 合规）→ 今后显式核 VRP grep（写死坐标/百分比/尺寸）
+
+详见 [docs/plans/v0.6.4.1.1-login-bg-fix.md](docs/plans/v0.6.4.1.1-login-bg-fix.md)
+
+---
+
+## [Released] - v0.6.4.1 — UI v2 login 屏复刻（逐屏复刻首屏）
 
 > **Loop Protocol v3 — 全 v3 三阶段**（UI 业务屏复刻）；守护者续任 v0.5（v0.6 同代）
 > **设计源**：`knot_demo_ui/v0.6/artboards/login.jsx`；**先例**：v0.5.7 login pilot + v0.6.4.0 Foundation刀（首个真实消费 TOKENS_V2/Btn）

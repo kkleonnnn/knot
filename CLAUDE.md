@@ -280,6 +280,8 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 - 严禁顺手改其他屏 / Shell topbar / favicon 等不在 PATCH scope 内的资产
 - 严禁引入新 npm 依赖（若需要 → 单独 chore PATCH 评估）
 
+> **R-199.5 KnotLogo 文件集更新（v0.6.4.2 守护者裁定）**：v0.5.9 立的「KnotLogo 仅 Shared+Login+Shell 三文件」抗诱惑约束，在 v0.6.2.0 auth 屏落地时已自然失效 —— `Enroll.jsx`（TOTP enroll）+ `ForceChangePassword.jsx` 同为 brand/auth 屏，采用 KnotLogo 合理。**当前命中 5 文件**：Shared + Login + Shell + Enroll + ForceChangePassword。后续屏复刻 KnotLogo 哨兵基线 = 5（非 3）。
+
 ### 四处版本同步（v0.5.0 R-72 + v0.5.7 R-181 + v0.6.4.2 立约）
 
 > **v0.6.4.2 立约**：守护者 Stage 3 挖到 `Shell.jsx` sidebar logo 右侧版本字面（自 v0.5.31 起即第 4 同步点，注释自述「三处→四处同步」）实际 drift 3 个 MINOR（卡 v0.6.1.4）。「四处同步」纪律静默断了 → 正式制度化为第 4 点。
