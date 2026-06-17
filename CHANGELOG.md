@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 - **R-UI2-H-1~10 立约**：ChatEmpty **10 props** 签名 byte-equal（`{T,user,question,setQuestion,loading,onSubmit,onKeyDown,activeUpload,setActiveUpload,onUpload}`）→ Chat.jsx 0 diff / `<Composer>` 调用 byte-equal → Composer.jsx 0 diff（**Composer v2 styling 留 v0.6.4.4，R-217 式 hold**，沿 v0.5.11 先例）/ VRP grep 0 写死 viewport / hex 0（dot ring 保 color-mix 非 hex alpha）/ 业务文案 byte-equal（合约交易/平台盈亏 KNOT 域 + "KNOT 可能出错" R-227.5 大写 + R-PA-PB-1 窄场景 hint）
-- **⭐ 版本同步「五处→3处」收回（守护者纠正）**：本 PATCH 改 ChatEmpty，**不碰 Login/Shell** → 只同步 3 个无条件点（main.py + smoke + README★ KNOW-1 CI）。**Login footer 有意留 v0.6.4.1 / Shell L43 有意留 v0.6.4.2**（CLAUDE.md 第 4/5 点是条件式「若改该文件」；last-touch 语义，**非 stale**；严禁为版本去碰其文件破「其他屏 0-diff」铁律）。未来复核勿误判为漏同步。
-- **task #44 升格（资深拍板近期排）**：条件规则下 Login footer（现 v0.6.4.1 落后）/ Shell L43 必然慢性半-stale → 根治 = 让其动态读 main.py 版本（单一真相源）而非硬编字面
-- 本机 python 坏 → R-72 smoke 0.6.4.3 + README KNOW-1 走 CI；live UI（home 空对话 greeting + suggestion grid auto-fit 窄/宽屏 + I.spark/flow + Composer 不破 + 业务 suggestion 点击填充）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **⭐ 版本同步纠正（commit 3 — R-181 CI 抓出守护者裁定错）**：守护者 Stage 3 §二 误把 Login footer 当条件式「若改 Login.jsx」→ 本 PATCH 不动（双错：grep `head -1` 误读 footer 现值为 docstring 的 v0.6.4.1 + 误判 R-181 为条件式）。**实则 R-181 无条件 CI**（test docstring：每 PATCH footer 必 == main version）。执行者照错裁定不 bump（footer 卡 v0.6.4.2）→ **commit 2 CI 红（R-181）** → commit 3 修：Login footer **v0.6.4.2 → v0.6.4.3**（R-181 carve-out 1 行，强制同步非破 0-diff）+ CLAUDE.md「五处」spec 分类纠错（Login footer → 无条件 ★CI）+ 静态重建。
+- **正确模型 = 4 无条件 ★CI（main.py / smoke / README / Login footer）+ 1 条件无 CI（Shell L43，仅改 Shell 时）**；**元模式第 8 数据点**（守护者 ratify 的 doc 分类错 + 守护者据错 doc 裁定 → 仍只 CI 抓住）= task #44「doc-不变量 CI 守护」封顶论据。
+- **task #44 升格（资深拍板近期排）**：Shell L43 仍无 CI（drift 3 MINOR 已证）→ 根治 = Login/Shell 版本字面动态读 main.py（单一真相源）而非硬编
+- 本机 python 坏 → R-72 smoke 0.6.4.3 + README KNOW-1 + **R-181 Login footer** 走 CI；live UI（home 空对话 greeting + suggestion grid auto-fit 窄/宽屏 + I.spark/flow + Composer 不破 + 业务 suggestion 点击填充）部署后 knot.0p.oh + 资深 :8000 post-merge
 - **UI v2 复刻进度**：login（1）→ shell（2）→ **home/ChatEmpty（3/~18）** → 续 **Composer v2（v0.6.4.4，R-217 hold 到期）** / chat-results / thinking / ...
 
 详见 [docs/plans/v0.6.4.3-home.md](docs/plans/v0.6.4.3-home.md)
