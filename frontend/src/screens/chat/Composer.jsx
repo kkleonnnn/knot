@@ -91,7 +91,7 @@ export function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
             cursor: disabled ? 'not-allowed' : 'pointer',
             transition: 'opacity 150ms, background 150ms',
           }}>
-            {loading ? <Spinner size={12} color="#fff"/> : <I.send/>}
+            {loading ? <Spinner size={12} color={T.sendFg}/> : <I.send/>}
           </button>
         </div>
       </div>
