@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.0 · UI v2 设计系统重构起手（新系列，先于 v0.7 语义层）· Foundation刀：buildTheme success/warn 微调 + 新增 TOKENS_V2（brand/ink 色阶 + radius + err/info）+ Btn/Tag 原语（拆 primitives.jsx）+ 16 图标 · 18 屏 0 代码改自动换皮（success/warn 微调变色 = R-PA-PB-V1 有意松绑，UI v2 sanctioned 演进）· 后续 v0.6.4.1+ 逐屏复刻 artboard；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.1 · UI v2 逐屏复刻首屏 · login 屏复刻（artboard v0.6）：共享 radial-gradient 背景 + 右表单浮动 card（border/radius20/boxShadow maxWidth440）+ Btn primary lg 采纳（首个真实消费 primitives.jsx；扩 disabled/loading/type）+ error banner 迁 TOKENS_V2.err · 业务链/契约 byte-equal（api.login + need_totp 2 阶段 + Enter 键提交不断）+ race guard carve-out · 后续 v0.6.4.x 续复刻 ~17 屏；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
@@ -189,7 +189,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.4.0）
+## 技术栈（v0.6.4.1）
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°

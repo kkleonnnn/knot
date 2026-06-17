@@ -69,7 +69,7 @@ LIMITS = {
     "frontend/src/screens/admin/tab_system.jsx":   250,
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 +70 (SourceFormModal HTTP type 5 字段 + isHttp 分支 + parsedHttpCfg 反序列化)
     # ── v0.5.7 R-176 ──────────────────────────────────────────
-    "frontend/src/screens/Login.jsx":              270,  # v0.6.2.0 commit 5 +TOTP verify step（2 阶段 login）
+    "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻 270→295 (card + Btn 采纳 + error 迁)
     "frontend/src/screens/Enroll.jsx":             240,  # v0.6.2.0 commit 5 NEW — 4-step TOTP enroll 流程
     "frontend/src/decor/NarrativeMotif.jsx":       120,
     # ── v0.5.9 R-205 ──────────────────────────────────────────

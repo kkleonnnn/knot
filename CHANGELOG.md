@@ -5,7 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.0 — UI v2 设计系统重构起手 · Foundation刀（新系列 · 先于 v0.7 语义层）
+## [Unreleased] - v0.6.4.1 — UI v2 login 屏复刻（逐屏复刻首屏）
+
+> **Loop Protocol v3 — 全 v3 三阶段**（UI 业务屏复刻）；守护者续任 v0.5（v0.6 同代）
+> **设计源**：`knot_demo_ui/v0.6/artboards/login.jsx`；**先例**：v0.5.7 login pilot + v0.6.4.0 Foundation刀（首个真实消费 TOKENS_V2/Btn）
+> **双向实证（R-137）**：Stage 2 进步（抓 type=submit/LIMIT 295）但 3 处 ungrounded（viewBox 旧幻觉 / "0 oklch" 过头 / `_active_totp_step` 编名）→ 守护者读 ui.jsx + Login 钉死 §9.2 Btn type 默认 button + §9.3 token 映射 + node-not-string → 执行者实证采纳
+
+### Changed
+- **`frontend/src/screens/Login.jsx` UI v2 视觉复刻**（260→249，§9.3 token 映射）：
+  - 共享 radial-gradient 背景（`color-mix(in oklch, ${T.accent} 8%, transparent)` + `T.chipBg` 基底，跨两列无分屏）
+  - 右表单浮动 card（`T.border` + `radius 20` + `T.content` + boxShadow rgba **R-313 豁免**，maxWidth 440；两 step 共享同 card 防抖）
+  - 提交采纳 **Btn primary lg**（`type='submit'` + `loading` + `iconRight={<I.arrow/>}` node）；保 `<form onSubmit>` → **Enter 键 + 点击都走 form，提交 0 篡改**
+  - error banner 迁 `TOKENS_V2.err`（27°→25°，**VRP 视觉演进非 byte-equal，资深 ack**；停用 ad-hoc 红，全站 err 单一源）
+  - Field bg → `T.chipBg`（bgInset 等价）；NarrativeMotif right 70%；left panel padding 56
+  - **race guard**：submit/submitTotp 各加 `if(loading)return`（闭 Enter-spam 重入；**R-PB-L-2 byte-equal carve-out，资深 ack**）
+- **`frontend/src/primitives.jsx` Btn 扩 3 additive prop**（守护者 §9.2）：`type`（默认 `'button'` 防全站 submit 潜伏）+ `disabled` + `loading`（Spinner 替 children）+ `import { Spinner } from './utils.jsx'`；**现有 5-variant/5-tone 映射 byte-equal**
+- `scripts/check_file_sizes.py`：Login 270→295
+
+### Notes
+- **R-PB-L-1~7 立约**：LoginScreen export+3 props byte-equal（App.jsx 0 diff）/ 业务链 byte-equal（除 race guard 2 行 carve-out + Enter 键不断）/ error 4 文案+REMEMBER_TIP+忘密 toast+标题/placeholder byte-equal（仅 error 容器色变）/ VRP per artboard（§9.3 映射；color-mix 铁律 + boxShadow R-313）/ Btn 采纳 + iconRight node / 范围隔离（其他 17 屏+Shared+utils+Shell+App 0 改，唯 primitives additive 扩）/ R-181 + R-PA-8 + R-185 哨兵
+- **登记（守护者前瞻，非阻断）**：primitives.jsx 本刀首次被扩（Btn +3 prop）仍无 foundation additive 守护（test_foundation_additive 只守 Shared+utils）→ drift 风险随屏复刻累积，建议某 PATCH 纳入 primitives 守护
+- 本机 python 坏（libexpat）→ R-72 smoke 0.6.4.1 走 CI；live UI（login light/dark：card+radial-gradient+Btn loading+Enter 登录+TOTP 2 阶段+error 新红+忘密 toast）部署后 knot.0p.oh
+- **UI v2 复刻进度**：v0.6.4.1 login（1/~18）→ 续 shell / home / chat-results / ... → 收官后 v0.7.0 语义层
+
+详见 [docs/plans/v0.6.4.1-ui-v2-login.md](docs/plans/v0.6.4.1-ui-v2-login.md)
+
+---
+
+## [Released] - v0.6.4.0 — UI v2 设计系统重构起手 · Foundation刀（新系列 · 先于 v0.7 语义层）
 
 > **Loop Protocol v3 — 全 v3 三阶段**（UI 大改业务码不简化）
 > **资深拍板（2026-06-17）**：① UI v2 先于 v0.7 语义层（v0.6.4.x 新系列，**v0.6 同代延续非代际边界** — 守护者续任 v0.5，不触发整体审核）② Foundation刀 保 25 token 名只换值（v0.5.6 R-156 strangler 先例）③ Btn/Tag 拆 primitives.jsx（守护者 §五）④ **R-PA-PB-V1 视觉延续铁律有意松绑记档**（见 Notes）
