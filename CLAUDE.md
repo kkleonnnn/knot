@@ -280,14 +280,17 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 - 严禁顺手改其他屏 / Shell topbar / favicon 等不在 PATCH scope 内的资产
 - 严禁引入新 npm 依赖（若需要 → 单独 chore PATCH 评估）
 
-### 三处版本同步（v0.5.0 R-72 + v0.5.7 R-181 模板）
+### 四处版本同步（v0.5.0 R-72 + v0.5.7 R-181 + v0.6.4.2 立约）
 
-每 PATCH 升版本须**三处同步**：
+> **v0.6.4.2 立约**：守护者 Stage 3 挖到 `Shell.jsx` sidebar logo 右侧版本字面（自 v0.5.31 起即第 4 同步点，注释自述「三处→四处同步」）实际 drift 3 个 MINOR（卡 v0.6.1.4）。「四处同步」纪律静默断了 → 正式制度化为第 4 点。
+
+每 PATCH 升版本须**四处同步**：
 1. `knot/main.py` FastAPI version
 2. `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
 3. **若改 Login.jsx**：`frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试 grep）
+4. **若改 Shell.jsx**：`frontend/src/Shell.jsx` sidebar logo 右侧 `v{version}` 字面（v0.6.4.2 立约；改 Shell 必同步，防再 drift）
 
-未来若复刻 home/shell 等新屏含版本字面，加对应同步红线。
+未来若复刻其他含版本字面的新屏，加对应同步红线。
 
 ### 复用 v0.5.7 LOCKED 手册作模板
 
