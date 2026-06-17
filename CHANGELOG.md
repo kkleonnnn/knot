@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.3 — UI v2 home/ChatEmpty 屏复刻（逐屏复刻第 3 屏）
+## [Unreleased] - v0.6.4.4 — UI v2 Composer（R-217 hold 清偿 · 最小 PATCH）
+
+> **Loop Protocol v3 — 轻量 v3**（守护者起草 Stage 1 = 自审 → adversarial Stage 3 补偿独立性 → 执行者 commit 1；资深拍板「A 最小」）；守护者续任 v0.5
+> **设计源**：`knot_demo_ui/v0.6/artboards/home.jsx`（composer 块）+ `chat-results.jsx`（活跃态，自审复验无独立 composer）
+> **双向实证（R-137）**：守护者 adversarial 自审（补偿起草自审破独立性）查盲区 — ① chat-results 无独立 composer 设计 ② Composer 唯一 hex = L94 ③ rgba 仅 boxShadow → §0 finding 独立角度复验成立；commit-1 复核为干净独立守护（执行者写、守护者验）
+
+### Changed / Fixed
+- **`frontend/src/screens/chat/Composer.jsx`**（唯一源码 delta，1 行）：`<Spinner color="#fff"/>` → `color={T.sendFg}`（**R-484 hex 偿还 — Composer 最后一处 hex 清零**）
+
+### Notes
+- **⭐ 核心 finding**：守护者 adversarial 自审实证 **Composer v0.5.11 早已是 v2 artboard spec**（radius14 / 双层 boxShadow / focus-within ring / send 32×32 / hint mono / textarea minHeight48）—— v0.6.4.3 执行者「Composer 需 radius14+双层 shadow 大改」假设被现实推翻。唯一债 = 1 行 hex。
+- **⭐ R-217 hold 正式清偿**（自 v0.5.10 挂 9 PATCH）：R-217「Composer 留独立 PATCH 大改」三方共识，本 PATCH 实证 Composer 早已 v2 → hold 解除归档。**footer hint 保产品 R-255 版**（`Enter 发送 · Shift+Enter 换行`，不采 artboard `↵`/小写；字面分流 byte-equal）。
+- **R-UI2-C-1~9 立约**：Composer 9 props 签名 byte-equal → ChatEmpty + Conversation 0 diff / `git diff` 仅 L94 1 行 / hex 0（boxShadow rgba R-313 豁免 sustained）/ 范围隔离（其他屏/Foundation/App 0）
+- **⭐ 修正版本同步模型首次完整施行**（v0.6.4.3 R-181 CI 红教训）：**4 无条件 ★CI**（main.py + smoke + README KNOW-1 + **Login footer R-181**）→ 0.6.4.4 + **Shell L43 条件式不动**（未改 Shell，stays v0.6.4.2，非 stale）。Login footer 主动 bump → R-181 CI 预期绿（不再重蹈 v0.6.4.3 红）。
+- 本机 python 坏 → R-72 smoke + R-181 + KNOW-1 走 CI；live UI（Composer loading spinner 色 = sendFg；实际视觉与前无差，因 Composer 早 v2）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：login（1）→ shell（2）→ home（3）→ **Composer（4/~18，R-217 hold 闭）** → 续 chat-results / thinking / favorites / admin 屏 ...
+
+详见 [docs/plans/v0.6.4.4-composer.md](docs/plans/v0.6.4.4-composer.md)
+
+---
+
+## [Released] - v0.6.4.3 — UI v2 home/ChatEmpty 屏复刻（逐屏复刻第 3 屏）
 
 > **Loop Protocol v3 — 轻量 v3**（资深 ack 跳 Stage 2；守护者严格 Stage 3 + 逐 commit 直读 + 资深 :8000 live 终判）；守护者续任 v0.5
 > **设计源**：`knot_demo_ui/v0.6/artboards/home.jsx`；**诚实定级：轻量** — greeting block v0.5.10 已复刻自同源，v2 deltas 集中 suggestion 区 + icon 偿还 + 间距
