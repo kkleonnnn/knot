@@ -94,8 +94,7 @@ LIMITS = {
     "knot/core/time_resolver.py":                  350,  # ~235 行 + 后续预留扩展
     # ── v0.6.2.3 R-PB-SH-9 — Foundation 解冻后纳入 CI 行数闸门 ──────────────
     # R-365 退役（首次受准修改 Shared.jsx）后两文件可增长 → 须 cap 防无界膨胀。
-    # 注意路径在 frontend/src/（非 frontend/src/screens/）。当前 Shared 374 / utils 121；
-    # PATCH-1 加 14 export 后 Shared ~514，留头寸 560；PATCH-2 再增可 ack 微调。
+    # 注意路径在 frontend/src/（非 frontend/src/screens/）。v0.6.4.0 UI v2: Shared 692/760 + primitives 67/150。
     "frontend/src/Shared.jsx":                     760,  # v0.6.4.0 UI v2 720→760 (+TOKENS_V2 + 16 图标 additive)
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 新增 (Btn/Tag 拆独立文件;资深拍 B)
     "frontend/src/utils.jsx":                      200,  # v0.6.2.3 新增 (Foundation 纳管;PATCH-1 不动)

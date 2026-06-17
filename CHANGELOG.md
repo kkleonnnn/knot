@@ -5,7 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.3.2 — C5 AdminAudit.jsx 子组件拆分（Phase B 段 7 · 纯重构）
+## [Unreleased] - v0.6.4.0 — UI v2 设计系统重构起手 · Foundation刀（新系列 · 先于 v0.7 语义层）
+
+> **Loop Protocol v3 — 全 v3 三阶段**（UI 大改业务码不简化）
+> **资深拍板（2026-06-17）**：① UI v2 先于 v0.7 语义层（v0.6.4.x 新系列，**v0.6 同代延续非代际边界** — 守护者续任 v0.5，不触发整体审核）② Foundation刀 保 25 token 名只换值（v0.5.6 R-156 strangler 先例）③ Btn/Tag 拆 primitives.jsx（守护者 §五）④ **R-PA-PB-V1 视觉延续铁律有意松绑记档**（见 Notes）
+> **实证**：调色板与新设计源 knot_demo_ui/v0.6 tokens.js 同源（brand/ink 不变）→ Foundation刀 additive 极小低风险；真正大头在 v0.6.4.1+ 逐屏布局复刻
+> **双向实证（R-137）**：Stage 1 漏 successSoft + Stage 2 ungrounded（LIMIT 错 560/620 实际 720、F4 幻觉重绘）→ 守护者读 ui.jsx 钉死 §三 Btn/Tag 映射表 + Gap 1/2/3 → 执行者实证采纳
+
+### Changed
+- **`Shared.jsx` buildTheme 3 值微调**：success `145°→155°/0.16` + **successSoft 同步 `155°/0.16`**（守护者 Gap 1 — 否则实心绿与 soft tint 异相）+ warn `85°→75°/L78`；brand/ink/accentSoft(195°)/其余 22 项 0 改；**25 token 名 byte-equal**（R-158 契约）
+- **`README.md`** UI v2 当前版本行 + 技术栈 0.6.4.0
+
+### Added
+- **`Shared.jsx` `TOKENS_V2`**（theme-无关设计 token，镜像 tokens.js）：brand 50-900 + ink 0-950 色阶 + radius{xs..pill} + ok/warn/err/info；**严禁承载 theme-split 结构色**（避免双真相源 — 守护者 §四）
+- **`Shared.jsx` I 38→54**（additive +16：attach/flask/edit/chat/node/flow/arrow/spark/catalog/budget/audit/bookmark/bookmarkFill/medal/info/pin；0 撞名 + viewBox 24 + stroke 1.6；38 既有 byte-equal）
+- **`frontend/src/primitives.jsx`** [NEW]（资深拍 B 拆文件）：`Btn` 5-variant×3-size + `Tag` 5-tone，按守护者 §9.2 映射表（结构色自 T + semantic/brand 阶自 TOKENS_V2；demo `/alpha` → `color-mix(in oklch, X%, transparent)` 对齐 R-286/R-372 brandSoft inset 铁律）
+- `scripts/check_file_sizes.py`：Shared 720→760 + primitives 150
+
+### Notes
+- ⚠️ **R-PA-PB-V1 视觉延续铁律此处有意松绑（资深 2026-06-17 ack 记档）**：success/warn/successSoft 微调使 18 屏语义色轻微变色 = **UI v2 sanctioned 视觉演进，非破铁律**。18 屏 0 **代码** diff 自动换皮（R-156 strangler），但**视觉非 0 漂移**。后续屏复刻不得拿「0 视觉漂移」当矛盾。
+- **R-UI2-1~7 立约**：25 token 名 byte-equal / 18 屏 0 代码 diff / additive only（旧 export 全留）/ Btn/Tag 接 T + 模块引 TOKENS_V2 / Shell 13 props(R-192)+App+utils 0 改 / check_file_sizes / R-PA-8
+- **0 后端 0 业务屏**（纯 Foundation；唯一代码改动 = version 串三同步 + Shared/primitives 设计层）
+- 本机 python 坏（libexpat）→ R-72 smoke 走 CI；live UI（18 屏 success/warn 新色 + Btn/Tag 后续屏渲染）部署后 knot.0p.oh
+- **UI v2 系列 roadmap**：v0.6.4.0 Foundation刀 → v0.6.4.1+ 逐屏复刻（~18-21 屏，镜像 v0.5.7~v0.5.21 1屏1PATCH）→ 收官后 v0.7.0 语义层
+
+详见 [docs/plans/v0.6.4.0-ui-v2-foundation.md](docs/plans/v0.6.4.0-ui-v2-foundation.md)
+
+---
+
+## [Released] - v0.6.3.2 — C5 AdminAudit.jsx 子组件拆分（Phase B 段 7 · 纯重构）
 
 > **Loop Protocol v3 第 41 次施行 — 全 v3 三阶段**（资深拍板纯重构不走简化协议）
 > **先例**：v0.6.0.2 ResultBlock.jsx 449→279 + 6 子组件拆分模板
