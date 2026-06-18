@@ -39,9 +39,6 @@ export function AdminMetricsScreen({ T, user, onToggleTheme, onNavigate, onLogou
   const insetBg = `color-mix(in oklch, ${T.accent} 8%, transparent)`;
   const insetBorder = `color-mix(in oklch, ${T.accent} 25%, transparent)`;
 
-  // R-481 borderLeft 3px 25% 第四处闭环（与 SavedReports / AdminBudgets / AdminRecovery 字面一致）
-  const rulesBorderLeft = `3px solid ${insetBorder}`;
-
   const rules = [
     { tag: 'success', body: '一次成功率 = presenter 输出 & recovery_attempt=0 的消息数 / 所有 sql_planner 消息（一次跑通无需重试）' },
     { tag: 'clarify', body: '澄清率 = clarifier 终态消息数 / 总消息数（高于 20% 说明用户问题模糊或 prompt 调优空间）' },
@@ -94,10 +91,11 @@ export function AdminMetricsScreen({ T, user, onToggleTheme, onNavigate, onLogou
           <div style={{ padding: 40, color: T.muted, textAlign: 'center' }}>尚无数据</div>
         )}
 
-        {/* 指标定义说明 — brandSoft inset + borderLeft 3px 25% */}
+        {/* 指标定义说明 — brandSoft inset 1px 全框（对齐 demo admin-metrics.jsx:67；无左 accent）
+            v0.6.4.12：删 3px borderLeft（误挂 R-481「第四处」的非 demo drift — demo metrics 框仅 1px brandSoftBorder） */}
         <div style={{
           background: insetBg, border: `1px solid ${insetBorder}`,
-          borderLeft: rulesBorderLeft, borderRadius: 8,
+          borderRadius: 8,
           padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>

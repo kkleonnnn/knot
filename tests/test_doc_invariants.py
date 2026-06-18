@@ -45,28 +45,30 @@ def test_shell_sidebar_renders_app_version():
     assert not re.search(r">v\d+\.\d+\.\d+", src), "Shell.jsx 不得含硬编 version 字面（>vN.N.N）"
 
 
-# ─── KnotLogo 精确文件集（R-199.5 更新值 = 5）────────────────────────────
+# ─── KnotLogo 渲染集（精确 4 渲染；Shared 定义归 R-185）──────────────────
 
 def test_knotlogo_file_set():
-    """KnotLogo 精确命中 5 文件：Shared / Shell / Login / Enroll / ForceChangePassword.
+    """`<KnotLogo` JSX 渲染精确命中 4 文件：Shell / Login / Enroll / ForceChangePassword.
 
-    R-199.5（v0.6.4.2 守护者裁定 3→5：Enroll + ForceChangePassword v0.6.2.0 auth 屏采用）。
-    第 6 文件混入（如顺手在新屏用 KnotLogo）/ KnotLogo 蒸发 → 红。
+    v0.6.4.12 收紧：子串 `"KnotLogo"` → `"<KnotLogo"`（仅渲染引用计入）。
+    Shared.jsx 仅 `export function KnotLogo` 定义（0 渲染），由 R-185
+    （test_login_version_sync）守护 → 收紧不丢守护，消注释/字符串 false-red。
+    R-199.5：KnotLogo 共 5 文件 = 4 渲染（本 guard）+ 1 Shared 定义（R-185）。
+    第 5 渲染文件混入（如顺手在新屏用）/ 任一渲染蒸发 → 红。
     """
     root = Path("frontend/src")
     hits = sorted(
         p.relative_to(root).as_posix()
         for p in root.rglob("*.jsx")
-        if "KnotLogo" in p.read_text(encoding="utf-8")
+        if "<KnotLogo" in p.read_text(encoding="utf-8")
     )
     expected = sorted([
-        "Shared.jsx",
         "Shell.jsx",
         "screens/Login.jsx",
         "screens/Enroll.jsx",
         "screens/ForceChangePassword.jsx",
     ])
-    assert hits == expected, f"KnotLogo 文件集漂移（R-199.5=5）：实际 {hits} ≠ 预期 {expected}"
+    assert hits == expected, f"KnotLogo 渲染集漂移（R-199.5 渲染=4）：实际 {hits} ≠ 预期 {expected}"
 
 
 # ─── CHANGELOG 顶部 version 同步（漏条目 / stale → 红）────────────────────
@@ -81,3 +83,17 @@ def test_changelog_top_version_synced_with_main():
     assert top, "CHANGELOG 无 `## [` 条目"
     expected = f"v{_main_version()}"
     assert expected in top, f"CHANGELOG 顶部条目不含 {expected!r}（版本 stale / 漏条目）；实际：{top!r}"
+
+
+# ─── CHANGELOG 单一 [Unreleased]（历史漏 demote → stale 堆积 → 红）──────────
+
+def test_changelog_single_unreleased():
+    """CHANGELOG 恰有 1 个 `## [Unreleased]`（仅当前在飞 PATCH）。
+
+    元教训 #5：约定 = 在飞 `[Unreleased] - vX`、已发 demote `[Released] - vX`；
+    历史漏 demote → stale [Unreleased] 堆积（v0.6.4.12 实查 41 条全史 relabel）。
+    count==1 防再 drift：每 PATCH 须 demote 上一 top + 新 top 唯一。
+    """
+    text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+    n = len(re.findall(r"^## \[Unreleased\]", text, flags=re.MULTILINE))
+    assert n == 1, f"CHANGELOG `## [Unreleased]` 应恰 1 个（当前在飞）；实际 {n}（历史漏 demote → stale 堆积）"
