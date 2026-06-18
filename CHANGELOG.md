@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.7 — UI v2 favorites（SavedReports card radius 对齐）· 用户侧屏收尾
+## [Unreleased] - v0.6.4.8 — UI v2 admin 顶层屏批（radius 归一化）· admin 批 1/2
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
+> **设计源**：demo budget/recovery/admin-metrics/admin-errors/admin-history.jsx
+> **双向实证（R-137）**：资深拍板「合批 2 PATCH 归一化」+「先 AdminAudit 摸底」→ 摸底发现 admin 顶层屏群几乎已全 v2（v0.5.17-19/v0.6.1.0 复刻时 radii 已合 v2）；守护者 **adversarial 第 4 次最强一次** — 亲读 demo artboard 独立确认**反直觉 noop 是对的**（AdminErrors stat 卡=10 demo 实锤），抵抗「盲归一化 stat→12」陷阱
+
+### Changed
+- **`AdminQueryHistory.jsx` L105 table card** `borderRadius: 10 → 12`（唯一源码 delta；match demo admin-history L56=12）
+
+### Notes
+- **⭐ adversarial demo 交叉核对（1 delta + 4 noop）** — admin 顶层屏群逐屏对自身 artboard：
+  - **AdminBudgets / AdminRecovery**：cards 12（match demo 12）→ noop
+  - **AdminMetrics**：KpiCard 12（match demo）+ rules note 8（brandSoft inset，stays）→ noop
+  - **AdminErrors**：KPI 10 + tables 12（**demo errors L45=10 实锤确认 stat 卡=10 正确，非混杂 bug**）→ noop
+  - **AdminQueryHistory**：table card 10→12（唯一 delta）
+- **⭐ 命门澄清**：`statCardStyle=10` vs `KpiCard=12` **非 bug** —— demo errors/audit 用 stat-card 10（密集小卡）、metrics/recovery/budget 用 12（大卡/内容卡），各屏按自身 artboard 正确，**无需统一**（抵抗盲归一化陷阱）
+- **R-UI2-AT-1~9 立约**：5 屏 export+props byte-equal → App.jsx 0 diff（4 屏 literally 0 diff，QueryHistory 仅 1 radius 行）/ **thead T.bg 灰底铁律 v0.5.38 不动**（守护者补强；严禁照搬 demo bgInset）/ **brandSoft R-372 inset（rules note/filter strip 8）不动** / hex 0 / 全业务 byte-equal
+- **修正版本同步模型第 6 次施行**：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181**）→ 0.6.4.8 + Shell L43 条件式不动（stays v0.6.4.2）
+- **合批策略验证**：顶层屏批近 noop（4 noop + 1 delta）→ 省 4 个 near-noop 独立 PATCH 收官开销；**批 2 admin tab 群（v0.6.4.9）才是 delta 主场**（tab_access 5×10 等）
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（5 admin 顶层屏：QueryHistory table 12 + 4 屏视觉不变；Errors stat 卡 10 密集 vs metrics/recovery KPI 12 大卡有意分层）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：用户侧 7 屏全收尾 + **admin 顶层屏批（8）** → 续 admin tab 群（v0.6.4.9）
+
+详见 [docs/plans/v0.6.4.8-admin-top.md](docs/plans/v0.6.4.8-admin-top.md)
+
+---
+
+## [Released] - v0.6.4.7 — UI v2 favorites（SavedReports card radius 对齐）· 用户侧屏收尾
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3 = **Accept 无修订，最干净一次**）；守护者续任 v0.5
 > **设计源**：`knot_demo_ui/v0.6/artboards/favorites.jsx`（144 行）

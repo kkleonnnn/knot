@@ -102,7 +102,7 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
         ) : data.items.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: T.muted }}>暂无数据</div>
         ) : (
-          <div style={{ background: T.content, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: T.content, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{
               display: 'grid', gridTemplateColumns: gridCols, gap: 0,
               padding: '10px 14px', borderBottom: `1px solid ${T.border}`,

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.7 · UI v2 逐屏复刻第 7 屏 · favorites（SavedReports card radius 对齐）· **用户侧屏收尾**：结果 table card radius 10→12 + warning/error banner 8→10；thead T.bg 灰底保留（v0.5.38）· 原始问题 quote brandSoft 8% inset R-372 字面不动（有意偏离 demo bgInset）· TopBar 按钮 placement 不动（OOS）· SavedReportsScreen 5 props byte-equal（App.jsx 0 diff）· 后续 v0.6.4.x 续复刻 ~11 屏（admin 屏群）；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.8 · UI v2 admin 顶层屏批（radius 归一化，admin 批 1/2）· **demo 交叉核对 = 4 noop + 1 delta**：唯一改动 AdminQueryHistory table card 10→12（match demo）；Budgets/Recovery/Metrics/Errors 各按自身 demo 已正确（stat 卡 errors-10 / KPI metrics-12 非 bug）· thead T.bg + brandSoft R-372 inset 不动 · 5 屏 props byte-equal（App.jsx 0 diff）· AdminAudit noop 跳过 · 批 2 = admin tab 群（v0.6.4.9）；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
