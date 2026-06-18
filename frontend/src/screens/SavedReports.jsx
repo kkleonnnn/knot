@@ -265,7 +265,7 @@ function DetailView({ T, report, onChanged }) {
 
         {/* warning banner — R-360 hex 清理 → T.warn + color-mix；R-362 ⚠️ 保留 */}
         {warning && (
-          <div style={{ padding: '10px 14px', borderRadius: 8,
+          <div style={{ padding: '10px 14px', borderRadius: 10,
                         background: `color-mix(in oklch, ${T.warn} 13%, transparent)`,
                         border: `1px solid ${T.warn}`, color: T.warn, fontSize: 12.5 }}>
             ⚠️ {warning}
@@ -277,7 +277,7 @@ function DetailView({ T, report, onChanged }) {
           </div>
         )}
         {runResult?.error && (
-          <div style={{ padding: '10px 14px', borderRadius: 8, background: T.accentSoft,
+          <div style={{ padding: '10px 14px', borderRadius: 10, background: T.accentSoft,
                         border: `1px solid color-mix(in oklch, ${T.accent} 19%, transparent)`, color: T.accent, fontSize: 12.5 }}>
             ❌ {runResult.error}
           </div>
@@ -292,7 +292,7 @@ function DetailView({ T, report, onChanged }) {
         )}
 
         {rowsSource && rowsSource.length > 0 ? (
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
               <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rowsSource.length} 行 · {cols.length} 列</span>
               {INTENT_EMOJI[report.intent] && (

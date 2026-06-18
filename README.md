@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.6 · UI v2 逐屏复刻第 6 屏 · chat-results（ResultBlock card radius 对齐）· **chat flow 6 屏收官**：结果卡 radius 10→12（MetricCard ×2 + TableContainer chart+table）+ banner 8→10（Budget/Error）；charts ECharts from Shared 0 改 · detail_table thead T.bg 灰底保留（v0.5.38）· metric delta% 不引入 · ResultBlock 8 props + 7 子组件契约 byte-equal（Conversation.jsx 0 diff）· 后续 v0.6.4.x 续复刻 ~12 屏（favorites / admin 屏）；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.7 · UI v2 逐屏复刻第 7 屏 · favorites（SavedReports card radius 对齐）· **用户侧屏收尾**：结果 table card radius 10→12 + warning/error banner 8→10；thead T.bg 灰底保留（v0.5.38）· 原始问题 quote brandSoft 8% inset R-372 字面不动（有意偏离 demo bgInset）· TopBar 按钮 placement 不动（OOS）· SavedReportsScreen 5 props byte-equal（App.jsx 0 diff）· 后续 v0.6.4.x 续复刻 ~11 屏（admin 屏群）；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
