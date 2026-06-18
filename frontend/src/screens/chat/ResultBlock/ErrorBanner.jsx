@@ -29,7 +29,7 @@ export function ErrorBanner({ T, error, error_kind, user_message, is_retryable, 
   const errMeta = getErrorKindMeta(T, error_kind);
   return (
     <div style={{
-      padding: '10px 14px', borderRadius: 8,
+      padding: '10px 14px', borderRadius: 10,
       background: errMeta.bg, border: `1px solid ${errMeta.color}`,
       color: errMeta.color, fontSize: 12.5,
       display: 'flex', alignItems: 'flex-start', gap: 10,

@@ -27,7 +27,7 @@ function _SingleMetric({ T, rows, cols, numericCols }) {
   const valueCol = numericCols[0] || cols[0];
   const labelCol = cols.find(c => c !== valueCol);
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '20px 22px' }}>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
       {labelCol && r[labelCol] !== undefined && (
         <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 6, letterSpacing: '0.04em',
                       textTransform: 'uppercase' }}>
@@ -49,7 +49,7 @@ function _MultiStatGrid({ T, rows, cols, numericCols }) {
   const r = rows[0];
   const labelCol = cols.find(c => !numericCols.includes(c));  // 非数值列作行级 label（如有）
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '20px 22px' }}>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
       {labelCol && r[labelCol] !== undefined && (
         <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 14, letterSpacing: '0.04em',
                       textTransform: 'uppercase' }}>
