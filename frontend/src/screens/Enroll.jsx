@@ -11,7 +11,7 @@
  * R-227.5.1 装饰豁免：步骤标题 ENROLL / VERIFY / BACKUP / CONFIRM mono uppercase
  */
 import { useEffect, useState } from 'react';
-import { I, KnotLogo } from '../Shared.jsx';
+import { I, KnotLogo, TOKENS_V2 } from '../Shared.jsx';
 import { Spinner, toast } from '../utils.jsx';
 import { api } from '../api.js';
 
@@ -122,7 +122,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             </div>
             <button onClick={() => setStep(2)} disabled={!qrDataurl} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
-              background: qrDataurl ? T.accent : T.muted, color: '#fff',
+              background: qrDataurl ? T.accent : T.muted, color: T.sendFg,
               fontSize: 14, fontWeight: 600, cursor: qrDataurl ? 'pointer' : 'not-allowed',
             }}>下一步 — 输入动态码</button>
             <button onClick={onLogout} style={{
@@ -149,7 +149,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             {error && <ErrorBanner T={T} msg={error}/>}
             <button type="submit" disabled={loading || code.length < 6} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
-              background: (loading || code.length < 6) ? T.muted : T.accent, color: '#fff',
+              background: (loading || code.length < 6) ? T.muted : T.accent, color: T.sendFg,
               fontSize: 14, fontWeight: 600, cursor: (loading || code.length < 6) ? 'not-allowed' : 'pointer',
             }}>{loading ? <><Spinner size={14} color={T.sendFg}/> 验证中…</> : '验证 + 继续'}</button>
             <button type="button" onClick={() => setStep(1)} style={{
@@ -163,9 +163,9 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             <div style={{ fontSize: 22, fontWeight: 600, color: T.text }}>保存 Recovery Codes</div>
             <div style={{
               fontSize: 13, padding: '10px 14px', borderRadius: 8,
-              background: 'color-mix(in oklch, oklch(72% 0.15 85) 13%, transparent)',
-              border: '1px solid color-mix(in oklch, oklch(72% 0.15 85) 25%, transparent)',
-              color: 'oklch(72% 0.15 85)',
+              background: `color-mix(in oklch, ${T.warn} 13%, transparent)`,
+              border: `1px solid color-mix(in oklch, ${T.warn} 25%, transparent)`,
+              color: T.warn,
             }}>⚠️ 这是手机丢失时唯一的恢复方式 — 务必下载保存</div>
             <div style={{
               background: T.content, border: `1px solid ${T.border}`, borderRadius: 10,
@@ -178,13 +178,13 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             </div>
             <button onClick={downloadRecoveryCodes} style={{
               padding: '13px 14px', border: `1px solid ${T.accent}`, borderRadius: 8,
-              background: downloaded ? 'color-mix(in oklch, T.accent 12%, transparent)' : T.content,
+              background: downloaded ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : T.content,
               color: T.accent, fontSize: 14, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>{downloaded ? <>✓ 已下载（点击重新下载）</> : <>下载 recovery codes 文件</>}</button>
             <button onClick={() => setStep(4)} disabled={!downloaded} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
-              background: downloaded ? T.accent : T.muted, color: '#fff',
+              background: downloaded ? T.accent : T.muted, color: T.sendFg,
               fontSize: 14, fontWeight: 600, cursor: downloaded ? 'pointer' : 'not-allowed',
             }}>下一步</button>
           </div>
@@ -199,7 +199,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             </div>
             <button onClick={confirm} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
-              background: T.accent, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              background: T.accent, color: T.sendFg, fontSize: 14, fontWeight: 600, cursor: 'pointer',
             }}>完成 — 进入 KNOT</button>
             <button onClick={() => setStep(3)} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none',
@@ -216,9 +216,9 @@ function ErrorBanner({ T: _T, msg }) {
   return (
     <div style={{
       fontSize: 12.5, padding: '8px 12px', borderRadius: 6,
-      color: 'oklch(62% 0.22 27)',
-      background: 'color-mix(in oklch, oklch(62% 0.22 27) 12%, transparent)',
-      border: '1px solid color-mix(in oklch, oklch(62% 0.22 27) 25%, transparent)',
+      color: TOKENS_V2.err,
+      background: `color-mix(in oklch, ${TOKENS_V2.err} 12%, transparent)`,
+      border: `1px solid color-mix(in oklch, ${TOKENS_V2.err} 25%, transparent)`,
     }}>{msg}</div>
   );
 }

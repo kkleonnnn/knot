@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.9 — UI v2 admin tab 群批（radius 归一化）· admin 批 2/2 · ⭐ admin 屏群批收官
+## [Unreleased] - v0.6.4.10 — UI v2 auth 屏收尾（Enroll 色/token 对齐 + ForceChangePassword noop）· ⭐ UI v2 全屏收尾
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
+> **设计源**：demo auth.jsx（ForcePasswordPage + EnrollPage）
+> **双向实证（R-137）**：守护者亲扫 2 屏 12 硬编色站点完整枚举无漏 + 独立核实映射非对称依据（buildTheme 有 warn 无 err）+ 实锤 L181 是会静默失效的 CSS 插值 bug（非视觉 delta）→ adversarial 价值最高一次（视觉对齐批意外清偿真功能缺陷）
+
+### Changed / Fixed
+- **`Enroll.jsx` 色/token 对齐 v2 auth-family**：
+  - 4× 按钮 `color:'#fff'` → `T.sendFg`（R-484 hex 偿还；与 ForceChangePassword/Login 一致）
+  - ErrorBanner 硬编 `oklch(62% 0.22 27)` → `TOKENS_V2.err`（同 Login auth-family error）
+  - warn banner 硬编 `oklch(72% 0.15 85)` → `T.warn`
+  - **L181 `'color-mix(in oklch, T.accent 12%, transparent)'`（单引号串内 `T.accent` 无 `${}` = 失效 CSS）→ backtick `${T.accent}` 插值修复**（recovery codes 下载按钮 downloaded 态背景本来静默不生效，本批顺带清偿）
+  - `import` 追加 `TOKENS_V2`（additive）
+
+### Notes
+- **⭐ 完整枚举（12 硬编色站点，守护者亲扫无漏）**：4× #fff + warn 3 + err 3 + L181 + QR #fff（豁免）→ 全覆盖
+- **映射非对称有据**：`buildTheme` **有** `warn`（→T.warn）**无** error token（→`TOKENS_V2.err`，且 Login auth-family 先例）；原则「buildTheme 有则用 T.x，无则 TOKENS_V2.x」
+- **R-UI2-AU-1~10 立约**：EnrollScreen 5 props + ForceChangePassword 4 props byte-equal → **App.jsx 0 diff** / **ForceChangePassword literally 0 diff（noop — 已 v2：card 12 + T.warn + T.sendFg + brandSoft inset + hex 0）** / **QR bg #fff 功能豁免**（扫描浅底 theme-independent，demo 同）/ **不做 demo 外层 AuthCard wrap**（结构 OOS）/ bg/card radius/布局不动 / KnotLogo 5 文件 sustained
+- **修正版本同步模型第 8 次施行**：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181** 穷举 L244）→ 0.6.4.10 + Shell L43 条件式不动（stays v0.6.4.2）
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（Enroll TOTP 4-step：QR 浅底 + 按钮 sendFg + warn/error 新色 + recovery 下载按钮 downloaded 态背景现生效；ForceChangePassword 不变）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **⭐ UI v2 全屏收尾**：用户侧 7（login→shell→home→composer→thinking→results→favorites）+ admin 10（顶层 5 + tab 5）+ **auth 2（Enroll + ForceChangePassword）= 19 屏/文件全 v2**
+
+详见 [docs/plans/v0.6.4.10-auth.md](docs/plans/v0.6.4.10-auth.md)
+
+---
+
+## [Released] - v0.6.4.9 — UI v2 admin tab 群批（radius 归一化）· admin 批 2/2 · ⭐ admin 屏群批收官
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
 > **设计源**：demo datasources/api-model/knowledge/fewshot/prompts/catalog/system.jsx

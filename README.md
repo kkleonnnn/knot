@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.9 · UI v2 admin tab 群批（radius 归一化，admin 批 2/2 · **admin 屏群批收官**）· **demo 交叉核对 = 4 文件 noop + 1 delta**：唯一改动 tab_access Users table card 10→12（与同屏 Sources table 12 归一）；stat 卡 10（tab_access/knowledge）match demo stat-10 正确 · content 卡已 12 · inset note/控件不动 · 5 tab props byte-equal（Admin.jsx 0 diff）· thead T.bg + brandSoft R-372 不动 · 整 admin 屏群（顶层 5 + tabs 5）仅 2 处 radius 修；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.10 · UI v2 auth 屏收尾（Enroll 色/token 对齐 + ForceChangePassword noop）· **⭐ UI v2 全屏收尾（19 屏/文件）**：Enroll 4× 按钮 #fff→T.sendFg + ErrorBanner 硬编 oklch→TOKENS_V2.err（同 Login）+ warn 硬编 oklch→T.warn + L181 插值 bug 修（${T.accent}）· QR bg #fff 功能豁免 · ForceChangePassword 0 diff（已 v2）· EnrollScreen/ForceChangePassword props byte-equal（App.jsx 0 diff）· 用户侧 7 + admin 10 + auth 2 全 v2；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
