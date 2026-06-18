@@ -30,6 +30,9 @@ def _master_key_for_tests(monkeypatch):
     （v0.5.0 双源兼容已撤回；test_env_dual_source.py 已删）。
     """
     monkeypatch.setenv("KNOT_MASTER_KEY", TEST_MASTER_KEY)
+    # v0.6.5.0 R-2FA-4：默认 off 隔离全套（默认翻 on 后，未 enroll 的 admin fixture 会在
+    # 所有受保护端点吃 403）。验「真 default-on」的守护测试用 monkeypatch.delenv 揭真默认。
+    monkeypatch.setenv("KNOT_TOTP_REQUIRED", "false")
     # 清 lru_cache（防上一测试持有了不同 key 的 adapter）
     try:
         from knot.core.crypto.fernet import get_crypto_adapter

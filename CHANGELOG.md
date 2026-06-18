@@ -5,7 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.12 — 内测视觉修复 4 处 + doc/CI 微收尾 2 项（合并 PATCH）
+## [Unreleased] - v0.6.5.0 — 强制 2FA（admin 不豁免 + 默认 on）· 独立安全 PATCH
+
+> **Loop Protocol v3 — 资深显式授权跳 Stage 2**（实码 + 新红线不符 R-LP-v3-EX-1 形式条件，记录在案 → 守护者 Stage 3 = 唯一对抗闸门）；守护者续任 v0.5。性质 = 安全 + 治理双重（动 R-PB-B1-3 + 提前 R-PA-8 公测门）。
+> **触发**：资深 2026-06-19 验收 2FA 时裁定「所有登录一律强制 2FA，包括 admin」+「默认 on」+「保留应急后门」。
+
+### Security
+- **admin 不再豁免**：删 v0.6.2.0 R-PB-B1-3「0 admin enrolled → bootstrap 自动 bypass」优先级 2（该 bootstrap + 无自愿 enroll UI ⟹ 唯一 admin 永远无法被 enroll，2FA 形同虚设）。`_admin_bypass_active()` 简化为仅 `KNOT_TOTP_BYPASS_ADMIN` 应急后门（保 admin-only role 检查，非 admin 由 admin reset 救援）。
+- **`KNOT_TOTP_REQUIRED` 默认 on**：`getenv(...,"")` → `getenv(...,"true")`；显式 `=false` opt-out（eval/demo）。
+- **应急后门保留** `KNOT_TOTP_BYPASS_ADMIN=true`（防唯一 admin 弄丢 authenticator + 恢复码永久锁死 — 缓解三层：后门 + 10 恢复码 + `/api/totp/*` 白名单 enroll 可达）。
+
+### Changed
+- **前端 post-login enroll 重定向**：App.jsx 抽 `isEnrollErr` 共享 helper，覆盖 mount me() + 3 个 prefetch catch（conversations / db-status / datasources）→ setNeedsEnroll；修「login 直接返 token、prefetch 403 被静默吞、admin 登录后看到静默失败而非 Enroll 屏」缺口。
+- **deps.py 全部 stale bootstrap 注释清理**（非只 enforcement 注释）。
+
+### Tests / CI
+- **conftest autouse `KNOT_TOTP_REQUIRED=false`** 隔离全套（默认翻 on 后未 enroll admin fixture 会全端点 403）；强制场景守护测试用 **`monkeypatch.delenv` 揭真 default**（守护者 C3 — 防「测显式 true 路径却漏验 default 翻转」回归洞）。
+- **`tests/api/test_totp_mandatory.py` [NEW]** 4 守护：default-on 强制 / admin 不 bootstrap 豁免 / 应急后门 / 已 enroll 通过 + opt-out。
+
+### Governance / Docs
+- **提前 R-PA-8 公测门**（资深 2026-06-19 拍板 — 原计划「Day 28+ 三方会议后才 on」提前为默认 on）。README / ADMIN_GUIDE / DEPLOY §5 首登 forced-enroll + opt-out `KNOT_TOTP_REQUIRED=false` 同步（防 doc-vs-reality drift）。
+- 版本 4 源点 0.6.4.12 → 0.6.5.0；routes 77 不变；CHANGELOG count==1（demote v0.6.4.12）。
+
+### Notes
+- **OSS / demo 首登摩擦**（守护者补）：默认 on ⟹ `docker run` 评估者首登被强制 enroll（需 authenticator）→ docs 明示 `KNOT_TOTP_REQUIRED=false` 关闭。资深已知悉选默认 on（安全优先）。
+- **协议偏离记录**：跳 Stage 2 不符 R-LP-v3-EX-1（要 0 业务码 + 0 新红线）；资深显式授权；守护者 Stage 3 CONDITIONAL APPROVED + 5 硬条件整改坐实（plan §8）。
+
+详见 [docs/plans/v0.6.5.0-2fa-mandatory.md](docs/plans/v0.6.5.0-2fa-mandatory.md)
+
+---
+
+## [Released] - v0.6.4.12 — 内测视觉修复 4 处 + doc/CI 微收尾 2 项（合并 PATCH）
 
 > **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（守护者亲读 3 项：knotlogo 收紧 / count CI / R-481 退订论证）；守护者续任 v0.5。性质 = 4 处前端视觉（0 业务/后端）+ 2 项 doc/CI chore。
 > **触发**：资深 2026-06-19 :8000 实测反馈（#2 登录无 2FA = 设计如此非 bug，`KNOT_TOTP_REQUIRED` 内测 off）+ 同屏字体一致性 sweep（全 19 屏）+ task #44 残线。

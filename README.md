@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.12 · 内测视觉修复 4 处 + doc/CI 微收尾 2 项（合并 PATCH）：① Login 页脚版本号→mono（与 knot.local 统一）② Shell logo 16→20 ③ AdminMetrics 删非-demo borderLeft（对齐 demo admin-metrics.jsx）④ 查询历史 user_id 框对齐 2 select · ⑥ knotlogo guard 收紧（渲染集 5→4，Shared 定义归 R-185）⑦ CHANGELOG 全史 demote 41→[Released] + count==1 CI · 4 源点版本同步（Login/Shell 经 APP_VERSION 0 手改 — 验 v0.6.4.11 新模型）· 0 业务/后端 · App.jsx 0 diff；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.0 · 强制 2FA（admin 不豁免 + 默认 on）· 独立安全 PATCH：删 v0.6.2.0 admin bootstrap bypass（admin 与普通用户**一律强制 enroll**）+ `KNOT_TOTP_REQUIRED` **默认 on**（`=false` opt-out eval/demo）+ 保留 `KNOT_TOTP_BYPASS_ADMIN` 应急后门（防唯一 admin 锁死）+ 前端 post-login enroll 重定向 + conftest 测试套隔离 + 4 守护测试 · **提前 R-PA-8 公测门**（资深 2026-06-19 拍板）· 4 源点版本同步（Login/Shell 经 APP_VERSION 0 手改）；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
@@ -136,6 +136,7 @@ docker logs knot | tail -10
 
 1. `http://<server-ip>:8000` → Login 屏出现
 2. 默认账号 **`admin` / `admin123`** 登录 — ⚠️ **首次登录立即改密码**（个人设置 / admin 后台用户管理）
+   - 🛡️ **v0.6.5.0 起 2FA 默认强制**：改密后即被引导**绑定 TOTP**（Authenticator 扫码 + 存恢复码；含 admin，无豁免）。快速评估可设 `KNOT_TOTP_REQUIRED=false` 关闭（详 [DEPLOY](DEPLOY.md) §5）。
 3. 「API & 模型」tab：填 LLM provider key（与 .env 一致或独立）+ 给 3 个 agent 选模型
 4. 「数据源」tab：配置 1 个业务库（Doris / MySQL / ClickHouse / SQLite local 测试用）
 5. 回 Chat 屏提问 — 看到 SQL + 图表 + 洞察

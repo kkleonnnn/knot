@@ -14,6 +14,10 @@ import { AdminErrorsScreen } from './screens/AdminErrors.jsx';
 import { AdminMetricsScreen } from './screens/AdminMetrics.jsx';
 import { AdminQueryHistoryScreen } from './screens/AdminQueryHistory.jsx';
 
+// v0.6.5.0 R-2FA-5：403 totp_enroll_required 共享判定 — 覆盖 mount me() + 所有 post-login
+// prefetch catch（强制 2FA 默认 on 后，未 enroll 用户任一受保护端点都会 403 → 须跳 Enroll，非静默吞）
+const isEnrollErr = (err) => err && err.status === 403 && err.detail === 'totp_enroll_required';
+
 export default function App() {
   const [T, toggleTheme] = useTheme();
   const [user, setUser] = usePersist('cb_user', null);
@@ -35,9 +39,8 @@ export default function App() {
       setLoading(false);
     }).catch((err) => {
       // v0.6.2.0 R-PB-B1-4：403 totp_enroll_required → 跳 Enroll 屏（不清 token）
-      if (err && err.status === 403 && err.detail === 'totp_enroll_required') {
-        // me 端点带 detail=totp_enroll_required 时需要从 token 取 user 基本信息
-        // 简化处理：仅 set needsEnroll + 保留 token；Enroll 完成后会重新 me()
+      if (isEnrollErr(err)) {
+        // 仅 set needsEnroll + 保留 token；Enroll 完成后会重新 me()
         setNeedsEnroll(true);
         setLoading(false);
         return;
@@ -54,13 +57,16 @@ export default function App() {
   /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!user) { setConvs([]); setDbOk(null); setSourceCount(null); return; }
-    api.get('/api/conversations').then(setConvs).catch(() => { /* prefetch 失败不阻塞 UI */ });
-    api.get('/api/db/status').then(d => setDbOk(d.connected)).catch(() => setDbOk(false));
+    // v0.6.5.0 R-2FA-5：post-login 路径也须跳 Enroll（login 直接返 token 不走 mount me()；
+    // 强制 2FA 下未 enroll 用户 prefetch 会 403 → 共享 isEnrollErr 覆盖全部 catch，非静默吞）
+    const onErr = (err) => { if (isEnrollErr(err)) setNeedsEnroll(true); };
+    api.get('/api/conversations').then(setConvs).catch(onErr);
+    api.get('/api/db/status').then(d => setDbOk(d.connected)).catch((e) => { onErr(e); setDbOk(false); });
     if (user.role === 'admin') {
       // v0.6.1.4 fix: endpoint is /api/admin/datasources not /api/admin/sources
       api.get('/api/admin/datasources')
          .then(ds => setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1))
-         .catch(() => { /* admin datasources 失败不阻塞 UI */ });
+         .catch(onErr);
     }
   }, [user?.id]);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
