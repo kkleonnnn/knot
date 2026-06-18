@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.0 — 强制 2FA（admin 不豁免 + 默认 on）· 独立安全 PATCH
+## [Unreleased] - v0.6.5.1 — 强制 2FA review 跟进（落 #153 独立复审 5 建议）
+
+> **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（2 test-logic 新增 + main.py 启动微改 — 守护者亲读）；守护者续任 v0.5。性质 = 测试补强 + ops 告警 + docs；**gate 决策逻辑 0 改**。
+> **触发**：`/review` PR #153 独立对抗性复审（补缺失的 Stage 2）产出 5 建议；资深「按你的建议来」。
+
+### Security / Tests
+- **🔴 后门不泄漏非 admin 反向测试** `test_R_2FA_3_backdoor_does_not_leak_to_nonadmin`：非 admin + `KNOT_TOTP_BYPASS_ADMIN=true` → 仍 403 totp_enroll_required —— C1（保 admin-only role 检查）回归守护；#153 复审最重要缺口。
+- **🟢 非 admin 强制 enroll 测试** `test_R_2FA_1_nonadmin_forced_enroll`。
+- 守护者 Stage 3 C1：两测试清 must_change_password（防御性 — admin 建用户默认 0，schema DEFAULT 0）+ **断言 `detail=="totp_enroll_required"`**（非泛型 403 — 改密 gate 先于 TOTP gate）。
+
+### Changed
+- **🟡 main.py 启动期 2FA 状态 warn**（一次性，非 per-request）：`KNOT_TOTP_REQUIRED≠true` / `KNOT_TOTP_BYPASS_ADMIN=true` → logger.warning。治 #153 Focus-5 fail-open 拼写 footgun（如 `=ture` 静默关 2FA → 启动日志立即暴露）。
+
+### Docs
+- **🟡 rollout 分阶段提示**（DEPLOY §5）：升级既有部署到默认-on 前，如不想打断在测未 enroll 用户 → 先 `KNOT_TOTP_REQUIRED=false` 分阶段。
+- **deferred**：CLAUDE.md 路线图施行回顾表实际落后 ~11 PATCH（停在 v0.6.4.1）→ 补 2 行会留空洞；改为单独 routemap 批量 catch-up（task 记账，本 micro 不碰 CLAUDE.md）。
+
+### Notes
+- **gate 决策逻辑 byte-equal**（deps.py `_admin_bypass_active` + enforce gate 0 改）—— 本 PATCH 纯测试 + 告警 + docs。
+- 版本 4 源点 0.6.5.0 → 0.6.5.1（version.js bump → commit 2 rebuild bake；**plan §4「无 build」自纠** — version.js 是前端源点需 bake）；routes 77 不变；CHANGELOG count==1。
+
+详见 [docs/plans/v0.6.5.1-2fa-review-followup.md](docs/plans/v0.6.5.1-2fa-review-followup.md)
+
+---
+
+## [Released] - v0.6.5.0 — 强制 2FA（admin 不豁免 + 默认 on）· 独立安全 PATCH
 
 > **Loop Protocol v3 — 资深显式授权跳 Stage 2**（实码 + 新红线不符 R-LP-v3-EX-1 形式条件，记录在案 → 守护者 Stage 3 = 唯一对抗闸门）；守护者续任 v0.5。性质 = 安全 + 治理双重（动 R-PB-B1-3 + 提前 R-PA-8 公测门）。
 > **触发**：资深 2026-06-19 验收 2FA 时裁定「所有登录一律强制 2FA，包括 admin」+「默认 on」+「保留应急后门」。

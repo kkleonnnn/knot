@@ -32,7 +32,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.5.0")
+app = FastAPI(title="KNOT", version="0.6.5.1")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -83,6 +83,12 @@ def _check_master_key_or_exit():
         assert_master_key_loaded()
         env_name = loaded_env_name() or "KNOT_MASTER_KEY"
         logger.info(f"{env_name} 已加载（Fernet）")
+        # v0.6.5.1 review 跟进（#153 Focus-5）：2FA enforcement 状态启动期一次性可见（默认 on）。
+        # fail-open 拼写（如 KNOT_TOTP_REQUIRED=ture）→ 启动日志立即暴露；非 per-request（避日志洪水）。
+        if os.getenv("KNOT_TOTP_REQUIRED", "true").strip().lower() != "true":
+            logger.warning("⚠️ TOTP enforcement 已禁用（KNOT_TOTP_REQUIRED≠true）— 仅 eval/demo，生产应移除")
+        if os.getenv("KNOT_TOTP_BYPASS_ADMIN", "").strip().lower() == "true":
+            logger.warning("⚠️ admin TOTP 应急后门已启用（KNOT_TOTP_BYPASS_ADMIN=true）— 用完即撤")
     except CryptoConfigError as e:
         bar = "━" * 60
         print(f"\033[1;31m{bar}", file=sys.stderr)
