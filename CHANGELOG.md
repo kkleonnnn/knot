@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.11 — doc-不变量 CI 守护一揽子（task #44）· 前端版本单一真相源
+## [Unreleased] - v0.6.4.12 — 内测视觉修复 4 处 + doc/CI 微收尾 2 项（合并 PATCH）
+
+> **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（守护者亲读 3 项：knotlogo 收紧 / count CI / R-481 退订论证）；守护者续任 v0.5。性质 = 4 处前端视觉（0 业务/后端）+ 2 项 doc/CI chore。
+> **触发**：资深 2026-06-19 :8000 实测反馈（#2 登录无 2FA = 设计如此非 bug，`KNOT_TOTP_REQUIRED` 内测 off）+ 同屏字体一致性 sweep（全 19 屏）+ task #44 残线。
+
+### Changed
+- **① Login 页脚版本号 → mono**（与 knot.local 统一；资深 VRP override — artboard 本是 sans）。
+- **③ Shell sidebar KnotLogo 16 → 20**（资深 VRP override — artboard 本是 16）。
+- **④ AdminMetrics「指标定义」框删 3px borderLeft** → 对齐 demo `admin-metrics.jsx:67`（1px 全框 brandSoftBorder 无左 accent）；3px 为误挂 R-481「第四处」的**非 demo drift**（实查 SavedReports=3px / Budgets=2px / Recovery=2px → 无「3 文件 byte-equal 闭环」可退；**不碰**三者，各自 locked OOS）。
+- **⑤ AdminQueryHistory user_id 框** → 与左侧 2 个 select 同款（width160/height28/radius6/bg content/fontSize12/sans）+ 删 Input import（消尺寸+字体+对齐三处不一致）。
+
+### CI / Docs
+- **⑥ knotlogo guard 收紧**：`test_knotlogo_file_set` 子串 `"KnotLogo"` → `"<KnotLogo"`（渲染集 5→4：Shell/Login/Enroll/ForceChangePassword）；Shared 定义归 R-185（test_login_version_sync）；消注释 false-red。R-199.5 = 5 文件（4 渲染 + 1 Shared 定义）。
+- **⑦ CHANGELOG 全史 demote**：41 个 stale `## [Unreleased]` → `[Released]`（纯 label，正文 byte-equal）+ 新增 `test_changelog_single_unreleased`（count==1 防再 drift — 元教训 #5 闭环）。
+- **4 源点版本同步** 0.6.4.11 → 0.6.4.12（main.py + smoke + README + version.js；Login 页脚 + Shell sidebar 经 APP_VERSION **自动跟随 0 手改** — 验 v0.6.4.11 新模型）。
+
+### Notes
+- **#2 非 bug**：登录无 2FA = `KNOT_TOTP_REQUIRED` env 内测期默认 off（deps.py:150；公测启动前资深 ack 后 export true）。不改码。
+- **预算屏 Hero**（预计花费 sans / 结算日 mono）= demo `budget.jsx` byte-equal（金额 sans/日期 mono 故意）；资深 ack 不动。
+- **奥卡姆**：④ 仅删 drift 不碰锁定决策；⑥ 收紧不丢守护（R-185 兜底）；⑦ label-only 零正文重写。
+
+详见 [docs/plans/v0.6.4.12-ui-fix-and-doc-ci.md](docs/plans/v0.6.4.12-ui-fix-and-doc-ci.md)
+
+---
+
+## [Released] - v0.6.4.11 — doc-不变量 CI 守护一揽子（task #44）· 前端版本单一真相源
 
 > **Loop Protocol v3 — 轻量 v3 + 保 Stage 3 复核测试逻辑**（守护者建议 — CI 自身 false-green/red 风险，R-181 翻车教训）；守护者续任 v0.5。性质 = docs/CI chore + version 单一真相源小重构（0 业务逻辑）。
 > **触发**：资深拍板 task #44（UI v2 收官后清债）；守护者 grounded 缺口清单（8 stale-doc 元教训：doc-不变量无 CI 则静默 drift）
@@ -610,7 +635,7 @@ sql_planner.md 复合 metric 段：同表单 SELECT 多聚合 / 跨表 WITH CTE 
 
 ---
 
-## [Unreleased] - v0.6.2.1 — HTTP 路由稳态收尾（Phase B 完整版段 2）
+## [Released] - v0.6.2.1 — HTTP 路由稳态收尾（Phase B 完整版段 2）
 
 > **Loop Protocol v3 第 33 次施行** — Phase B 完整版 v4 LOCKED §2 段 2（C1+C2+C3）
 > **协议**：完整三阶段（Stage 1 草案 + Stage 2 第三方 4.1/5 + Stage 3 守护者第 18 次草案评 4.5/5 + Stage 4 LOCKED）+ R-PB-GOV-1 工期指导性
@@ -672,7 +697,7 @@ sql_planner.md 复合 metric 段：同表单 SELECT 多聚合 / 跨表 WITH CTE 
 
 ---
 
-## [Unreleased] - v0.6.2.0 — TOTP 2FA 强制 enroll（Phase B 完整版首个业务 PATCH）
+## [Released] - v0.6.2.0 — TOTP 2FA 强制 enroll（Phase B 完整版首个业务 PATCH）
 
 > **Loop Protocol v3 第 32 次施行** — Phase B 完整版 v4 LOCKED §1 段 1 B1
 > **协议**：完整三阶段（Stage 1 草案 + Stage 2 第三方 + Stage 3 守护者 + Stage 4 LOCKED）+ γ3 决策（commit 2/6 强制 active）+ R-PB-GOV-1 工期指导性预估
@@ -802,7 +827,7 @@ OVERRIDE 累计治理 source-of-truth（资深架构师亲自维护，与 PATCH 
 
 ---
 
-## [Unreleased] - v0.6.1.4 (Phase B 二刀) HTTP API Adapter 窄域接入 + first-class 数据源 UI
+## [Released] - v0.6.1.4 (Phase B 二刀) HTTP API Adapter 窄域接入 + first-class 数据源 UI
 
 > **Loop Protocol v3 第 30 次施行** — Phase B 决议 B 修订版第二个正式 PATCH
 > 推动者：撮合 admin 持仓查询业务需求 + 老板 demo 跨源能力展示
@@ -933,7 +958,7 @@ PATCH 施行期内累计 **4 次 OVERRIDE**：
 
 ---
 
-## [Unreleased] - v0.6.1 (Phase B 决议 B 修订版首个正式 PATCH) 窄场景宣告 + 时间语义引擎
+## [Released] - v0.6.1 (Phase B 决议 B 修订版首个正式 PATCH) 窄场景宣告 + 时间语义引擎
 
 > **Loop Protocol v3 第 29 次施行** — Phase B 评估预 LOCKED §6.1 决议 B 修订版 v0.6.1 落点确认
 >
@@ -1014,7 +1039,7 @@ LOCKED 手册：[docs/plans/v0.6.1-narrow-scope-time-resolver.md](docs/plans/v0.
 
 ---
 
-## [Unreleased] - v0.6.0.2 (micro PATCH) ResultBlock 6 子组件拆分 — v0.5.14 R-341 承诺偿还
+## [Released] - v0.6.0.2 (micro PATCH) ResultBlock 6 子组件拆分 — v0.5.14 R-341 承诺偿还
 
 > **Loop Protocol v3 第 28 次施行**（v0.5.22 自审简化协议 sustained — Phase B 评估预 LOCKED 决议 B 修订版 v0.5 守护者 §2 强制前置）
 >
@@ -1073,7 +1098,7 @@ LOCKED 手册：[docs/plans/v0.6.0.2-locked.md](docs/plans/v0.6.0.2-locked.md)
 
 ---
 
-## [Unreleased] - v0.6.0.1 (micro PATCH) 5 in 1 hotfix + 守护者立约归档
+## [Released] - v0.6.0.1 (micro PATCH) 5 in 1 hotfix + 守护者立约归档
 
 > **Loop Protocol v3 第 27 次施行**（v0.5.22 自审简化协议 sustained — 5 in 1 全部内容已在
 > PR #74 守护者 §9 G-4/5/6 explicit 列范围 → Stage 2/3 实质已含）
@@ -1143,7 +1168,7 @@ LOCKED 手册：[docs/plans/v0.6.0.1-locked.md](docs/plans/v0.6.0.1-locked.md)
 
 ---
 
-## [Unreleased] - v0.6.0 (Phase A) KNOT Sanitize + bi_agent 兼容层清算 + Deploy-Ready 内测可启动门
+## [Released] - v0.6.0 (Phase A) KNOT Sanitize + bi_agent 兼容层清算 + Deploy-Ready 内测可启动门
 
 > **Loop Protocol v3 第 26 次完整施行**（Phase A 起手 — 全 v3 三阶段；S-4 LOCKED 严禁简化协议）；
 > **首次跨 MINOR 角色滚动后施行**（v0.5 → v0.6）+ **首次公开承诺撤回**（v0.5.0 R-67/68/74）+
@@ -2383,7 +2408,7 @@ Q2 VRP 局部例外（Shared 无 spark/flow）— inline svg 第 9/10 处 helper
 
 ---
 
-## [Unreleased] - v0.5.25 (UX) Login 视觉优化 — 资深架构师反馈 #1/2/3 偿还
+## [Released] - v0.5.25 (UX) Login 视觉优化 — 资深架构师反馈 #1/2/3 偿还
 
 > 资深架构师 v0.5.x 收官测试反馈 #1/2/3：Login 页面视觉问题。
 
@@ -2405,7 +2430,7 @@ Q2 VRP 局部例外（Shared 无 spark/flow）— inline svg 第 9/10 处 helper
 
 ---
 
-## [Unreleased] - v0.5.24 (Cn+) admin modals.jsx 视觉重构 + ⭐ v0.5.x 视觉重构正式收官 — Hex 残留 4 处偿还 + 18 PATCH 序列总结
+## [Released] - v0.5.24 (Cn+) admin modals.jsx 视觉重构 + ⭐ v0.5.x 视觉重构正式收官 — Hex 残留 4 处偿还 + 18 PATCH 序列总结
 
 > ⭐ **v0.5.x 视觉重构序列正式收官**（v0.5.7~v0.5.24 共 18 个视觉 PATCH）
 >
@@ -2511,7 +2536,7 @@ admin/tab_knowledge.jsx (v0.5.23 R-587)
 
 ---
 
-## [Unreleased] - v0.5.23 (C5+) admin tab_knowledge 屏复刻（Knowledge + FewShots + Prompts 三合一）— ⭐ Inset 8% 第十处扩张（8→9 文件）+ thead R-480 共享 helper
+## [Released] - v0.5.23 (C5+) admin tab_knowledge 屏复刻（Knowledge + FewShots + Prompts 三合一）— ⭐ Inset 8% 第十处扩张（8→9 文件）+ thead R-480 共享 helper
 
 > ⭐ **Inset 8% 闭环字面文件总数 8 → 9 第十处扩张**（admin/tab_knowledge 加入）
 >
@@ -2589,7 +2614,7 @@ const theadStyle = (T) => ({
 
 ---
 
-## [Unreleased] - v0.5.22 (C5+) admin tab_system 屏复刻（Catalog）— ⭐ Inset 8% 第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
+## [Released] - v0.5.22 (C5+) admin tab_system 屏复刻（Catalog）— ⭐ Inset 8% 第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
 
 > ⭐ **Inset 8% 闭环字面文件总数 7 → 8 持续进攻性扩张第九处**（admin/tab_system 加入）
 > ⭐ **borderLeft 25% 闭环字面第四处扩张** — 4 文件 byte-equal（设计语言铁律第二维度持续）
@@ -2703,7 +2728,7 @@ background: `color-mix(in oklch, ${T.accent} 12%, transparent)`, color: T.accent
 
 ---
 
-## [Unreleased] - v0.5.21 (C5+) admin tab_resources 屏复刻 — ⭐ 视觉闭环扩张：Inset 8% 铁律覆盖 tab_resources，项目单色化一致性进入 80% 深度
+## [Released] - v0.5.21 (C5+) admin tab_resources 屏复刻 — ⭐ 视觉闭环扩张：Inset 8% 铁律覆盖 tab_resources，项目单色化一致性进入 80% 深度
 
 > ⭐ **视觉闭环扩张：Inset 8% 铁律成功覆盖 admin/tab_resources，项目单色化一致性进入 80% 深度**
 >
@@ -2886,7 +2911,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
 
 ---
 
-## [Unreleased] - v0.5.20 (Cn+) admin/users 视觉偿还 — ⭐ R-376 hex 债务正式清偿 + TabAccess 模块进入全 OKLCH/T-System 时代 + Inset 8% 闭环第七处扩展（6 文件恒定深耕）
+## [Released] - v0.5.20 (Cn+) admin/users 视觉偿还 — ⭐ R-376 hex 债务正式清偿 + TabAccess 模块进入全 OKLCH/T-System 时代 + Inset 8% 闭环第七处扩展（6 文件恒定深耕）
 
 > ⭐ **KNOT 管理端视觉治理：TabAccess 模块正式进入全 OKLCH/T-System 时代**
 >
@@ -3047,7 +3072,7 @@ background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
 
 ---
 
-## [Unreleased] - v0.5.19 (C5+) AdminRecovery 屏复刻 — ⭐ KNOT admin 顶层屏三部曲收官 + Inset 8% 闭环第六处铁律加冕 + borderLeft 25% 第三处闭环铁律加冕 + R-495 字面严防立约
+## [Released] - v0.5.19 (C5+) AdminRecovery 屏复刻 — ⭐ KNOT admin 顶层屏三部曲收官 + Inset 8% 闭环第六处铁律加冕 + borderLeft 25% 第三处闭环铁律加冕 + R-495 字面严防立约
 
 > **⭐ KNOT admin 顶层屏重构完结 — 视觉一致性达到 100% 覆盖**
 >
@@ -3276,7 +3301,7 @@ git grep -F "3px solid color-mix(in oklch, \${T.accent} 25%, transparent)" front
 
 ---
 
-## [Unreleased] - v0.5.18 (C5+) AdminBudgets 屏复刻 — v0.5.x 第三个顶层屏 + Inset 8% 闭环铁律化 100% 覆盖后端管理资产屏 + borderLeft 25% 第二处闭环 + 技术债登记
+## [Released] - v0.5.18 (C5+) AdminBudgets 屏复刻 — v0.5.x 第三个顶层屏 + Inset 8% 闭环铁律化 100% 覆盖后端管理资产屏 + borderLeft 25% 第二处闭环 + 技术债登记
 
 > **KNOT 视觉铁律宣告**：Inset 8% 设计语言正式覆盖 **100% 后端管理资产屏** — 5 屏 `color-mix(in oklch, ${T.accent} 8%, transparent)` 字面 byte-equal：ResultBlock (v0.5.14 R-323) / SavedReports (v0.5.15 R-372) / DataSources (v0.5.16 R-386) / AdminAudit (v0.5.17 R-409) / **AdminBudgets (v0.5.18 R-444)**。
 >
@@ -3500,7 +3525,7 @@ function WarnNote({ T, children }) {
 
 ---
 
-## [Unreleased] - v0.5.17 (C5+) AdminAudit 屏复刻 — v0.5.x 第二个顶层屏 + Inset 8% 闭环第四处铁律化 + R-313 rgba 豁免架构原则确立
+## [Released] - v0.5.17 (C5+) AdminAudit 屏复刻 — v0.5.x 第二个顶层屏 + Inset 8% 闭环第四处铁律化 + R-313 rgba 豁免架构原则确立
 
 > **v0.5.x 第二个顶层屏复刻**（v0.5.15 SavedReports → v0.5.17 AdminAudit）— AdminAudit.jsx 264→372 视觉重构对齐 demo audit.jsx。
 >
@@ -3703,7 +3728,7 @@ try {
 
 ---
 
-## [Unreleased] - v0.5.16 (C5+) DataSources 屏复刻（tab_access Sources 部分）— 首个 admin tab 子模块复刻 + Inset 8% 三处闭环 + I.db 复用先例
+## [Released] - v0.5.16 (C5+) DataSources 屏复刻（tab_access Sources 部分）— 首个 admin tab 子模块复刻 + Inset 8% 三处闭环 + I.db 复用先例
 
 > **首个 admin tab 子模块复刻** — `tab_access.jsx` Sources 部分（L35-57）9 子步骤视觉重构；Users 部分（L9-33 含 `#ff7a3a` 渐变残留）字面零修改 **R-376 双重强制 out-of-scope**。
 >
@@ -3854,7 +3879,7 @@ tab === 'users' 分支（L9-33）**字面零修改**：
 
 ---
 
-## [Unreleased] - v0.5.15 (C5+) Favorites 屏复刻（SavedReports）— v0.5.x 首个新顶层屏 + brandSoft 8% 全站闭环
+## [Released] - v0.5.15 (C5+) Favorites 屏复刻（SavedReports）— v0.5.x 首个新顶层屏 + brandSoft 8% 全站闭环
 
 > **v0.5.x 首个新顶层屏复刻**（v0.5.14 ResultBlock 维度收官后）— SavedReports 318→380 行视觉重构对齐 demo favorites.jsx。
 >
@@ -3992,7 +4017,7 @@ background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
 
 ---
 
-## [Unreleased] - v0.5.14 (C5+) ResultBlock 视觉大重构 — v0.5.x ResultBlock 维度收官之战
+## [Released] - v0.5.14 (C5+) ResultBlock 视觉大重构 — v0.5.x ResultBlock 维度收官之战
 
 > **三大设计先例同时落地**：① v0.5.13 R-306/315 TokenPill **红线撤回首例**（架构判定：严格复刻 > 局部推测性红线）② **R-341 v0.5 行数收官**（LIMIT 420→440 final ack；v0.6 必须开启子组件拆分）③ **R-227.5.1 装饰豁免延伸**（"OBSERVATION" 仅 ResultBlock Insight 容器）。
 >
@@ -4132,7 +4157,7 @@ Stage 3 假设 SavedReports.jsx 内嵌渲染 ResultBlock — 前置探查发现*
 
 ---
 
-## [Unreleased] - v0.5.13 (C5+) ResultBlock 偿还 — hex 清理 + emoji 偿还 + 局部视觉微调
+## [Released] - v0.5.13 (C5+) ResultBlock 偿还 — hex 清理 + emoji 偿还 + 局部视觉微调
 
 > ResultBlock 是 chat 子模块**最复杂复合 UI**（381 行 7 段 + 3 helpers）— 完整视觉重构超单 PATCH scope。本 PATCH **受控**聚焦 3 类偿还 + 1 类微调（hex/emoji/token 偿还；table/chart/insight 视觉重构留 v0.5.14）。
 >
@@ -4250,7 +4275,7 @@ v0.5.9 R-211 残留色清理 → v0.5.12 R-286 ThinkingCard 全清 → **v0.5.13
 
 ---
 
-## [Unreleased] - v0.5.12 (C5+) Thinking 屏复刻（AgentThinkingPanel 右 rail）
+## [Released] - v0.5.12 (C5+) Thinking 屏复刻（AgentThinkingPanel 右 rail）
 
 > 首个**右 rail 思考过程面板**复刻 PATCH。Demo thinking.jsx 是 337 行整屏 — 但 sidebar/topbar/composer/messages 已在 v0.5.9/11/10 完成，本 PATCH 真正 scope 是 ThinkingCard.jsx 110 → 160 行（含 ThinkingCard + AgentThinkingPanel 2 exports）。
 >
@@ -4371,7 +4396,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.11 (C5+) Composer 重构 — R-217 清偿里程碑
+## [Released] - v0.5.11 (C5+) Composer 重构 — R-217 清偿里程碑
 
 > **R-217 三方共识自 v0.5.10 hold 至今正式清偿**。Composer.jsx 是 chat 子模块组件复用，本 PATCH 改动**惠及 ChatEmpty (Home) + Conversation (非空对话) 两屏自动跟随**（ChatEmpty + Conversation 0 行 diff，git hash 字节对齐校验 R-264 证明）。
 >
@@ -4473,7 +4498,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.10 (C5+) Home 屏复刻（ChatEmpty empty state）
+## [Released] - v0.5.10 (C5+) Home 屏复刻（ChatEmpty empty state）
 
 > v0.5.7 Login + v0.5.9 Shell 后第三个屏复刻 PATCH。首个 chat 子模块屏复刻 — main area 的 empty state（产品 Home 屏 = `ChatEmpty.jsx`）。
 >
@@ -4573,7 +4598,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.9 (C5+) Shell 屏复刻 — 首个真正屏复刻 PATCH
+## [Released] - v0.5.9 (C5+) Shell 屏复刻 — 首个真正屏复刻 PATCH
 
 > v0.5.7 Login pilot + v0.5.8 Visual Replication Protocol 后第一个真正屏复刻 PATCH。Shell 是 18 屏的容器，**最高优先级守 R-192 AppShell 13 props 签名 byte-equal（宪法级）**。
 >
@@ -4664,7 +4689,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.8 (Cn+) Chore — CI Boot Smoke 修复 + Visual Replication Protocol
+## [Released] - v0.5.8 (Cn+) Chore — CI Boot Smoke 修复 + Visual Replication Protocol
 
 > v0.5.7 Login pilot 收官后 chore PATCH：**两件并一个** — 偿还 v0.5.0 R-72 留下的预存 CI bug，提炼 v0.5.7 经验为 v0.5.8+ 屏复刻铺路。
 >
@@ -4735,7 +4760,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.7 (C5+) Claude Design UI 重构 — Login 屏首屏复刻 pilot
+## [Released] - v0.5.7 (C5+) Claude Design UI 重构 — Login 屏首屏复刻 pilot
 
 > v0.5.6 Foundation 落地后第八刀：**首屏 1:1 复刻 demo 视觉 — Login pilot**。资深架构师拍板"1 屏 1 PATCH"渐进替换 18 个 artboards，本 PATCH 建立的执行模板将服务于 v0.5.8+ Home / Shell / Thinking / Favorites / 9 admin tabs。
 >
@@ -4842,7 +4867,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.6 (C5) Claude Design UI 重构 — Foundation 第一刀
+## [Released] - v0.5.6 (C5) Claude Design UI 重构 — Foundation 第一刀
 
 > v0.5.5 cleanup（首个 Negative Delta）收官后第七刀：**Claude Design UI 重构第一刀 Foundation**。资深架构师拍板"以体验先行" + "1:1 复刻 demo 视觉与交互" — 但 demo 仓库 (`/Users/kk/Documents/knot_ui_demo/v0.5/`) 是**设计代理**（不进产品），目标是产品视觉按 demo 设计语言重构。
 >
@@ -4936,7 +4961,7 @@ v0.5.9 R-211 残留色清理模式扩展至整个 ThinkingCard.jsx：
 
 ---
 
-## [Unreleased] - v0.5.5 (Cn) Cleanup — 首个减法 PATCH（Negative Delta）
+## [Released] - v0.5.5 (Cn) Cleanup — 首个减法 PATCH（Negative Delta）
 
 > v0.5.4 Loop Protocol v3 路线图同步收官后第六刀：v0.5.x 序列**首个减法 PATCH**（Negative Delta -18 行）。**Loop Protocol v3 第 6 次完整 PATCH 内施行**。物理删 `lark.py` v0.3.2 stub + 8 处 sync LLM API docstring 标 `[DEPRECATED]`。
 >
@@ -5033,7 +5058,7 @@ R-152 锁定模板首行（**8 处字面 byte-equal**）：
 
 ---
 
-## [Unreleased] - v0.5.4 (C4) Loop Protocol v3 路线图同步
+## [Released] - v0.5.4 (C4) Loop Protocol v3 路线图同步
 
 > v0.5.3 前端瘦身落地后第五刀：Loop Protocol v3 路线图同步至面向用户文档。**Loop Protocol v3 第 5 次完整 PATCH 内施行**（自我引用闭环 — 用 v3 协议同步 v3 协议）。docs-only PATCH（除 main.py version + R-72 smoke 字符串外严禁触碰任何 .py/.js/.jsx 逻辑行）。
 >
@@ -5105,7 +5130,7 @@ R-152 锁定模板首行（**8 处字面 byte-equal**）：
 
 ---
 
-## [Unreleased] - v0.5.3 (C3) 前端代码瘦身
+## [Released] - v0.5.3 (C3) 前端代码瘦身
 
 > v0.5.2 后端瘦身落地后第四刀：2 个前端主屏（Chat.jsx 925 / Admin.jsx 773）按 4-commit 节奏拆分为 13 个子组件。Loop Protocol v3 第四次完整 PATCH 内施行（D1-D7 全锁定 + 18 红线 R-111~R-128）。
 >
@@ -5184,7 +5209,7 @@ R-152 锁定模板首行（**8 处字面 byte-equal**）：
 
 ---
 
-## [Unreleased] - v0.5.2 (C2) 后端代码瘦身
+## [Released] - v0.5.2 (C2) 后端代码瘦身
 
 > v0.5.1 SQL AST 守护落地后第三刀：4 主文件（sql_planner 653 / llm_client 574 / orchestrator 535 / api/query 457）按文件级 1 commit 拆分为 9 个子模块。Loop Protocol v3 第三次完整 PATCH 内施行（D1-D8 全锁定 + 17 红线 R-94~R-110）。
 >
@@ -5263,7 +5288,7 @@ R-152 锁定模板首行（**8 处字面 byte-equal**）：
 
 ---
 
-## [Unreleased] - v0.5.1 (C1) SQL AST 预校验（笛卡尔积硬防御）
+## [Released] - v0.5.1 (C1) SQL AST 预校验（笛卡尔积硬防御）
 
 > v0.5.0 KNOT 重命名收官后第二刀：1.0 release **阻塞偿还**。在 v0.4.1.1 已建立的 prompt 三层防御之上，加 **后端 sqlglot AST 硬防御** —— 笛卡尔积 / 恒真 ON 检测，触发后让 sql_planner ReAct 重生成。
 >
@@ -5850,7 +5875,7 @@ v0.4.5 commit #5 落 R-45 startup `sys.exit(1)` 后，CI 第一次红 — `App b
 - ✅ R-16 优先级链 / R-17 一致性对齐 / R-18 INSERT OR REPLACE / R-19 过滤 legacy
 - ✅ R-20 banner 降噪 / R-21 拒 legacy scope / R-22 双路径同字段 / R-23 不缓存
 
-## [Unreleased] - v0.4.2 成本可观测 + xlsx 导出 + eval SQL 复杂度横切
+## [Released] - v0.4.2 成本可观测 + xlsx 导出 + eval SQL 复杂度横切
 
 > v0.4.1.1 hotfix 合入 main 后第一个业务 PATCH。Stage 1-4 协议走完：
 > v0.4.2 Agent 草案 + 资深 Stage 2（4 项裁决）+ v0.4 守护者 Stage 3（4 条新红线）
@@ -5918,7 +5943,7 @@ v0.4.5 commit #5 落 R-45 startup `sys.exit(1)` 后，CI 第一次红 — `App b
 - ❌ 真异步 LLM/DB → v0.4.4
 - ❌ Alembic / yoyo 迁移工具（R-S6: messages 列数 24，v0.4.5+ 评估）
 
-## [Unreleased] - v0.4.1.1 hotfix — 笛卡尔积防御 + UX 双 Bug 修复
+## [Released] - v0.4.1.1 hotfix — 笛卡尔积防御 + UX 双 Bug 修复
 
 > v0.4.1 落地后第一个 hotfix。Stage 1-4 协议走完：v0.4.1 Agent 诊断 +
 > 资深 Stage 2 + v0.4.0 守护者 Stage 3 + 资深 Stage 4 锁定。
@@ -5983,7 +6008,7 @@ v0.4.0 eval 80 case 设计**只按 intent 分层 8 条**，缺"SQL 复杂度"横
 多表关联应是横切维度，不能因 80 条够 intent 准确率门禁就放心。
 v0.4.2+ eval 扩量必须加 join 复杂度 / 子查询 / 窗口函数 / CTE 维度。
 
-## [Unreleased] - v0.4.1 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）
+## [Released] - v0.4.1 报表沉淀（saved_reports + 收藏 + 重跑 + CSV 导出）
 
 > v0.4.0 收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，0 broken。
 > Stage 1-4 协议（资深 + Codex Stage 2 + v0.4.0 守护者 Stage 3 + 资深 Stage 4 锁定）
@@ -6059,7 +6084,7 @@ v0.4.2+ eval 扩量必须加 join 复杂度 / 子查询 / 窗口函数 / CTE 维
 - ❌ 重新生成 SQL（重新走 Clarifier→SQL Planner）→ v0.5.x
 - ❌ 报表订阅 / 邮件推送 / 调度 → 不在 v0.4.x 范围
 
-## [Unreleased] - v0.4.0 Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量
+## [Released] - v0.4.0 Clarifier intent + Layout 分支 + CSV 导出 + eval 扩量
 
 > 4-PATCH 工程化重构收官后第一个业务 PATCH。架构底座 6 contracts 全程 KEPT，
 > 进入 v0.4.x 业务迭代期。
@@ -6139,7 +6164,7 @@ v0.4.2+ eval 扩量必须加 join 复杂度 / 子查询 / 窗口函数 / CTE 维
 - ❌ Clarifier 升级剩余 3 项（sub_questions / methodology / gap）→ v0.5.x
 - ❌ /api/v1/ 版本前缀（T-1）→ v0.5.0
 
-## [Unreleased] - v0.3.3 工程化重构（第 4 刀 / 4 · 收官）— Full Forbidden Mode
+## [Released] - v0.3.3 工程化重构（第 4 刀 / 4 · 收官）— Full Forbidden Mode
 
 > **4-PATCH 工程化重构正式封笔**。Python 后端已成为 Go 重写的"逻辑镜像"。
 
@@ -6203,7 +6228,7 @@ WebSocket 评估等。**架构底座已稳，KNOT 协议驱动引擎正式点火
 
 ## [0.3.2.202605062150] - 2026-05-06 v0.3.2 adapters/ 落地
 
-## [Unreleased] - v0.3.2 工程化重构（第 3 刀 / 4） — adapters/ 落地（协议驱动）
+## [Released] - v0.3.2 工程化重构（第 3 刀 / 4） — adapters/ 落地（协议驱动）
 
 > 行为契约（Protocol）与实现分家；引入第 5 条 import-linter contract。
 > KNOT 真正拥有"跨库分析"的灵魂 + 多 LLM provider 的统一抽象。
@@ -6271,7 +6296,7 @@ forbidden_modules = bi_agent.services, bi_agent.routers, bi_agent.repositories
 
 ## [0.3.1.202605062126] - 2026-05-06 v0.3.1 services/ 落地
 
-## [Unreleased] - v0.3.1 工程化重构（第 2 刀 / 4） — services/ 落地
+## [Released] - v0.3.1 工程化重构（第 2 刀 / 4） — services/ 落地
 
 > 协议驱动重构 · "core 完全无业务化" 第一步 · 删 v0.3.0 facade shim 偿还技术债。
 
@@ -6378,7 +6403,7 @@ forbidden_modules = bi_agent.routers, bi_agent.services    # ← v0.3.1 加上 s
 2. `bi_agent/repositories/__init__.py` 的 facade re-export 是否能在 v0.3.1 顺利删除
 3. `bi_agent/core/auth_utils.py` 当前 import `bi_agent.repositories.user_repo` —— v0.3.1 必须搬到 services/auth_service 才能闭合 contract
 
-## [Unreleased] - v0.2.5 业务目录可视化编辑
+## [Released] - v0.2.5 业务目录可视化编辑
 
 ### Added
 - **`/api/admin/catalog` 三件套**（GET/PUT/POST reset）：admin 后台维护表目录 / 业务词典 / 业务规则

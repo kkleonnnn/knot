@@ -242,7 +242,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 80, right: 80,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v{APP_VERSION} · build 202606181000</span>
+          <span style={{ fontFamily: T.mono }}>v{APP_VERSION} · build 202606181000</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>

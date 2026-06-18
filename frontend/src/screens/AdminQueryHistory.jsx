@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { iconBtn, PeriodTab, TagChip } from '../Shared.jsx';
-import { toast, Spinner, Modal, ModalHeader, Input } from '../utils.jsx';
+import { toast, Spinner, Modal, ModalHeader } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
@@ -87,10 +87,10 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
                            border: `1px solid ${T.border}`, color: T.text, fontSize: 12, fontFamily: 'inherit' }}>
             {Object.entries(ERROR_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <div style={{ width: 160 }}>
-            <Input T={T} value={userIdFilter} onChange={v => { setUserIdFilter(v); setPage(1); }}
-                   placeholder="user_id（可选）" mono/>
-          </div>
+          <input value={userIdFilter} onChange={e => { setUserIdFilter(e.target.value); setPage(1); }}
+                 placeholder="user_id（可选）"
+                 style={{ width: 160, height: 28, padding: '0 10px', borderRadius: 6, background: T.content,
+                          border: `1px solid ${T.border}`, color: T.text, fontSize: 12, fontFamily: T.sans, outline: 'none' }}/>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: T.muted, fontFamily: T.mono }}>
             {data.total} 条 · 第 {page} / {totalPages} 页
           </div>

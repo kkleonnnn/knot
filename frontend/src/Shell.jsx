@@ -39,7 +39,7 @@ export function AppShell({
           display: 'flex', alignItems: 'center',
           borderBottom: `1px solid ${T.border}`,
         }}>
-          <KnotLogo T={T} size={16}/>
+          <KnotLogo T={T} size={20}/>
           <span style={{
             marginLeft: 'auto',
             fontSize: 11, fontFamily: T.mono, color: T.muted,

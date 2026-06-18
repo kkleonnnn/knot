@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.11 · doc-不变量 CI 守护一揽子（task #44）· **前端版本单一真相源 + 3 CI 守护**：新建 `version.js` APP_VERSION（Shell/Login footer 读 `{APP_VERSION}`，不再硬编 → drift 根治；修 Shell sidebar stale v0.6.4.2 drift 8 PATCH）+ 3 CI（bridge version.js==main / KnotLogo 精确 5 文件集 / CHANGELOG 顶部==main）+ R-181 适配渲染断言 · §五处同步→4 源点 ★CI 新模型（Shell 条件式废除）· 0 业务逻辑 · App.jsx 0 diff；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.12 · 内测视觉修复 4 处 + doc/CI 微收尾 2 项（合并 PATCH）：① Login 页脚版本号→mono（与 knot.local 统一）② Shell logo 16→20 ③ AdminMetrics 删非-demo borderLeft（对齐 demo admin-metrics.jsx）④ 查询历史 user_id 框对齐 2 select · ⑥ knotlogo guard 收紧（渲染集 5→4，Shared 定义归 R-185）⑦ CHANGELOG 全史 demote 41→[Released] + count==1 CI · 4 源点版本同步（Login/Shell 经 APP_VERSION 0 手改 — 验 v0.6.4.11 新模型）· 0 业务/后端 · App.jsx 0 diff；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
