@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.5 — UI v2 thinking（AgentThinkingPanel 思考 rail）屏复刻（逐屏复刻第 5 屏）
+## [Unreleased] - v0.6.4.6 — UI v2 chat-results（ResultBlock card radius 对齐）· chat flow 6 屏收官
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3）；守护者续任 v0.5
+> **设计源**：`knot_demo_ui/v0.6/artboards/chat-results.jsx`（309 行 gallery）
+> **双向实证（R-137）**：执行者 adversarial 评估「ResultBlock 已大部分 v2，delta = card radius 对齐，1 PATCH」；守护者 adversarial Stage 3 抓 **radius 映射不完整**（漏 FeedbackBar 第 7 子组件 + orchestrator 4 内联卡）→ 执行者补全全站点枚举 + 2 borderline 标注 → 守护者裁定 stays（SQL accordion utility 层 / FeedbackBar inline 不加 card = OOS）+ L194「异常」澄清为 chip-pill 非误对齐
+
+### Changed
+- **`ResultBlock/` card radius v2 对齐**（6 站点）：
+  - **primary 数据卡 10→12**：`MetricCard._SingleMetric` + `_MultiStatGrid` + `TableContainer` chart card + table card
+  - **alert banner 8→10**：`BudgetBanner` + `ErrorBanner`
+
+### Notes
+- **⭐ radius 全站点枚举映射（守护者 §二 补全 + 裁定）** — 分类规则 primary 数据卡 12 / alert banner 10 / 次级 utility+inset 10 / chip-pill 保 / control 保：
+  - **stays（裁定归档）**：clarification 10 + error-no-sql 10（state 已匹配）· inline error 6（pill）· **followup chip 14（pill，v0.5.14 established — 守护者「异常」疑虑澄清为 chip 非误对齐）** · **SQL accordion 10（裁定 stays — codeBg + admin-gated + collapsible = utility/debug 层，从属于 12 数据卡合理）** · InsightCard 10（brandSoft inset R-372 字面闭环）· agent_costs 999（pill）· chart toggle 5（control）· **FeedbackBar 无 card 容器（裁定 stays inline — 实证为 inline flex 行，8/6/6 在 Modal；加 card wrap = 结构改 OOS；demo card-wrap 是 mock，产品极简 inline 更轻）**
+- **R-UI2-R-1~9 立约**：ResultBlock 8 props + 7 子组件 export+props byte-equal → Conversation.jsx + SavedReports + Shared + App 0 diff / **charts ECharts from Shared 0 改**（LineChart/BarChart/PieChart；demo inline SVG 仅 mock）/ **detail_table thead T.bg 灰底保留**（v0.5.38 资深 established，守护者 v0.6.3.2 钉过的同款 trap）/ **metric delta% 不引入**（demo `+12.4%` 电商 fiction，产品 metric 驱动真实 SQL 无 delta 字段）/ hex 0 sustained + brandSoft inset R-372 字面不动 / diff 仅 6 radius 行（0 结构/业务/chart 改）
+- **adversarial Stage 3 第三次兑现价值**：Composer noop→hex / thinking placement / **results radius 映射完整性**（守护者抓漏 FeedbackBar + orchestrator 卡）→ 执行者诚实定级 + 守护者独立复核抓漏 双层防漏稳定
+- **修正版本同步模型第 4 次施行**：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181**）→ 0.6.4.6 + Shell L43 条件式不动（stays v0.6.4.2）。Login footer 主动 bump → R-181 预期绿
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（结果屏 7 intent：metric/line/bar/pie/rank/retention/detail 卡 12 圆角 + banner 10 + chip/accordion 不变 + thead 灰底 + ECharts 正常）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **⭐ UI v2 chat flow 核心链路 6 屏 v2 收官**：login（1）→ shell（2）→ home（3）→ Composer（4）→ thinking（5）→ **chat-results（6）** —— 整条「问→答」链路全 v2。下一站转 admin/favorites 屏群（~12 屏）
+
+详见 [docs/plans/v0.6.4.6-results.md](docs/plans/v0.6.4.6-results.md)
+
+---
+
+## [Released] - v0.6.4.5 — UI v2 thinking（AgentThinkingPanel 思考 rail）屏复刻（逐屏复刻第 5 屏）
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3，非自审）；守护者续任 v0.5
 > **设计源**：`knot_demo_ui/v0.6/artboards/thinking.jsx`（ThinkingStep L308-347）
