@@ -93,34 +93,24 @@ def create_token(user_id: int) -> str:
 # 含 me / change-password / logout 等 auth flow；其他 API 一律 403 直到改密成功
 _FORCE_CHANGE_PWD_WHITELIST_PREFIX = "/api/auth/"
 
-# v0.6.2.0 R-PB-B1-3：admin 自身 enroll 三层防御
-# 优先级 1: env KNOT_TOTP_BYPASS_ADMIN=true → 全局跳过 TOTP（应急后门）
-# 优先级 2: ≥1 admin 完成 enroll → 上述 bypass 自动失效（业务条件触发）
-# 优先级 3: TOTP 完全 enroll 流程白名单（让用户能 enroll）
+# v0.6.5.0 R-2FA-3：admin 应急后门（唯一豁免路径）
+# KNOT_TOTP_BYPASS_ADMIN=true → admin 跳过 TOTP（ops 逃生口，防唯一 admin 弄丢
+# authenticator + recovery code 永久锁死）；非 admin 不享后门（由 admin reset 救援）。
+# /api/totp/* 白名单让被强制用户能走完 enroll（强制 ≠ 锁死）。
 _TOTP_ENDPOINT_WHITELIST_PREFIX = "/api/totp/"
 
 
 def _admin_bypass_active() -> bool:
-    """R-PB-B1-3 三层防御：
-    优先级 1: env KNOT_TOTP_BYPASS_ADMIN=true → 强制 bypass（应急后门）
-    优先级 2: 0 admin enrolled → bypass active（bootstrap mode 让首位 admin 能 enroll）
-    优先级 3: ≥ 1 admin enrolled → 强制 off（除非 env 优先级 1 强制 on）
+    """v0.6.5.0 R-2FA-1/3：admin 应急后门（唯一豁免路径）。
+
+    KNOT_TOTP_BYPASS_ADMIN=true → admin bypass（ops 应急逃生口，防唯一 admin
+    弄丢 authenticator + recovery code 永久锁死）。
+
+    v0.6.5.0 删 v0.6.2.0 R-PB-B1-3 的「0 admin enrolled → bootstrap 自动 bypass」
+    优先级 2（资深 2026-06-19 裁定：admin 不豁免；且无自愿 enroll UI ⟹ 该 bootstrap
+    令唯一 admin 永远无法被 enroll，2FA 形同虚设）。仅保留显式 env 后门。
     """
-    env_bypass = os.getenv("KNOT_TOTP_BYPASS_ADMIN", "").strip().lower() == "true"
-    from knot.repositories.base import get_conn
-    conn = get_conn()
-    row = conn.execute(
-        "SELECT COUNT(*) AS c FROM users "
-        "WHERE role='admin' AND totp_enrolled_at IS NOT NULL",
-    ).fetchone()
-    conn.close()
-    any_admin_enrolled = int(row["c"]) > 0
-    # 优先级 3 sustained：≥1 admin enrolled → 仅 env 强制可绕（应急后门）
-    if any_admin_enrolled:
-        return env_bypass
-    # 优先级 1+2：0 admin enrolled → bootstrap mode bypass on（无 24h 限制 — 守护者
-    # §III.4 24h gating 简化为"≥1 admin enrolled 触发"，移除 startup 时间追踪复杂度）
-    return True
+    return os.getenv("KNOT_TOTP_BYPASS_ADMIN", "").strip().lower() == "true"
 
 
 def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Depends(security)):
@@ -144,15 +134,15 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         if user.get("must_change_password") and not request.url.path.startswith(_FORCE_CHANGE_PWD_WHITELIST_PREFIX):
             raise HTTPException(status_code=403, detail="must_change_password")
 
-        # v0.6.2.0 R-PB-B1-4 公测启动闸门：强制 enroll 拦截由 KNOT_TOTP_REQUIRED env 控制
-        # 内测期（默认 unset）→ 不拦截；用户可自愿 enroll（TOTP 端点仍开放）
-        # 公测启动前（R-PA-8 自验 + Day 28+ 三方会议）→ 资深 ack 后 export KNOT_TOTP_REQUIRED=true
-        if os.getenv("KNOT_TOTP_REQUIRED", "").strip().lower() == "true":
+        # v0.6.5.0 R-2FA-1/2：强制 enroll（默认 on — 资深 2026-06-19 提前 R-PA-8 公测门）。
+        # KNOT_TOTP_REQUIRED 默认 "true" 强制；显式设 =false 关闭（eval/demo 快速评估）。
+        # 未 enroll 用户访问非白名单端点 → 403；admin 仅 KNOT_TOTP_BYPASS_ADMIN 应急后门可豁免。
+        if os.getenv("KNOT_TOTP_REQUIRED", "true").strip().lower() == "true":
             path = request.url.path
             if not user.get("totp_enrolled_at"):
                 if not path.startswith(_TOTP_ENDPOINT_WHITELIST_PREFIX) \
                    and not path.startswith(_FORCE_CHANGE_PWD_WHITELIST_PREFIX):
-                    # R-PB-B1-3 admin bypass 三层判断（env / 0 admin enrolled / 优先级 3 auto-expire）
+                    # R-2FA-3：admin 应急后门（唯一豁免）；非 admin 短路不进后门
                     if not (user["role"] == "admin" and _admin_bypass_active()):
                         raise HTTPException(status_code=403, detail="totp_enroll_required")
         return user

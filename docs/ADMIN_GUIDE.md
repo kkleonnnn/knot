@@ -12,7 +12,7 @@
 
 1. 用部署时的默认账号登录（默认 `admin` / `admin123` —— **首次登录立即改密**）
 2. **改默认密码**（设置 → 修改密码）
-3. **绑定两步验证（TOTP）**：进 Enroll 流程，用 Authenticator App 扫码 → 输入 6 位码完成绑定 → **下载恢复码并妥善保存**（恢复码只显示一次，用于丢失设备时登录）
+3. **绑定两步验证（TOTP）— v0.6.5.0 起默认强制**：改密后首登即被引导进 Enroll（含 admin，无 bootstrap 豁免）。用 Authenticator App 扫码 → 输入 6 位码完成绑定 → **下载恢复码并妥善保存**（只显示一次，丢设备时登录用）。应急逃生口 `KNOT_TOTP_BYPASS_ADMIN=true`（防唯一 admin 锁死）；快速评估关闭 `KNOT_TOTP_REQUIRED=false`（详 [DEPLOY](../DEPLOY.md) §5）。
 
 > 安全门槛见 [SECURITY.md](../SECURITY.md)；默认凭据 / CORS 等已知限制务必在公开部署前处理。
 

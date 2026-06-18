@@ -306,43 +306,43 @@ location / {
 
 ✅ `audit_log` 自动 7 天 retention + timestamped 备份（F-C 已内置 — 无需额外）。
 
-### 5. TOTP 2FA — admin 三层防御 + 公测启动闸门（v0.6.2.0+）🛡️
+### 5. TOTP 2FA — 默认强制（admin 不豁免）🛡️（v0.6.5.0+）
 
-KNOT v0.6.2.0 起加强制 TOTP 2FA enroll 能力（R-PB-B1-1~13 + NRP-1/2）。
+**v0.6.5.0 起 2FA 默认强制**（资深 2026-06-19 提前 R-PA-8 公测门）：所有用户（含 admin）
+改密后首次登录即被强制绑定 TOTP。删除了 v0.6.2.0 的「0 admin enrolled → bootstrap 自动豁免」
+（该 bootstrap + 无自愿 enroll UI ⟹ 唯一 admin 永远无法被 enroll，2FA 形同虚设）。
 
 **env 开关**：
 
 ```bash
-# 默认 unset → 整个 TOTP enforcement off（内测期推荐 — 业务方可自愿 enroll）
-# 公测启动前 export KNOT_TOTP_REQUIRED=true → 所有用户登录强制 enroll
-export KNOT_TOTP_REQUIRED=true
+# 默认（unset）= on：所有未 enroll 用户登录被强制跳 Enroll
+# 快速评估 / demo 显式关闭：
+export KNOT_TOTP_REQUIRED=false
 ```
 
-**R-PB-B1-3 admin 三层防御**（防 admin 自锁）：
+**应急后门**（仅此一条豁免路径，防唯一 admin 永久锁死）：
 
-| 优先级 | 条件 | 行为 | 适用场景 |
-|---|---|---|---|
-| 1（最强）| `KNOT_TOTP_BYPASS_ADMIN=true` env | 全局跳过 admin TOTP 验证 | 应急后门 / 灾备恢复 |
-| 2（兜底）| KNOT_TOTP_BYPASS_ADMIN 未设 + **0 admin 已 enroll** | admin 跳过（每次登录 logger.warn 提示）| 首次部署 bootstrap |
-| 3（自动失效）| **≥ 1 admin enroll 完成** | 上述两个 fallback 自动失效 | 正常生产 |
+```bash
+# admin 弄丢 authenticator + 恢复码时临时 export → admin 跳过 2FA 进系统重置/重绑；用完即撤
+export KNOT_TOTP_BYPASS_ADMIN=true
+```
 
-**公测启动 checklist**（必做）：
+| 路径 | 行为 |
+|---|---|
+| 默认（两 env 都不设）| admin + 普通用户**一律强制 enroll**（未 enroll → 受保护端点 403 → 前端跳 Enroll 屏）|
+| `KNOT_TOTP_BYPASS_ADMIN=true` | **仅 admin** 应急豁免（非 admin 不享 → 由 admin reset 救援）|
+| `KNOT_TOTP_REQUIRED=false` | 全局关闭强制（eval / demo）|
 
-1. 资深架构师本人完成 TOTP enroll（确保 ≥1 admin enrolled → 优先级 2 自动失效）
-2. `export KNOT_TOTP_REQUIRED=true` → 整个 TOTP enforcement 打开
-3. 验证非 enrolled 用户登录 → 强制跳 Enroll 屏
-4. 验证 enrolled 用户登录 → 输入 6 位码后才能进业务屏
+**首次部署 checklist**：
 
-**风险声明**（透明披露）：
+1. `admin / admin123` 登录 → **强制改密** → **强制 Enroll**（Authenticator 扫码 + 存 10 个恢复码）
+2. 验证 enrolled admin 登录 → 输入 6 位码后进业务屏
+3. （可选）邀其他用户：各自首登强制 enroll
 
-- 若 admin 永不 enroll + `KNOT_TOTP_REQUIRED=true` → bypass 优先级 2 永久 on（admin 实际无 2FA 保护）
-- 缓解：`KNOT_TOTP_REQUIRED=true` 仅在 ≥1 admin enrolled 后 export（业务条件触发）
+**锁死风险 + 缓解**（透明披露）：
 
-**R-PB-B1-3 简化论据**（v0.5 守护者第 14 次 active explicit ack）：
-原 v2 LOCKED "启动期 24h 宽限" 简化为 "≥1 admin enrolled 触发"
-- "业务时序触发" > "时钟时序窗口" 工程稳健性
-- service restart 不重置 24h 窗口（业务条件 vs 时间条件）
-- 与 v0.4.5 R-37 / v0.5.0 R-74 业务条件触发哲学一致
+- 风险：唯一 admin 弄丢 authenticator **且** 弄丢 10 个恢复码 → 无第二 admin reset → 锁死
+- 缓解三层：① 应急后门 `KNOT_TOTP_BYPASS_ADMIN=true`（ops 逃生口）② enroll 发 10 个恢复码 ③ enroll 流程 `/api/totp/*` 白名单可达（强制 ≠ 锁死，admin 能走完绑定）
 
 ---
 
