@@ -320,6 +320,8 @@ location / {
 export KNOT_TOTP_REQUIRED=false
 ```
 
+> **升级既有部署 rollout**（v0.6.5.0+ 默认 on）：从旧版（2FA off）升级后，**所有未 enroll 的存量用户下次登录立即被强制 enroll**。若不想打断在测用户 → 升级前先 `export KNOT_TOTP_REQUIRED=false` 分阶段，待用户备好 Authenticator 再移除该 env 重启启用。
+
 **应急后门**（仅此一条豁免路径，防唯一 admin 永久锁死）：
 
 ```bash

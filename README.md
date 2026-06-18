@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.0 · 强制 2FA（admin 不豁免 + 默认 on）· 独立安全 PATCH：删 v0.6.2.0 admin bootstrap bypass（admin 与普通用户**一律强制 enroll**）+ `KNOT_TOTP_REQUIRED` **默认 on**（`=false` opt-out eval/demo）+ 保留 `KNOT_TOTP_BYPASS_ADMIN` 应急后门（防唯一 admin 锁死）+ 前端 post-login enroll 重定向 + conftest 测试套隔离 + 4 守护测试 · **提前 R-PA-8 公测门**（资深 2026-06-19 拍板）· 4 源点版本同步（Login/Shell 经 APP_VERSION 0 手改）；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.1 · 强制 2FA review 跟进（落 #153 独立复审 5 建议）：① 后门不泄漏非 admin 反向测试（安全边界回归守护）② 非 admin 强制 enroll 测试 ③ main.py 启动期 2FA 状态 warn（fail-open 拼写立即可见）④ rollout 分阶段提示（升级前 `KNOT_TOTP_REQUIRED=false`）· **gate 决策逻辑 0 改** · 仅 version.js bump 需 rebuild · 4 源点版本同步；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
