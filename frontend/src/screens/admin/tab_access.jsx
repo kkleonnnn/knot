@@ -27,7 +27,7 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
   return (
     <>
       {tab === 'users' && (
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
           {/* v0.5.38 thead bg brandSoft 8% → T.bg gray + color T.subtext → T.muted（资深反馈"底色改成灰色 + 字体统一"）*/}
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 110px', padding: '9px 16px', ...theadStyle(T) }}>
             <div>用户</div><div>账号</div><div>角色</div><div>状态</div><div></div>
