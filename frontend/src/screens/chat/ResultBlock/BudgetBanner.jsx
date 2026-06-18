@@ -9,7 +9,7 @@ export function BudgetBanner({ T, budget_status, budget_meta, onDismiss }) {
   if (!budget_meta) return null;
   return (
     <div style={{
-      padding: '10px 14px', borderRadius: 8,
+      padding: '10px 14px', borderRadius: 10,
       background: budget_status === 'block'
         ? T.accentSoft
         : `color-mix(in oklch, ${T.warn} 13%, transparent)`,

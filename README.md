@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.5 · UI v2 逐屏复刻第 5 屏 · thinking（AgentThinkingPanel 思考 rail）：卡片 active boxShadow ring（color-mix oklch 15%，同 Composer focus ring）+ title 下沉独立一行 13/600（artboard 两行卡片）+ pending icon `○`→circle span · borderLeft 右 rail 结构保留（main 内，非 floating；Chat.jsx 0 diff）· LetterChip/DoneCheck/TypingDots Foundation 0 改 · 全业务 byte-equal（4 agent K/N/O/T + HTTP 分支 + isAdmin gating）· 后续 v0.6.4.x 续复刻 ~13 屏；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.6 · UI v2 逐屏复刻第 6 屏 · chat-results（ResultBlock card radius 对齐）· **chat flow 6 屏收官**：结果卡 radius 10→12（MetricCard ×2 + TableContainer chart+table）+ banner 8→10（Budget/Error）；charts ECharts from Shared 0 改 · detail_table thead T.bg 灰底保留（v0.5.38）· metric delta% 不引入 · ResultBlock 8 props + 7 子组件契约 byte-equal（Conversation.jsx 0 diff）· 后续 v0.6.4.x 续复刻 ~12 屏（favorites / admin 屏）；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
