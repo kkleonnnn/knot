@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.8 — UI v2 admin 顶层屏批（radius 归一化）· admin 批 1/2
+## [Unreleased] - v0.6.4.9 — UI v2 admin tab 群批（radius 归一化）· admin 批 2/2 · ⭐ admin 屏群批收官
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
+> **设计源**：demo datasources/api-model/knowledge/fewshot/prompts/catalog/system.jsx
+> **双向实证（R-137）**：「delta 主场」预判被全枚举 + demo 交叉核对推翻 → admin tab 群也近 noop（1 delta）；守护者亲扫 5 文件独立验证**完整枚举无漏**（吸取 results FeedbackBar 教训）—— 价值在「确认 8 个 stat 卡不该改 + 精准识别唯一该改的 1 个 table 卡」
+
+### Changed
+- **`admin/tab_access.jsx` L30 Users table card** `borderRadius: 10 → 12`（唯一源码 delta；`overflow:hidden` table 卡，与同屏 Sources table L83=12 归一）
+
+### Notes
+- **⭐ adversarial 全枚举 + demo 交叉核对（1 delta + 4 文件 noop）**：
+  - **唯一 delta**：tab_access L30 Users table 10→12（双锚定：demo datasources table L70=12 + 同屏 Sources table 已 12）
+  - **4 文件 noop**：tab_resources / tab_knowledge / tab_system / modals literally 0 diff
+- **⭐ 命门（demo 实锤抵抗盲归一化 stat→12）**：stat 卡 10（tab_access L65-78 + tab_knowledge L51-63，`padding:14×16` 模式）match **demo datasources L59 / knowledge L66 = 10**（密集 summary 卡），按自身 artboard 正确 → stay；区分点 = table 卡 `overflow:hidden 无 padding` vs stat 卡 `padding:14×16 无 overflow`
+- **R-UI2-AB-1~9 立约**：5 tab export+props byte-equal → **Admin.jsx 0 diff**（tabs 由 AdminScreen dispatch，非 App.jsx）/ **thead T.bg 灰底 theadStyle helper 不动**（v0.5.38；严禁照搬 demo bgInset）/ **brandSoft R-372 inset 不动**（tab_system L29 业务目录说明 8）/ 控件杂散 radius（7/6/3/chip 4/999）非 card 不动 / hex 0
+- **修正版本同步模型第 7 次施行**：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181** 穷举定位 L244）→ 0.6.4.9 + Shell L43 条件式不动（stays v0.6.4.2）
+- **⭐ admin 屏群批收官里程碑**：整组（顶层 5 屏 + tab 5 文件）**仅 2 处 radius 修**（AdminQueryHistory L105 + tab_access L30），其余 demo-grounded noop。合批 2 PATCH（v0.6.4.8 顶层 + v0.6.4.9 tabs）替代 ~10 个 near-noop 独立 PATCH，**合批决策实证极有效**
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（admin 各 tab：Users table 12 + Sources table 12 一致 + 8 stat 卡保持 10 密集小卡 demo-grounded 分层 + 其余不变）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：用户侧 7 屏 + admin 顶层 5 屏 + **admin tab 5 文件**（admin 屏群批收官）→ 剩 modals 细节 / 其他未复刻屏（待 announce）
+
+详见 [docs/plans/v0.6.4.9-admin-tab.md](docs/plans/v0.6.4.9-admin-tab.md)
+
+---
+
+## [Released] - v0.6.4.8 — UI v2 admin 顶层屏批（radius 归一化）· admin 批 1/2
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
 > **设计源**：demo budget/recovery/admin-metrics/admin-errors/admin-history.jsx
