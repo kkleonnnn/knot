@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.10 — UI v2 auth 屏收尾（Enroll 色/token 对齐 + ForceChangePassword noop）· ⭐ UI v2 全屏收尾
+## [Unreleased] - v0.6.4.11 — doc-不变量 CI 守护一揽子（task #44）· 前端版本单一真相源
+
+> **Loop Protocol v3 — 轻量 v3 + 保 Stage 3 复核测试逻辑**（守护者建议 — CI 自身 false-green/red 风险，R-181 翻车教训）；守护者续任 v0.5。性质 = docs/CI chore + version 单一真相源小重构（0 业务逻辑）。
+> **触发**：资深拍板 task #44（UI v2 收官后清债）；守护者 grounded 缺口清单（8 stale-doc 元教训：doc-不变量无 CI 则静默 drift）
+> **双向实证（R-137）**：执行者把守护者 flag 的「Shell L43 CI 无条件 vs 条件式」二选一**升华为 APP_VERSION 单一真相源**根治；守护者 CONDITIONAL APPROVED + 2 必修（R-181 渲染断言防弱化 + 静态重建）
+
+### Changed / Fixed
+- **`frontend/src/version.js` [NEW]** `export const APP_VERSION`：前端版本单一真相源
+- **`Shell.jsx` sidebar + `Login.jsx` footer** 硬编 version 字面 → 读 `{APP_VERSION}`（**Shell sidebar drift 8 PATCH 根治** — 实测 stale `v0.6.4.2` vs main 0.6.4.10）
+- **`tests/test_doc_invariants.py` [NEW]** 3 CI 守护：① `test_app_version_synced_with_main`（bridge：version.js == main.py；PRIMARY）② `test_shell_sidebar_renders_app_version`（Shell 渲染哨兵 + 无硬编）③ `test_knotlogo_file_set`（精确 5 文件 R-199.5）④ `test_changelog_top_version_synced_with_main`（CHANGELOG 顶部 == main）
+- **`tests/test_login_version_sync.py`** R-181 适配：footer 渲染断言 `v{APP_VERSION}`（**非仅 import** — 守护者必修 1 防弱化）+ bridge 组合 ⟹ 不弱反强
+
+### Notes
+- **⭐ 根治 = 单一真相源**：旧「五处」模型 Shell L43 条件式硬编 → drift 8 PATCH（根因 = 硬编字面分散两屏靠人肉同步必然 drift）。APP_VERSION 1 常量无条件 ★CI（bridge），Login/Shell 读它自动跟随 → drift 不可能。
+- **R-DI-1~12 立约**：bridge/KnotLogo/CHANGELOG 3 CI 真能抓 drift（§5 mutation 自验）+ 不误杀（绿态干净 repo 验）/ R-181 渲染断言不弱化 / Shell R-192 13 props + Login props byte-equal → App.jsx 0 diff（仅 version 显示行 + import）/ 静态重建 commit 2（version bake 进 bundle）/ CLAUDE.md §五处→§四源点单一真相源（Shell 条件式废除）
+- **版本同步新模型**：4 源点全 ★CI（main + smoke + README KNOW-1 + **version.js bridge**）；Login/Shell 渲染 `{APP_VERSION}` 自动跟随（渲染哨兵 CI）。**Shell L43 条件式同步规则废除**（历史「三→四→五处」演进归档 CHANGELOG v0.6.4.2/4.3）
+- **奥卡姆**：勿重造现有守护（R-72/R-181/R-185/KNOW-1/foundation）；一次性已修（plan §2/R-181 误分类/foundation 126 stale）不建常驻 CI
+- 本机 python 坏 → 3 新 CI + R-181 适配 + R-72/KNOW-1 走 CI 验证（mutation 自验：改 version.js≠main → bridge 红 / 加第 6 KnotLogo → 红 / CHANGELOG top stale → 红）
+
+详见 [docs/plans/v0.6.4.11-doc-invariant-ci.md](docs/plans/v0.6.4.11-doc-invariant-ci.md)
+
+---
+
+## [Released] - v0.6.4.10 — UI v2 auth 屏收尾（Enroll 色/token 对齐 + ForceChangePassword noop）· ⭐ UI v2 全屏收尾
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者 APPROVED 干净 Stage 3）；守护者续任 v0.5
 > **设计源**：demo auth.jsx（ForcePasswordPage + EnrollPage）

@@ -12,6 +12,7 @@
  */
 import { useState } from 'react';
 import { I, KnotLogo, TOKENS_V2 } from '../Shared.jsx';
+import { APP_VERSION } from '../version.js';  // v0.6.4.11 task #44 — 前端版本单一真相源（footer 不再硬编）
 import { toast } from '../utils.jsx';
 import { Btn } from '../primitives.jsx';
 import NarrativeMotif from '../decor/NarrativeMotif.jsx';
@@ -241,7 +242,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
           position: 'absolute', bottom: 24, left: 80, right: 80,
           fontSize: 12, color: T.muted, display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>v0.6.4.10 · build 202606180700</span>
+          <span>v{APP_VERSION} · build 202606181000</span>
           <span style={{ fontFamily: T.mono }}>knot.local</span>
         </div>
       </div>

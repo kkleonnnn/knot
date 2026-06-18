@@ -7,21 +7,23 @@ R-185：Login.jsx 引用 KnotLogo / KnotMark（DOM 哨兵 — 防资产重构后
 """
 from pathlib import Path
 
-# ─── R-181 三处同步守护 ──────────────────────────────────────────────
+# ─── R-181 守护（v0.6.4.11 task #44 适配：单一真相源 version.js）─────────
 
-def test_R181_login_footer_version_synced_with_main():
-    """Login.jsx 页脚 `v{version}` 字面必须与 knot.main.app.version 一致。
+def test_R181_login_footer_renders_app_version():
+    """Login.jsx 页脚渲染 `v{APP_VERSION}`（v0.6.4.11 起前端版本单一真相源 version.js）。
 
-    每 PATCH 三处同步：knot/main.py + tests/test_rename_smoke.py + Login.jsx 页脚。
-    漏一处即此测试挂。
+    v0.6.4.11 task #44：footer 不再硬编 version 字面，改读 `{APP_VERSION}`（version.js）。
+    本断言守**渲染引用**（JSX `v{APP_VERSION}`，非仅 import 存在 —— import 行挪走/注释化不应绿）；
+    与 bridge（test_doc_invariants.test_app_version_synced_with_main：APP_VERSION == main.py）组合
+    ⟹ footer = main version。组合后不弱于原 grep（原 grep 不验渲染位置）。
     """
-    from knot.main import app
-
     login_src = Path("frontend/src/screens/Login.jsx").read_text(encoding="utf-8")
-    expected = f"v{app.version}"  # 例：v0.5.7
 
-    assert expected in login_src, (
-        f"R-181 违规：Login.jsx 页脚必须含字面 {expected!r}（与 FastAPI version 同步）"
+    assert "v{APP_VERSION}" in login_src, (
+        "R-181 违规：Login.jsx 页脚必须渲染 v{APP_VERSION}（version.js 单一真相源；非硬编字面）"
+    )
+    assert "version.js" in login_src, (
+        "R-181 违规：Login.jsx 须 import APP_VERSION from version.js"
     )
 
 
