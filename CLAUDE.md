@@ -282,20 +282,21 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 > **R-199.5 KnotLogo 文件集更新（v0.6.4.2 守护者裁定）**：v0.5.9 立的「KnotLogo 仅 Shared+Login+Shell 三文件」抗诱惑约束，在 v0.6.2.0 auth 屏落地时已自然失效 —— `Enroll.jsx`（TOTP enroll）+ `ForceChangePassword.jsx` 同为 brand/auth 屏，采用 KnotLogo 合理。**当前命中 5 文件**：Shared + Login + Shell + Enroll + ForceChangePassword。后续屏复刻 KnotLogo 哨兵基线 = 5（非 3）。
 
-### 五处版本同步（v0.5.0 R-72 + v0.5.7 R-181 + v0.6.0.8 KNOW-1 + v0.6.4.2 立约）
+### 四源点版本同步（v0.6.4.11 task #44 单一真相源 — 替代旧「五处」硬编模型）
 
-> **v0.6.4.2 立约**：守护者 Stage 3 挖到 `Shell.jsx` sidebar logo 右侧版本字面（自 v0.5.31 起即同步点，注释自述「三处→四处」）实际 drift 3 个 MINOR（卡 v0.6.1.4）→ 制度化为第 4 点。
-> **v0.6.4.2 commit 3 自省修正**：起初立「四处」时**漏了 README 顶部**（第 5 点，且本就 CI 强制 = KNOW-1 `test_readme_top_version_synced_with_main`），commit 2 CI 红抓出 → 升「五处」。**讽刺点**：修 stale-doc 的立约自身漏一处 = 元模式第 6 数据点 → 更印证 task #44「doc-不变量 CI 守护一揽子」必要性。
-> **⚠️ v0.6.4.3 commit 3 再修正（分类错）**：守护者 v0.6.4.3 Stage 3 §二 误把 Login footer 当「条件式（若改 Login.jsx）→ 本 PATCH 不动」，实则 **R-181 无条件 CI**（test docstring 自述「每 PATCH 三处同步：main.py + smoke + **Login.jsx 页脚**」）。执行者照错裁定不 bump → CI（R-181）抓出守护者裁定错（元模式第 8 数据点：**错在守护者 ratify 的 doc 分类 + 守护者据错 doc 裁定，仍只 CI 抓住**）。**正确模型 = 4 无条件 ★CI（main/smoke/README/Login footer）+ 1 条件无 CI（Shell L43，仅改 Shell 时）。**
+> **v0.6.4.11 task #44 根治**：旧「五处」模型里 Shell L43 是**条件式硬编**（仅改 Shell 时同步）→ 实测 drift **8 PATCH**（卡 v0.6.4.2）。根因 = **硬编版本字面分散在 Login/Shell 两屏**，靠人肉/条件式同步必然 drift（元模式 8 数据点核心）。
+> **解 = 前端版本单一真相源**：新建 `frontend/src/version.js` `export const APP_VERSION`；Shell sidebar + Login footer **读 `{APP_VERSION}`**（不再硬编 → drift 不可能）。CI bridge 断言 `APP_VERSION === main.py version`。
+> **历史归档**：旧「三处→四处→五处」演进 + R-181 误分类（元模式第 6/8 数据点）记于 CHANGELOG v0.6.4.2/4.3 + docs/plans/*；本段为 live spec，不复述。
 
-每 PATCH 升版本须同步以下版本字面（**1-4 = 无条件 ★CI 强制，每 PATCH 必同步；5 = 条件式「若改 Shell.jsx」+ 未 CI** → task #44 待补）：
-1. ★ `knot/main.py` FastAPI version（R-72 smoke 断言）
-2. ★ `tests/test_rename_smoke.py` R-72 smoke 字面 + docstring
-3. ★ `README.md` 顶部 1000 字符内 `v{version}` 字面（KNOW-1 守护测试）
-4. ★ `frontend/src/screens/Login.jsx` 页脚 `v{version}` 字面（R-181 守护测试 — **无条件**，每 PATCH 必同步，**非**「若改 Login.jsx」；R-181 carve-out = 仅此 1 行 footer，不破其他屏 0-diff 铁律）
-5. **若改 Shell.jsx**：`frontend/src/Shell.jsx` sidebar logo 右侧 `v{version}` 字面（v0.6.4.2 立约；**条件式 + 未 CI 强制** → task #44 待补 — 正因无 CI 才 drift 3 MINOR）
+每 PATCH 升版本须同步 **4 个源点**（全 ★CI 强制 — 改一漏一即红，无条件）：
+1. ★ `knot/main.py` FastAPI version（R-72 `test_rename_smoke`）
+2. ★ `tests/test_rename_smoke.py` R-72 字面 + docstring
+3. ★ `README.md` 顶部 1000 字符内 `v{version}`（KNOW-1 `test_login_version_sync`）
+4. ★ `frontend/src/version.js` `APP_VERSION`（bridge `test_doc_invariants.test_app_version_synced_with_main` 断言 == main.py）
 
-未来若复刻其他含版本字面的新屏，加对应同步红线 + 优先纳 CI（避免靠人肉）。
+**显示点自动跟随（不单列、不硬编）**：Login footer + Shell sidebar 渲染 `v{APP_VERSION}`（读源 #4）→ 版本一致由 bridge 保证；渲染哨兵（R-181 adapted + `test_shell_sidebar_renders_app_version`）断言二者真渲染 `v{APP_VERSION}`（非仅 import）。**Shell L43 条件式同步规则废除**。
+
+**doc-不变量 CI 一揽子**（`tests/test_doc_invariants.py`，task #44）：version bridge（上 #4）+ KnotLogo 精确 5 文件集（R-199.5）+ CHANGELOG 顶部 == main version。未来新增 doc-不变量**优先纳 CI**（勿靠人肉 — 元教训：无 CI 则静默 drift）。
 
 ### 复用 v0.5.7 LOCKED 手册作模板
 

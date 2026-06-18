@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.10 · UI v2 auth 屏收尾（Enroll 色/token 对齐 + ForceChangePassword noop）· **⭐ UI v2 全屏收尾（19 屏/文件）**：Enroll 4× 按钮 #fff→T.sendFg + ErrorBanner 硬编 oklch→TOKENS_V2.err（同 Login）+ warn 硬编 oklch→T.warn + L181 插值 bug 修（${T.accent}）· QR bg #fff 功能豁免 · ForceChangePassword 0 diff（已 v2）· EnrollScreen/ForceChangePassword props byte-equal（App.jsx 0 diff）· 用户侧 7 + admin 10 + auth 2 全 v2；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.11 · doc-不变量 CI 守护一揽子（task #44）· **前端版本单一真相源 + 3 CI 守护**：新建 `version.js` APP_VERSION（Shell/Login footer 读 `{APP_VERSION}`，不再硬编 → drift 根治；修 Shell sidebar stale v0.6.4.2 drift 8 PATCH）+ 3 CI（bridge version.js==main / KnotLogo 精确 5 文件集 / CHANGELOG 顶部==main）+ R-181 适配渲染断言 · §五处同步→4 源点 ★CI 新模型（Shell 条件式废除）· 0 业务逻辑 · App.jsx 0 diff；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
