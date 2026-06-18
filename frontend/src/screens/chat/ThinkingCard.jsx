@@ -120,22 +120,27 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
         const isDone     = status === 'done';
         return (
           // 卡片 bg T.content + radius 10 + padding 12 (R-279/R-283)
-          // isThinking border 用 color-mix(oklch) 替代 alpha 拼接（R-286）
+          // v0.6.4.5 UI v2: isThinking border color-mix(oklch 38% R-286) + boxShadow ring（同 Composer focus ring color-mix 15%）
           <div key={key} style={{
             background: T.content, borderRadius: 10,
             border: `1px solid ${isThinking ? `color-mix(in oklch, ${T.accent} 38%, transparent)` : T.border}`,
-            padding: 12, opacity: isPending ? 0.45 : 1,
+            boxShadow: isThinking ? `0 0 0 3px color-mix(in oklch, ${T.accent} 15%, transparent)` : 'none',
+            padding: 12, opacity: isPending ? 0.55 : 1,
             transition: 'all .2s',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: output || (isThinking && key === 'sql_planner') ? 8 : 0 }}>
+            {/* v0.6.4.5 UI v2 (b): header 行 = chip + name + status icon（status marginLeft auto）；label 下沉独立一行 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <LetterChip T={T} letter={letter}/>
               <span style={{ fontSize: 10, fontFamily: T.mono, color: T.muted,
                              letterSpacing: '0.08em', textTransform: 'uppercase' }}>{name}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 500, color: T.text, flex: 1, marginLeft: 4 }}>{label}</span>
-              {isDone     && <DoneCheck T={T}/>}
-              {isThinking && <TypingDots color={T.accent}/>}
-              {isPending  && <span style={{ fontSize: 10, color: T.muted }}>○</span>}
+              <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>
+                {isDone     && <DoneCheck T={T}/>}
+                {isThinking && <TypingDots color={T.accent}/>}
+                {isPending  && <span style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid ${T.muted}`, opacity: 0.5, flexShrink: 0, display: 'inline-block' }}/>}
+              </span>
             </div>
+            {/* v0.6.4.5 UI v2 (b): title 独立一行 13/600（artboard L331 两行卡片）*/}
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginTop: 6, marginBottom: output || (isThinking && key === 'sql_planner') ? 8 : 0 }}>{label}</div>
 
             {key === 'clarifier' && isDone && output?.refined_question && (
               <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>

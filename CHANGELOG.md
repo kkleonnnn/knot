@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.4 — UI v2 Composer（R-217 hold 清偿 · 最小 PATCH）
+## [Unreleased] - v0.6.4.5 — UI v2 thinking（AgentThinkingPanel 思考 rail）屏复刻（逐屏复刻第 5 屏）
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3，非自审）；守护者续任 v0.5
+> **设计源**：`knot_demo_ui/v0.6/artboards/thinking.jsx`（ThinkingStep L308-347）
+> **双向实证（R-137）**：执行者 adversarial delta 评估列 3 处；守护者 adversarial Stage 3 抓出 **delta #2 被低估**（执行者只改 title 字号、漏了 artboard「title 下沉独立一行」placement）→ 资深拍 (b) 忠实两行卡片 → 执行者落对（header 重构 + title 下沉，非纯 resize）
+
+### Changed
+- **`frontend/src/screens/chat/ThinkingCard.jsx` AgentThinkingPanel 卡片 UI v2**（210→215）：
+  - **active 卡片 boxShadow ring**：`isThinking` 加 `0 0 0 3px color-mix(in oklch, ${T.accent} 15%, transparent)`（与 Composer focus ring 同 pattern；§三 取产品一致非 artboard `brandSoft` literal；R-286 color-mix / R-313 boxShadow 豁免）；active border 保本地 `color-mix(accent 38%)`（v0.5.12 established）
+  - **⭐ delta #2 (b) title 下沉独立一行**（资深拍板）：header 行 = `[LetterChip][name][status icon marginLeft auto]`；title「理解问题」另起一行 `fontSize 13 / fontWeight 600 / marginTop 6`（artboard L331 两行卡片；**守护者 adversarial 抓出执行者原只列 size 漏 placement**）
+  - **pending icon**：`○` 字符 → circle span（`13×13 / borderRadius 50% / border 1.5px T.muted / opacity 0.5`，demo L312）+ 卡片 pending `opacity 0.45→0.55`
+
+### Notes
+- **R-UI2-T-1~9 立约**：ThinkingCard + AgentThinkingPanel export + props 签名 byte-equal → **Chat.jsx + Conversation.jsx 0 diff** / Foundation 0 改（LetterChip/DoneCheck/TypingDots from Shared，R-PB-SH）/ borderLeft 右 rail 结构保留（main 已 floating panel，rail 在其圆角内裁剪；改 floating inset 须动 Chat.jsx = **OOS**）/ 全业务 byte-equal（_deriveTrace / _shouldHideClarifierApproach / AGENTS 4 keys K/N/O/T / HTTP 分支 / isAdmin gating / 4 body 渲染）/ hex 0 / VRP 0 写死 viewport
+- **⭐ adversarial delta 评估流程稳定（双层）**：执行者「是否已 v2」诚实定级（Composer noop→1 行 hex / thinking 列 3 delta）+ 守护者 adversarial 复核（Composer 查 chat-results 无独立 composer / thinking 抓 delta#2 placement）→ 可靠双层防漏
+- **修正版本同步模型第 3 次施行**（v0.6.4.3 R-181 红教训）：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181**）→ 0.6.4.5 + Shell L43 条件式不动（stays v0.6.4.2）。Login footer 主动 bump → R-181 预期绿
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（思考面板：active 卡 ring + title 两行 + pending 空心圆 + K/N/O/T 四 agent 状态流转 + HTTP/SQL 双路径 trace + 非 admin 隐藏 sql_step）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **UI v2 复刻进度**：login（1）→ shell（2）→ home（3）→ Composer（4）→ **thinking（5/~18）** → 续 chat-results / favorites / admin 屏 ...
+
+详见 [docs/plans/v0.6.4.5-thinking.md](docs/plans/v0.6.4.5-thinking.md)
+
+---
+
+## [Released] - v0.6.4.4 — UI v2 Composer（R-217 hold 清偿 · 最小 PATCH）
 
 > **Loop Protocol v3 — 轻量 v3**（守护者起草 Stage 1 = 自审 → adversarial Stage 3 补偿独立性 → 执行者 commit 1；资深拍板「A 最小」）；守护者续任 v0.5
 > **设计源**：`knot_demo_ui/v0.6/artboards/home.jsx`（composer 块）+ `chat-results.jsx`（活跃态，自审复验无独立 composer）

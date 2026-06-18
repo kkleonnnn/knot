@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.4.4 · UI v2 逐屏复刻第 4 屏 · Composer（R-217 hold 清偿）：守护者 adversarial 自审发现 Composer v0.5.11 早已是 v2 spec（radius14/双层 boxShadow/focus ring/send32/hint mono）→ 唯一 delta = Spinner `#fff`→T.sendFg（R-484 最后一处 hex 清零）· R-217「Composer 需大改」假设挂 9 PATCH 实证推翻、正式清偿 · 9 props + footer hint byte-equal（ChatEmpty/Conversation 0 diff）· 后续 v0.6.4.x 续复刻 ~14 屏；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.4.5 · UI v2 逐屏复刻第 5 屏 · thinking（AgentThinkingPanel 思考 rail）：卡片 active boxShadow ring（color-mix oklch 15%，同 Composer focus ring）+ title 下沉独立一行 13/600（artboard 两行卡片）+ pending icon `○`→circle span · borderLeft 右 rail 结构保留（main 内，非 floating；Chat.jsx 0 diff）· LetterChip/DoneCheck/TypingDots Foundation 0 改 · 全业务 byte-equal（4 agent K/N/O/T + HTTP 分支 + isAdmin gating）· 后续 v0.6.4.x 续复刻 ~13 屏；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
