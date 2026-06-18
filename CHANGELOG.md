@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.4.6 — UI v2 chat-results（ResultBlock card radius 对齐）· chat flow 6 屏收官
+## [Unreleased] - v0.6.4.7 — UI v2 favorites（SavedReports card radius 对齐）· 用户侧屏收尾
+
+> **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3 = **Accept 无修订，最干净一次**）；守护者续任 v0.5
+> **设计源**：`knot_demo_ui/v0.6/artboards/favorites.jsx`（144 行）
+> **双向实证（R-137）**：执行者**内化 results 教训** — Stage 1 主动枚举全部 radius 站点（11 站点全分类，无 FeedbackBar-type 漏）；守护者 adversarial Stage 3 grep 确认**完整无漏**（前 3 次抓漏 → 第 4 次确认完整 = 双层防漏机制成熟正向信号）
+
+### Changed
+- **`SavedReports.jsx` card radius v2 对齐**（3 站点）：
+  - **primary 数据卡 10→12**：结果 table card（matches demo L98）
+  - **alert banner 8→10**：warning banner + runResult.error banner（同 results）
+
+### Notes
+- **radius 全站点枚举（11 站点，3 改 + 8 stays）** — stays 理由：SavedItem 6（sidebar item，matches demo）· EmptyView 按钮/title input/noteDraft 6（control/input）· truncated notice 6（slim 无 border pill）· StatusDot dot 50% · **原始问题 quote 6（brandSoft inset R-372 — radius+color 字面不动）** · SQL details 10（utility，同 results SQL accordion 裁定）
+- **R-UI2-F-1~9 立约**：SavedReportsScreen 5 props byte-equal → App.jsx 0 diff / 全业务（5 handlers + EmptyView/DetailView + api 5 endpoint + INTENT_EMOJI 7 keys）byte-equal / hex 0 sustained
+- **⭐ 3 大不动守护（adversarial sound）**：① **thead T.bg 灰底**（v0.5.38 established，第 3 次同款 trap，非 demo bgInset）② **原始问题 quote brandSoft 8% inset R-372 字面不动**（`borderLeft 3px 25%` + `bg 8%`；**有意偏离 demo bgInset** — R-372 全站闭环铁律 > artboard 细节，资深知悉；同 login error 色 / thead T.bg 的 R-UI2-VRP「本地铁律 > artboard」）③ **TopBar 按钮 placement 不动**（demo TopBar Btn vs 产品 content pillBtnCompact，改 placement = 动 AppShell 结构 OOS）
+- **adversarial Stage 3 第 4 次 = 确认完整非抓漏**（Composer noop→hex / thinking placement / results radius 抓漏 / **favorites 确认完整无漏**）→ 执行者「是否已 v2」诚实定级 + 完整枚举 自检到位，双层防漏成熟
+- **修正版本同步模型第 5 次施行**：4 无条件 ★CI（main + smoke + README KNOW-1 + **Login footer R-181**）→ 0.6.4.7 + Shell L43 条件式不动（stays v0.6.4.2）
+- 本机 python 坏 → R-72 + R-181 + KNOW-1 走 CI；live UI（收藏屏：sidebar 列表 + 详情 title block + result table 12 圆角 + warning/error banner 10 + brandSoft quote + 重跑/编辑/导出 + thead 灰底）部署后 knot.0p.oh + 资深 :8000 post-merge
+- **⭐ UI v2 用户侧屏全收尾**：login（1）→ shell（2）→ home（3）→ Composer（4）→ thinking（5）→ chat-results（6）→ **favorites（7）** —— 非 admin 用户全部屏 v2。下一站转 admin 屏群（~11 屏：audit/budgets/recovery/metrics/history/errors + tab_access/resources/knowledge/system + modals）
+
+详见 [docs/plans/v0.6.4.7-favorites.md](docs/plans/v0.6.4.7-favorites.md)
+
+---
+
+## [Released] - v0.6.4.6 — UI v2 chat-results（ResultBlock card radius 对齐）· chat flow 6 屏收官
 
 > **Loop Protocol v3 — 轻量 v3**（执行者起草 Stage 1 + 守护者干净 Stage 3）；守护者续任 v0.5
 > **设计源**：`knot_demo_ui/v0.6/artboards/chat-results.jsx`（309 行 gallery）
