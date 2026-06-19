@@ -15,6 +15,20 @@ import { I, KnotLogo, TOKENS_V2 } from '../Shared.jsx';
 import { Spinner, toast } from '../utils.jsx';
 import { api } from '../api.js';
 
+// v0.6.5.2 F5：enroll secret/QR 缓存在 sessionStorage（tab 关即清，符合 totp.py:71 不持久化意图）。
+// 防屏 remount / 刷新重调 enroll-init 换全新 secret → 认证器旧条目动态码与最新 secret 错位 →
+// enroll-complete 必败（实测扫 3+ 码全失败）。complete 成功 / 退出 / 401 拦截器均清缓存。
+function _readEnrollCache(key) {
+  try { const raw = sessionStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
+function _writeEnrollCache(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch { /* 降级：不缓存 */ }
+}
+function _clearEnrollCache(key) {
+  try { sessionStorage.removeItem(key); } catch { /* */ }
+}
+
 export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
   const [step, setStep] = useState(1);             // 1:QR / 2:verify / 3:backup / 4:confirm
   const [secret, setSecret] = useState('');
@@ -25,21 +39,34 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Step 1: enroll_init — 生成 secret + QR payload（不持久化）
+  // v0.6.5.2 F5：per-user enroll 缓存 key（user prop 生命周期内稳定）
+  const cacheKey = `cb_enroll_init_${user?.id ?? 'self'}`;
+
+  // Step 1: enroll_init — 生成 secret + QR；F5 命中 sessionStorage 缓存则不重调（secret 稳定）
+  // 缓存命中同步 hydrate state（mount-only effect）— 同 App.jsx prefetch 模式禁该规则
+  /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
   useEffect(() => {
     let cancelled = false;
+    const cached = _readEnrollCache(cacheKey);
+    if (cached && cached.secret && cached.qr_dataurl) {
+      setSecret(cached.secret);
+      setQrDataurl(cached.qr_dataurl);
+      return;  // 命中缓存 → 不重调 init（防换 secret 致认证器错位）
+    }
     (async () => {
       try {
         const data = await api.totp.enrollInit();
         if (cancelled) return;
         setSecret(data.secret);
         setQrDataurl(data.qr_dataurl);
+        _writeEnrollCache(cacheKey, { secret: data.secret, qr_dataurl: data.qr_dataurl });
       } catch (err) {
         if (!cancelled) setError(err.detail || 'enroll_init 失败');
       }
     })();
     return () => { cancelled = true; };
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 
   const submitCode = async (e) => {
     e.preventDefault();
@@ -48,11 +75,15 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
     try {
       const data = await api.totp.enrollComplete(secret, code.trim());
       setRecoveryCodes(data.recovery_codes || []);
+      _clearEnrollCache(cacheKey);  // v0.6.5.2 F5：绑定成功 → 清缓存（下次重新 enroll 拿新 secret）
       setStep(3);
     } catch (err) {
       setError(err.detail === 'TOTP_INVALID' ? '验证码错误，请重试' : (err.detail || '验证失败'));
     } finally { setLoading(false); }
   };
+
+  // v0.6.5.2 F5：退出前清 enroll 缓存（防同 tab 下次进 Enroll 命中旧 secret）
+  const handleLogoutWithClear = () => { _clearEnrollCache(cacheKey); onLogout(); };
 
   const downloadRecoveryCodes = () => {
     const content = `KNOT 2FA Recovery Codes — ${user?.username || 'user'}\n` +
@@ -125,7 +156,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
               background: qrDataurl ? T.accent : T.muted, color: T.sendFg,
               fontSize: 14, fontWeight: 600, cursor: qrDataurl ? 'pointer' : 'not-allowed',
             }}>下一步 — 输入动态码</button>
-            <button onClick={onLogout} style={{
+            <button onClick={handleLogoutWithClear} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none',
               cursor: 'pointer', padding: 4,
             }}>← 退出登录</button>
@@ -219,6 +250,7 @@ function ErrorBanner({ T: _T, msg }) {
       color: TOKENS_V2.err,
       background: `color-mix(in oklch, ${TOKENS_V2.err} 12%, transparent)`,
       border: `1px solid color-mix(in oklch, ${TOKENS_V2.err} 25%, transparent)`,
-    }}>{msg}</div>
+      // v0.6.5.2 F3 纵深防御：兜未来漏改 —— msg 非 string 时 stringify，绝不渲染对象（React #31）
+    }}>{typeof msg === 'string' ? msg : JSON.stringify(msg)}</div>
   );
 }

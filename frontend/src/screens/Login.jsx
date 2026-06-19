@@ -177,7 +177,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
                              fontSize: 16, color: T.text, fontFamily: T.mono, letterSpacing: '0.15em' }}/>
                 </div>
               </div>
-              {error && <div style={errBox}>{error}</div>}
+              {error && <div style={errBox}>{typeof error === 'string' ? error : JSON.stringify(error)}</div>}
               <Btn T={T} variant="primary" size="lg" type="submit" loading={loading}
                    iconRight={<I.arrow/>} style={{ marginTop: 12, width: '100%' }}>验证</Btn>
               <button type="button" onClick={() => { setStep('login'); setError(''); setTotpCode(''); }} style={{

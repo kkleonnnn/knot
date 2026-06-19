@@ -70,7 +70,7 @@ LIMITS = {
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 +70 (SourceFormModal HTTP type 5 字段 + isHttp 分支 + parsedHttpCfg 反序列化)
     # ── v0.5.7 R-176 ──────────────────────────────────────────
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻 270→295 (card + Btn 采纳 + error 迁)
-    "frontend/src/screens/Enroll.jsx":             240,  # v0.6.2.0 commit 5 NEW — 4-step TOTP enroll 流程
+    "frontend/src/screens/Enroll.jsx":             256,  # v0.6.2.0 NEW 240；v0.6.5.2 F5 240→256（sessionStorage secret 缓存 helpers + cacheKey + logout 清理，治扫码错位；资深 ack 方案 A 微调）
     "frontend/src/decor/NarrativeMotif.jsx":       120,
     # ── v0.5.9 R-205 ──────────────────────────────────────────
     "frontend/src/Shell.jsx":                      220,
