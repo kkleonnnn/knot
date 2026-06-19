@@ -41,7 +41,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
       monthly_token_cap: 500000,
       per_conv_token_cap: 40000,
       warn_pct: 80,
-      default_model: 'claude-haiku-4-5',
+      default_model: 'anthropic/claude-haiku-4.5',
       rate_limit_per_min: 20,
     });
   }
