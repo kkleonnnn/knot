@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.2 · 2FA rollout 流程修复（白屏验收串联修复）：① 4 处 429 detail `{ja,zh}` → 纯 zh 字符串 + api.js `normalizeDetail`（detail 恒 string，治 React #31 白屏元凶）② enroll-complete 独立分桶（治 enroll 限流卡死）③ **verify interim_token 入 body + reset target_user_id**（2 活体契约 bug — 已 enrolled 全员登不进 + admin 无法救援）④ **后端一次性 rollout session 失效**（运维更新后全员重登 → 再绑定，R-2FA 不变量）⑤ enroll secret sessionStorage 缓存（治扫码错位）⑥ index.html no-cache（治发版换 hash 白屏）· **gate 决策逻辑 0 改** · version.js + build · 5 源点版本同步；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.3 · 测试隔离 flaky 修（chore · 预存在债）：startup auto-purge 的 fire-and-forget `create_task` 延迟执行时读当前 monkeypatched DB 路径（已是后续测试 tmp DB）→ purge 线程与该测试 `init_db` 抢 WAL 锁 → `database is locked` 随机落点 ERROR。修：`KNOT_SKIP_STARTUP_AUTO_PURGE` env guard（生产可用 — 外部 cron 管 audit 清理时禁启动自动清理）+ conftest 模块级设之 + 模块级缓存清理防御。**生产默认行为不变** · 全量 pytest 4× 稳定 · 5 源点版本同步。<br>**上版** v0.6.5.2 · 2FA rollout 流程修复（白屏验收 8-bug 串联：429 字符串化 + normalizeDetail + enroll 分桶 + verify/reset 契约 + rollout session 失效 + index.html no-cache）。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
