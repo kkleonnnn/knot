@@ -22,7 +22,9 @@ export default function App() {
   const [T, toggleTheme] = useTheme();
   const [user, setUser] = usePersist('cb_user', null);
   const [screen, setScreen] = usePersist('cb_screen', 'chat');
-  const [loading, setLoading] = usePersist('cb_loading', true);
+  // v0.6.5.2 F4-fe 硬伤1：loading 用 useState 非 usePersist —— 持久化 loading 会让刷新
+  // 首帧 loading=false 先用旧 cb_user 闪主应用再等 me()（FOUC + 中间帧发请求）。loading 本就不该持久化。
+  const [loading, setLoading] = useState(true);
   // v0.6.2.0 R-PB-B1-4：KNOT_TOTP_REQUIRED=true + user 未 enroll → server 返 403 totp_enroll_required
   const [needsEnroll, setNeedsEnroll] = useState(false);
   // v0.6.1.2 F1 — shared backend data lifted from ChatScreen，避免每次切屏 re-mount 时重 fetch
@@ -30,27 +32,28 @@ export default function App() {
   const [dbOk, setDbOk] = useState(null);
   const [sourceCount, setSourceCount] = useState(null);
 
-  /* eslint-disable react-hooks/exhaustive-deps */
+  // v0.6.5.2 F4-fe：cb_loading 由 usePersist 降级为 useState 后，eslint 识别 setLoading 为
+  // useState setter → mount-only effect 内同步 setLoading 触发 set-state-in-effect（此前 usePersist
+  // setter 不被识别）。同 prefetch effect（下方）禁该规则 —— mount-once 同步初始化是合理模式。
+  /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
   useEffect(() => {
     const token = localStorage.getItem('cb_token');
     if (!token) { setLoading(false); return; }
     api.me().then(u => {
       setUser(u);
       setLoading(false);
-    }).catch((err) => {
-      // v0.6.2.0 R-PB-B1-4：403 totp_enroll_required → 跳 Enroll 屏（不清 token）
-      if (isEnrollErr(err)) {
-        // 仅 set needsEnroll + 保留 token；Enroll 完成后会重新 me()
-        setNeedsEnroll(true);
-        setLoading(false);
-        return;
-      }
+    }).catch(() => {
+      // v0.6.5.2 F4-fe：删死代码 isEnrollErr 分支 —— me()(/api/auth/me) 命中 gate 白名单
+      // （deps.py:144 /api/auth/ 前缀）永不返 403 totp_enroll_required。enroll 触发由
+      // user-ready 后的 prefetch onErr（下方 useEffect）负责。401（含 rollout bump JWT_REVOKED）
+      // 已由 api.js 拦截器清 token+reload。本 catch 仅兜 500/网络错 → 清 token 落 Login。
       localStorage.removeItem('cb_token');
+      localStorage.removeItem('cb_user');
       setUser(null);
       setLoading(false);
     });
   }, []);
-  /* eslint-enable react-hooks/exhaustive-deps */
+  /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 
   // v0.6.1.2 F1 — 用户认证完成后并行 prefetch 共享数据；user 切换时重新 fetch
   // v0.6.0.14 lint sweep：sync 清空 + async prefetch 是 SPA 用户切换标准模式
@@ -84,6 +87,9 @@ export default function App() {
     localStorage.removeItem('cb_conv');
     setUser(null);
     setScreen('chat');
+    // v0.6.5.2 F4-fe：重置 needsEnroll —— 否则 Enroll 屏点退出后 needsEnroll 仍 true →
+    // 渲染顺序 needsEnroll 在 !user 前 → 卡在 Enroll 屏无法回 Login。
+    setNeedsEnroll(false);
   };
   const navigate = (s) => setScreen(s);
 
@@ -97,7 +103,9 @@ export default function App() {
 
   // v0.6.2.0 R-PB-B1-4：needsEnroll = true 时（403 totp_enroll_required）强制 Enroll 屏
   // 没 user 但有 token + needsEnroll → Enroll；Enroll 完成后调 me 拿 user
-  if (needsEnroll) {
+  // v0.6.5.2 F4-fe：加 cb_token 守卫 —— 无 token 时（已登出 / rollout 清空）不渲染 Enroll，
+  // 防 needsEnroll 残留 true 卡死（与 handleLogout setNeedsEnroll(false) 双保险）。
+  if (needsEnroll && localStorage.getItem('cb_token')) {
     const handleEnrolled = () => {
       setNeedsEnroll(false);
       // 重新 me 拿 user 信息（enroll 完成后 server 不再返 403）

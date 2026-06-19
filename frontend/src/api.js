@@ -4,13 +4,30 @@
  * 401 拦截器：JWT 失效（含 R-PB-B1-13 JWT_REVOKED detail）→ 清 token + reload
  * 错误抛出含 .status + .detail 字段供调用方区分（如 403 totp_enroll_required）
  *
- * v0.6.2.0 加 5 TOTP endpoints：
+ * v0.6.2.0 加 4 TOTP endpoints（v0.6.5.2 P2-a：删过期 status 注释，前后端均无该端点）：
  *   enrollInit  → POST /api/totp/enroll-init       interim_token 或正常 JWT
  *   enrollComplete → POST /api/totp/enroll-complete + 1 个 6 位码 → recovery_codes[10]
- *   verify      → POST /api/totp/verify  interim_token auth → 完整 JWT
- *   reset       → POST /api/totp/reset (admin only) — bump_token_version 触发旧 JWT 失效
- *   status      → GET  /api/totp/status — enroll 状态查询
+ *   verify      → POST /api/totp/verify  interim_token 在 body（v0.6.5.2 C1）→ 完整 JWT
+ *   reset       → POST /api/totp/reset (admin only) — target_user_id（v0.6.5.2 C2）
  */
+// v0.6.5.2 F3：把后端 detail 规整为 string（前端直接渲染）。防 {ja,zh} 等对象塞进 React
+// state → 渲染对象触发 React #31「Objects are not valid as a React child」整屏白屏。
+//   string → 严格原样返回（identity，零变换 — 守 isEnrollErr / JWT_REVOKED /
+//            must_change_password 等字面比较不断裂）
+//   {ja,zh} → 取 zh（KNOT zh-only）；{message} → message；422 数组 → 各 msg 用 ；拼接
+export function normalizeDetail(detail) {
+  if (typeof detail === 'string') return detail;              // identity — 不变换
+  if (detail == null) return '';
+  if (Array.isArray(detail)) {                                // FastAPI 422 校验错误数组
+    return detail.map(d => d && d.msg).filter(Boolean).join('；');
+  }
+  if (typeof detail === 'object') {
+    if (typeof detail.zh === 'string') return detail.zh;      // 旧 {ja,zh} → zh 优先
+    if (typeof detail.message === 'string') return detail.message;
+  }
+  try { return JSON.stringify(detail); } catch { return String(detail); }
+}
+
 export const api = {
   _token: () => localStorage.getItem('cb_token') || '',
   _h() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${this._token()}` }; },
@@ -26,16 +43,25 @@ export const api = {
       localStorage.removeItem('cb_screen');
       localStorage.removeItem('cb_conv');
       localStorage.removeItem('cb_loading');
+      // v0.6.5.2 F5 硬伤2：清 sessionStorage enroll secret 缓存 —— admin reset / rollout bump
+      // → 旧 JWT 401 → 同 tab 重进 Enroll 若命中作废 secret 则 enroll-complete 必 400。
+      try {
+        Object.keys(sessionStorage).filter(k => k.startsWith('cb_enroll_init_'))
+          .forEach(k => sessionStorage.removeItem(k));
+      } catch { /* sessionStorage 不可用降级 */ }
       window.location.reload();
       return;
     }
     if (!r.ok) {
       // v0.6.2.0：保留 detail 字段供调用方区分场景（如 403 totp_enroll_required）
       let detail = r.statusText;
-      try { const j = await r.json(); detail = j.detail || j.message || detail; } catch { /* not JSON */ }
-      const err = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      try { const j = await r.json(); detail = j.detail ?? j.message ?? detail; } catch { /* not JSON */ }
+      // v0.6.5.2 F3：err.detail 恒 string（防对象渲染白屏）；err.detailRaw 保原值零损失
+      const detailStr = normalizeDetail(detail);
+      const err = new Error(detailStr);
       err.status = r.status;
-      err.detail = detail;
+      err.detail = detailStr;
+      err.detailRaw = detail;
       throw err;
     }
     if (r.status === 204) return {};
@@ -55,21 +81,26 @@ export const api = {
     enrollInit: () => api.post('/api/totp/enroll-init'),
     // secret 由 enrollInit 返回，前端原样回传（KNOT 不持久化中间态 — 防 secret 提前暴露）
     enrollComplete: (secret, code) => api.post('/api/totp/enroll-complete', { secret, code }),
-    // verify 用 interim_token（login 时拿到）— 显式传入 token，不走 _token()
+    // verify 用 interim_token（login 时拿到）
     async verify(code, interimToken) {
+      // v0.6.5.2 C1：interim_token 必须在 body（TotpVerifyRequest 必填字段）。
+      // 旧版放 Authorization header（verify 端点无 get_current_user 不读 header）→ Pydantic
+      // 报 interim_token field required → 422 → 已 enrolled 用户全员登录第二步卡死。
       const r = await fetch('/api/totp/verify', {
-        method: 'POST', headers: api._hWith(interimToken),
-        body: JSON.stringify({ code }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interim_token: interimToken, code }),
       });
       if (!r.ok) {
         let detail = r.statusText;
-        try { const j = await r.json(); detail = j.detail || detail; } catch { /* */ }
-        const err = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-        err.status = r.status; err.detail = detail;
+        try { const j = await r.json(); detail = j.detail ?? detail; } catch { /* */ }
+        const detailStr = normalizeDetail(detail);  // v0.6.5.2 F3
+        const err = new Error(detailStr);
+        err.status = r.status; err.detail = detailStr; err.detailRaw = detail;
         throw err;
       }
       return r.json();
     },
-    reset: (userId) => api.post('/api/totp/reset', { user_id: userId }),
+    // v0.6.5.2 C2：字段名 target_user_id（TotpResetRequest）；旧版 user_id 致 422 → admin 无法救援
+    reset: (userId) => api.post('/api/totp/reset', { target_user_id: userId }),
   },
 };

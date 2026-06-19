@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.1 · 强制 2FA review 跟进（落 #153 独立复审 5 建议）：① 后门不泄漏非 admin 反向测试（安全边界回归守护）② 非 admin 强制 enroll 测试 ③ main.py 启动期 2FA 状态 warn（fail-open 拼写立即可见）④ rollout 分阶段提示（升级前 `KNOT_TOTP_REQUIRED=false`）· **gate 决策逻辑 0 改** · 仅 version.js bump 需 rebuild · 4 源点版本同步；⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.2 · 2FA rollout 流程修复（白屏验收串联修复）：① 4 处 429 detail `{ja,zh}` → 纯 zh 字符串 + api.js `normalizeDetail`（detail 恒 string，治 React #31 白屏元凶）② enroll-complete 独立分桶（治 enroll 限流卡死）③ **verify interim_token 入 body + reset target_user_id**（2 活体契约 bug — 已 enrolled 全员登不进 + admin 无法救援）④ **后端一次性 rollout session 失效**（运维更新后全员重登 → 再绑定，R-2FA 不变量）⑤ enroll secret sessionStorage 缓存（治扫码错位）⑥ index.html no-cache（治发版换 hash 白屏）· **gate 决策逻辑 0 改** · version.js + build · 5 源点版本同步；⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

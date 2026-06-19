@@ -32,7 +32,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.5.1")
+app = FastAPI(title="KNOT", version="0.6.5.2")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -119,6 +119,14 @@ def _check_jwt_secret_or_exit():
 
 
 _check_jwt_secret_or_exit()
+
+
+# v0.6.5.2 F4-back：2FA rollout 一次性 session 失效（R-2FA「运维更新后全员重登」不变量）。
+# 模块级（仿 init_db / _seed_prompts）+ 幂等（app_settings 标志一次性 + KNOT_TOTP_REQUIRED-gated
+# + 崩溃安全 bump→flag→cache）。置于两个 fail-fast 之后 — 配置健康才执行，避免 sys.exit 前误改 DB。
+from knot.services.totp_service import apply_rollout_session_invalidation as _apply_totp_rollout  # noqa: E402
+
+logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
 
 
 @app.on_event("startup")
@@ -221,10 +229,18 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 app.mount("/assets", StaticFiles(directory=str(_STATIC_DIR / "assets")), name="assets")
 
 
+# v0.6.5.2 F6：index.html 必须 no-cache —— 否则浏览器启发式缓存旧无-header index.html →
+# 引用已删的旧 hash bundle → /assets/index-<旧hash>.js 404 → 整屏白屏（发版即白屏）。
+# no-cache（非 no-store）允许 304 协商省带宽；仅套 index.html，favicon/icons/assets 沿用默认 etag。
+_HTML_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
+
 @app.get("/{full_path:path}")
 async def spa(full_path: str):
     # 真实文件直接返回（favicon.svg、icons.svg 等顶层资源），其他路径走 SPA fallback
     candidate = _STATIC_DIR / full_path
     if candidate.is_file():
+        if candidate.name == "index.html":
+            return FileResponse(str(candidate), headers=_HTML_NO_CACHE)
         return FileResponse(str(candidate))
-    return FileResponse(str(_STATIC_DIR / "index.html"))
+    return FileResponse(str(_STATIC_DIR / "index.html"), headers=_HTML_NO_CACHE)
