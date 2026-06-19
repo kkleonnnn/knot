@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.4 — OpenRouter-only 模型目录清理（chore）
+## [Unreleased] - v0.6.5.5 — OR 目录补当前 Claude 旗舰（chore）
+
+> **chore · 模型目录补充**（承 v0.6.5.4 OR-only；纯 cfg.MODELS 加 2 条 OR 模型 + 版本同步）。资深拍板补当前 Claude 旗舰（内测 admin 想用 sonnet-4.6）。
+
+### Added
+- **cfg.MODELS 加 2 个当前 OpenRouter Claude 旗舰**（live pricing 实测）：`anthropic/claude-sonnet-4.6`（当前 sonnet · $3/$15 · 1M ctx）+ `anthropic/claude-opus-4.8`（当前旗舰 opus · $5/$25 · 1M ctx — 比旧 `anthropic/claude-opus-4` $15/$75 更强且更便宜）→ 13→15 纯 OR（全 provider=openrouter，OR-only 不变量保持）。admin agent 模型下拉即可选；旧 opus-4 保留（additive 不删）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.5 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；routes 77 不变；deps.py/adapters 0 改。
+
+## [Released] - v0.6.5.4 — OpenRouter-only 模型目录清理（chore）
 
 > **chore · 配置清理 + 测试同步**（删 cfg.MODELS 非 OR 模型 + query.py fallback 修 + 孤儿 migration；守护者 Stage 3 APPROVED · 逐 commit 直读）。
 > **触发**：内测验收发现 admin 选直连 Anthropic 模型但只配 OpenRouter key → query.py 回退已下线 `google/gemini-2.0-flash-001` → 404。资深拍板 OpenRouter-only。**与 v0.6.5.2/.3 无关**（纯配置错配 + 上游下线）。执行者 4-agent workflow 穷尽审计（含审计漏判的 5 处测试，全量 pytest 兜底捕获）。
