@@ -22,7 +22,9 @@ load_dotenv()
 MODELS = {
     # OpenRouter 通道（13 entries — 数据 OR live API 实测；全 provider=openrouter）
     "anthropic/claude-opus-4":      {"display": "Claude Opus 4 (OR)",     "provider": "openrouter", "input_price": 15.00, "output_price": 75.00, "max_context": 200000},
+    "anthropic/claude-opus-4.8":    {"display": "Claude Opus 4.8 (OR)",   "provider": "openrouter", "input_price": 5.00,  "output_price": 25.00, "max_context": 1000000},  # v0.6.5.5 当前旗舰 opus（比 opus-4 更强更便宜）
     "anthropic/claude-sonnet-4":    {"display": "Claude Sonnet 4 (OR)",   "provider": "openrouter", "input_price": 3.00,  "output_price": 15.00, "max_context": 1000000},
+    "anthropic/claude-sonnet-4.6":  {"display": "Claude Sonnet 4.6 (OR)", "provider": "openrouter", "input_price": 3.00,  "output_price": 15.00, "max_context": 1000000},  # v0.6.5.5 当前 sonnet
     "anthropic/claude-haiku-4.5":   {"display": "Claude Haiku 4.5 (OR)",  "provider": "openrouter", "input_price": 1.00,  "output_price": 5.00,  "max_context": 200000},
     "openai/gpt-4o":                {"display": "GPT-4o (OR)",            "provider": "openrouter", "input_price": 2.50,  "output_price": 10.00, "max_context": 128000},
     "openai/gpt-4o-mini":           {"display": "GPT-4o Mini (OR)",       "provider": "openrouter", "input_price": 0.15,  "output_price": 0.60,  "max_context": 128000},

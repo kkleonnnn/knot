@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.4 · OpenRouter-only 模型目录清理（chore）：admin 误选直连 Anthropic 模型但只配 OpenRouter key → query.py 回退已下线的 `google/gemini-2.0-flash-001` → 404。资深拍板 **OR-only**：cfg.MODELS 删 6 直连 + 死 OR（留 13 纯 OR）+ query.py fallback → `cfg.DEFAULT_MODEL`（活 OR 单一真相源）+ 孤儿幂等 migration（model_settings 直连行清理 · fresh/test DB 不触发）+ 悬空串治理。**与 v0.6.5.2/.3 无关**（纯配置错配 + 上游下线）· 5 源点版本同步。<br>**上版** v0.6.5.3 测试隔离 flaky 修（startup auto-purge WAL 锁竞争）· v0.6.5.2 2FA rollout 白屏链修。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.5 · OR 目录补当前 Claude 旗舰（chore）：cfg.MODELS 加 `anthropic/claude-sonnet-4.6`（当前 sonnet · $3/$15 · 1M ctx）+ `anthropic/claude-opus-4.8`（当前旗舰 opus · $5/$25 · 1M ctx，比旧 opus-4 $15/$75 更强更便宜）→ 13→15 纯 OR，admin agent 下拉即可选。承 v0.6.5.4 OR-only。<br>**上版** v0.6.5.4 OR-only 模型目录清理 · v0.6.5.3 测试隔离 flaky 修 · v0.6.5.2 2FA rollout 白屏链修。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
