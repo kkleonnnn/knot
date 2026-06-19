@@ -5,7 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.1 — 强制 2FA review 跟进（落 #153 独立复审 5 建议）
+## [Unreleased] - v0.6.5.2 — 2FA rollout 流程修复（白屏验收 8-bug 串联修复）
+
+> **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（白屏 hotfix 串联修复 + R-2FA 不变量落地 + F4-back 后端新机制；守护者 Stage 3 CONDITIONAL → F4-1 整改后逐 commit 直读）；守护者续任 v0.5。**gate 决策逻辑 0 改**。
+> **触发**：v0.6.5.0/.1 强制 2FA 落地后真实使用暴露 8 bug（6 白屏链 + 2 活体契约）；执行者 workflow 13-agent 对抗设计 + 4-agent 独立契约审计双重 grounded。
+
+### Fixed
+- **F1 白屏元凶**：`_rate_limit.py` 4 处 429 `detail={"ja","zh"}` → 纯 zh string。旧 dict 经 api.js 透传 → ErrorBanner 渲染对象 → React #31「Objects are not valid as a React child」整屏白屏。
+- **F3 白屏机理**：`api.js` 新增 `normalizeDetail` —— `err.detail` 恒 string（string 严格 identity；`{ja,zh}`→zh；422 Array→拼接），`err.detailRaw` 保原值零损失。
+- **F2 enroll 卡死**：`enroll-complete` 独立分桶 `totp_enroll_complete (10,3600)` 与 `enroll-init (3,3600)` 隔离（守护者：否决"裸删"留 bcrypt CPU lever，10/3600 上限封顶）。
+- **C1 verify 契约（P0 活体）**：`api.js` verify `interim_token` 从 Authorization header 移入 body —— 旧版致 422，已 enrolled 用户全员登录第二步卡死（2FA 实际不可用）。
+- **C2 reset 契约（P1 活体）**：`api.js` reset `user_id` → `target_user_id` —— 旧版致 422，admin 无法为被锁用户重置 2FA（救援通道断）。
+- **F5 扫码错位**：`Enroll.jsx` enroll secret/QR sessionStorage 缓存（防 remount/刷新换 secret 致认证器错位）+ complete/logout/401 拦截器三路径清缓存。
+- **F6 发版白屏**：`main.py` spa() index.html `Cache-Control: no-cache, must-revalidate`（防启发式缓存旧 index.html 引用已删 hash bundle 404）；仅套 index.html，favicon/assets 默认 etag。
+
+### Added
+- **F4-back 后端一次性 rollout session 失效**（R-2FA 不变量「运维更新后全员重登 → 再绑定」）：`user_repo.bump_all_token_versions()` + `totp_service.apply_rollout_session_invalidation()`（app_settings 标志幂等 + KNOT_TOTP_REQUIRED-gated + 崩溃安全顺序 bump→flag→cache）+ main.py 模块级启动调用。旧 JWT 一次性 401 → 重登 → enrolled 走 verify / 未 enrolled 走 enroll。
+
+### Changed / Removed
+- **F4-fe**：删 App.jsx mount me() catch 死代码 isEnrollErr 分支（审计证 me() 命中 `/api/auth/` 白名单永不返 403 enroll）；`cb_loading` usePersist → useState（治 FOUC）；handleLogout 重置 needsEnroll + needsEnroll 分支加 cb_token 守卫（治 Enroll 屏退出卡死）。
+- **F4-1（守护者 Stage 3 硬条件）**：conftest 模块级 `os.environ.setdefault("KNOT_TOTP_REQUIRED","false")`（修 import-time rollout bump 误触发 default DB —— 镜像 JWT_SECRET 同款 import-timing 处理）。
+- **P2-a**：`api.js` 删过期 `/api/totp/status` 注释（前后端均无该端点）。
+
+### Tests
+- F1（429 detail 恒 str × 5 桶）+ F2（init 桶满 complete 仍 200 + <10 错码成功）+ F4-back（bump / 幂等 already_applied / off-skip / 旧 JWT 401）+ C1/C2/F3 前端源码契约守护（`test_frontend_2fa_contract.py` — 防 false-green，既有后端测试用 body 已绿无法捕获前端 header bug）+ F6（index.html no-cache 三件套）。
+- **OOS**：完整 vitest 前端行为套件留独立 chore（前端零测试框架 + node_modules 符号链接主仓 → 引入框架属独立工程；守护者条件允许"调用形状断言或 e2e"，本批取源码断言）；P2-b 错误码 `TOTP_INVALID/LOCKED` 死分支（fallback 已显后端中文 detail，无功能降级）；spa() path-traversal 单列 task。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.2 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；routes 77 不变。
+
+## [Released] - v0.6.5.1 — 强制 2FA review 跟进（落 #153 独立复审 5 建议）
 
 > **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（2 test-logic 新增 + main.py 启动微改 — 守护者亲读）；守护者续任 v0.5。性质 = 测试补强 + ops 告警 + docs；**gate 决策逻辑 0 改**。
 > **触发**：`/review` PR #153 独立对抗性复审（补缺失的 Stage 2）产出 5 建议；资深「按你的建议来」。
