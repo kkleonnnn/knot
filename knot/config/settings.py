@@ -16,11 +16,11 @@ load_dotenv()
 # ── Model catalogue ────────────────────────────────────────────────────
 # v0.6.5.4 资深拍板 OpenRouter-only：删 6 直连 provider 通道（admin 误选直连模型但只配
 #   OpenRouter key → query.py 死 OR fallback 404）+ 删一个已下线的死 OR 模型。
-#   仅留 OpenRouter 通道（13 entries，全 provider=openrouter，带 "/"）。详见 CHANGELOG v0.6.5.4。
+#   仅留 OpenRouter 通道（15 entries，全 provider=openrouter，带 "/"）。详见 CHANGELOG v0.6.5.4/.5。
 # 数据源：OpenRouter live API + 守护者 M-D6 核验；max_context/pricing 实测；
 #   admin UI "同步 OR" 按钮 (F-D-6) + model_catalog_live 表自治刷新。
 MODELS = {
-    # OpenRouter 通道（13 entries — 数据 OR live API 实测；全 provider=openrouter）
+    # OpenRouter 通道（15 entries — 数据 OR live API 实测；全 provider=openrouter）
     "anthropic/claude-opus-4":      {"display": "Claude Opus 4 (OR)",     "provider": "openrouter", "input_price": 15.00, "output_price": 75.00, "max_context": 200000},
     "anthropic/claude-opus-4.8":    {"display": "Claude Opus 4.8 (OR)",   "provider": "openrouter", "input_price": 5.00,  "output_price": 25.00, "max_context": 1000000},  # v0.6.5.5 当前旗舰 opus（比 opus-4 更强更便宜）
     "anthropic/claude-sonnet-4":    {"display": "Claude Sonnet 4 (OR)",   "provider": "openrouter", "input_price": 3.00,  "output_price": 15.00, "max_context": 1000000},
