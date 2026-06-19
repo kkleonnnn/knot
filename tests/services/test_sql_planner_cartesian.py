@@ -78,8 +78,8 @@ def test_R91_three_consecutive_cartesian_rejects_force_terminate():
             question="join 一下",
             schema_text="### users\n### orders",
             engine=None,
-            model_key="claude-haiku-4-5-20251001",
-            api_key="fake",
+            model_key="anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（OR 分支读 openrouter_api_key）
+            openrouter_api_key="fake",
             max_steps=10,
         )
 
@@ -120,8 +120,8 @@ def test_R91_react_recovers_after_first_cartesian_reject():
             question="join 一下",
             schema_text="### users\n### orders",
             engine=None,
-            model_key="claude-haiku-4-5-20251001",
-            api_key="fake",
+            model_key="anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（OR 分支读 openrouter_api_key）
+            openrouter_api_key="fake",
             max_steps=10,
         )
 
@@ -170,8 +170,8 @@ async def test_R82_async_path_cartesian_reject_count_terminates():
             question="join",
             schema_text="### a\n### b",
             engine=None,
-            model_key="claude-haiku-4-5-20251001",
-            api_key="fake",
+            model_key="anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（OR 分支读 openrouter_api_key）
+            openrouter_api_key="fake",
             max_steps=10,
         )
 

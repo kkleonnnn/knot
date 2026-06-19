@@ -159,7 +159,7 @@ def test_case(case, fake_schema):
     result = llm_client.generate_sql(
         question=case["question"],
         schema_text=fake_schema,
-        model_key=os.getenv("EVAL_MODEL", "google/gemini-2.0-flash-001"),
+        model_key=os.getenv("EVAL_MODEL", "anthropic/claude-haiku-4.5"),  # v0.6.5.4 OR-only（旧 gemini-2.0-flash-001 已下线）
         api_key="",
         business_context="",
         history=[],

@@ -56,11 +56,15 @@ def test_default_model_fallback_is_or_path():
     )
 
 
-def test_legacy_direct_key_still_in_dict(client, auth_headers):
-    """v0.6.0.6 F-D-2/v0.6.0.8 兼容：旧 direct provider key 保留至 Day 28+ 三方会议。"""
+def test_or_only_no_direct_keys(client, auth_headers):
+    """v0.6.5.4 OR-only 不变量：直连 provider key 已删，cfg.MODELS 全 OR（带 "/"）。
+
+    旧 test_legacy_direct_key_still_in_dict 的 "Day 28+ 保留直连" 语义已被资深 OR-only 决策推翻。
+    """
     from knot import config as cfg
-    assert "claude-haiku-4-5-20251001" in cfg.MODELS
-    assert "anthropic/claude-haiku-4.5" in cfg.MODELS
+    assert "claude-haiku-4-5-20251001" not in cfg.MODELS, "直连 key 应已删（OR-only）"
+    assert "anthropic/claude-haiku-4.5" in cfg.MODELS, "OR Claude Haiku 4.5 保留"
+    assert all("/" in k for k in cfg.MODELS), f"cfg.MODELS 必全 OR（带 /）；违例: {[k for k in cfg.MODELS if '/' not in k]}"
 
 
 def test_or_catalog_empty_initially(client, auth_headers):

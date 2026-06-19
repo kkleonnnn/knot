@@ -190,6 +190,26 @@ def init_db():
     # v0.2.4: uploads.db 一次性合并入主 DB（幂等）
     _migrate_uploads_db_once(conn)
 
+    # v0.6.5.4 OR-only 孤儿清理（幂等 · 同步 DML 非 create_task — 不重蹈 v0.6.5.3 startup race）：
+    # cfg.MODELS 删 6 直连 + 死 OR 后，现存 model_settings 行若引用被删 key（admin 曾启用/设默认）
+    # → admin 模型页迭代不到（孤儿）。DELETE 清孤儿；空表 no-op。
+    # 兜底默认：仅当 model_settings *非空*（admin 配过）且无 is_default 时，设 OR 默认 —— fresh/test
+    # DB（model_settings 空，c==0）确定性跳过，绝不给 test DB 加行（守 v0.6.5.3 测试隔离）。
+    _orphan_keys = (
+        "claude-haiku-4-5-20251001", "claude-sonnet-4-6", "gpt-4o-mini", "gpt-4o",
+        "gemini-2.0-flash", "deepseek-chat", "google/gemini-2.0-flash-001",
+    )
+    conn.execute(
+        f"DELETE FROM model_settings WHERE model_key IN ({','.join('?' * len(_orphan_keys))})",
+        _orphan_keys,
+    )
+    _ms = conn.execute("SELECT COUNT(*) c, COALESCE(SUM(is_default), 0) d FROM model_settings").fetchone()
+    if _ms[0] > 0 and _ms[1] == 0:
+        conn.execute(
+            "INSERT INTO model_settings (model_key, enabled, is_default) VALUES ('anthropic/claude-haiku-4.5', 1, 1) "
+            "ON CONFLICT(model_key) DO UPDATE SET is_default=1"
+        )
+
     conn.commit()
     conn.close()
 

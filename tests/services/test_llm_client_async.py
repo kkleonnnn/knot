@@ -94,7 +94,7 @@ async def test_R32_afix_sql_passes_agent_kind_fix_sql(tmp_db_path, monkeypatch):
     await llm_client.afix_sql(
         question="Q", schema_text="schema",
         failed_sql="SELECT bad", error_message="syntax",
-        model_key="claude-haiku-4-5-20251001", api_key="fake",
+        model_key="anthropic/claude-haiku-4.5", openrouter_api_key="fake",  # v0.6.5.4 OR-only
     )
     assert captured["agent_kind"] == "fix_sql", (
         "R-32 失败：afix_sql 未传 agent_kind='fix_sql'；"
@@ -117,7 +117,7 @@ async def test_R32_agenerate_sql_uses_sql_planner_agent_kind(tmp_db_path, monkey
 
     await llm_client.agenerate_sql(
         question="Q", schema_text="schema",
-        model_key="claude-haiku-4-5-20251001", api_key="fake",
+        model_key="anthropic/claude-haiku-4.5", openrouter_api_key="fake",  # v0.6.5.4 OR-only
     )
     assert captured["agent_kind"] == "sql_planner"
 

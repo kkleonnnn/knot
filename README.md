@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.3 · 测试隔离 flaky 修（chore · 预存在债）：startup auto-purge 的 fire-and-forget `create_task` 延迟执行时读当前 monkeypatched DB 路径（已是后续测试 tmp DB）→ purge 线程与该测试 `init_db` 抢 WAL 锁 → `database is locked` 随机落点 ERROR。修：`KNOT_SKIP_STARTUP_AUTO_PURGE` env guard（生产可用 — 外部 cron 管 audit 清理时禁启动自动清理）+ conftest 模块级设之 + 模块级缓存清理防御。**生产默认行为不变** · 全量 pytest 4× 稳定 · 5 源点版本同步。<br>**上版** v0.6.5.2 · 2FA rollout 流程修复（白屏验收 8-bug 串联：429 字符串化 + normalizeDetail + enroll 分桶 + verify/reset 契约 + rollout session 失效 + index.html no-cache）。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.4 · OpenRouter-only 模型目录清理（chore）：admin 误选直连 Anthropic 模型但只配 OpenRouter key → query.py 回退已下线的 `google/gemini-2.0-flash-001` → 404。资深拍板 **OR-only**：cfg.MODELS 删 6 直连 + 死 OR（留 13 纯 OR）+ query.py fallback → `cfg.DEFAULT_MODEL`（活 OR 单一真相源）+ 孤儿幂等 migration（model_settings 直连行清理 · fresh/test DB 不触发）+ 悬空串治理。**与 v0.6.5.2/.3 无关**（纯配置错配 + 上游下线）· 5 源点版本同步。<br>**上版** v0.6.5.3 测试隔离 flaky 修（startup auto-purge WAL 锁竞争）· v0.6.5.2 2FA rollout 白屏链修。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
