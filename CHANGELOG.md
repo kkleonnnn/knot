@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.3 — 测试隔离 flaky 修（startup auto-purge WAL 锁竞争）
+## [Unreleased] - v0.6.5.4 — OpenRouter-only 模型目录清理（chore）
+
+> **chore · 配置清理 + 测试同步**（删 cfg.MODELS 非 OR 模型 + query.py fallback 修 + 孤儿 migration；守护者 Stage 3 APPROVED · 逐 commit 直读）。
+> **触发**：内测验收发现 admin 选直连 Anthropic 模型但只配 OpenRouter key → query.py 回退已下线 `google/gemini-2.0-flash-001` → 404。资深拍板 OpenRouter-only。**与 v0.6.5.2/.3 无关**（纯配置错配 + 上游下线）。执行者 4-agent workflow 穷尽审计（含审计漏判的 5 处测试，全量 pytest 兜底捕获）。
+
+### Removed
+- **cfg.MODELS 删 6 直连 provider 模型**（`claude-haiku-4-5-20251001` / `claude-sonnet-4-6` / `gpt-4o-mini` / `gpt-4o` / `gemini-2.0-flash` / `deepseek-chat`）+ **删已下线死 OR `google/gemini-2.0-flash-001`** → 仅留 13 纯 OR（全 provider=openrouter）。admin agent 下拉源 = cfg.MODELS → 即变 OR-only（防再误选直连模型）。
+
+### Fixed
+- **query.py:44 fallback** `google/gemini-2.0-flash-001`（死）→ `cfg.DEFAULT_MODEL`（活 OR `anthropic/claude-haiku-4.5`，单一真相源）。OR-only 部署正命中此兜底 → 治运行时 404。
+- **悬空串治理**：`admin.py:778` budget seed + `frontend/src/screens/AdminBudgets.jsx:44` reset 默认硬编 `claude-haiku-4-5`（pre-existing 不在 MODELS）→ `anthropic/claude-haiku-4.5`。
+- **2 eval 默认** `tests/eval/test_eval.py` + `test_intent_accuracy.py` `EVAL_MODEL` 死 OR → 活 OR（被 skipif 不破 CI；治 live opt-in 404）。
+
+### Added
+- **孤儿幂等 migration**（`base.py init_db`，同步 DML 非 create_task — 不重蹈 v0.6.5.3 startup race）：`DELETE FROM model_settings WHERE model_key IN (7 删除 key)` 清现存孤儿直连行 + 兜底默认（**仅 model_settings 非空且无 is_default 时触发** → fresh/test DB c==0 确定性跳过，绝不给 test DB 加行，守 v0.6.5.3 测试隔离）。重启行为透明：admin 故意无默认时每次重启 re-assert OR 默认（接受 — 应用本需默认）。
+
+### Tests
+- `tests/repositories/test_or_only_migration.py`（migration 3 行为：fresh→空 / 删孤儿 / 兜底默认）+ `test_model_catalog.py` 反向断言（OR-only 不变量：直连 key not in + 全 OR 带 "/"）+ 7 处测试 model_key 切 OR（含 cartesian/async R30/R32 的 `api_key→openrouter_api_key` 入参修 — OR 分支读 openrouter_api_key）。**审计漏判 5 处由全量 pytest 兜底捕获并修复**（test_sql_planner_async R30×3 + test_llm_client_async R32×2）。
+- **OOS**：adapter 死代码（anthropic_native/openai_compat 直连分支）不删（服务 ollama/vllm + 独立 OpenRouterAdapter；另开 PATCH 评估）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.4 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；routes 77 不变；7 contracts KEPT；deps.py 0 改。
+
+## [Released] - v0.6.5.3 — 测试隔离 flaky 修（startup auto-purge WAL 锁竞争）
 
 > **chore · 测试隔离硬化**（预存在债，v0.6.5.2 baseline git-stash 实证非该 PATCH 引入；spawn task 跟进）。生产默认行为不变（新增 env 仅 opt-in）。
 
