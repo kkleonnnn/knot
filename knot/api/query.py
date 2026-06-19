@@ -41,7 +41,7 @@ def _resolve_model(model_key: str, user: dict, api_key: str, openrouter_api_key:
         provider = cfg.MODELS.get(model_key, {}).get("provider", "")
         if provider and not (api_key or cfg.PROVIDER_API_KEYS.get(provider, "")):
             pref = user.get("preferred_model", "")
-            model_key = pref if "/" in pref else "google/gemini-2.0-flash-001"
+            model_key = pref if "/" in pref else cfg.DEFAULT_MODEL  # v0.6.5.4 OR-only：活 OR fallback（旧死 OR 已 404）
     return model_key
 
 

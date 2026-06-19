@@ -775,7 +775,7 @@ _BUDGET_DEFAULTS = {
     "budget_monthly_token_cap": "500000",
     "budget_per_conv_token_cap": "40000",
     "budget_warn_pct": "80",
-    "budget_default_model": "claude-haiku-4-5",
+    "budget_default_model": "anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（旧悬空 'claude-haiku-4-5' 不在 MODELS）
     "budget_rate_limit_per_min": "20",
 }
 
