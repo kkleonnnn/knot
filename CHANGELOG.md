@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.6 — CLAUDE.md 路线图回顾表 catch-up（docs-only chore）
+## [Unreleased] - v0.6.5.7 — 运维升级 runbook + 部署文档 drift 修（docs-only chore）
+
+> **chore · docs-only**（资深 ack + 0 业务逻辑，仅注释/文档）。承内测服务器实况（线上 v0.6.1.4 · K8s · 双数据源 Doris + HTTP `futures_admin`），产出 v0.6.1.4→0.6.5.6 一次性升级需求文档 + 修部署文档版本/模型计数 drift。
+
+### Docs
+- **新增 `docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md`**：K8s「业务方提需求 — 不含 SRE 操作」格式的一次性升级 runbook。覆盖跨 v0.6.2.0 首次引入强制 2FA（一步到位）+ `KNOT_HTTP_ALLOWED_HOSTS` 保留（host-only `landry-futuresadmin-web.landry`）+ PVC/`KNOT_MASTER_KEY` 不变 + UI v2 全换 + 用户告知模板 + 烟测 + 回滚安全降级提示。grounded 校正 2 假设（生产 K8s 非 docker / allowlist host-only 非 host:port）+ 确认 main 含 v0.6.1.4 HTTP 功能（#106 已合）升级不回归。
+- **DEPLOY.md 头版本** v0.6.0.10 → 0.6.5.7（落后 5+ PATCH 的 drift 修）+ 上线 checklist 模型计数 14 → 15。
+- **`settings.py` 注释** OR 模型计数 13 → 15（v0.6.5.5 加 sonnet-4.6 + opus-4.8 后注释未同步；comment-only，R-PA-6.1 docstring 豁免）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.7 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；routes 77 不变；7 contracts KEPT；0 业务逻辑改动。
+
+## [Released] - v0.6.5.6 — CLAUDE.md 路线图回顾表 catch-up（docs-only chore）
 
 > **chore · docs-only**（task #56；简化协议 — 资深 ack + 0 业务码）。补 CLAUDE.md 施行回顾表自 v0.6.5.1 后缺的 4 行（本会话连续 PATCH v0.6.5.2/.3/.4/.5 当时未回填）+ 自身行 + 4 源点版本同步。
 

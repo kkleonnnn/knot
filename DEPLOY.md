@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.6.0.10 · 内测期（R-PA-5 缓冲 2026-05-15 → 2026-06-12）
+> **当前版本** v0.6.5.7 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -353,7 +353,7 @@ export KNOT_TOTP_BYPASS_ADMIN=true
 | 路径 | 操作 | 必要性 |
 |---|---|---|
 | 设置 → 个人 | 改密 + 改用户名 | 🔴 必做 |
-| 设置 → API & 模型 | 填 OpenRouter Key（1 个 key 通所有 14 个 OR 模型） | 🔴 必做 |
+| 设置 → API & 模型 | 填 OpenRouter Key（1 个 key 通所有 15 个 OR 模型） | 🔴 必做 |
 | 设置 → API & 模型 | 配置 3 个 Agent 模型（推荐 OR 默认 claude-haiku-4.5） | 🔴 必做 |
 | 设置 → 数据源 | 填 Doris/MySQL 连接（host/port/user/pwd/database） | 🔴 必做 |
 | 设置 → 业务目录 | 填表关系 RELATIONS + 业务规则（防笛卡尔积 / 防业务理解错） | 🟡 强烈建议 |
