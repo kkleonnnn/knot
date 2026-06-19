@@ -15,6 +15,7 @@ KNOT 元数据架构（v4 §0.3 sustained）：
 """
 from __future__ import annotations
 
+import os
 import secrets
 from datetime import datetime
 
@@ -26,6 +27,9 @@ from knot.repositories import totp_repo, user_repo
 
 # ─── R-PB-B1-13 + NRP-1：JWT token_version cache（TTLCache，单 user 失效）─
 _TOKEN_VERSION_CACHE: TTLCache = TTLCache(maxsize=10000, ttl=60)
+
+# ─── v0.6.5.2 F4-back：2FA rollout 一次性 session 失效标志（app_settings KV）──
+_ROLLOUT_FLAG_KEY = "totp_rollout_session_invalidated"
 
 # bcrypt for recovery code hash — 与 auth_service.hash_password 同精神（直接 bcrypt，
 # 不走 passlib.CryptContext 避免 bcrypt 4.x detect_wrap_bug ValueError 兼容问题）
@@ -59,6 +63,46 @@ def invalidate_token_version_cache(user_id: int) -> None:
     严禁 cache.clear() 全清（会污染其他活跃用户的 cache）。
     """
     _TOKEN_VERSION_CACHE.pop(user_id, None)
+
+
+def invalidate_all_token_version_cache() -> None:
+    """v0.6.5.2 F4-back：全清 cache — 仅用于 rollout 全员 bump 这一全局事件。
+
+    区别于 invalidate_token_version_cache 的 single-user pop（NRP-1）：rollout 时
+    所有 user 的 token_version 都变了，clear() 全清是正确且安全的（无"污染他人"问题）。
+    """
+    _TOKEN_VERSION_CACHE.clear()
+
+
+# ─── v0.6.5.2 F4-back：2FA rollout 一次性 session 失效 ──────────────────
+
+
+def apply_rollout_session_invalidation() -> dict:
+    """启动期幂等调用（main.py 模块级）— 2FA rollout 时一次性失效所有现存 session。
+
+    R-2FA 不变量：「运维更新后全员重新登录，登录后再绑定」。机制 = bump 全员
+    token_version → 旧 JWT 立即 401 JWT_REVOKED（deps.py:126）→ 前端 401 拦截器
+    清 token + reload → Login。重登后 enrolled 走 verify / 未 enrolled 走 enroll。
+
+    幂等 + 隔离：
+    - TOTP-gated：KNOT_TOTP_REQUIRED != "true" → skip（与 deps.py gate 同条件）。
+    - flag-gated：app_settings 标志已设 → skip（仅首次部署执行，不会每次重启踢人）。
+    - 崩溃安全顺序：bump → set flag → clear cache（bump 先于 flag；中途崩溃则重启
+      re-bump 仅多失效一次，绝不静默跳过 bump）。
+    - 测试隔离（F4-1）：conftest 模块级 os.environ.setdefault("KNOT_TOTP_REQUIRED","false")
+      使 import 时确定性走 totp_not_required 分支 skip（守护测试用 delenv 揭真默认）。
+    """
+    if os.getenv("KNOT_TOTP_REQUIRED", "true").strip().lower() != "true":
+        return {"skipped": "totp_not_required"}
+
+    from knot.repositories import settings_repo
+    if settings_repo.get_app_setting(_ROLLOUT_FLAG_KEY):
+        return {"skipped": "already_applied"}
+
+    n = user_repo.bump_all_token_versions()
+    settings_repo.set_app_setting(_ROLLOUT_FLAG_KEY, _utc_iso())
+    invalidate_all_token_version_cache()
+    return {"bumped": n}
 
 
 # ─── enroll 流程（R-PB-B1-7 1 次码 + 强制 recovery codes 下载）─────────

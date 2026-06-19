@@ -218,3 +218,19 @@ def bump_token_version_in_tx(conn: sqlite3.Connection, user_id: int) -> int:
         "SELECT token_version FROM users WHERE id=?", (user_id,),
     ).fetchone()
     return int(row["token_version"]) if row else 0
+
+
+def bump_all_token_versions() -> int:
+    """v0.6.5.2 F4-back：全表 token_version +1（无 WHERE）→ 失效所有现存 JWT。
+
+    用于 2FA rollout 一次性 session 失效（运维更新后全员重登）。
+    返回受影响行数。调用方（totp_service.apply_rollout_session_invalidation）负责
+    设 app_settings 一次性标志 + 全清 token_version cache。
+    """
+    conn = get_conn()
+    try:
+        cur = conn.execute("UPDATE users SET token_version = token_version + 1")
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()

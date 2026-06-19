@@ -21,6 +21,14 @@ TEST_JWT_SECRET = "test-only-jwt-secret-32-chars-min-len-padding"
 # os.environ 直写而非 monkeypatch — autouse fixture 时机太晚（module import 已发生）
 os.environ.setdefault("JWT_SECRET", TEST_JWT_SECRET)
 
+# v0.6.5.2 F4-1（守护者 Stage 3 硬条件）：KNOT_TOTP_REQUIRED 必须 import 前设 false。
+# main.py 模块级 apply_rollout_session_invalidation() 在 import 时跑（同 init_db / _seed_prompts）；
+# 默认 "true" 会在 import 时对 default DB 误 bump 全员 token_version。autouse L下方 的 setenv
+# 是 function-scoped（import 后才生效，太晚）—— 同款 import-timing 陷阱（见 JWT_SECRET 上行）。
+# 模块级 setdefault 使 rollout bump 在 import 时确定性走 totp_not_required skip。
+# 验「真 default-on」rollout 行为的守护测试用 monkeypatch.delenv("KNOT_TOTP_REQUIRED") 揭真默认。
+os.environ.setdefault("KNOT_TOTP_REQUIRED", "false")
+
 
 @pytest.fixture(autouse=True)
 def _master_key_for_tests(monkeypatch):
