@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot.api._audit_helpers import audit
 from knot.api._rate_limit import (
+    enforce_totp_enroll_complete_rate_limit,
     enforce_totp_enroll_rate_limit,
     enforce_totp_verify_rate_limit,
 )
@@ -100,7 +101,8 @@ async def enroll_complete(req: TotpEnrollCompleteRequest, request: Request,
     返 {recovery_codes} — 前端必须强制下载才能完成 enroll（前端 commit 5 落地）。
     成功 → audit user.totp.enroll
     """
-    enforce_totp_enroll_rate_limit(user["id"])
+    # v0.6.5.2 F2：独立分桶（10/hour）— 与 enroll-init（3/hour）隔离，防共桶卡死
+    enforce_totp_enroll_complete_rate_limit(user["id"])
     codes = totp_service.enroll_complete(user["id"], req.secret, req.code)
     if not codes:
         audit(request, actor=user, action="user.totp.verify_failed",

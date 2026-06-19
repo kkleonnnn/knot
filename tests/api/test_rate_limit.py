@@ -58,9 +58,9 @@ def test_login_429_payload_contains_chinese_message(client):
     body = r.json()
     assert "detail" in body
     detail = body["detail"]
-    assert isinstance(detail, dict)
-    assert "zh" in detail
-    assert "频繁" in detail["zh"]
+    # v0.6.5.2 F1：detail 必须纯 zh string（旧 {ja,zh} dict 触发前端 React #31 白屏）
+    assert isinstance(detail, str), f"429 detail 必须 string 非 dict；实际 {type(detail)}"
+    assert "频繁" in detail
 
 
 def test_login_xff_header_used_for_ip(client):
@@ -130,11 +130,43 @@ def test_query_rate_limit_per_user_independent():
     assert exc_info.value.status_code == 429
     assert "Retry-After" in exc_info.value.headers
     detail = exc_info.value.detail
-    assert "zh" in detail and "30 次" in detail["zh"]
+    # v0.6.5.2 F1：detail 纯 zh string
+    assert isinstance(detail, str) and "30 次" in detail
 
     # user 2 第 1 次 → 通过（不受 user 1 影响）
     enforce_query_rate_limit(user_id=2)
     _reset_for_tests()
+
+
+# ─── v0.6.5.2 F1 — 3 个 totp enforce_* 限流 detail 必纯 str ─────────────
+
+
+def test_totp_enforce_429_detail_is_string():
+    """v0.6.5.2 F1：totp_verify/enroll/enroll_complete 三桶超限 detail 必纯 str。
+
+    旧 {ja,zh} dict detail 经 api.js 透传 → ErrorBanner 渲染对象 → React #31 白屏。
+    本测守 3 处（login + query 由各自测试覆盖 → 全 5 桶 str 闭环）。
+    """
+    from fastapi import HTTPException
+
+    from knot.api import _rate_limit
+
+    checks = [
+        (_rate_limit.enforce_totp_verify_rate_limit, 5),
+        (_rate_limit.enforce_totp_enroll_rate_limit, 3),
+        (_rate_limit.enforce_totp_enroll_complete_rate_limit, 10),
+    ]
+    for fn, limit in checks:
+        _rate_limit._reset_for_tests()
+        for _ in range(limit):
+            fn(user_id=999)  # 桶内不抛
+        with pytest.raises(HTTPException) as exc:
+            fn(user_id=999)  # 超限
+        assert exc.value.status_code == 429
+        assert isinstance(exc.value.detail, str), \
+            f"{fn.__name__} 429 detail 必 str 非 dict（防 React #31）"
+        assert "Retry-After" in exc.value.headers
+    _rate_limit._reset_for_tests()
 
 
 # ─── 内存上限守护 ──────────────────────────────────────────────────────

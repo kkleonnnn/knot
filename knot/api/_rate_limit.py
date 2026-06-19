@@ -33,8 +33,12 @@ _DEFAULT_LIMITS = {
     "query": (30, 60),
     # v0.6.2.0 R-PB-B1-6：TOTP 验证 5/min/user（防 brute force）
     "totp_verify": (5, 60),
-    # v0.6.2.0：enroll 限流 3/hour/user（防恶意频繁触发 secret 生成）
+    # v0.6.2.0：enroll-init 限流 3/hour/user（防恶意频繁触发 secret 生成）
     "totp_enroll": (3, 3600),
+    # v0.6.5.2 F2：enroll-complete 独立分桶 10/hour/user（人类输码永不触顶；
+    # 与 init 桶隔离，避免一次正常绑定 init+complete 共耗 init 预算导致 complete 429 卡死；
+    # 10/3600 上限同时封顶 complete 的 bcrypt CPU lever — 比"裸删限流"更安全）
+    "totp_enroll_complete": (10, 3600),
 }
 
 # 内存有上限守护：单个 key bucket 最大长度 = limit + 1（自然限制）
@@ -90,12 +94,11 @@ def _enforce(request: Request, kind: str) -> None:
     key = f"{kind}:{_client_ip(request)}"
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
+        # v0.6.5.2 F1：detail 必须纯 zh string（前端直接渲染；旧 {ja,zh} dict 触发
+        # React #31「Objects are not valid as a React child」白屏）。Retry-After 保留。
         raise HTTPException(
             status_code=429,
-            detail={
-                "ja": "Too many attempts; please wait and retry.",
-                "zh": f"操作过于频繁，请 {int(retry_after) + 1} 秒后再试",
-            },
+            detail=f"操作过于频繁，请 {int(retry_after) + 1} 秒后再试",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
@@ -124,28 +127,43 @@ def enforce_totp_verify_rate_limit(user_id: int) -> None:
     key = f"totp_verify:{user_id}"
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
+        # v0.6.5.2 F1：纯 zh string（同 _enforce）
         raise HTTPException(
             status_code=429,
-            detail={
-                "ja": "TOTP verification too frequent; please wait and retry.",
-                "zh": f"TOTP 验证过于频繁，请 {int(retry_after) + 1} 秒后再试",
-            },
+            detail=f"TOTP 验证过于频繁，请 {int(retry_after) + 1} 秒后再试",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
 
 def enforce_totp_enroll_rate_limit(user_id: int) -> None:
-    """v0.6.2.0：TOTP enroll 3 次/3600s/user_id（防恶意频繁触发 secret 生成）。"""
+    """v0.6.2.0：TOTP enroll-init 3 次/3600s/user_id（防恶意频繁触发 secret 生成）。"""
     limit, window = _DEFAULT_LIMITS["totp_enroll"]
     key = f"totp_enroll:{user_id}"
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
+        # v0.6.5.2 F1：纯 zh string（同 _enforce）
         raise HTTPException(
             status_code=429,
-            detail={
-                "ja": "TOTP enroll too frequent; please wait and retry.",
-                "zh": f"TOTP enroll 过于频繁，请 {int(retry_after) + 1} 秒后再试",
-            },
+            detail=f"TOTP enroll 过于频繁，请 {int(retry_after) + 1} 秒后再试",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
+def enforce_totp_enroll_complete_rate_limit(user_id: int) -> None:
+    """v0.6.5.2 F2：TOTP enroll-complete 独立分桶 10 次/3600s/user_id。
+
+    与 enroll-init 桶（3/hour）隔离 —— 一次正常绑定 = init + complete 各耗各桶，
+    避免共桶时一次绑定耗 2/3 init 预算 + 错码重试快速触顶 → complete 429 卡死 1 小时。
+    10/3600 上限同时封顶 complete 的 bcrypt CPU lever（每次成功 10× bcrypt + DB 覆写）。
+    """
+    limit, window = _DEFAULT_LIMITS["totp_enroll_complete"]
+    key = f"totp_enroll_complete:{user_id}"
+    ok, retry_after = _bucket.check(key, limit, window)
+    if not ok:
+        # v0.6.5.2 F1：纯 zh string（同 _enforce）
+        raise HTTPException(
+            status_code=429,
+            detail=f"TOTP 验证过于频繁，请 {int(retry_after) + 1} 秒后再试",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
@@ -160,12 +178,10 @@ def enforce_query_rate_limit(user_id: int) -> None:
     key = f"query:{user_id}"
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
+        # v0.6.5.2 F1：纯 zh string（同 _enforce）
         raise HTTPException(
             status_code=429,
-            detail={
-                "ja": "Query rate limit exceeded; please wait and retry.",
-                "zh": f"查询过于频繁（30 次/分钟上限），请 {int(retry_after) + 1} 秒后再试",
-            },
+            detail=f"查询过于频繁（30 次/分钟上限），请 {int(retry_after) + 1} 秒后再试",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 

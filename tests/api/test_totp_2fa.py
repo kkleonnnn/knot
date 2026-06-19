@@ -30,6 +30,9 @@ def _reset_module_state():
     （如 IP-based bucket / per-endpoint counter / per-route 限流）→ **本 fixture 必须同步更新**
     否则新 state 跨 test 泄露会导致间歇性失败。
     同理 `totp_service` 新增 module-level cache（如 user-info LRU / pyotp instance pool）也需扩。
+
+    v0.6.5.2 F2：新增 `totp_enroll_complete:{uid}` 桶 — `_bucket._d.clear()` 全清已覆盖
+    （新桶 key 与 init 桶同 dict）；契约：新增任何 enforce_* 桶无需改本 fixture（全清兜底）。
     """
     from knot.api._rate_limit import _bucket
     from knot.services import totp_service
@@ -361,3 +364,48 @@ def test_R_PB_B1_10_race_100x_rate_limit_within_tolerance(client, auth_headers):
     assert rate_limited_count >= 90, \
         f"rate-limited 应 ≥90；实际 {rate_limited_count}（γ2 ±5）"
     assert success_count == 0, "错误码不应成功"
+
+
+# ─── v0.6.5.2 F2 — enroll-complete 独立分桶（白屏 enroll 卡死根因） ──────
+
+
+def test_F2_enroll_complete_not_blocked_by_exhausted_init_bucket(client, auth_headers):
+    """v0.6.5.2 F2：打满 enroll-init 桶（3/hour）后，enroll-complete 仍 200。
+
+    旧 bug：init 与 complete 共用 totp_enroll 桶 → 一次正常绑定耗 init 预算 +
+    屏 remount 重调 init → complete 被 init 桶拖死 429 卡死 1 小时。
+    F2 分桶后 complete 走独立 totp_enroll_complete 桶（10/hour）→ 不受 init 桶影响。
+    """
+    secret = None
+    for _ in range(3):  # 打满 init 桶（3/hour）
+        r = client.post("/api/totp/enroll-init", headers=auth_headers)
+        assert r.status_code == 200
+        secret = r.json()["secret"]
+    # 第 4 次 init 必 429（证 init 桶确已满）
+    r4 = client.post("/api/totp/enroll-init", headers=auth_headers)
+    assert r4.status_code == 429, f"init 桶应已满；实际 {r4.status_code}"
+    # 但 enroll-complete 走独立桶 → 仍 200（核心断言：不被 init 桶拖死）
+    code = pyotp.TOTP(secret).now()
+    rc = client.post("/api/totp/enroll-complete", headers=auth_headers,
+                     json={"secret": secret, "code": code})
+    assert rc.status_code == 200, \
+        f"enroll-complete 不应被耗尽的 init 桶阻塞；实际 {rc.status_code} {rc.text}"
+
+
+def test_F2_enroll_complete_retry_under_10_then_succeeds(client, auth_headers):
+    """v0.6.5.2 F2：enroll-complete 错码重试 <10 次（桶上限）→ 正确码仍可成功。
+
+    错码返 400（业务失败，非限流）；5 错 + 1 正确 = 6 < 10 桶上限 → 不触顶。
+    """
+    init = client.post("/api/totp/enroll-init", headers=auth_headers).json()
+    secret = init["secret"]
+    for _ in range(5):  # 5 次错码（< 10 桶上限）
+        r = client.post("/api/totp/enroll-complete", headers=auth_headers,
+                        json={"secret": secret, "code": "000000"})
+        assert r.status_code == 400, f"错码应 400 非 429；实际 {r.status_code}"
+    # 正确码仍可成功（桶未触顶）
+    code = pyotp.TOTP(secret).now()
+    r = client.post("/api/totp/enroll-complete", headers=auth_headers,
+                    json={"secret": secret, "code": code})
+    assert r.status_code == 200, \
+        f"<10 错码后正确码应成功；实际 {r.status_code} {r.text}"
