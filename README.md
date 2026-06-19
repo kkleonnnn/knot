@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.5 · OR 目录补当前 Claude 旗舰（chore）：cfg.MODELS 加 `anthropic/claude-sonnet-4.6`（当前 sonnet · $3/$15 · 1M ctx）+ `anthropic/claude-opus-4.8`（当前旗舰 opus · $5/$25 · 1M ctx，比旧 opus-4 $15/$75 更强更便宜）→ 13→15 纯 OR，admin agent 下拉即可选。承 v0.6.5.4 OR-only。<br>**上版** v0.6.5.4 OR-only 模型目录清理 · v0.6.5.3 测试隔离 flaky 修 · v0.6.5.2 2FA rollout 白屏链修。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.6 · CLAUDE.md 路线图回顾表 catch-up（docs-only chore）：补本会话连续 PATCH 缺的 4 行（v0.6.5.2/.3/.4/.5）入施行回顾表 + 4 源点版本同步。0 业务码。<br>**上版** v0.6.5.5 OR 目录补当前 Claude 旗舰 · v0.6.5.4 OR-only 模型目录清理 · v0.6.5.3 测试隔离 flaky 修 · v0.6.5.2 2FA rollout 白屏链修。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

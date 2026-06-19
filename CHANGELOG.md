@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.5 — OR 目录补当前 Claude 旗舰（chore）
+## [Unreleased] - v0.6.5.6 — CLAUDE.md 路线图回顾表 catch-up（docs-only chore）
+
+> **chore · docs-only**（task #56；简化协议 — 资深 ack + 0 业务码）。补 CLAUDE.md 施行回顾表自 v0.6.5.1 后缺的 4 行（本会话连续 PATCH v0.6.5.2/.3/.4/.5 当时未回填）+ 自身行 + 4 源点版本同步。
+
+### Docs
+- **CLAUDE.md v0.6.x 路线图回顾表 catch-up**：补 v0.6.5.2（2FA rollout 修）/ v0.6.5.3（测试隔离 flaky）/ v0.6.5.4（OR-only 清理）/ v0.6.5.5（OR 目录补）4 行 + v0.6.5.6 自身行。实查校正 task #56 原「~11 PATCH」口径 — v0.6.4.2~v0.6.5.1 各 PATCH 已增量回填本表，真实缺口仅本会话 4 行。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.6 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；0 业务码（CLAUDE.md 不在 check_file_sizes/R-PA-8 INCLUDE — 用户文档）；routes 77 不变；7 contracts KEPT。
+
+## [Released] - v0.6.5.5 — OR 目录补当前 Claude 旗舰（chore）
 
 > **chore · 模型目录补充**（承 v0.6.5.4 OR-only；纯 cfg.MODELS 加 2 条 OR 模型 + 版本同步）。资深拍板补当前 Claude 旗舰（内测 admin 想用 sonnet-4.6）。
 
