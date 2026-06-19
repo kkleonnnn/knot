@@ -32,7 +32,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.6.5.2")
+app = FastAPI(title="KNOT", version="0.6.5.3")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -164,9 +164,18 @@ async def _audit_auto_purge_if_stale():
 
     设计：fire-and-forget 不阻塞启动；失败 silent log（避免破坏 server boot）。
     7 天阈值是配额 + 频次平衡 — admin 不必每次重启都跑，但也防止累积过久。
+
+    v0.6.5.x 测试隔离：KNOT_SKIP_STARTUP_AUTO_PURGE=1 → 直接跳过（不 create_task）。
+    根因 — 本 hook 的 create_task 是 fire-and-forget（不 await），其 get_conn() 在延迟执行时
+    读 *当前* SQLITE_DB_PATH（测试 fixture monkeypatch 已切到后续测试的 tmp DB）→ purge 线程
+    与该测试 init_db 的 PRAGMA journal_mode=WAL 抢锁 → "database is locked" 随机落点 flaky。
+    生产可选：外部 cron 管理 audit 清理时设此 env 禁用启动期自动清理。
     """
     import asyncio
     import datetime as _dt
+
+    if os.getenv("KNOT_SKIP_STARTUP_AUTO_PURGE", "").strip() == "1":
+        return
 
     from knot.repositories import settings_repo
 

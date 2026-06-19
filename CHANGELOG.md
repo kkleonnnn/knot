@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.2 — 2FA rollout 流程修复（白屏验收 8-bug 串联修复）
+## [Unreleased] - v0.6.5.3 — 测试隔离 flaky 修（startup auto-purge WAL 锁竞争）
+
+> **chore · 测试隔离硬化**（预存在债，v0.6.5.2 baseline git-stash 实证非该 PATCH 引入；spawn task 跟进）。生产默认行为不变（新增 env 仅 opt-in）。
+
+### Fixed
+- **⭐ 测试隔离 flaky 真因（grounded 完整 traceback）**：startup hook `_audit_auto_purge_if_stale` 用 `asyncio.create_task` fire-and-forget（不 await）。该任务延迟执行时 `get_conn()` 读 *当前* monkeypatched `SQLITE_DB_PATH`（已是 *后续* 测试的 tmp DB）→ purge 线程持该 DB 的 WAL 锁 ⟷ 该测试 `init_db` 的 `PRAGMA journal_mode=WAL` 抢锁 → `sqlite3.OperationalError: database is locked` 随机落点 ERROR（非确定性 = PYTHONHASHSEED 影响事件循环调度时机；fix 前全量 pytest ~50% 复现 → fix 后 4×0）。**修**：`main.py` hook 加 `KNOT_SKIP_STARTUP_AUTO_PURGE=1` 早返 guard（生产可用 — 外部 cron 管 audit 清理时禁启动期自动清理）+ `tests/conftest.py` 模块级 setdefault =1。
+- **附带防御（任务点名的相邻 latent 风险，非本 flaky 真因）**：conftest autouse `_reset_module_level_caches` 清三类模块级可变缓存（`engine_cache._engine_cache` / `admin._DS_STATS_CACHE` / `totp_service._TOKEN_VERSION_CACHE`）防其它隔离泄露。
+
+### Tests
+- `tests/test_isolation_hardening.py`：① auto-purge guard 正反双向（env=1 不 `create_task` / 未设则创建 — 证条件式非永久禁用）② conftest env setdefault 守护（防误删）③ 模块级缓存投毒→autouse 清→断言空（禁用清理则必红，证非空洞）。
+- 全量 pytest 4× 稳定（仅本机 .env 干扰的 `test_jwt_fail_when_missing` 失败 — CI 干净 env 绿）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.3 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；routes 77 不变。
+
+## [Released] - v0.6.5.2 — 2FA rollout 流程修复（白屏验收 8-bug 串联修复）
 
 > **Loop Protocol v3 — 轻量 v3 + 保 Stage 3**（白屏 hotfix 串联修复 + R-2FA 不变量落地 + F4-back 后端新机制；守护者 Stage 3 CONDITIONAL → F4-1 整改后逐 commit 直读）；守护者续任 v0.5。**gate 决策逻辑 0 改**。
 > **触发**：v0.6.5.0/.1 强制 2FA 落地后真实使用暴露 8 bug（6 白屏链 + 2 活体契约）；执行者 workflow 13-agent 对抗设计 + 4-agent 独立契约审计双重 grounded。

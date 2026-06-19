@@ -29,6 +29,45 @@ os.environ.setdefault("JWT_SECRET", TEST_JWT_SECRET)
 # 验「真 default-on」rollout 行为的守护测试用 monkeypatch.delenv("KNOT_TOTP_REQUIRED") 揭真默认。
 os.environ.setdefault("KNOT_TOTP_REQUIRED", "false")
 
+# v0.6.5.3 flaky 根因修：禁用测试期 startup audit auto-purge。该 hook 的 fire-and-forget
+# create_task（不 await）延迟执行时 get_conn() 读 *当前* monkeypatched SQLITE_DB_PATH（已是
+# 后续测试的 tmp DB）→ purge 线程与该测试 init_db 的 PRAGMA journal_mode=WAL 抢锁 →
+# "database is locked" 随机落点 ERROR（非确定性 = PYTHONHASHSEED 影响调度时机）。
+# 模块级 setdefault（hook 在 startup event 读 env；须 main import 前 / 首个 TestClient 前设）。
+os.environ.setdefault("KNOT_SKIP_STARTUP_AUTO_PURGE", "1")
+
+
+def _reset_module_level_caches():
+    """v0.6.5.3 flaky 修：清三类模块级可变缓存（跨测试 state 泄露根因 class）。
+
+    每个 client/tmp_db_path fixture 用独立 tmp SQLite + os.unlink 删除；下列缓存若持有
+    指向已删 tmp DB 的 engine / 跨测试数据 → 后续测试命中作废缓存 → sqlite error / 数据污染。
+    按 import 失败容忍（早期 commit / 部分模块未建场景）。dispose 释放连接池 best-effort。
+    """
+    try:
+        from knot.services import engine_cache
+        for _entry in list(engine_cache._engine_cache.values()):
+            try:
+                _eng = _entry.get("engine") if isinstance(_entry, dict) else None
+                if _eng is not None and hasattr(_eng, "dispose"):
+                    _eng.dispose()
+            except Exception:
+                pass
+        engine_cache._engine_cache.clear()
+    except ImportError:
+        pass
+    try:
+        from knot.api import admin as _admin_mod
+        _admin_mod._DS_STATS_CACHE["data"] = None
+        _admin_mod._DS_STATS_CACHE["ts"] = 0.0
+    except (ImportError, AttributeError):
+        pass
+    try:
+        from knot.services import totp_service as _totp_svc
+        _totp_svc._TOKEN_VERSION_CACHE.clear()
+    except (ImportError, AttributeError):
+        pass
+
 
 @pytest.fixture(autouse=True)
 def _master_key_for_tests(monkeypatch):
@@ -53,6 +92,11 @@ def _master_key_for_tests(monkeypatch):
         _reset_for_tests()
     except ImportError:
         pass  # v0.6.0.23 之前 _rate_limit 模块还没建
+    # v0.6.5.3 flaky 修：清模块级可变缓存防测试间 state 泄露。三类缓存（TTL）survive 跨测试，
+    # 此前无 autouse 清理：① engine_cache._engine_cache 缓存 engine 指向 tmp DB（tmp 删后命中
+    # → engine.connect() sqlite "unable to open" ERROR）② admin._DS_STATS_CACHE 跨测试 stats 数据污染
+    # ③ totp_service._TOKEN_VERSION_CACHE token_version 残留。非确定性触发（PYTHONHASHSEED）→ flaky。
+    _reset_module_level_caches()
     yield
     try:
         from knot.core.crypto.fernet import get_crypto_adapter
