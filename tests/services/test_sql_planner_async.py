@@ -50,7 +50,7 @@ async def test_R30_arun_sql_agent_propagates_budget_exceeded(tmp_db_path, monkey
     with pytest.raises(BudgetExceededError):
         await sql_planner.arun_sql_agent(
             question="昨天 GMV", schema_text="## tbl\n- col INT",
-            engine=None, model_key="claude-haiku-4-5-20251001", api_key="fake",
+            engine=None, model_key="anthropic/claude-haiku-4.5", openrouter_api_key="fake",  # v0.6.5.4 OR-only
             max_steps=3,
         )
 
@@ -68,7 +68,7 @@ async def test_R30_arun_sql_agent_propagates_llm_network_error(monkeypatch):
     with pytest.raises(LLMNetworkError):
         await sql_planner.arun_sql_agent(
             question="Q", schema_text="schema", engine=None,
-            model_key="claude-haiku-4-5-20251001", api_key="fake", max_steps=3,
+            model_key="anthropic/claude-haiku-4.5", openrouter_api_key="fake", max_steps=3,  # v0.6.5.4 OR-only
         )
 
 
@@ -83,7 +83,7 @@ async def test_arun_sql_agent_non_BIAgent_exception_becomes_final_error(monkeypa
 
     result = await sql_planner.arun_sql_agent(
         question="Q", schema_text="schema", engine=None,
-        model_key="claude-haiku-4-5-20251001", api_key="fake", max_steps=3,
+        model_key="anthropic/claude-haiku-4.5", openrouter_api_key="fake", max_steps=3,  # v0.6.5.4 OR-only
     )
     assert result.success is False
     assert "LLM 调用失败" in result.error
@@ -94,7 +94,7 @@ async def test_arun_sql_agent_no_api_key_returns_error_result(monkeypatch):
     """无 API Key 立即返 AgentResult(success=False, error=...) 而非崩溃。"""
     result = await sql_planner.arun_sql_agent(
         question="Q", schema_text="schema", engine=None,
-        model_key="claude-haiku-4-5-20251001",  # known anthropic
+        model_key="anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（无 key → OR 分支返"未设置 OpenRouter API Key"含"未设置"/"API Key"）
         api_key="",  # no key
         max_steps=3,
     )

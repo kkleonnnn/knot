@@ -91,7 +91,7 @@ def test_intent_classification_accuracy_at_least_90pct(fake_schema):
     """跑全部 case 通过 Clarifier，统计 intent 准确率，要求 ≥ 90%。"""
     correct = 0
     failures: list[tuple[str, str, str]] = []
-    model = os.getenv("EVAL_MODEL", "google/gemini-2.0-flash-001")
+    model = os.getenv("EVAL_MODEL", "anthropic/claude-haiku-4.5")  # v0.6.5.4 OR-only（旧 gemini-2.0-flash-001 已下线）
     or_key = os.getenv("OPENROUTER_API_KEY", "")
 
     for case in CASES:
