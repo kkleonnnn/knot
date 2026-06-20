@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.8 — v0.6→v0.7 整体审核仪式收官（#23 LOCKED）+ 退役 R-PA-8
+## [Unreleased] - v0.6.5.9 — 修 admin budget-config 审计调用崩溃（整体审核独立发现）
+
+> **bugfix**（v0.6.x 收官期独立 PATCH，非整体审核仪式产物）。v0.6→v0.7 整体审核 v0.4 远古守护者 grounded 发现 + 执行者 R-137 反向核验确认。
+
+### Fixed
+- **`admin.py` budget-config PUT 端点审计调用崩溃**：`audit(request, "budget.config_update", "app_settings", "budget_config", ...)` 把裸字符串塞进 `audit(request, actor, **kwargs)` 的 actor 位 + 2 个多余位置参 → 必然 **TypeError**。因 `set_app_setting` 先执行，端点崩在审计前 → **500 + settings 半写入 + 0 审计留痕**。修为正确 kwargs：`audit(request, admin, action="config.budget_update", resource_type="budget", resource_id="budget_config", ...)`。
+
+### Changed
+- **`AuditAction` Literal 补 `config.budget_update`**（归「# 配置变更」组，与 `config.agent_models_update`/`config.prompt_update` 命名一致；resource_type 复用既有 `budget` 域）。
+
+### Tests
+- `tests/api/test_budget_config_audit.py`：回归守护 — PUT budget-config 断言 200（修复前 TypeError→500）+ 落一条 `config.budget_update` 审计（修复前 0 审计）。
+- **OOS（登记非本 PATCH）**：整体审核另发现更广「审计侵蚀」（`exports.py` 0 audit / auth.logout / 部分 per-user api_key / user.delete 有 Literal 却 0 emit）→ 建议「每 AuditAction Literal ≥1 emit 点」CI 测试，留独立 PATCH（避免本 bugfix 范围蔓延）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.9 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；7 contracts KEPT。
+
+## [Released] - v0.6.5.8 — v0.6→v0.7 整体审核仪式收官（#23 LOCKED）+ 退役 R-PA-8
 
 > **MINOR 滚动整体审核仪式收官**（Task #23 / M-2）。资深 2026-06-20 announce → 三方独立评审（v0.5 守护者 major-revise + v0.4 远古 minor-revise + 执行者 R-137 双向核验；v0.3 已不在）→ 资深逐项仲裁 LOCKED。本 PATCH = 归档仪式 4 产物 + 退役使命已尽的 R-PA-8 守护工具。
 

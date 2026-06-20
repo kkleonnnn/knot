@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.8 · v0.6→v0.7 整体审核仪式收官（#23 LOCKED）+ 退役 R-PA-8 守护工具（内测缓冲已过 + Phase B 完成 + v0.7 启动，使命已尽）。归档仪式 4 产物 + ~12 条 v0.7 不变量带入清单。<br>**上版** v0.6.5.7 运维升级 runbook · v0.6.5.6 路线图 catch-up · v0.6.5.5 OR 目录补。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.9 · bugfix（整体审核独立发现）：修 admin budget-config 端点审计调用参数错位（TypeError → 500 + settings 半写入 + 0 审计）→ 正确 kwargs + AuditAction 补 `config.budget_update` + 回归测试。<br>**上版** v0.6.5.8 v0.6→v0.7 整体审核收官 + 退役 R-PA-8 · v0.6.5.7 运维升级 runbook · v0.6.5.6 路线图 catch-up。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

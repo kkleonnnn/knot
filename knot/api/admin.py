@@ -804,7 +804,8 @@ async def admin_update_budget_config(req: BudgetConfigRequest, request: Request,
     settings_repo.set_app_setting("budget_warn_pct",           str(req.warn_pct))
     settings_repo.set_app_setting("budget_default_model",      req.default_model)
     settings_repo.set_app_setting("budget_rate_limit_per_min", str(req.rate_limit_per_min))
-    audit(request, "budget.config_update", "app_settings", "budget_config", success=True, detail=req.dict())
+    audit(request, admin, action="config.budget_update", resource_type="budget",
+          resource_id="budget_config", success=True, detail=req.dict())
     return {"ok": True}
 
 
