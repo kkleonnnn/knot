@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.7 · 运维升级 runbook + 部署文档 drift 修（docs-only chore）：新增 v0.6.1.4→0.6.5.6 K8s 升级需求文档（跨 2FA 分水岭一步到位）+ DEPLOY.md 头/模型计数 drift 修。0 业务码。<br>**上版** v0.6.5.6 CLAUDE.md 路线图回顾表 catch-up · v0.6.5.5 OR 目录补当前 Claude 旗舰 · v0.6.5.4 OR-only 模型目录清理。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.8 · v0.6→v0.7 整体审核仪式收官（#23 LOCKED）+ 退役 R-PA-8 守护工具（内测缓冲已过 + Phase B 完成 + v0.7 启动，使命已尽）。归档仪式 4 产物 + ~12 条 v0.7 不变量带入清单。<br>**上版** v0.6.5.7 运维升级 runbook · v0.6.5.6 路线图 catch-up · v0.6.5.5 OR 目录补。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

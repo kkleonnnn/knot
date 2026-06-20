@@ -49,14 +49,6 @@ jobs:
           fi
           pytest tests/ -v --tb=short --ignore=tests/eval
 
-      # v0.6.0.1 R-PA-8：内测期 Phase B 准备性 commit 守护（与 R-PA-5 联动）
-      # v0.6.0.22 加固：先跑 --self-test 证明工具本身正确（Codex §APPENDIX D gate
-      # — v0.6.2.0 MINOR 滚动启动闸门之一）；再跑真实扫描
-      - name: R-PA-8 self-test (工具自验 — Codex gate)
-        run: python3 scripts/check_phase_b_leakage.py --self-test
-      - name: R-PA-8 Phase B leakage check
-        run: python3 scripts/check_phase_b_leakage.py
-
   # v0.6.0.14 前端 lint 闸门 — 0 errors / 0 warnings；任何回退即红
   # 内测评估反馈："构建能过不代表质量闸门健康"——把 npm run lint 钉死在 CI 上
   frontend-lint:

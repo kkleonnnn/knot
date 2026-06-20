@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.7 — 运维升级 runbook + 部署文档 drift 修（docs-only chore）
+## [Unreleased] - v0.6.5.8 — v0.6→v0.7 整体审核仪式收官（#23 LOCKED）+ 退役 R-PA-8
+
+> **MINOR 滚动整体审核仪式收官**（Task #23 / M-2）。资深 2026-06-20 announce → 三方独立评审（v0.5 守护者 major-revise + v0.4 远古 minor-revise + 执行者 R-137 双向核验；v0.3 已不在）→ 资深逐项仲裁 LOCKED。本 PATCH = 归档仪式 4 产物 + 退役使命已尽的 R-PA-8 守护工具。
+
+### Added（仪式 LOCKED 文档）
+- **`docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md`**（LOCKED）：4 产物（代码结构 / 奥卡姆剃刀 / 重构协议增量 / v0.7 范围骨架）+ §0.5 资深仲裁结果 + **§4.5 v0.7 不变量带入清单（~12 条）= 仪式头号产物**（v0.5 代 gate/R-2FA/视觉/doc-CI/R-192/OOS-1 + v0.4 代 加密/审计/成本/async + 接缝 脱敏/crypto contract 扩 semantic）。
+- **`docs/plans/v0.6-overall-review-opinions.md`**：三方独立意见 + 执行者 R-137 双向核验 + 资深仲裁全归档。
+- **`docs/plans/v0.7.0-semantic-layer-prestudy-2026-06-12.md`**：v0.7 Stage 0 预研入库（修 v0.4 远古程序异议 — 此前游离未 committed）。
+
+### Removed（R-PA-8 退役）
+- **退役 R-PA-8 内测期 Phase B 泄漏守护**（`scripts/check_phase_b_leakage.py` + 其测试 + ci.yml 2 steps + check_file_sizes LIMITS 登记 + CONTRIBUTING 活指令）。**前提三重失效**：R-PA-5 内测缓冲 2026-06-12 结束 · Phase B 已完成（v0.6.2~v0.6.3）· #23 LOCKED 正式启动 v0.7（v0.7 planning docs 不再应被拦）。治理退役（当初 v0.6.0.1 R-PA-12~17 立约），资深 2026-06-20 拍板。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.8 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；CI 闸门减 R-PA-8 2 steps；7 contracts KEPT。**角色滚动**：v0.5 守护者→远古 · v0.6 执行者→守护者 · 资深开新对话启 v0.7 执行者。
+
+## [Released] - v0.6.5.7 — 运维升级 runbook + 部署文档 drift 修（docs-only chore）
 
 > **chore · docs-only**（资深 ack + 0 业务逻辑，仅注释/文档）。承内测服务器实况（线上 v0.6.1.4 · K8s · 双数据源 Doris + HTTP `futures_admin`），产出 v0.6.1.4→0.6.5.6 一次性升级需求文档 + 修部署文档版本/模型计数 drift。
 

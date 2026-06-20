@@ -61,7 +61,6 @@ npm run dev  # 默认 5173 端口
 ruff check knot/                       # 代码风格
 lint-imports                           # 7 contracts KEPT
 python3 scripts/check_file_sizes.py    # R-94 文件行数硬上限
-python3 scripts/check_phase_b_leakage.py  # R-PA-8 内测期守护
 pytest tests/ -v --tb=short --ignore=tests/eval
 
 # 前端
