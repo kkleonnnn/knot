@@ -589,11 +589,12 @@ v0.5→v0.6 滚动整体审核 9 项决议（S-1~S-9）LOCKED 后开启。Phase 
 | ✅ v0.6.5.4（chore · 配置清理）| OpenRouter-only 模型目录清理 — 守护者 Stage 3 逐 commit 直读 APPROVED；**触发**：内测发现 admin 选直连 Anthropic 模型但只配 OpenRouter key → query.py 回退已下线 `google/gemini-2.0-flash-001` → 404（**纯配置错配 + 上游下线，与 2FA/重启无关**）；cfg.MODELS 删 6 直连 provider 模型 + 死 OR gemini → 仅 13 纯 OR（全带 "/" → admin 下拉即 OR-only）+ query.py:44 fallback→`cfg.DEFAULT_MODEL`（活 OR `anthropic/claude-haiku-4.5`）+ 悬空串治理 3 处（admin.py:778 / AdminBudgets.jsx:44 / 2 eval 默认）+ 孤儿幂等 migration（base.py 同步 DML 非 create_task 守 v0.6.5.3；仅 model_settings 非空且无 is_default 触发 → fresh/test DB c==0 确定性跳过）；**4-agent 审计漏判 5 处测试由全量 pytest 兜底捕获**（R30×3 + R32×2 的 api_key→openrouter_api_key 入参修）；adapter 死代码 OOS 不删；详 [docs/plans/v0.6.5.4-or-only-models.md](docs/plans/v0.6.5.4-or-only-models.md)（PR #158）|
 | ✅ v0.6.5.5（chore · 模型目录补）| OR 目录补当前 Claude 旗舰 — 承 v0.6.5.4 OR-only；纯 cfg.MODELS additive：加 `anthropic/claude-sonnet-4.6`（$3/$15 · 1M ctx）+ `anthropic/claude-opus-4.8`（$5/$25 · 1M ctx，比旧 opus-4 $15/$75 更强且更便宜）→ 13→15 纯 OR（OR-only 不变量保持）；admin agent 下拉即可选；旧 opus-4 保留不删；资深拍板（内测 admin 想用 sonnet-4.6）；PR #159 |
 | ✅ v0.6.5.6（chore · docs-only · 本表 catch-up）| CLAUDE.md 路线图回顾表 catch-up（task #56）— **简化协议**（docs-only chore + 资深 ack；0 业务码）；补本表自 v0.6.5.1 后缺的 4 行（v0.6.5.2/.3/.4/.5 — 本会话连续 PATCH 当时未回填本表）+ 自身行；实查校正 task #56 原「~11 PATCH」口径（v0.6.4.2~v0.6.5.1 各 PATCH 已增量回填本表，真实缺口仅 4 行）；4 源点版本同步 0.6.5.5→0.6.5.6（main.py/version.js/README L16/CHANGELOG + R-72 smoke）；CLAUDE.md 不在 check_file_sizes/R-PA-8 INCLUDE（用户文档）；PR #160 |
-| ✅ v0.6.5.7（chore · docs-only · 运维升级 runbook）| 承内测服务器实况（线上 v0.6.1.4 · K8s · 双数据源 Doris + HTTP futures_admin）产出一次性升级文档 — **简化协议**（docs-only + 资深 ack；0 业务逻辑，仅注释/文档）；新建 docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md（K8s「业务方提需求不含 SRE 操作」格式：跨 v0.6.2.0 首次强制 2FA 一步到位 + KNOT_HTTP_ALLOWED_HOSTS host-only 保留 + PVC/MASTER_KEY 不变 + UI v2 全换 + 烟测/回滚安全降级）；**grounded 校正 2 假设**（生产 K8s 非 docker / allowlist host-only 非 host:port）+ 确认 main 含 v0.6.1.4 HTTP 功能（#106 已合）升级不回归；顺修 DEPLOY.md 头 v0.6.0.10→0.6.5.7 + 模型计数 13/14→15 drift；PR #TBD |
+| ✅ v0.6.5.7（chore · docs-only · 运维升级 runbook）| 承内测服务器实况（线上 v0.6.1.4 · K8s · 双数据源 Doris + HTTP futures_admin）产出一次性升级文档 — **简化协议**（docs-only + 资深 ack；0 业务逻辑，仅注释/文档）；新建 docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md（K8s「业务方提需求不含 SRE 操作」格式：跨 v0.6.2.0 首次强制 2FA 一步到位 + KNOT_HTTP_ALLOWED_HOSTS host-only 保留 + PVC/MASTER_KEY 不变 + UI v2 全换 + 烟测/回滚安全降级）；**grounded 校正 2 假设**（生产 K8s 非 docker / allowlist host-only 非 host:port）+ 确认 main 含 v0.6.1.4 HTTP 功能（#106 已合）升级不回归；顺修 DEPLOY.md 头 v0.6.0.10→0.6.5.7 + 模型计数 13/14→15 drift；PR #161 |
+| ✅ v0.6.5.8（⭐ 仪式收官 · #23 LOCKED + 退役 R-PA-8）| **v0.6→v0.7 MINOR 滚动整体审核仪式收官** — 资深 announce → 三方独立评审（v0.5 守护者 major-revise + v0.4 远古 minor-revise + 执行者 6-agent R-137 双向核验；v0.3 已不在）→ 资深逐项仲裁 LOCKED（收敛 7 RATIFY + 分歧 4 拍板：标签 major-revise / sync 删除留建议不升红线 / check_file_sizes 根治 / v0.7 第一刀更窄）；归档仪式 4 产物（`v0.6-to-v0.7-overall-review-2026-06-20.md` LOCKED + opinions 三方意见 + prestudy 入库）+ **§4.5 v0.7 不变量带入清单 ~12 条**（v0.5 代 gate/R-2FA/视觉铁律/doc-CI/R-192/OOS-1 + v0.4 代 加密/审计/成本/async + 脱敏/crypto contract 扩 semantic）= 仪式头号产物；**退役 R-PA-8**（check_phase_b_leakage 工具 320 行 + ci 2 steps + test + LIMITS 登记 + CONTRIBUTING 活指令 — R-PA-5 缓冲过 + Phase B 完成 + v0.7 启动，使命已尽，治理退役）；admin.py:807 budget-config 审计调用真 bug（TypeError+半写入）spawn 独立修复；5 源点同步 0.6.5.7→0.6.5.8；**角色滚动触发**（v0.5 守护者→远古 / v0.6 执行者→守护者 / 资深开新对话启 v0.7 执行者）；详见 § v0.7.x 路线图 |
 | ✅ v0.6.0.2（micro PATCH）| ResultBlock 6 子组件拆分（v0.5.14 R-341 承诺偿还）— Loop Protocol v3 第 28 次施行；Phase B 预评估 §6 v0.5 守护者强制建议 5 前置；ResultBlock.jsx 449→279（-170）+ 6 子组件（MetricCard / TableContainer / InsightCard / BudgetBanner / ErrorBanner / TokenMeter）；R-PA-PB-V0.1~V0.6 守护红线；421 tests sustained；7 contracts KEPT；详 [docs/plans/v0.6.0.2-locked.md](docs/plans/v0.6.0.2-locked.md) |
 | ✅ v0.6.0.1（micro PATCH）| 5 in 1 hotfix + 守护者立约归档 — Loop Protocol v3 第 27 次施行（v0.5.22 自审简化协议 sustained）；R-PA-5 Day 0 触发后立即启动；5 in 1：① SavedReports ⭐ → inline svg star（F1 — v0.5.13 R-303 遗漏视觉债）② R-PA-8 守护工具 scripts/check_phase_b_leakage.py（F2 — 检测 Phase B 字面 + Schema 列 + 文件 glob；R-PA-14 自指环避免）③ R-PA-9/10/11 立约归档 LOCKED §3 附录 + CHANGELOG（F3 — 守护者 G-4 提议）④ G-5 .github/workflows/ci.yml docker build CI 闸门（F4 — continue-on-error 非阻塞 R-PA-15）⑤ G-6 tests/scripts/test_dockerfile_copy.py R-PA-7 字面单元测试（F5 — 3 测试 / regex grep）；6 红线 R-PA-12~R-PA-17 立约；421 tests / 112 skipped（+3 G-6 测试）；7 contracts KEPT；详 [docs/plans/v0.6.0.1-locked.md](docs/plans/v0.6.0.1-locked.md) |
-| ⏳ 内测期（4 周缓冲） | 团队 5-10 人真实使用反馈 | 资深架构师开 GitHub issue `🚀 v0.6.0 Phase A — 内测启动` + label `/start-internal-test` 创建日 = R-PA-5 Day 0 计时起点；**严禁 Phase B 草案**（R-PA-5 + R-PA-8）|
-| ⏳ Phase B 评估 | 三方拍板（执行者 + 守护者 + 远古守护者 + 资深） | 视真实需求：① 需求充分 → Phase B v0.6.1 草案启动；② 需求不足 → Phase B 缩减（仅做 OOS-5/6 代码组织债务）；③ 需求归零 → Phase B 跳过 → 直接 1.0 团队公测准备 |
+| ✅ 内测期（缓冲）| 团队真实使用反馈 | R-PA-5 缓冲 2026-05-15→06-12 已结束；R-PA-8 守护工具于 v0.6.5.8 退役（使命已尽）|
+| ✅ Phase B 评估 | 三方拍板 | **需求充分** → Phase B 完整执行（v0.6.2.0~v0.6.3.2 段 1-7：2FA / HTTP 路由 / Shared 整合 / 多 catalog / audit+脱敏 V2 / OSS docs / AdminAudit 拆分）；之后 UI v2（v0.6.4.x 19 屏）+ 安全收尾（v0.6.5.x）→ v0.6→v0.7 整体审核（v0.6.5.8）定 **v0.7 = 5 层语义层** |
 
 **v0.6.0 Loop Protocol v3 施行回顾**：
 
@@ -607,6 +608,32 @@ v0.5→v0.6 滚动整体审核 9 项决议（S-1~S-9）LOCKED 后开启。Phase 
 | 资深架构师拍板 | §5 6 项 + Q-E1.A + Q-E2.A 共 8 项 LOCKED | 同日 |
 | commit 4 守护者复核 | 0 否决 + 2 修订（M-1/M-2 grep audit）+ G-1 R-PA-6.1 立约（资深拍板）+ G-3 LOCKED retro 推 v0.6.0 收官 | 同日 |
 | **总计** | **第 26 次完整 v3 三阶段施行** — 首次跨 MINOR 角色滚动 + 首次公开承诺撤回 + 首次 sanitize/Deploy-Ready 二合一 + LOCKED 终稿盲区识别 4 处补救（commit 1 五处 / F14.3 修订 / F18 提前联动 / R-PA-6 闸门修订） | — |
+
+## v0.7.x 路线图（v0.6→v0.7 整体审核 LOCKED 后）
+
+> **第三次整体审核**：v0.6.5.7 → v0.7.0 滚动前夕（执行者 v0.6 + 守护者 v0.5 + 远古守护者 v0.4；v0.3 已不在）→ #23 LOCKED 2026-06-20（总立场 major-revise）。**定向 v0.7 = 5 层语义层 + LogicForm**（资深 2026-06-08 拍板）。
+> **完整 LOCKED 文档**：[`docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md`](docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md)（4 产物 + §0.5 仲裁 + §4.5 不变量清单）+ [`v0.6-overall-review-opinions.md`](docs/plans/v0.6-overall-review-opinions.md)（三方意见）+ [`v0.7.0-semantic-layer-prestudy-2026-06-12.md`](docs/plans/v0.7.0-semantic-layer-prestudy-2026-06-12.md)（Stage 0 预研）。
+> **协议**：v0.7 业务模型重构级，走完整 v3 三阶段，**不适用简化协议**。
+
+### ⭐ v0.7 不变量带入清单（greenfield 必守护栏 — 业务模型可重写，以下不可丢）
+v0.7.0 Stage 1 须逐条声明载体/守护点：
+
+- **v0.5 守护代（6）**：gate 鉴权（require_admin/get_current_user）· R-2FA（token_version 吊销 + 强制 enroll）· 视觉铁律（brandSoft 8% / borderLeft 25% / R-PA-PB-V1 + 18 屏 byte-equal）· doc-invariant CI（4~5 源点 + count==1）· R-192 AppShell 13 props · **OOS-1 单租户**（metric 归 `catalog_id`，严禁顺手引 tenant_id）
+- **v0.4 守护代（4）**：数据加密（Fernet/KNOT_MASTER_KEY/enc_v1，metric 含机密须注册 + 补存储侧 CI 守护）· 审计（metric CRUD 配 Literal + audit 调用 + CI 断言每 Literal ≥1 emit）· 成本（cost_service R-S8 横跨语义+LLM 双路径 + 新 agent_kind 桶）· async（LogicForm 解析/编译 async-native + R-26 budget gate）
+- **接缝（2）**：脱敏链 V2（metric SQL surface 非 admin 须脱敏）· **`crypto-only-in-allowed-callers` contract 扩 semantic 层**（semantic/agents 严禁直连 core.crypto）
+- R-LP-v3 治理已立约（唯一原生带入，无需重立）
+
+### v0.6.x 收官前置（v0.7.0 起手前必清）
+- **admin.py 拆 7 文件**（907 行/30ep → users/datasources/models/api_keys/budgets/stats/or_catalog + __init__ 聚合；须 re-export `_DS_STATS_CACHE` 防 flaky）= 独立纯重构 PATCH（v0.7 加指标模块硬前置）
+- **catalog.py 单独高守护拆分**（460 行 + 11 importer + reload+ContextVar+from-import 别名陷阱）= **绝不与 admin/http_planner 同批**
+- **check_file_sizes 根治**：allowlist → backend auto-discover + 默认 cap + ack 白名单（治无闸门巨型文件复发：admin/http_planner/catalog/message_repo/doris/engine_cache 全漏网）
+- anthropic_native 标「冻结/capability reserve」（唯一 prompt-cache 实现，OR-only 下休眠，v0.7 LogicForm prompt 缓存杠杆）· sync 链删除（留奥卡姆建议，须 test-port + 分阶段）· http_planner futures regex 下沉 catalog · model 层 type hint 统一 · admin.py:807 审计 bug
+
+### 增量交付序（非锁定 · 详 prestudy §6）
+- **v0.7.0** = 指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native **六位一体**（更窄 · 仲裁 B.4）
+- v0.7.1 LogicForm + 单对象确定性编译（⭐ 最高 ROI）→ v0.7.2 对象层跨表 JOIN（BFS+阈值+笛卡尔积守护复用）→ v0.7.3 混合路由 + LogicForm 审计/修正 UI → v0.7.4+ 事件/规则/动作（高风险逐层放）
+
+---
 
 ## v0.2.0 Go 重写技术栈（分支 feat/go-rewrite）
 
