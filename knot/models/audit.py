@@ -26,6 +26,7 @@ AuditAction = Literal[
     # 配置变更
     "config.agent_models_update", "config.prompt_update",
     "config.catalog_update", "config.few_shots_change",
+    "config.budget_update",  # v0.6.5.9 修 admin.py budget-config 审计调用崩溃（原裸字符串错位 TypeError）
     # v0.6.2.5 段 4 (A1): 多 catalog 切换（per-user active catalog；AuditAction 38→39）
     "catalog.switch",
     # v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离第②层 assert 失败（async race 漂移；39→40）
