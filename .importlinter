@@ -89,3 +89,12 @@ source_modules =
     knot.models
 forbidden_modules = knot.core.crypto
 allow_indirect_imports = True
+
+[importlinter:contract:catalog-loaders-pure]
+name = catalog_loaders 纯加载器不得 import 有状态 catalog（v0.6.5.12 收官③ — 守 live-read 单向 + 防 facade-freeze 环）
+type = forbidden
+source_modules =
+    knot.services.agents.catalog_loaders
+forbidden_modules =
+    knot.services.agents.catalog
+allow_indirect_imports = True
