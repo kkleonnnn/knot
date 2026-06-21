@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.12 · 收官前置③（v0.7 准备 · 三件收官全清）：`catalog.py` 460 行拆 `catalog_loaders.py`（只抽 4 纯 loader；5 globals/reload/getter 留本模块 → live-read 契约 0 破坏 + 10 importer 0 改）+ Contract 8（catalog_loaders ⊥ catalog）。<br>**上版** v0.6.5.11 admin.py 拆 7 域 + check_file_sizes 根治 · v0.6.5.10 type-hint 统一 · v0.6.5.9 修 admin budget-config 审计。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.0 · 语义层第一刀（指标注册表 metric registry）：`metrics` 表 + metric_repo（口径单一真源；⚠️ OOS-1 catalog_id 水平切分，0 tenant_id）+ admin「指标注册表」屏（CRUD，**≠ 内测指标 KPI 屏**）+ 审计接线（AuditAction +metric.create/update/delete）+ 加密/成本/async greenfield 不变量守护；LogicForm 确定性编译留 v0.7.1。<br>**上版** v0.6.5.12 收官前置③ catalog.py 拆 · v0.6.5.11 admin.py 拆 7 域 + check_file_sizes 根治 · v0.6.5.10 type-hint 统一。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

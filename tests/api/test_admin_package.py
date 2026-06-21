@@ -1,7 +1,7 @@
 """收官② admin.py 拆分契约哨兵（v0.6.5.11 R-AS-1/2/3）。
 
 admin.py 908 行拆 knot/api/admin/ 7 域包后，守护三契约：
-- R-AS-1：admin.router 聚合 = 30 路由（main.py `admin.router` byte-equal）。
+- R-AS-1：admin.router 聚合 = 35 路由（30 + v0.7.0 C2 metric registry 5 端点；main.py `admin.router` byte-equal）。
 - R-AS-2：admin._DS_STATS_CACHE re-export 同对象（3 隔离测试 in-place 突变可见的命门）。
 - R-AS-3：7 域 + __init__ 全 born-clean（from __future__ AST-position 容忍 docstring + 0 Optional[）。
 """
@@ -11,11 +11,11 @@ import ast
 from pathlib import Path
 
 _ADMIN_DIR = Path(__file__).resolve().parents[2] / "knot" / "api" / "admin"
-_DOMAINS = ["users", "datasources", "models", "api_keys", "budgets", "stats", "or_catalog"]
+_DOMAINS = ["users", "datasources", "models", "api_keys", "budgets", "stats", "or_catalog", "metrics"]
 
 
-def test_admin_router_aggregates_30_routes():
-    """R-AS-1：admin.router 聚合 7 域 = 30 路由（穿透 FastAPI 0.137 _IncludedRouter 懒包装）。"""
+def test_admin_router_aggregates_35_routes():
+    """R-AS-1：admin.router 聚合 8 域 = 35 路由（30 + v0.7.0 metrics 5；穿透 FastAPI 0.137 _IncludedRouter 懒包装）。"""
     from fastapi import APIRouter, FastAPI
 
     from knot.api import admin
@@ -31,7 +31,7 @@ def test_admin_router_aggregates_30_routes():
         r for r in flatten_app_routes(app)
         if getattr(r, "path", "").startswith("/api/admin/")
     ]
-    assert len(admin_routes) == 30, f"admin 应聚合 30 路由；实际 {len(admin_routes)}"
+    assert len(admin_routes) == 35, f"admin 应聚合 35 路由（30 + metrics 5）；实际 {len(admin_routes)}"
 
 
 def test_ds_stats_cache_reexport_same_object():

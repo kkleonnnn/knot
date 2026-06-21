@@ -637,7 +637,7 @@ v0.7.0 Stage 1 须逐条声明载体/守护点：
 - anthropic_native 标「冻结/capability reserve」（唯一 prompt-cache 实现，OR-only 下休眠，v0.7 LogicForm prompt 缓存杠杆）· sync 链删除（留奥卡姆建议，须 test-port + 分阶段）· http_planner futures regex 下沉 catalog · ~~model 层 type hint 统一~~（**✅ v0.6.5.10 收官① — admin.py 部分 defer ②**）· ~~admin.py:807 审计 bug~~（**✅ v0.6.5.9**）
 
 ### 增量交付序（非锁定 · 详 prestudy §6）
-- **v0.7.0** = 指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native **六位一体**（更窄 · 仲裁 B.4）
+- **✅ v0.7.0** = 指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native **六位一体**（更窄 · 仲裁 B.4）— `metrics` 表 + metric_repo（OOS-1 catalog_id，0 tenant_id）+ `/api/admin/metrics-registry` CRUD（require_admin + AuditAction 41→44）+ AdminMetricRegistry 屏（≠ 内测 KPI）+ C3 加密/审计 greenfield 守护 + C4 cost/async 前瞻 carrier；详 [docs/plans/v0.7.0-semantic-metric-registry.md](docs/plans/v0.7.0-semantic-metric-registry.md)
 - v0.7.1 LogicForm + 单对象确定性编译（⭐ 最高 ROI）→ v0.7.2 对象层跨表 JOIN（BFS+阈值+笛卡尔积守护复用）→ v0.7.3 混合路由 + LogicForm 审计/修正 UI → v0.7.4+ 事件/规则/动作（高风险逐层放）
 
 ---

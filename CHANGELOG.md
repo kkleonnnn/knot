@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.12 — 收官前置③ catalog.py 单独高守护拆分（v0.7 准备 · 三件收官全清）
+## [Unreleased] - v0.7.0 — 语义层第一刀：指标注册表（metric registry）
+
+> **v0.7 = 5 层语义层 + LogicForm**（v0.6→v0.7 整体审核 #23 LOCKED 2026-06-20 定向）的**第一刀**：指标注册表
+> **六位一体**（指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native；仲裁 B.4 更窄）。
+> 完整 v3 三阶段（Stage 1 LOCKED → 守护者逐 commit 复核）。**LogicForm 确定性编译留 v0.7.1**（最高 ROI 下一刀）。
+> ⚠️ **OOS-1 死线 sustained**：metric 归属 `catalog_id`（语义层水平切分），严禁 tenant_id/project_id（真多租户推 v1.x+）。
+
+### Added
+- **C1 地基**：`metrics` 表（14 列 + `UNIQUE(catalog_id, name)` + `idx_metrics_catalog`；`CREATE TABLE IF NOT EXISTS` 幂等）+ `knot/models/metric.py`（Metric dataclass）+ `knot/repositories/metric_repo.py`（CRUD 镜像 catalog_repo）。`_UPDATABLE` 白名单 + `_reject_forbidden` 入口死锁（拒 tenant_id/project_id 注入）。lineage v0.7.0 **inert 存储**（不解析；DFS 校验留 v0.7.1 编译时）。
+- **C2 路由 + 审计接线**：`knot/api/admin/metrics.py` metric CRUD 端点（`/api/admin/metrics-registry`，**避与既有 `/api/admin/metrics` 内测 KPI 屏撞**）；全 `require_admin`（→ 2FA enroll gate 透传继承）。AuditAction **41→44**（+metric.create/update/delete）+ AuditResourceType **11→12**（+metric）；每端点 audit() 落对应 Literal。
+- **C5 admin UI 独立屏**：`frontend/src/screens/AdminMetricRegistry.jsx`（指标 CRUD：创建/编辑 form + CSS Grid 列表 + brandSoft inset 说明；UI v2 设计系统镜像 AdminBudgets/tab_resources）。route `admin-metric-registry` / nav「指标注册表」/ icon `I.sql`（口径 SQL 定义语义，**≠ 内测指标 `I.spark`**）。
+
+### Guards（§4.5 不变量同址而生）
+- **C3 greenfield CI 守护两个**（新建非 extend）：① 加密决策（存储侧 schema-scan — metric 全字段非密 → metrics 表 0 未注册 secret-pattern 列）② 审计每-Literal-emit（每 metric.* Literal 须 knot/api/ 有 ≥1 audit() emit）。
+- **C4 成本/async 前瞻 carrier 两个**（决策预留 · production 0 改）：① cost_service `_NEW_AGENT_KINDS` 维持 4 桶（semantic 桶留 v0.7.1）② metric 子系统 3 文件 0 引 sync LLM（generate_sql/fix_sql；v0.7.1 LogicForm 编译须 async-native）。
+- gate 鉴权（全端点 require_admin）+ R-192 AppShell 13 props byte-equal + 视觉铁律（brandSoft 8%/12%/25% + borderLeft 25%）+ 其他屏 byte-equal（仅 +1 屏 + 接线）。
+- 本地验：eslint --max-warnings=0 + vite build + check_file_sizes auto-discover + AST 计数（AuditAction 44 / ResourceType 12）；api/repo/守护测试走 CI（本机无 fastapi）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.7.0 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；package.json 0.0.0 不碰；**8 contracts KEPT**。
+
+## [Released] - v0.6.5.12 — 收官前置③ catalog.py 单独高守护拆分（v0.7 准备 · 三件收官全清）
 
 > **v0.7.0 硬前置③**（v0.6.x 收官纯重构 · **完整 v3 最高守护** — 拆错不 CI 红是生产静默 bug）。**0 行为变更**。**三件收官前置全清**（①type-hint ②admin拆+check_file_sizes ③catalog）→ v0.7.0 起手解锁。
 
