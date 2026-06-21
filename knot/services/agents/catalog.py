@@ -17,7 +17,12 @@ from __future__ import annotations
 
 import contextvars
 
-from knot.services.agents import catalog_loaders
+from knot.services.agents.catalog_loaders import (
+    _infer_source_types_from_datasources,
+    _load_from_db,
+    _load_from_files,
+    _merge_lexicons,
+)
 
 LEXICON: dict = {}
 TABLES: list = []
@@ -85,11 +90,11 @@ def reload(strict: bool = False) -> str:
 
     from knot.models.errors import MetadataError
 
-    f_lex, f_tables, f_rules, f_relations, f_src = catalog_loaders._load_from_files()
+    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     # v0.6.2.5 兜底熔断（Stage 2 修订 3）：catalogs id=1 缺失 + app_settings 无法读 → 真空期。
     # 沿用 ε2 strict 模式：strict=True（admin/query）→ fail-fast 上抛；strict=False（startup）→ 降级。
     try:
-        db_lex, db_tables, db_rules, db_relations, db_found = catalog_loaders._load_from_db()
+        db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
     except MetadataError:
         if strict:
             raise
@@ -121,7 +126,7 @@ def reload(strict: bool = False) -> str:
     if db_tables and db_found:
         from knot.models.errors import MetadataError
         try:
-            base_tables = catalog_loaders._infer_source_types_from_datasources(base_tables)
+            base_tables = _infer_source_types_from_datasources(base_tables)
         except MetadataError:
             if strict:
                 raise  # 业务条件触发（admin/query）→ fail-fast 上抛
@@ -135,7 +140,7 @@ def reload(strict: bool = False) -> str:
     # v0.6.1.4: LEXICON — 智能合并（不简单覆盖）
     # 同一关键词在 file 和 DB 都存在时 → value list 合并（保留两边的表）
     # 由 pick_http_route entity-aware ranking 决定优先级
-    LEXICON = catalog_loaders._merge_lexicons(f_lex, db_lex)
+    LEXICON = _merge_lexicons(f_lex, db_lex)
 
     BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
     RELATIONS = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
@@ -150,7 +155,7 @@ reload()
 
 def get_defaults_from_files() -> dict:
     """admin "恢复默认"按钮预填值。v0.5.44 加 relations。"""
-    f_lex, f_tables, f_rules, f_relations, f_src = catalog_loaders._load_from_files()
+    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     return {
         "lexicon": f_lex,
         "tables": f_tables,
