@@ -6,7 +6,7 @@
 - R-49 retention 7~3650 区间校验
 - R-57 meta-audit：retention_change 入 audit_log
 """
-from typing import Optional
+from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
@@ -29,11 +29,11 @@ _RETENTION_MAX = 3650
 async def list_audit_log(
     limit: int = _DEFAULT_LIMIT,
     offset: int = 0,
-    actor_id: Optional[int] = None,
-    action: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    actor_id: int | None = None,
+    action: str | None = None,
+    resource_type: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     admin=Depends(require_admin),
 ):
     """admin 只读；强制分页（R-61 上限 200）。

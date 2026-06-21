@@ -7,8 +7,9 @@
 
 Go 重写映射：internal/domain/setting.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -22,7 +23,7 @@ class AppSetting:
     """
     key: str
     value: str = ""
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 @dataclass
@@ -38,4 +39,4 @@ class FileUpload:
     table_name: str  # SQLite 中实际存放的表名
     row_count: int = 0
     columns: list = field(default_factory=list)  # [{"name", "type"}]
-    created_at: Optional[str] = None
+    created_at: str | None = None

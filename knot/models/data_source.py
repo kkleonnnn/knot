@@ -6,8 +6,9 @@ host:port:user 自动分组（MultiSourceEngine），跨组 SQL 直接拒绝。
 
 Go 重写映射：internal/domain/data_source.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -26,6 +27,6 @@ class DataSource:
     db_database: str = ""
     db_type: str = "doris"  # doris | mysql（v0.3.2 Adapter 协议为后续 clickhouse/bigquery 留口）
     description: str = ""
-    user_id: Optional[int] = None  # 创建者
+    user_id: int | None = None  # 创建者
     is_active: int = 1
-    created_at: Optional[str] = None
+    created_at: str | None = None

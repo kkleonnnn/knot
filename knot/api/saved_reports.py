@@ -8,9 +8,10 @@
 
 R-12 幂等：pin 同 message 二次返 200 + already_pinned=true，前端按钮变 🌟。
 """
+from __future__ import annotations
+
 import json
 from io import BytesIO
-from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -27,13 +28,13 @@ router = APIRouter()
 
 
 class PinRequest(BaseModel):
-    title: Optional[str] = None
-    pin_note: Optional[str] = None
+    title: str | None = None
+    pin_note: str | None = None
 
 
 class UpdateSavedReportRequest(BaseModel):
-    title: Optional[str] = None
-    pin_note: Optional[str] = None
+    title: str | None = None
+    pin_note: str | None = None
 
 
 # ── v0.6.3.0 B3 脱敏 V2：saved_reports 非 admin 脱敏（与 conversations v0.6.0.17/19 平行）──────────

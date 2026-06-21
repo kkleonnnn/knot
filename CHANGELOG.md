@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.9 — 修 admin budget-config 审计调用崩溃（整体审核独立发现）
+## [Unreleased] - v0.6.5.10 — 收官前置① type-hint 统一（PEP 585/604 · v0.7 准备）
+
+> **v0.7.0 硬前置①**（v0.6.x 收官纯重构，**轻量 v3**：资深 ack 跳 Stage 2 → 守护者 Stage 3 轻量终审 ACCEPT）。model + api 层统一 `from __future__ import annotations` + `Optional[X]` → `X | None`，定 v0.7 metric model 风格地基。**0 行为变更**。
+
+### Changed
+- **14 文件 type-hint 统一**（10 dataclass models + 4 api: schemas/audit/saved_reports/feedback）：加 `from __future__ import annotations`（模块首句，docstring 后 / import-first 顶部）+ `Optional[X]` → `X | None` + drop `typing.Optional`（保留 `Literal`：agent/budget/prompt）。77 处 `Optional[` 清零；仅 `Optional[`（List/Dict/Tuple/Set/Union = 0）。
+- **`admin.py` defer 收官②**（守护者 Stage 3 ratify — 偏离 LOCKED §0.5 列 admin 于①）：其 6 旧式将在 admin.py 拆 7 文件时 born-clean；**② 验收硬条件含「7 新 admin 文件 0 `Optional[` + 全 `from __future__`」**（守护者 Q1 带出）。
+
+### Safety（PEP 563 footgun — 0 行为变更承重假设）
+- grounded：全 `Optional[builtin]`/`Optional[list[int]]` module-scope 可解析 → Pydantic **v2** build 期安全；0 `get_type_hints`/`model_rebuild`/`TYPE_CHECKING` 运行时注解反射 footgun。models/ 全 `@dataclass`（string 注解 `fields()` 安全）。
+- 回归网 = CI `import knot.main`（全 Pydantic model build）+ `/docs` OpenAPI gen + `test_budgets`（BudgetUpdateRequest round-trip）+ `test_admin_query_history`（query param）。PEP 563 解析失败会在 import 期炸整套件，非静默。
+- 其他层（services/repos/core/adapters）实测 **0 旧式** → ① 限 model+api 即完整。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.10 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；**package.json 0.0.0 不碰**；7 contracts KEPT。
+
+## [Released] - v0.6.5.9 — 修 admin budget-config 审计调用崩溃（整体审核独立发现）
 
 > **bugfix**（v0.6.x 收官期独立 PATCH，非整体审核仪式产物）。v0.6→v0.7 整体审核 v0.4 远古守护者 grounded 发现 + 执行者 R-137 反向核验确认。
 

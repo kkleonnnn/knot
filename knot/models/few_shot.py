@@ -8,8 +8,9 @@ services/llm_client._load_few_shots 按 type 字段分桶（metric/trend/rank/..
 
 Go 重写映射：internal/domain/few_shot.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -25,5 +26,5 @@ class FewShotExample:
     sql: str
     type: str = ""
     is_active: int = 1
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None

@@ -7,8 +7,10 @@
 
 Go 重写映射：internal/domain/prompt.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 AgentName = Literal["clarifier", "sql_planner", "presenter"]
 
@@ -23,5 +25,5 @@ class PromptTemplate:
     """
     agent_name: str  # 实际取 AgentName 之一
     content: str
-    updated_by: Optional[int] = None
-    updated_at: Optional[str] = None
+    updated_by: int | None = None
+    updated_at: str | None = None

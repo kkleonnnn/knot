@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 from pydantic import BaseModel
 
@@ -44,7 +44,7 @@ class QueryRequest(BaseModel):
     model_key: str = ""
     api_key: str = ""
     use_agent: bool = False
-    upload_id: Optional[int] = None
+    upload_id: int | None = None
 
 
 class CreateUserRequest(BaseModel):
@@ -60,17 +60,17 @@ class CreateUserRequest(BaseModel):
 
 
 class UpdateUserRequest(BaseModel):
-    display_name: Optional[str] = None
-    role: Optional[str] = None
-    password: Optional[str] = None
-    doris_host: Optional[str] = None
-    doris_port: Optional[int] = None
-    doris_user: Optional[str] = None
-    doris_password: Optional[str] = None
-    doris_database: Optional[str] = None
-    default_source_id: Optional[int] = None
-    is_active: Optional[int] = None
-    source_ids: Optional[list[int]] = None
+    display_name: str | None = None
+    role: str | None = None
+    password: str | None = None
+    doris_host: str | None = None
+    doris_port: int | None = None
+    doris_user: str | None = None
+    doris_password: str | None = None
+    doris_database: str | None = None
+    default_source_id: int | None = None
+    is_active: int | None = None
+    source_ids: list[int] | None = None
 
 
 class DataSourceRequest(BaseModel):
@@ -89,16 +89,16 @@ class DataSourceRequest(BaseModel):
 
 
 class UpdateDataSourceRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    db_host: Optional[str] = None
-    db_port: Optional[int] = None
-    db_user: Optional[str] = None
-    db_password: Optional[str] = None
-    db_database: Optional[str] = None
-    db_type: Optional[str] = None
-    http_config: Optional[str] = None  # v0.6.1.4 OVERRIDE #4
-    is_active: Optional[int] = None
+    name: str | None = None
+    description: str | None = None
+    db_host: str | None = None
+    db_port: int | None = None
+    db_user: str | None = None
+    db_password: str | None = None
+    db_database: str | None = None
+    db_type: str | None = None
+    http_config: str | None = None  # v0.6.1.4 OVERRIDE #4
+    is_active: int | None = None
 
 
 class AgentModelConfigRequest(BaseModel):

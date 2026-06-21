@@ -10,7 +10,7 @@
 
 权限：复用 exports._check_message_access — 只能反馈自己 conversation 的 message；admin 可反馈任意。
 """
-from typing import Optional
+from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -74,7 +74,7 @@ async def get_my_feedback(
 
 @router.get("/api/admin/feedback")
 async def admin_list_feedback(
-    score: Optional[int] = None,
+    score: int | None = None,
     limit: int = 100,
     offset: int = 0,
     admin=Depends(require_admin),

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.9 · bugfix（整体审核独立发现）：修 admin budget-config 端点审计调用参数错位（TypeError → 500 + settings 半写入 + 0 审计）→ 正确 kwargs + AuditAction 补 `config.budget_update` + 回归测试。<br>**上版** v0.6.5.8 v0.6→v0.7 整体审核收官 + 退役 R-PA-8 · v0.6.5.7 运维升级 runbook · v0.6.5.6 路线图 catch-up。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.10 · 收官前置①（v0.7 准备）：model + api 层 type-hint 统一（PEP 585/604 — `Optional[X]` → `X \| None` + `from __future__ import annotations`，14 文件，0 行为变更；admin.py defer 收官②）。<br>**上版** v0.6.5.9 修 admin budget-config 审计调用崩溃 · v0.6.5.8 v0.6→v0.7 整体审核收官 + 退役 R-PA-8 · v0.6.5.7 运维升级 runbook。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

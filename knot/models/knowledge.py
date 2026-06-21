@@ -9,8 +9,9 @@ embedding_blob 为 None 时降级走 BM25 关键词检索（rag_retriever）。
 
 Go 重写映射：internal/domain/knowledge.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -20,7 +21,7 @@ class KnowledgeDoc:
     name: str
     filename: str
     chunk_count: int = 0
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 @dataclass
@@ -31,5 +32,5 @@ class DocChunk:
     pickle 后的 bytes；上传时若 embedding API 调用失败则为 None。
     """
     chunk_text: str
-    embedding_blob: Optional[bytes] = None
-    doc_id: Optional[int] = None
+    embedding_blob: bytes | None = None
+    doc_id: int | None = None
