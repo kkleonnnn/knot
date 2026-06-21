@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.10 — 收官前置① type-hint 统一（PEP 585/604 · v0.7 准备）
+## [Unreleased] - v0.6.5.11 — 收官前置② admin.py 拆 7 文件 + check_file_sizes 根治（v0.7 准备）
+
+> **v0.7.0 硬前置②**（v0.6.x 收官纯重构，**完整 v3**：Stage 1 → Stage 2 初审(4.98/5) → 守护者 Stage 3 终审(ACCEPT w/ 2 revisions) → 资深拍板）。结构最重一刀；**0 行为变更**（纯结构移动）。
+
+### Changed
+- **`admin.py` 908 行拆 `knot/api/admin/` 7 域包**：users(4ep)/datasources(5,含 datasources-stats+`_DS_STATS_CACHE`)/models(5)/api_keys(2)/budgets(6,含 `Budget*Request`+`_BUDGET_DEFAULTS`)/stats(6)/or_catalog(2) + `__init__` 聚合 router = 30 端点。**byte-equal**：`main.py` 0 改（`admin.router` 经 `__init__` 聚合解析）；30 端点 method+path 全集 diff IDENTICAL；handler 体逐字（workflow 7 域 byte-equal 抽取 + 对抗 verify PASS）。
+- **`check_file_sizes.py` 根治**（R-AS-6）：allowlist → **backend auto-discover**（`knot/**/*.py` 全扫）+ DEFAULT_CAP 300 + ACK 例外（>300 须显式 ACK）。根治「不在 LIMITS 即无 cap」盲区（admin/http_planner/catalog/message_repo/doris/engine_cache 历史全漏网）。ACK 起手 `wc -l` 全扫定 = 8 → 拆 admin 后 7（catalog temp 待③；time_resolver 239/llm_client 252 ≤300 不入 — R-137 校正守护者 time_resolver 350=cap 非行数）。frontend + 杂项保 explicit allowlist。
+
+### Guards
+- **R-AS-2 `_DS_STATS_CACHE` re-export**：`__init__` `from .datasources import`（同 mutable dict 对象；3 隔离测试 in-place 突变 `["data"]=` 跨绑定可见 — 0 reassign 安全，守护者实测背书 + 执行者复核）。
+- **R-AS-3 born-clean**（守护者收官① Stage 3 硬条件偿还①defer）：7 域 + `__init__` 全 `from __future__ import annotations` **AST-position**（首个 import 容忍 docstring）+ **0 `Optional[`**（budgets 3 + stats 3 → `X | None`）。
+- **`tests/api/test_admin_package.py` 哨兵**（Stage 2 Q4）：router 30 路由 + `_DS_STATS_CACHE` id() 锁 + born-clean AST-position 断言。
+- 外部 0 引用 admin 内部符号（仅 `admin.router` + `admin._DS_STATS_CACHE`）；catalog **0 碰**（②③ 严禁同批 LOCKED A.4，仅 ACK 预登记待③移除）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.11 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；**package.json 0.0.0 不碰**；7 contracts KEPT。
+- **fold cosmetic**：v0.6.5.10 plan doc「13 文件」→ **14**（守护者收官① deferred 校正；10 models + 4 api = 14；CHANGELOG/README 当时已正确写 14）。
+
+## [Released] - v0.6.5.10 — 收官前置① type-hint 统一（PEP 585/604 · v0.7 准备）
 
 > **v0.7.0 硬前置①**（v0.6.x 收官纯重构，**轻量 v3**：资深 ack 跳 Stage 2 → 守护者 Stage 3 轻量终审 ACCEPT）。model + api 层统一 `from __future__ import annotations` + `Optional[X]` → `X | None`，定 v0.7 metric model 风格地基。**0 行为变更**。
 
