@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.6.5.10 · 收官前置①（v0.7 准备）：model + api 层 type-hint 统一（PEP 585/604 — `Optional[X]` → `X \| None` + `from __future__ import annotations`，14 文件，0 行为变更；admin.py defer 收官②）。<br>**上版** v0.6.5.9 修 admin budget-config 审计调用崩溃 · v0.6.5.8 v0.6→v0.7 整体审核收官 + 退役 R-PA-8 · v0.6.5.7 运维升级 runbook。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.6.5.11 · 收官前置②（v0.7 准备）：`admin.py` 908 行拆 `knot/api/admin/` 7 域包（30 端点 byte-equal）+ check_file_sizes 根治（allowlist → backend auto-discover + 默认 cap 300 + ACK 例外）。<br>**上版** v0.6.5.10 type-hint 统一 · v0.6.5.9 修 admin budget-config 审计 · v0.6.5.8 v0.6→v0.7 整体审核收官。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
