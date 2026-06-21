@@ -13,11 +13,11 @@
 动态读取（不要 `from catalog_loader import LEXICON` 一次性快照），admin 修改后调用
 `catalog_loader.reload()` 即可在不重启进程的情况下生效。
 """
-from __future__ import annotations  # Python 3.9 兼容 dict | None type hint
+from __future__ import annotations
 
 import contextvars
 
-from knot.services.agents import catalog_loaders  # v0.6.5.12 收官③：4 纯 loader 抽出（live-read 契约 — 5 globals/reload 留本模块）
+from knot.services.agents import catalog_loaders
 
 LEXICON: dict = {}
 TABLES: list = []
