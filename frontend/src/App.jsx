@@ -12,6 +12,7 @@ import { AdminRecoveryScreen } from './screens/AdminRecovery.jsx';
 import { AdminAuditScreen } from './screens/AdminAudit.jsx';
 import { AdminErrorsScreen } from './screens/AdminErrors.jsx';
 import { AdminMetricsScreen } from './screens/AdminMetrics.jsx';
+import { AdminMetricRegistryScreen } from './screens/AdminMetricRegistry.jsx';
 import { AdminQueryHistoryScreen } from './screens/AdminQueryHistory.jsx';
 
 // v0.6.5.0 R-2FA-5：403 totp_enroll_required 共享判定 — 覆盖 mount me() + 所有 post-login
@@ -136,6 +137,8 @@ export default function App() {
   if (screen === 'admin-errors' && user.role === 'admin') return <AdminErrorsScreen {...commonProps}/>;
   if (screen === 'admin-metrics' && user.role === 'admin') return <AdminMetricsScreen {...commonProps}/>;
   if (screen === 'admin-history' && user.role === 'admin') return <AdminQueryHistoryScreen {...commonProps}/>;
+  // v0.7.0 C5 语义层指标注册表（独立屏，≠ admin-metrics 内测 KPI 屏）
+  if (screen === 'admin-metric-registry' && user.role === 'admin') return <AdminMetricRegistryScreen {...commonProps}/>;
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板

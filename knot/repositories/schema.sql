@@ -168,6 +168,30 @@ CREATE TABLE IF NOT EXISTS catalogs (
     updated_at     TEXT    DEFAULT (datetime('now','localtime'))
 );
 
+-- v0.7.0 C1 语义层第一刀：指标注册表（单一真源指标定义）
+-- ⚠️ OOS-1 死线 sustained：metric 归 catalog_id（语义层水平切分）；严禁 tenant_id / project_id 列。
+--    catalog_id = 逻辑外键（soft ref → catalogs(id)，无 enforced FK；与 users.active_catalog_id /
+--    audit_log.catalog_id 同为裸 INTEGER，项目未启 PRAGMA foreign_keys）。
+-- lineage：派生指标依赖（JSON list）；v0.7.0 仅 inert 存储，自引用/循环 DFS 校验留 v0.7.1（编译时）。
+CREATE TABLE IF NOT EXISTS metrics (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    catalog_id         INTEGER NOT NULL DEFAULT 1,  -- soft ref catalogs(id)；OOS-1 水平切分非租户
+    name               TEXT    NOT NULL,            -- 唯一标识（per catalog_id 唯一）
+    display            TEXT    DEFAULT '',           -- 中文展示名
+    aliases            TEXT    DEFAULT '',           -- JSON list（v0.7.1+ 喂 LEXICON / clarifier）
+    caliber            TEXT    NOT NULL,             -- 口径表达式 SUM(o.pay_amount)（非密 — R-SL-5）
+    base_object        TEXT    DEFAULT '',           -- 挂的对象/表（v0.7.2 对象层消费）
+    filters            TEXT    DEFAULT '',           -- JSON list 口径内置过滤（非密）
+    dimensions         TEXT    DEFAULT '',           -- JSON list 可下钻维度
+    lineage            TEXT    DEFAULT '',           -- JSON list 派生依赖（inert；v0.7.1 编译校验）
+    freshness_lag_days INTEGER DEFAULT 1,            -- 复用 time_resolver D-1 默认
+    enabled            INTEGER DEFAULT 1,            -- 软开关
+    created_at         TEXT    DEFAULT (datetime('now','localtime')),
+    updated_at         TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (catalog_id, name)                        -- per-catalog 指标名唯一
+);
+CREATE INDEX IF NOT EXISTS idx_metrics_catalog ON metrics(catalog_id);
+
 CREATE TABLE IF NOT EXISTS few_shots (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     question   TEXT    NOT NULL,

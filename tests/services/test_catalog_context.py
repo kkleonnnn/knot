@@ -65,7 +65,9 @@ def test_auditaction_has_context_violation():
     assert "catalog.context_violation" in actions
     assert "catalog.switch" in actions  # 结构半 sustained
     assert "config.budget_update" in actions  # v0.6.5.9 修 budget-config 审计崩溃新增
-    assert len(actions) == 41, f"AuditAction 应 41 条（40 + v0.6.5.9 config.budget_update）；实际 {len(actions)}"
+    assert len(actions) == 44, (
+        f"AuditAction 应 44 条（41 + v0.7.0 C2 metric.create/update/delete）；实际 {len(actions)}"
+    )
 
 
 def test_catalog_context_exception_in_errors_tree():
