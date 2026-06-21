@@ -15,13 +15,23 @@ _DOMAINS = ["users", "datasources", "models", "api_keys", "budgets", "stats", "o
 
 
 def test_admin_router_aggregates_30_routes():
-    """R-AS-1：admin.router 聚合 7 域 = 30 路由。"""
-    from fastapi import APIRouter
+    """R-AS-1：admin.router 聚合 7 域 = 30 路由（穿透 FastAPI 0.137 _IncludedRouter 懒包装）。"""
+    from fastapi import APIRouter, FastAPI
 
     from knot.api import admin
+    from tests._route_count import flatten_app_routes
 
     assert isinstance(admin.router, APIRouter)
-    assert len(admin.router.routes) == 30, f"admin.router 应聚合 30 路由；实际 {len(admin.router.routes)}"
+    # FastAPI 0.137 include_router 懒包装：admin.router.routes 仅 7 个 _IncludedRouter（每 sub 一个），
+    # 30 条叶子路由须经 original_router.routes flatten 还原（复用 tests/_route_count helper；
+    # 数 route 对象非 path 集 — GET+POST 同 path 会去重致 <30）。
+    app = FastAPI()
+    app.include_router(admin.router)
+    admin_routes = [
+        r for r in flatten_app_routes(app)
+        if getattr(r, "path", "").startswith("/api/admin/")
+    ]
+    assert len(admin_routes) == 30, f"admin 应聚合 30 路由；实际 {len(admin_routes)}"
 
 
 def test_ds_stats_cache_reexport_same_object():
