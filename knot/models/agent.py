@@ -6,6 +6,7 @@
 Go 重写映射：internal/domain/agent.go。每个 dataclass = 一个 struct。
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Literal
 

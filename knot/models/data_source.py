@@ -7,6 +7,7 @@ host:port:user 自动分组（MultiSourceEngine），跨组 SQL 直接拒绝。
 Go 重写映射：internal/domain/data_source.go。
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
