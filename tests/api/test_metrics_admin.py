@@ -1,8 +1,9 @@
 """tests/api/test_metrics_admin.py — v0.7.0 C2 指标注册表 admin 路由不变量 carrier。
 
 §4.5 不变量 API 层守护（C2 同址而生）：
-- gate 鉴权 + R-2FA：metric 端点全 require_admin（→ get_current_user 链含 2FA enroll gate
-  → R-2FA 透传继承，metrics.py 无独立鉴权代码路径）；无 token 401/403 + 非 admin 403。
+- gate 鉴权 + R-2FA：metric 端点全 require_admin（→ get_current_user 链含 2FA enroll gate）；
+  无 token 401/403 + 非 admin 403 + **R-SL-6 正向 carrier**（default-on + 未 enroll admin →
+  403 totp_enroll_required）—— 把 2FA 继承转成**命名守护**（§4.5 同址而生，不靠「假设未来不偏移」）。
 - 审计接线：create/update/delete 各落对应 AuditAction Literal（metric.create/update/delete）。
 - OOS-1 死线（API 层）：MetricCreate/Update Pydantic 模型结构性 0 tenant_id/project_id 字段
   （+ repo 层 `_reject_forbidden` 死锁双层；见 test_metric_repo）。
@@ -28,8 +29,7 @@ def test_metric_endpoint_requires_auth(client):
 def test_metric_endpoint_rejects_non_admin(client, auth_headers):
     """非 admin（analyst）→ 403（require_admin）。
 
-    R-2FA：require_admin → get_current_user 含 2FA enroll gate，metric 端点无独立鉴权
-    代码路径 → 2FA 不变量透传继承（无需单独 carrier 测试）。
+    （R-2FA 正向 carrier 见 test_metric_endpoint_carries_2fa_enroll_gate — 命名守护非注释豁免。）
     """
     create = client.post(
         "/api/admin/users",
@@ -43,6 +43,21 @@ def test_metric_endpoint_rejects_non_admin(client, auth_headers):
 
     r = client.get("/api/admin/metrics-registry", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 403
+
+
+def test_metric_endpoint_carries_2fa_enroll_gate(client, auth_headers, monkeypatch):
+    """⭐ R-SL-6 §4.5 R-2FA 正向 carrier：default-on + 未 enroll admin → metric 端点 403 totp_enroll_required.
+
+    把 require_admin → get_current_user 的 2FA enroll gate「继承」转成**命名守护**（§4.5 同址而生）：
+    未来若 metric 端点改自定义 dep / 漏挂 Depends，2FA 静默回退会被本测试拦截（非靠逻辑推断）。
+    delenv 揭真 default-on（守护者 C3 模式；conftest autouse 默认 false 隔离全套 — 复用
+    test_totp_mandatory R-2FA-2 同模式）。seed admin 未 enroll（fresh tmp DB）。
+    """
+    monkeypatch.delenv("KNOT_TOTP_REQUIRED", raising=False)    # 默认 on（揭真 default 翻转）
+    monkeypatch.delenv("KNOT_TOTP_BYPASS_ADMIN", raising=False)
+    r = client.get("/api/admin/metrics-registry", headers=auth_headers)
+    assert r.status_code == 403, f"未 enroll admin 应被 2FA gate 拦截；实际 {r.status_code}"
+    assert r.json()["detail"] == "totp_enroll_required", "须是 2FA enroll gate（非泛型 403）"
 
 
 # ─── CRUD + 审计接线（每 Literal emit）────────────────────────────────
