@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.6.5.11 — 收官前置② admin.py 拆 7 文件 + check_file_sizes 根治（v0.7 准备）
+## [Unreleased] - v0.6.5.12 — 收官前置③ catalog.py 单独高守护拆分（v0.7 准备 · 三件收官全清）
+
+> **v0.7.0 硬前置③**（v0.6.x 收官纯重构 · **完整 v3 最高守护** — 拆错不 CI 红是生产静默 bug）。**0 行为变更**。**三件收官前置全清**（①type-hint ②admin拆+check_file_sizes ③catalog）→ v0.7.0 起手解锁。
+
+### Changed
+- **`catalog.py` 460 → 261 拆 `catalog_loaders.py` 213**（2-way，**非 package**）：只抽 4 纯 loader（`_load_from_files`/`_load_from_db`/`_infer_source_types_from_datasources`/`_merge_lexicons`）；**5 mutable globals + `reload()`(global 重赋) + ContextVar + `current_catalog()` + 全 getter + 模块尾 auto-reload 全留 catalog.py**。
+- **⭐ live-read 契约结构性保住**（守护者最高守护命门）：globals 从不离 catalog.py → reload `global` reassign 同模块天然生效 → **10 importer git diff 0 行**（catalog 仍 module；`X.LEXICON`/`X.reload()` module-attr 全不变）+ **0 行为变更**（getter 直读 global `TABLES` 不动 = v0.6.2.6 D2 现状 sustained，纯重构不改 current_catalog）。**facade-freeze 整类回避**（无 package / 无 from-import re-export global）。
+
+### Guards
+- **Contract 8 `catalog-loaders-pure`**（7→8）：`catalog_loaders` forbidden import `catalog`（锁纯-loader 单向 + 防 facade-freeze 环）。
+- **`tests/services/test_catalog_loaders.py` 命门哨兵**（守护者 Stage 3 §B 重写 — 弃 Stage 2 buggy importlib 版）：主 = 静态 forbid（全仓 0 `from ...catalog import <5 global>`，本地 ast 可验 + 防未来回归；positive+negative control 验非空转）+ 副 = reload() 函数 live + loaders 纯性。
+- born-clean：catalog_loaders.py `from __future__` + 0 `Optional[`；延迟 import（repos/models）保留防 import-time 环。
+- check_file_sizes：catalog ACK 退役（7→6；261/213 ≤300 auto-discover）。②③ 严禁同批 sustained（admin/http_planner 0 碰）。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.6.5.12 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；package.json 0.0.0 不碰；**8 contracts KEPT**。
+
+## [Released] - v0.6.5.11 — 收官前置② admin.py 拆 7 文件 + check_file_sizes 根治（v0.7 准备）
 
 > **v0.7.0 硬前置②**（v0.6.x 收官纯重构，**完整 v3**：Stage 1 → Stage 2 初审(4.98/5) → 守护者 Stage 3 终审(ACCEPT w/ 2 revisions) → 资深拍板）。结构最重一刀；**0 行为变更**（纯结构移动）。
 
