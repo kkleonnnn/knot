@@ -20,7 +20,7 @@ BACKEND_DEFAULT_CAP = 300
 # ACK = 全部 >300 backend 文件（起 C1 前 `wc -l` 全扫复定 = 8）。每条带理由 + split-planned 标注。
 # 未列文件按 BACKEND_DEFAULT_CAP 300 核验（新文件不能逃逸 — 治盲区）。
 BACKEND_ACK = {
-    "knot/api/admin.py":                   908,  # ⏳ TEMP — 本 PATCH C2 拆 knot/api/admin/ 后移除（7 新文件 ≤300 auto-caught）
+    # admin.py 908 已于本 PATCH C2 拆 knot/api/admin/ 7 域（最大 stats 269 ≤300 auto-caught）→ ACK 移除
     "knot/services/agents/catalog.py":     460,  # ⏳ TEMP — 收官③ 单独高守护拆后移除
     "knot/services/http_planner.py":       508,  # futures regex 下沉 catalog JIT v0.7.2（暂冻结当前行数）
     "knot/api/query.py":                   440,  # SSE 协议样板不可消除（v0.5.2 R-94 ack 沿用）

@@ -1,0 +1,57 @@
+"""收官② admin.py 拆分契约哨兵（v0.6.5.11 R-AS-1/2/3）。
+
+admin.py 908 行拆 knot/api/admin/ 7 域包后，守护三契约：
+- R-AS-1：admin.router 聚合 = 30 路由（main.py `admin.router` byte-equal）。
+- R-AS-2：admin._DS_STATS_CACHE re-export 同对象（3 隔离测试 in-place 突变可见的命门）。
+- R-AS-3：7 域 + __init__ 全 born-clean（from __future__ AST-position 容忍 docstring + 0 Optional[）。
+"""
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+_ADMIN_DIR = Path(__file__).resolve().parents[2] / "knot" / "api" / "admin"
+_DOMAINS = ["users", "datasources", "models", "api_keys", "budgets", "stats", "or_catalog"]
+
+
+def test_admin_router_aggregates_30_routes():
+    """R-AS-1：admin.router 聚合 7 域 = 30 路由。"""
+    from fastapi import APIRouter
+
+    from knot.api import admin
+
+    assert isinstance(admin.router, APIRouter)
+    assert len(admin.router.routes) == 30, f"admin.router 应聚合 30 路由；实际 {len(admin.router.routes)}"
+
+
+def test_ds_stats_cache_reexport_same_object():
+    """R-AS-2：admin._DS_STATS_CACHE 与 datasources._DS_STATS_CACHE 是同一对象（id 锁）。
+
+    re-export 绑定同 dict → 3 隔离测试 in-place 突变（`["data"]=`）跨绑定可见 datasources 路由读的同对象。
+    若拆分误用 reassign / 各持副本，此断言红（守护命门）。
+    """
+    from knot.api import admin
+    from knot.api.admin import datasources
+
+    assert admin._DS_STATS_CACHE is datasources._DS_STATS_CACHE
+
+
+def test_born_clean_ast_position_and_no_optional():
+    """R-AS-3：7 域 + __init__ 全 from __future__ AST-position（首个 import，容忍 docstring）+ 0 Optional[。"""
+    for name in [*_DOMAINS, "__init__"]:
+        src = (_ADMIN_DIR / f"{name}.py").read_text(encoding="utf-8")
+        assert "Optional[" not in src, f"admin/{name}.py 残留 Optional[（born-clean 须 0）"
+        body = ast.parse(src).body
+        # 容忍前导 module docstring
+        idx = 1 if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ) else 0
+        first = body[idx]
+        assert (
+            isinstance(first, ast.ImportFrom)
+            and first.module == "__future__"
+            and any(a.name == "annotations" for a in first.names)
+        ), f"admin/{name}.py：from __future__ import annotations 须为首个 import（AST-position 非字面 L1）"
