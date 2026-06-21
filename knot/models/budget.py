@@ -10,8 +10,10 @@ R-21 守护：scope_type='agent_kind' AND scope_value='legacy' 一律拒绝（le
 
 Go 重写映射：internal/domain/budget.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 # v0.4.3 枚举锁（与 budget_repo / budget_service 校验对齐）
 BudgetScope = Literal["user", "agent_kind", "global"]
@@ -37,5 +39,5 @@ class Budget:
     threshold: float         # 阈值（cost_usd 或 tokens 数值）
     action: str = "warn"     # BudgetAction; v0.4.3 默认 'warn'
     enabled: int = 1
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None

@@ -8,8 +8,9 @@ Conversation 1:N Message；删 Conversation 级联删 Message（conversation_rep
 
 Go 重写映射：internal/domain/conversation.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional
 
 # v0.4.2: 引用 agent.py 同层枚举（models→models 在 layered-architecture 内允许）
 from knot.models.agent import AgentKind  # noqa: F401
@@ -22,8 +23,8 @@ class Conversation:
     id: int
     user_id: int
     title: str = "新对话"
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None  # 每次保存新 message 时刷新，用于侧栏排序
+    created_at: str | None = None
+    updated_at: str | None = None  # 每次保存新 message 时刷新，用于侧栏排序
 
 
 @dataclass
@@ -39,17 +40,17 @@ class Message:
     """
     id: int
     conversation_id: int
-    question: Optional[str] = None
-    sql_text: Optional[str] = None
-    explanation: Optional[str] = None
-    confidence: Optional[str] = None  # high | medium | low
+    question: str | None = None
+    sql_text: str | None = None
+    explanation: str | None = None
+    confidence: str | None = None  # high | medium | low
     rows: list = field(default_factory=list)
-    db_error: Optional[str] = None
+    db_error: str | None = None
     cost_usd: float = 0.0
     input_tokens: int = 0
     output_tokens: int = 0
     retry_count: int = 0
-    intent: Optional[str] = None  # v0.4.0 Clarifier 7 类意图；老消息为 None，前端走启发式
+    intent: str | None = None  # v0.4.0 Clarifier 7 类意图；老消息为 None，前端走启发式
     # v0.4.2 成本归因分桶（agent_costs 总和 == cost_usd 由 cost_service.aggregate_agent_costs 保证 R-S8）
     agent_kind: str = "legacy"          # AgentKind: 老消息默认 'legacy'，新消息由 save_message 守护
     clarifier_cost: float = 0.0
@@ -61,4 +62,4 @@ class Message:
     fix_sql_tokens: int = 0
     presenter_tokens: int = 0
     recovery_attempt: int = 0           # R-14：含 fan-out reject + fix_sql retry
-    created_at: Optional[str] = None
+    created_at: str | None = None

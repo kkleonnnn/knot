@@ -12,8 +12,9 @@ source_message_id / data_source_id 变 dangling 是 R-S7 预期行为。
 
 Go 重写映射：internal/domain/saved_report.go。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -25,14 +26,14 @@ class SavedReport:
     user_id: int
     title: str
     sql_text: str
-    source_message_id: Optional[int] = None
-    data_source_id: Optional[int] = None
-    question: Optional[str] = None
-    intent: Optional[str] = None              # v0.4.0 7 类之一；老消息 fallback 'detail'（service 层负责）
-    display_hint: Optional[str] = None        # INTENT_TO_HINT 快照；前端 effectiveHint 优先级 #1
-    pin_note: Optional[str] = None
-    last_run_at: Optional[str] = None
-    last_run_rows_json: Optional[str] = None  # JSON-encoded list[dict]；软限制 200 行
+    source_message_id: int | None = None
+    data_source_id: int | None = None
+    question: str | None = None
+    intent: str | None = None              # v0.4.0 7 类之一；老消息 fallback 'detail'（service 层负责）
+    display_hint: str | None = None        # INTENT_TO_HINT 快照；前端 effectiveHint 优先级 #1
+    pin_note: str | None = None
+    last_run_at: str | None = None
+    last_run_rows_json: str | None = None  # JSON-encoded list[dict]；软限制 200 行
     last_run_truncated: int = 0               # 1 = rows 被截断
     last_run_ms: int = 0
-    pinned_at: Optional[str] = None
+    pinned_at: str | None = None

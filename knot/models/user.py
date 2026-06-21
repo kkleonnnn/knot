@@ -6,8 +6,9 @@
 
 Go 重写映射：internal/domain/user.go（type User struct + type AuthClaim struct）。
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -20,20 +21,20 @@ class User:
     id: int
     username: str
     role: str = "analyst"  # admin | analyst
-    display_name: Optional[str] = None
+    display_name: str | None = None
     is_active: int = 1
     # 业务库默认连接（admin/analyst 入门期沿用，后续从 data_sources 派发）
-    doris_host: Optional[str] = None
+    doris_host: str | None = None
     doris_port: int = 9030
-    doris_user: Optional[str] = None
-    doris_database: Optional[str] = None
-    default_source_id: Optional[int] = None
+    doris_user: str | None = None
+    doris_database: str | None = None
+    default_source_id: int | None = None
     # 用量统计
     monthly_tokens: int = 0
     monthly_cost_usd: float = 0.0
     avg_response_ms: int = 0
     query_count: int = 0
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 @dataclass

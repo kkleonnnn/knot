@@ -5,8 +5,9 @@
 
 Go 重写映射：internal/domain/agent.go。每个 dataclass = 一个 struct。
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 # v0.4.2: agent_kind 枚举锁（Stage 3-A 守护者要求 + 资深 Stage 4 拍板 fix_sql 独立桶）
 # 'legacy' 仅供 v0.4.2 之前的老 message 持有；新 message save 时禁止显式传 'legacy'。
@@ -25,10 +26,10 @@ class ClarifierOutput:
     Clarifier 输出缺失或非法时回退 'detail'（保守选择，至少不强行画图）。
     """
     is_clear: bool
-    clarification_question: Optional[str]
+    clarification_question: str | None
     refined_question: str
     analysis_approach: str = ""  # 一句话的分析思路提示，给下游 sql_planner 参考
-    intent: Optional[str] = None
+    intent: str | None = None
 
 
 @dataclass
