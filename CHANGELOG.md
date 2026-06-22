@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.2 — 语义层第三刀：对象层 + 跨对象 JOIN 编译
+## [Unreleased] - v0.7.3 — 语义层第四刀：混合路由可观测 + LogicForm admin 审计/修正
+
+> **v0.7 第四刀**（卖点落地）：让 LogicForm 浮出水面 —— 持久化 + 路由可观测 + admin 审计 + 修正。
+> 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板：D3 bundle + 侧表 + R-SL-40）。
+> R-SL 续号 R-SL-33~40。`KNOT_SEMANTIC_LAYER` 默认 off；混合路由 binary gate 不放松（R-SL-33）。
+> 详 [docs/plans/v0.7.3-hybrid-routing-logicform-audit.md](docs/plans/v0.7.3-hybrid-routing-logicform-audit.md)。
+
+### Added
+- **C1 持久化 + wiring**：`semantic_query_audit` 侧表（**messages 0 ALTER** — 守护者裁定侧表替代 5 列；message_id FK + R-SL-40 `catalog_id` + canonical `logicform_json` + `compile_error_reason` + `is_corrected` + `parent_message_id`）+ semantic_audit_repo；run_semantic_compile_step 返 `(result, audit)` 命中/near-miss 均落侧表（canonical to_canonical_json 单源）+ query.py engine 标记（F2/R-SL-35）。
+- **C2 admin 审计**：`GET /api/admin/logicform-audit`（require_admin + catalog 隔离 + enrich question/sql）+ AdminLogicForm 屏（UI v2 镜像 AdminQueryHistory：list + drawer + 命中/near-miss chip）。
+- **C3 修正**：`POST /api/admin/logicform-audit/{id}/correct`（**原 catalog 重编译** R-SL-40 + 审计血缘 is_corrected/parent + `logicform.correct` audit；scope (a) 重编译 only，re-run 留 v0.7.4）。
+- **C4 修正 UI**：AdminLogicForm drawer 可编辑 LogicForm → 重编译 → 看修正 SQL（「改 LogicForm 比改 SQL 友好」）。
+
+### Guards / 不变量（R-SL-33~40）
+- **🔴 承重盲区（守护者 Stage 3 抓 + 执行者 R-137 核坐实，三方同犯）**：messages 无 catalog_id + catalog 是 ContextVar 临时解析从不落 message → 原 R-SL-39「按 message.catalog_id 隔离」立在不存在字段 → **R-SL-40 catalog_id 落侧表**（审计渲染/修正 re-compile 须原 catalog）。
+- R-SL-33 binary gate 不放松（flag off byte-equal）· R-SL-37 修正确定性重编译 · R-SL-38 logicform.correct audit · canonical to_canonical_json 单源（非 Stage 2 sort_keys）· LogicForm/SQL 仅 admin 面（脱敏链 sustained）。
+- AuditAction 44→45（+logicform.correct）+ ResourceType 12→13（+logicform）；admin 路由 35→37；**8 contracts KEPT**；package.json 0.0.0 不碰。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.7.3 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）。
+
+## [Released] - v0.7.2 — 语义层第三刀：对象层 + 跨对象 JOIN 编译
 
 > **v0.7 第三刀**：解除 v0.7.1 单对象约束 —— 沿 `RELATIONS` 图 BFS 找 JOIN 路径（≤3 表阈值），
 > **单 base 聚合按跨对象维度切**（如按用户属性切订单指标）。完整 v3 三阶段（Stage 1 → Stage 2 →

@@ -192,6 +192,23 @@ CREATE TABLE IF NOT EXISTS metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_catalog ON metrics(catalog_id);
 
+-- v0.7.3 语义层 LogicForm 审计侧表（message_id 软 FK；messages 0 ALTER — 守护者侧表裁定）。
+-- 仅语义路径 / near-miss 行（多数 message 是 LLM 路径 → 本表小，不恶化 messages R-S6 ≥24 列）。
+-- ⚠️ R-SL-40：catalog_id = LogicForm 解析时 active catalog（messages 无 catalog_id；catalog 是 ContextVar
+--    临时解析从不落 message → 审计渲染 / 修正 re-run 须存当时 catalog）。OOS-1 soft ref，0 tenant_id。
+CREATE TABLE IF NOT EXISTS semantic_query_audit (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id           INTEGER NOT NULL,            -- soft FK → messages(id)
+    catalog_id           INTEGER NOT NULL DEFAULT 1,  -- R-SL-40 解析时 active catalog（OOS-1 soft ref）
+    logicform_json       TEXT    DEFAULT '',          -- canonical_json（命中）；near-miss 也存（诊断）
+    compile_error_reason TEXT    DEFAULT '',          -- near-miss CompileError 原因；命中为空
+    is_corrected         INTEGER DEFAULT 0,           -- admin 修正产生的行标 1（F4）
+    parent_message_id    INTEGER,                     -- 修正链：指向原 message（审计血缘）
+    created_at           TEXT    DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sqa_message ON semantic_query_audit(message_id);
+CREATE INDEX IF NOT EXISTS idx_sqa_catalog ON semantic_query_audit(catalog_id);
+
 CREATE TABLE IF NOT EXISTS few_shots (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     question   TEXT    NOT NULL,

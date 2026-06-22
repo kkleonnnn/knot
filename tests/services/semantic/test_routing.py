@@ -12,8 +12,8 @@ from knot.services import cost_service, query_steps
 @pytest.mark.asyncio
 async def test_flag_off_returns_none_no_calls(monkeypatch):
     monkeypatch.setenv("KNOT_SEMANTIC_LAYER", "false")
-    r = await query_steps.run_semantic_compile_step("q", None, "k", "", "", cost_service.empty_buckets(), 1, {})
-    assert r is None
+    result, audit = await query_steps.run_semantic_compile_step("q", None, "k", "", "", cost_service.empty_buckets(), 1, {})
+    assert result is None and audit is None          # flag off → 无审计行
 
 
 def _patch_catalog_metrics(monkeypatch, metrics):
@@ -27,8 +27,8 @@ def _patch_catalog_metrics(monkeypatch, metrics):
 async def test_flag_on_no_metrics_returns_none(monkeypatch):
     monkeypatch.setenv("KNOT_SEMANTIC_LAYER", "true")
     _patch_catalog_metrics(monkeypatch, [])
-    r = await query_steps.run_semantic_compile_step("q", None, "k", "", "", cost_service.empty_buckets(), 1, {})
-    assert r is None
+    result, audit = await query_steps.run_semantic_compile_step("q", None, "k", "", "", cost_service.empty_buckets(), 1, {})
+    assert result is None and audit is None          # 无指标 → 无审计行
 
 
 @pytest.mark.asyncio
@@ -40,8 +40,8 @@ async def test_flag_on_miss_returns_none_cost_to_sql_planner(monkeypatch):
         return {"logicform": None, "input_tokens": 5, "output_tokens": 7, "cost_usd": 0.003}
     monkeypatch.setattr(parser, "parse_to_logicform", fake_parse)
     buckets = cost_service.empty_buckets()
-    r = await query_steps.run_semantic_compile_step("q", None, "k", "", "", buckets, 1, {})
-    assert r is None
+    result, audit = await query_steps.run_semantic_compile_step("q", None, "k", "", "", buckets, 1, {})
+    assert result is None and audit is None          # parse 未命中 → 无 LogicForm → 无审计行
     assert buckets["sql_planner"]["cost"] == 0.003   # R-SL-19 即使未命中仍归桶
 
 
@@ -61,8 +61,9 @@ async def test_flag_on_hit_returns_agentresult(monkeypatch):
     monkeypatch.setattr(time_resolver, "resolve_time_context", lambda *a, **k: None)
     monkeypatch.setattr(query_helper, "assert_catalog_context", lambda *a, **k: None)
     monkeypatch.setattr(db_connector, "execute_query", lambda eng, sql: ([{"x": 1}], ""))
-    r = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", cost_service.empty_buckets(), 1, {})
-    assert r is not None and r.sql == "SELECT 1" and r.rows == [{"x": 1}] and r.success and r.steps == []
+    result, audit = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", cost_service.empty_buckets(), 1, {})
+    assert result is not None and result.sql == "SELECT 1" and result.rows == [{"x": 1}] and result.success
+    assert audit and audit["logicform_json"] and audit["compile_error_reason"] == ""  # 命中 → 审计行 + canonical lf（R-SL-40）
 
 
 @pytest.mark.asyncio
@@ -79,5 +80,6 @@ async def test_flag_on_compile_error_returns_none(monkeypatch):
         raise compiler.CompileError("ambiguous")
     monkeypatch.setattr(compiler, "compile_logicform", raise_compile)
     monkeypatch.setattr(time_resolver, "resolve_time_context", lambda *a, **k: None)
-    r = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", cost_service.empty_buckets(), 1, {})
-    assert r is None                                  # 编译失败 → None 回退（R-SL-14）
+    result, audit = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", cost_service.empty_buckets(), 1, {})
+    assert result is None                             # 编译失败 → None 回退（R-SL-14）
+    assert audit and audit["compile_error_reason"] == "ambiguous"  # v0.7.3 near-miss → 审计行（诊断「为何回退」）

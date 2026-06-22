@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.2 · 语义层第三刀（对象层 + 跨对象 JOIN 编译）：沿 `RELATIONS` 图 BFS 找 JOIN 路径（≤3 表阈值），**单 base 聚合按跨对象维度切**（如按用户属性切订单指标）；**基数 gate** —— 仅沿声明的 `n:1`/`1:1` 安全边 JOIN，`1:n`/`n:n`/`unknown` → 回退（防静默膨胀）；未命中永远回退 LLM；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.1 LogicForm 单对象确定性编译 · v0.7.0 指标注册表六位一体 · v0.6.5.12 catalog.py 拆。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.3 · 语义层第四刀（混合路由可观测 + LogicForm admin 审计/修正）：LogicForm 持久化（侧表 + 解析时 catalog）+ 路由可观测（命中/near-miss）+ admin「LogicForm 审计」屏（看 AI 如何理解每个查询）+ **修正**（改 LogicForm → 原 catalog 重编译 → 看修正 SQL，比改 SQL 友好）；混合路由 binary gate 不放松；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.2 跨对象 JOIN 编译 · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表六位一体。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

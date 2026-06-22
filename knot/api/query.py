@@ -355,10 +355,11 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             # R-SL-14/20：未命中/flag off → run_semantic_compile_step 返 None → else 回退原 LLM 路径（byte-equal 现状）
             sql_planner_key = query_steps.select_agent_key(
                 "sql_planner", user_agent_cfg, model_key, api_key, openrouter_api_key)
-            sql_result = await query_steps.run_semantic_compile_step(
+            sql_result, semantic_audit = await query_steps.run_semantic_compile_step(
                 clarifier_result["refined_question"], engine, sql_planner_key,
                 api_key, openrouter_api_key, agent_buckets, expected_cat, user,
             )
+            engine_used = "semantic" if sql_result is not None else "llm"  # F2 路由可观测（R-SL-35）
             if sql_result is not None:
                 # 确定性编译命中：SQL 已生成 + 执行；脱敏经 message 读端点继承（R-SL-13/16）
                 recovery_attempt = 0
@@ -422,6 +423,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 latency_ms=query_time_ms,  # v0.6.1.0 内测指标屏 P95
                 **cost_service.to_save_message_kwargs(agent_buckets),
             )
+            if semantic_audit:  # v0.7.3 F1/R-SL-40：语义命中/near-miss → 写 LogicForm 审计侧表（mid 已知后）
+                from knot.repositories import semantic_audit_repo
+                semantic_audit_repo.create_audit(message_id=mid, **semantic_audit)
             if len(message_repo.get_messages(conv_id)) == 1:
                 title = req.question[:30] + ("…" if len(req.question) > 30 else "")
                 conversation_repo.update_conversation_title(conv_id, title)
@@ -437,6 +441,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "suggested_followups": presenter_result["suggested_followups"],
                 "input_tokens": total_input, "output_tokens": total_output,
                 "cost_usd": total_cost, "query_time_ms": query_time_ms, "intent": intent,
+                "engine": engine_used,  # v0.7.3 F2/R-SL-35：semantic（确定性编译）/ llm（兜底）路径徽标
                 "agent_costs": cost_service.to_sse_payload(agent_buckets),
                 "recovery_attempt": recovery_attempt,
                 "budget_status": budget_status, "budget_meta": budget_meta,

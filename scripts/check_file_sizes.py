@@ -23,7 +23,7 @@ BACKEND_ACK = {
     # admin.py 908 已于 v0.6.5.11 C2 拆 knot/api/admin/ 7 域（最大 stats 269 ≤300 auto-caught）→ ACK 移除
     # catalog.py 460 已于 v0.6.5.12 C1 拆 catalog_loaders（catalog 261 / loaders 213 ≤300 auto-caught）→ ACK 移除
     "knot/services/http_planner.py":       508,  # futures regex 下沉 catalog JIT v0.7.2（暂冻结当前行数）
-    "knot/api/query.py":                   460,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由分支 440→460
+    "knot/api/query.py":                   465,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由 440→460 + v0.7.3 审计侧表 wiring 460→465
     "knot/repositories/message_repo.py":   376,  # 暂冻结当前行数（无 split 计划）
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数
@@ -58,6 +58,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/AdminRecovery.jsx":      380,
     "frontend/src/screens/AdminMetrics.jsx":       200,  # 内测健康 KPI 屏（≠ v0.7 metric registry）
     "frontend/src/screens/AdminMetricRegistry.jsx": 200,  # v0.7.0 C5 语义层指标注册表（≠ AdminMetrics KPI 屏）
+    "frontend/src/screens/AdminLogicForm.jsx":     200,  # v0.7.3 C2 LogicForm 审计屏（read-only）
     "frontend/src/screens/AdminQueryHistory.jsx":  250,
     "frontend/src/screens/AdminErrors.jsx":        150,
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻
