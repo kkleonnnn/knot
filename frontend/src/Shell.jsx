@@ -91,6 +91,8 @@ export function AppShell({
                 {/* v0.7.0 C5 — 语义层指标注册表（≠ 内测指标 admin-metrics KPI 屏）；icon I.sql = 口径 SQL 定义语义 */}
                 <SideNavRow T={T} icon={<I.sql/>} label="指标注册表" active={active === 'admin-metric-registry'}
                             onClick={() => onNavigate('admin-metric-registry')}/>
+                <SideNavRow T={T} icon={<I.flow/>} label="LogicForm 审计" active={active === 'admin-logicform'}
+                            onClick={() => onNavigate('admin-logicform')}/>
                 {/* admin 看板（R-202: emoji 前缀 → SVG icon 统一） */}
                 {/* v0.6.4.2 — 预算 icon → Foundation I.budget（$ 圆；artboard ADMIN_NAV byte-equal） */}
                 <SideNavRow T={T} icon={<I.budget/>} label="预算" active={active === 'admin-budgets'}
