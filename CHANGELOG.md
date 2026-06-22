@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.0 — 语义层第一刀：指标注册表（metric registry）
+## [Unreleased] - v0.7.1 — 语义层第二刀：LogicForm + 单对象确定性编译
+
+> **v0.7 第二刀**：让"已定义指标"走**确定性编译** —— `NL → LogicForm（LLM 出结构）→ 编译（确定性 SQL）`，
+> 消除 LLM SQL 抖动 + 口径强制注入。**单对象不跨表**（跨对象 JOIN 留 v0.7.2）；**未命中永远回退 LLM ReAct**
+> （混合架构铁律 R-SL-14，零定义卖点不丢）。`KNOT_SEMANTIC_LAYER` flag **默认 off**（灰度 + 安全）。
+> 完整 v3 三阶段（Stage 1 → Stage 2 4.97/5 → 守护者 Stage 3 ACCEPT with revisions → 资深拍板 2026-06-22）；
+> R-SL 续号 R-SL-14~22。详 [docs/plans/v0.7.1-logicform-compile.md](docs/plans/v0.7.1-logicform-compile.md)。
+
+### Added
+- **C1 LogicForm schema**：`knot/services/semantic/logicform.py`（`@dataclass LogicForm` + `to_canonical_json` 确定性序列化 + `from_dict`）。
+- **C2 单对象确定性编译器**：`compiler.py` `compile_logicform(lf, catalog, time_ctx) -> SQL`（0 LLM）—— metric caliber 注入（alias `o`）+ time_resolver 时间窗 + GROUP BY + 笛卡尔积守护（is_cartesian/_is_fan_out 复用）；歧义 → raise `CompileError` → 回退（R-SL-14/17/18/21/22）。
+- **C3 LogicForm 解析**：`parser.py` `async parse_to_logicform`（`_allm` R-26 gate + `_parse_json`）；成本归既有 `sql_planner` 桶（R-SL-19 re-rule，0 扩桶 0 schema）；保守命中（引用 metric ∈ 注册表 + 单对象，否则 None 回退）。
+- **C4 flag-gated live 路由**：`query_steps.run_semantic_compile_step` + query.py generate() 语义分支（clarifier 后；命中替代 sql_planner ReAct）。
+
+### Guards / 不变量（R-SL-14~22）
+- 混合架构铁律（R-SL-14）：未命中/编译失败/flag off → 回退 `arun_sql_agent`，零定义查询永远可用。
+- 确定性（R-SL-17）：`(LogicForm, 固定 time_ctx) → byte-equal SQL`。async R-26（R-SL-15）；脱敏经 message 读端点继承（R-SL-16/13）；OOS-1 catalog 隔离（R-SL-21）；flag 默认 off → byte-equal 现状（R-SL-20）。
+- **8 contracts KEPT**（`knot.services.semantic` 子包 → Contract 7 已覆盖，R-SL-11 dormant，0 改 .importlinter）；package.json 冻结 0.0.0 不碰。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.7.1 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；**8 contracts KEPT**。
+
+## [Released] - v0.7.0 — 语义层第一刀：指标注册表（metric registry）
 
 > **v0.7 = 5 层语义层 + LogicForm**（v0.6→v0.7 整体审核 #23 LOCKED 2026-06-20 定向）的**第一刀**：指标注册表
 > **六位一体**（指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native；仲裁 B.4 更窄）。

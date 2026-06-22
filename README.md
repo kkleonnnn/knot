@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.0 · 语义层第一刀（指标注册表 metric registry）：`metrics` 表 + metric_repo（口径单一真源；⚠️ OOS-1 catalog_id 水平切分，0 tenant_id）+ admin「指标注册表」屏（CRUD，**≠ 内测指标 KPI 屏**）+ 审计接线（AuditAction +metric.create/update/delete）+ 加密/成本/async greenfield 不变量守护；LogicForm 确定性编译留 v0.7.1。<br>**上版** v0.6.5.12 收官前置③ catalog.py 拆 · v0.6.5.11 admin.py 拆 7 域 + check_file_sizes 根治 · v0.6.5.10 type-hint 统一。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.1 · 语义层第二刀（LogicForm + 单对象确定性编译）：`NL → LogicForm（LLM 出结构）→ 确定性 SQL`，已定义指标走确定性编译消除 SQL 抖动 + 口径强制注入；**单对象不跨表**（跨对象 JOIN 留 v0.7.2）+ **未命中永远回退 LLM**（混合架构，零定义卖点不丢）；`KNOT_SEMANTIC_LAYER` flag **默认 off**（灰度）。<br>**上版** v0.7.0 指标注册表六位一体 · v0.6.5.12 catalog.py 拆 · v0.6.5.11 admin.py 拆 7 域。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

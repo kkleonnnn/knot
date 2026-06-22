@@ -640,7 +640,8 @@ v0.7.0 Stage 1 须逐条声明载体/守护点：
 
 ### 增量交付序（非锁定 · 详 prestudy §6）
 - **✅ v0.7.0** = 指标注册表 + admin UI + 加密决策 + 审计接线 + 成本分桶 + async-native **六位一体**（更窄 · 仲裁 B.4）— `metrics` 表 + metric_repo（OOS-1 catalog_id，0 tenant_id）+ `/api/admin/metrics-registry` CRUD（require_admin + AuditAction 41→44）+ AdminMetricRegistry 屏（≠ 内测 KPI）+ C3 加密/审计 greenfield 守护 + C4 cost/async 前瞻 carrier；详 [docs/plans/v0.7.0-semantic-metric-registry.md](docs/plans/v0.7.0-semantic-metric-registry.md)
-- v0.7.1 LogicForm + 单对象确定性编译（⭐ 最高 ROI）→ v0.7.2 对象层跨表 JOIN（BFS+阈值+笛卡尔积守护复用）→ v0.7.3 混合路由 + LogicForm 审计/修正 UI → v0.7.4+ 事件/规则/动作（高风险逐层放）
+- **✅ v0.7.1** LogicForm + 单对象确定性编译（⭐ 最高 ROI）— `knot/services/semantic/`（logicform schema + compiler 0 LLM + parser async）+ query_steps `run_semantic_compile_step`（flag `KNOT_SEMANTIC_LAYER` 默认 off）+ query.py 语义路由分支（命中替代 sql_planner / 未命中回退 R-SL-14）；R-SL-14~22；成本归 sql_planner 桶（R-SL-19 re-rule 避 message schema 迁移）；详 [docs/plans/v0.7.1-logicform-compile.md](docs/plans/v0.7.1-logicform-compile.md)
+- v0.7.2 对象层跨表 JOIN（BFS+阈值+笛卡尔积守护复用）→ v0.7.3 混合路由 + LogicForm 审计/修正 UI → v0.7.4+ 事件/规则/动作（高风险逐层放）
 
 ---
 
