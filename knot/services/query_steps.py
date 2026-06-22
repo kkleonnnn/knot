@@ -104,6 +104,57 @@ async def run_presenter_step(question: str, sql: str, rows: list,
     return result
 
 
+# ── v0.7.1 语义层确定性路径（flag-gated；命中替代 sql_planner ReAct）──────────
+
+def _semantic_enabled() -> bool:
+    """KNOT_SEMANTIC_LAYER 默认 off（R-SL-20）；on 才尝试确定性编译。"""
+    import os
+    return os.getenv("KNOT_SEMANTIC_LAYER", "false").strip().lower() == "true"
+
+
+async def run_semantic_compile_step(refined_question: str, engine, sql_planner_key: str,
+                                    api_key: str, openrouter_api_key: str, agent_buckets: dict,
+                                    expected_cat, user: dict):
+    """语义层确定性路径尝试：命中 → AgentResult（确定性 SQL + rows）；否则 None（→ 回退 LLM）。
+
+    None 触发：flag off / 无已定义指标 / LogicForm 未命中 / 编译失败（CompileError）—— 混合架构 R-SL-14。
+    成本：LogicForm 解析归既有 `sql_planner` 桶（R-SL-19）。隔离：执行前 assert ContextVar catalog（R-SL-21 / v0.6.2.6）。
+    """
+    if not _semantic_enabled():
+        return None
+    from knot.core import time_resolver
+    from knot.repositories import metric_repo
+    from knot.services import query_helper
+    from knot.services.agents import catalog as catalog_mod
+    from knot.services.semantic import compiler, parser
+
+    catalog = catalog_mod.current_catalog()
+    metrics = metric_repo.list_metrics(catalog.get("catalog_id") or 1)  # R-SL-21 active catalog 隔离
+    if not metrics:
+        return None
+    parse_res = await parser.parse_to_logicform(
+        refined_question, metrics, sql_planner_key, api_key, openrouter_api_key,
+    )
+    cost_service.add_agent_cost(  # R-SL-19 复用 sql_planner planning 桶
+        agent_buckets, "sql_planner",
+        parse_res["cost_usd"], parse_res["input_tokens"], parse_res["output_tokens"],
+    )
+    lf = parse_res["logicform"]
+    if lf is None:
+        return None
+    try:
+        sql = compiler.compile_logicform(lf, catalog, time_resolver.resolve_time_context())
+    except compiler.CompileError:
+        return None  # 编译歧义 → 回退 LLM（R-SL-14）
+    query_helper.assert_catalog_context(expected_cat, user)  # 执行前隔离 assert（v0.6.2.6）
+    rows, db_error = db_connector.execute_query(engine, sql)
+    return agent_module.AgentResult(
+        success=not db_error, sql=sql, rows=rows or [], explanation="",
+        confidence="high", error=db_error or "", steps=[],
+        total_cost_usd=0.0, total_input_tokens=0, total_output_tokens=0,
+    )
+
+
 # ── 非流式 2 个分支（sync；含 fix_sql 重试循环）─────────────────────────────
 
 def run_agent_step_sync(question: str, schema_text: str, engine,
