@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TagChip } from '../Shared.jsx';
+import { TagChip, pillBtn } from '../Shared.jsx';
 import { toast, Spinner, Modal, ModalHeader } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
@@ -32,12 +32,36 @@ function LFRow({ T, k, v, kind }) {
 export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [rows, setRows] = useState(null);   // null = loading
   const [openItem, setOpenItem] = useState(null);
+  const [editLF, setEditLF] = useState('');         // F4 修正：可编辑 LogicForm
+  const [correctRes, setCorrectRes] = useState(null);
+  const [correcting, setCorrecting] = useState(false);
 
   useEffect(() => {
     api.get('/api/admin/logicform-audit')
        .then(d => setRows(Array.isArray(d) ? d : []))
        .catch(e => { toast(`加载失败: ${e.message}`, true); setRows([]); });
   }, []);
+
+  function openRow(r) {
+    setOpenItem(r);
+    setEditLF(JSON.stringify(_parseLF(r.logicform_json), null, 2));   // 预填可编辑 LogicForm
+    setCorrectRes(null);
+  }
+
+  async function handleCorrect() {
+    let parsed;
+    try { parsed = JSON.parse(editLF); } catch { toast('LogicForm JSON 格式错误', true); return; }
+    setCorrecting(true);
+    try {
+      const res = await api.post(`/api/admin/logicform-audit/${openItem.id}/correct`, { logicform: parsed });
+      setCorrectRes(res);                            // ok:true → 修正 SQL；ok:false → compile_error
+      toast(res.ok ? '重编译成功（确定性 SQL）' : '编译失败（见下）', !res.ok);
+    } catch (e) {
+      toast(`修正失败: ${e.message}`, true);
+    } finally {
+      setCorrecting(false);
+    }
+  }
 
   const insetBg = `color-mix(in oklch, ${T.accent} 8%, transparent)`;
   const gridCols = '150px 1fr 100px 80px';
@@ -71,7 +95,7 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
               <div>时间</div><div>问题</div><div>路径</div><div>Catalog</div>
             </div>
             {rows.map(r => (
-              <div key={r.id} onClick={() => setOpenItem(r)} style={{ display: 'grid', gridTemplateColumns: gridCols,
+              <div key={r.id} onClick={() => openRow(r)} style={{ display: 'grid', gridTemplateColumns: gridCols,
                 alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${T.borderSoft}`,
                 fontSize: 12.5, cursor: 'pointer' }}>
                 <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden' }}>{r.created_at}</div>
@@ -92,13 +116,29 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
                        subtitle={openItem.created_at} onClose={() => setOpenItem(null)}/>
           <div style={{ padding: '16px 20px', maxHeight: '70vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <LFRow T={T} k="问题" v={openItem.question || '—'}/>
+            {/* F4 修正：可编辑 LogicForm → 重编译（原 catalog R-SL-40）→ 看修正 SQL */}
             <div>
-              <div style={_lbl(T)}>LogicForm（AI 理解）</div>
-              <pre style={_pre(T)}>{JSON.stringify(_parseLF(openItem.logicform_json), null, 2)}</pre>
+              <div style={_lbl(T)}>LogicForm（AI 理解 · 可改 → 重编译）</div>
+              <textarea value={editLF} onChange={e => setEditLF(e.target.value)} spellCheck={false}
+                        style={{ ..._pre(T), width: '100%', minHeight: 120, resize: 'vertical', boxSizing: 'border-box' }}/>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={handleCorrect} disabled={correcting} style={{ ...pillBtn(T, true), padding: '6px 14px' }}>
+                  {correcting ? <><Spinner size={11} color={T.sendFg}/> 重编译中…</> : '重编译（确定性）'}
+                </button>
+                <span style={{ fontSize: 11, color: T.muted }}>改 dimension/filter 等 → 看修正 SQL（比改 SQL 友好）</span>
+              </div>
+              {correctRes && correctRes.ok ? (
+                <div style={{ marginTop: 10 }}>
+                  <div style={_lbl(T)}>修正后 SQL（确定性 · 已落审计血缘 is_corrected）</div>
+                  <pre style={_pre(T)}>{correctRes.sql}</pre>
+                </div>
+              ) : correctRes && !correctRes.ok ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: T.warn }}>编译失败：{correctRes.compile_error}</div>
+              ) : null}
             </div>
             {openItem.hit && openItem.sql ? (
               <div>
-                <div style={_lbl(T)}>编译 SQL（确定性）</div>
+                <div style={_lbl(T)}>原编译 SQL（确定性）</div>
                 <pre style={_pre(T)}>{openItem.sql}</pre>
               </div>
             ) : null}
