@@ -34,6 +34,8 @@ AuditAction = Literal[
     "catalog.context_violation",
     # v0.7.0 C2 指标注册表 CRUD（语义层第一刀；metric.catalog_id 归属 OOS-1 sustained；40→43）
     "metric.create", "metric.update", "metric.delete",
+    # v0.7.3 C3 LogicForm admin 修正（语义层第四刀；admin 改 AI 理解的口径归属 = 治理事件；44→45）
+    "logicform.correct",
     # Saved Report
     "saved_report.create", "saved_report.update",
     "saved_report.delete", "saved_report.run",
@@ -53,7 +55,7 @@ AuditAction = Literal[
 
 AuditResourceType = Literal[
     "user", "datasource", "api_key", "budget",
-    "agent_model", "prompt", "catalog", "metric", "few_shots",
+    "agent_model", "prompt", "catalog", "metric", "logicform", "few_shots",
     "saved_report", "audit",
     # v0.6.0.3 F-A: 反馈关联 message
     "message",
