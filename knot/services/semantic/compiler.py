@@ -8,7 +8,7 @@
 - 引用未定义 metric / 多对象（不同 base_object，单对象边界 R-SL-18）
 - base_object 未匹配 catalog 物理表 / 是 HTTP 虚拟表（跨源 OOS）
 - lf.time 设定但无可解析日期列 / 未知 time 枚举
-- 编译产出过 is_cartesian / _is_fan_out 守护命中（R-SL-22）
+- 编译产出过 is_cartesian 守护命中（R-SL-22；fan-out 需 ≥2 JOIN，单对象 0 JOIN 不适用 → 留 v0.7.2）
 - 请求维度 ∉ metric 可用维度
 
 caliber alias 固定 `o`（守护者 Stage 3 锁）：caliber 形如 `SUM(o.pay_amount)` → FROM `<db.table> o`。
@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import re
 
-from knot.services.sql_validator import _is_fan_out, is_cartesian
+from knot.services.sql_validator import is_cartesian
 
 # TimeContext tuple 字段（time_resolver；lf.time 枚举 key）
 _TIME_KEYS = {
@@ -136,13 +136,11 @@ def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ct
             sql += " ORDER BY " + ", ".join(obs)
     sql += f" LIMIT {int(lf.limit) if lf.limit and lf.limit > 0 else _DEFAULT_LIMIT}"
 
-    # R-SL-22 笛卡尔积 / fan-out 守护兜底（确定性编译不应触发，但防 caliber/dimension 错配）
+    # R-SL-22 笛卡尔积守护兜底（防 caliber/dimension 错配产多表语法）；
+    # fan-out 需 ≥2 JOIN，单对象 0 JOIN 不可能 → fan-out 守护留 v0.7.2 跨对象编译
     is_cart, reason = is_cartesian(sql)
     if is_cart:
         raise CompileError(f"编译产出触发笛卡尔积守护: {reason}")
-    fan, freason = _is_fan_out(sql)
-    if fan:
-        raise CompileError(f"编译产出触发 fan-out 守护: {freason}")
     return sql
 
 
