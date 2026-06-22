@@ -351,28 +351,45 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 })
                 return
 
-            # ─── SQL 路径（原有） ─────────────────────────────────────
-            # v0.6.2.6 隔离三层②：SQL 生成/执行前 assert ContextVar catalog_id == 入口捕获（防 async race 漂移
-            # / ContextVar 未传播）；漂移 → 第③层 context_violation audit + raise（上面 except BIAgentError 捕获）
-            query_helper.assert_catalog_context(expected_cat, user)
-            yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
-            await asyncio.sleep(0)
-            sql_result, recovery_attempt = await query_steps.run_sql_planner_step(
-                clarifier_result["refined_question"], schema_text, engine,
-                query_steps.select_agent_key("sql_planner", user_agent_cfg, model_key, api_key, openrouter_api_key),
-                api_key, semantic, openrouter_api_key, agent_buckets,
+            # ─── v0.7.1 语义层确定性路径（flag-gated KNOT_SEMANTIC_LAYER；命中替代 sql_planner ReAct）──
+            # R-SL-14/20：未命中/flag off → run_semantic_compile_step 返 None → else 回退原 LLM 路径（byte-equal 现状）
+            sql_planner_key = query_steps.select_agent_key(
+                "sql_planner", user_agent_cfg, model_key, api_key, openrouter_api_key)
+            sql_result = await query_steps.run_semantic_compile_step(
+                clarifier_result["refined_question"], engine, sql_planner_key,
+                api_key, openrouter_api_key, agent_buckets, expected_cat, user,
             )
+            if sql_result is not None:
+                # 确定性编译命中：SQL 已生成 + 执行；脱敏经 message 读端点继承（R-SL-13/16）
+                recovery_attempt = 0
+                yield emit({"type": "agent_start", "agent": "sql_planner", "label": "确定性编译"})
+                await asyncio.sleep(0)
+                yield emit({"type": "agent_done", "agent": "sql_planner",
+                            "output": {"sql": sql_result.sql, "steps": 0}})
+                await asyncio.sleep(0)
+            else:
+                # ─── SQL 路径（原有 LLM ReAct 回退）─────────────────────────
+                # v0.6.2.6 隔离三层②：SQL 生成/执行前 assert ContextVar catalog_id == 入口捕获（防 async race 漂移
+                # / ContextVar 未传播）；漂移 → 第③层 context_violation audit + raise（上面 except BIAgentError 捕获）
+                query_helper.assert_catalog_context(expected_cat, user)
+                yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
+                await asyncio.sleep(0)
+                sql_result, recovery_attempt = await query_steps.run_sql_planner_step(
+                    clarifier_result["refined_question"], schema_text, engine,
+                    sql_planner_key,
+                    api_key, semantic, openrouter_api_key, agent_buckets,
+                )
 
-            for s in sql_result.steps:
-                yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
-                            "action": s.action, "observation": s.observation})
-                await asyncio.sleep(0)  # R-26-SSE 每步让步
+                for s in sql_result.steps:
+                    yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
+                                "action": s.action, "observation": s.observation})
+                    await asyncio.sleep(0)  # R-26-SSE 每步让步
 
-            logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} "
-                        f"sql={sql_result.sql[:120]!r}")
-            yield emit({"type": "agent_done", "agent": "sql_planner",
-                        "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
-            await asyncio.sleep(0)
+                logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} "
+                            f"sql={sql_result.sql[:120]!r}")
+                yield emit({"type": "agent_done", "agent": "sql_planner",
+                            "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
+                await asyncio.sleep(0)
 
             yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
             await asyncio.sleep(0)
