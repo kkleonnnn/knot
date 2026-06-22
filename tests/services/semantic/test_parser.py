@@ -96,3 +96,19 @@ def test_validate_hit_rejects_undefined():
 def test_build_prompt_injects_metrics_and_time_enums():
     p = parser._build_prompt([_GMV])
     assert "gmv" in p and "成交额" in p and "this_month_to_latest" in p
+
+
+# ─── C4 跨对象维度（v0.7.2 narrowing：单 base 聚合 + 跨对象维度）──────
+
+def test_prompt_allows_cross_object_dimensions():
+    p = parser._build_prompt([_GMV])
+    assert "可跨对象" in p                              # v0.7.2 维度可跨对象（prompt 放宽）
+
+
+@pytest.mark.asyncio
+async def test_cross_object_dim_passes_through(monkeypatch):
+    # LLM 产出 gmv(单 base) + region(跨对象维度) → _validate_hit 过（metrics 单 base）→ 透传给 compiler
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["region"]}')
+    r = await parser.parse_to_logicform("各地区成交额", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm)
+    assert r["logicform"].dimensions == ["region"]   # 跨对象维度不被 parser 拦（compiler C3 解析归属）
