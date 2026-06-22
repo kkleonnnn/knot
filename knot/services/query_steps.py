@@ -115,13 +115,16 @@ def _semantic_enabled() -> bool:
 async def run_semantic_compile_step(refined_question: str, engine, sql_planner_key: str,
                                     api_key: str, openrouter_api_key: str, agent_buckets: dict,
                                     expected_cat, user: dict):
-    """语义层确定性路径尝试：命中 → AgentResult（确定性 SQL + rows）；否则 None（→ 回退 LLM）。
+    """语义层确定性路径尝试：返回 `(result, audit)`（v0.7.3 改 — 原仅 result）。
 
-    None 触发：flag off / 无已定义指标 / LogicForm 未命中 / 编译失败（CompileError）—— 混合架构 R-SL-14。
-    成本：LogicForm 解析归既有 `sql_planner` 桶（R-SL-19）。隔离：执行前 assert ContextVar catalog（R-SL-21 / v0.6.2.6）。
+    - result = AgentResult（命中）| None（未命中 → 回退 LLM，混合架构 R-SL-14）。
+    - audit = 侧表行 dict（命中 + near-miss 均带：`catalog_id`(R-SL-40 解析时 active) + canonical
+      `logicform_json` + `compile_error_reason`）| None（flag off / 无指标 / parse 未命中 → 无审计行）。
+      调用方 save_message 后据此写 semantic_audit_repo（mid 已知）。
+    成本：LogicForm 解析归 `sql_planner` 桶（R-SL-19）。隔离：执行前 assert catalog（R-SL-21/39 / v0.6.2.6）。
     """
     if not _semantic_enabled():
-        return None
+        return None, None
     from knot.core import time_resolver
     from knot.repositories import metric_repo
     from knot.services import query_helper
@@ -129,9 +132,10 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     from knot.services.semantic import compiler, parser
 
     catalog = catalog_mod.current_catalog()
-    metrics = metric_repo.list_metrics(catalog.get("catalog_id") or 1)  # R-SL-21 active catalog 隔离
+    catalog_id = catalog.get("catalog_id") or 1            # R-SL-40 落盘解析时 active catalog
+    metrics = metric_repo.list_metrics(catalog_id)         # R-SL-21 active catalog 隔离
     if not metrics:
-        return None
+        return None, None
     parse_res = await parser.parse_to_logicform(
         refined_question, metrics, sql_planner_key, api_key, openrouter_api_key,
     )
@@ -141,18 +145,21 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     )
     lf = parse_res["logicform"]
     if lf is None:
-        return None
+        return None, None                                  # parse 未命中 → 无 LogicForm → 无审计行
+    lf_json = lf.to_canonical_json()                       # canonical 单源（R-SL-17；非 sort_keys）
     try:
         sql = compiler.compile_logicform(lf, catalog, time_resolver.resolve_time_context())
-    except compiler.CompileError:
-        return None  # 编译歧义 → 回退 LLM（R-SL-14）
-    query_helper.assert_catalog_context(expected_cat, user)  # 执行前隔离 assert（v0.6.2.6）
+    except compiler.CompileError as e:
+        # near-miss：解析出 LF 但编译歧义 → 回退 LLM + 存审计行（诊断「为何回退」R-SL-34/D4）
+        return None, {"catalog_id": catalog_id, "logicform_json": lf_json, "compile_error_reason": str(e)}
+    query_helper.assert_catalog_context(expected_cat, user)  # 执行前隔离 assert（v0.6.2.6 / R-SL-39）
     rows, db_error = db_connector.execute_query(engine, sql)
-    return agent_module.AgentResult(
+    result = agent_module.AgentResult(
         success=not db_error, sql=sql, rows=rows or [], explanation="",
         confidence="high", error=db_error or "", steps=[],
         total_cost_usd=0.0, total_input_tokens=0, total_output_tokens=0,
     )
+    return result, {"catalog_id": catalog_id, "logicform_json": lf_json, "compile_error_reason": ""}
 
 
 # ── 非流式 2 个分支（sync；含 fix_sql 重试循环）─────────────────────────────
