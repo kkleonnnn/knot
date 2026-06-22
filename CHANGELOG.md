@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.1 — 语义层第二刀：LogicForm + 单对象确定性编译
+## [Unreleased] - v0.7.2 — 语义层第三刀：对象层 + 跨对象 JOIN 编译
+
+> **v0.7 第三刀**：解除 v0.7.1 单对象约束 —— 沿 `RELATIONS` 图 BFS 找 JOIN 路径（≤3 表阈值），
+> **单 base 聚合按跨对象维度切**（如按用户属性切订单指标）。完整 v3 三阶段（Stage 1 → Stage 2 →
+> 守护者 Stage 3 **ACCEPT WITH MAJOR REVISION** → 资深拍板岔口 **(a) 加基数** 2026-06-22）。
+> R-SL 续号 R-SL-23~32。`KNOT_SEMANTIC_LAYER` 默认 off。详 [docs/plans/v0.7.2-cross-object-join.md](docs/plans/v0.7.2-cross-object-join.md)。
+
+### Added
+- **C1 BFS JOIN 路径**：`knot/services/semantic/joingraph.py`（RELATIONS `len≥4` → 无向图；`find_join_path` 1/2/3 对象 + 唯一 bridge，≤3 表 D1；多 join 键/多 bridge/三角环/不连通/>3 对象 → None 回退 R-SL-23/24/25）。
+- **C2 alias 分配 + caliber 重写**：`_assign_aliases`（单对象→`o` R-SL-28 byte-equal；多→t0/t1 确定性）+ `_rewrite_caliber`（`o.`→`<alias>.` regex；alias=='o' 不改）。
+- **C3 多表编译 + 基数 gate**：`compiler._build_sql` dispatcher → 单对象（v0.7.1 byte-equal）/ 跨对象维度（`_build_multi_object_sql` + `joingraph.cardinality_safe` 基数 gate + 维度归属 R-SL-30 + 多表 FROM/JOIN ON）。
+- **C4 parser prompt 放宽**：dimensions 可跨对象（metrics 仍单 base 聚合 grain）。
+
+### Guards / 不变量（R-SL-23~32）
+- **R-SL-31 基数 gate（实现期收窄）**：守护者 + 执行者双 ground 发现 `_is_fan_out` 对 INNER JOIN 永久空转（幻觉守护）→ 资深拍 **(a) RELATIONS 加基数**（第 6 元素 n:1/1:1/1:n/n:n，向后兼容 len≥4）→ **仅沿 n:1/1:1 边跨对象（单 base 聚合 + joined 维度表在「1」侧不乘）**；多 base 聚合/1:n/n:n/unknown → 回退。**严禁静默膨胀**。
+- R-SL-28 单对象 byte-equal v0.7.1（硬验收）· R-SL-30 维度/caliber/date_col alias 归属歧义回退 · R-SL-14 混合回退 · R-SL-20 flag off byte-equal 现状。
+- **8 contracts KEPT**（semantic 子包 Contract 7 覆盖，R-SL-11 dormant，0 改）；package.json 0.0.0 不碰。
+
+### 版本同步（5 源点）
+`knot/main.py` 0.7.2 · `frontend/src/version.js` · `README.md` · `CHANGELOG.md` · `tests/test_rename_smoke.py`（R-72 ★CI）；**8 contracts KEPT**。
+
+## [Released] - v0.7.1 — 语义层第二刀：LogicForm + 单对象确定性编译
 
 > **v0.7 第二刀**：让"已定义指标"走**确定性编译** —— `NL → LogicForm（LLM 出结构）→ 编译（确定性 SQL）`，
 > 消除 LLM SQL 抖动 + 口径强制注入。**单对象不跨表**（跨对象 JOIN 留 v0.7.2）；**未命中永远回退 LLM ReAct**

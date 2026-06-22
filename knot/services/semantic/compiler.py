@@ -27,6 +27,8 @@ _TIME_KEYS = {
 }
 # 日期列名模式（time 窗注入用；无 explicit date_column 字段 → 约定推断）
 _DATE_COL_RE = re.compile(r"^(date|dt|ds|day|日期|stat_date|biz_date)$", re.I)
+# caliber 别名 `o.` 列引用前缀（v0.7.1 约定）；多对象重写为各对象 alias（R-SL-26）
+_CALIBER_O_RE = re.compile(r"\bo\.")
 _DEFAULT_LIMIT = 1000  # lf.limit=0 时兜底
 
 
@@ -79,26 +81,91 @@ def _json_list(raw) -> list:
         return []
 
 
-def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ctx) -> str:
-    """纯确定性 SQL 构建（可单测，不依赖 DB / LLM）。同 (lf, time_ctx) → byte-equal。"""
-    base_object = _resolve_single_object(list(lf.metrics), metrics_by_name)
-    physical = _resolve_physical(base_object, tables)
+def _assign_aliases(objects: list[str]) -> dict[str, str]:
+    """对象 → 确定性 alias。**单对象 → `o`**（R-SL-28 v0.7.1 byte-equal）；多对象 → 排序 `t0`/`t1`/…。"""
+    objs = sorted(set(objects))
+    if len(objs) == 1:
+        return {objs[0]: "o"}
+    return {o: f"t{i}" for i, o in enumerate(objs)}
 
-    # 可用维度 = 该对象所有 metric 的 dimensions 并集（确定性排序仅用于校验，不影响 SELECT 序）
+
+def _rewrite_caliber(caliber: str, alias: str) -> str:
+    """caliber 的 `o.` → `<alias>.`（R-SL-26 多对象 alias 归属）。
+
+    **alias == `o` → 原样返回**（单对象 v0.7.1 byte-equal，0 改）。
+    **regex（非 Stage 2 D4 LOCKED 的 sqlglot）—— 资深 2026-06-22 ratify**（守护者 Stage 3 复核 + 资深裁）：
+    `\\bo\\.` 词边界只命中别名 `o` 的列前缀，不误伤 `foo.x`/`info.x`（`o` 非词首；见
+    test_rewrite_caliber_word_boundary_no_false_hit）。回 sqlglot 反增 CI 迭代风险（重生成 caliber
+    重格式化不可本地预测）+ 边际 robustness 仅惠及 flag-off 路径。
+    ⚠️ **已知限制**：caliber 内字符串字面量含 `o.`（如 `'o.x'`）会被误改 —— 聚合口径几乎不含字面量，
+    pathological + 基数 gate + 保守回退三重兜底；若未来口径引入字面量则回 sqlglot。
+    """
+    if alias == "o":
+        return caliber
+    return _CALIBER_O_RE.sub(f"{alias}.", caliber)
+
+
+def _object_dims_map(metrics_by_name: dict[str, dict]) -> dict[str, set]:
+    """{base_object: 该对象所有 metric 的 dims 并集}（跨对象维度归属用 R-SL-30）。"""
+    out: dict[str, set] = {}
+    for m in metrics_by_name.values():
+        obj = (m.get("base_object") or "").strip()
+        if obj:
+            out.setdefault(obj, set()).update(_json_list(m.get("dimensions")))
+    return out
+
+
+def _resolve_dim_owner(dim: str, base: str, obj_dims: dict[str, set]) -> str:
+    """维度归属唯一对象（R-SL-30）。base 有 → base；否则其他对象恰 1 拥有 → 它；0/≥2 → raise 回退。"""
+    if dim in obj_dims.get(base, set()):
+        return base
+    owners = sorted(o for o, dims in obj_dims.items() if o != base and dim in dims)
+    if len(owners) == 1:
+        return owners[0]
+    raise CompileError(f"维度 {dim!r} 归属歧义（owners={owners or '无'}）→ 回退")
+
+
+def _order_limit(lf) -> str:
+    """ORDER BY + LIMIT 片段（单/多对象共用）。"""
+    out = ""
+    if lf.order_by:
+        obs = [f"{o.get('field', '')} {'DESC' if str(o.get('dir', 'asc')).lower() == 'desc' else 'ASC'}"
+               for o in lf.order_by if o.get("field")]
+        if obs:
+            out += " ORDER BY " + ", ".join(obs)
+    out += f" LIMIT {int(lf.limit) if lf.limit and lf.limit > 0 else _DEFAULT_LIMIT}"
+    return out
+
+
+def _guard(sql: str) -> str:
+    """R-SL-22 笛卡尔积守护兜底（防 caliber/dimension/JOIN 错配产多表膨胀语法）。"""
+    is_cart, reason = is_cartesian(sql)
+    if is_cart:
+        raise CompileError(f"编译产出触发笛卡尔积守护: {reason}")
+    return sql
+
+
+def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ctx, relations=None) -> str:
+    """确定性 SQL 构建（纯，可单测）。单对象 → v0.7.1 byte-equal（R-SL-28）；跨对象维度 → 多表 JOIN。"""
+    base = _resolve_single_object(list(lf.metrics), metrics_by_name)  # 单聚合 base（多 base → raise R-SL-31）
+    obj_dims = _object_dims_map(metrics_by_name)
+    owners = {d: _resolve_dim_owner(d, base, obj_dims) for d in lf.dimensions}
+    if all(o == base for o in owners.values()):
+        return _build_single_object_sql(lf, base, metrics_by_name, tables, time_ctx)
+    return _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables, time_ctx, relations or [])
+
+
+def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx) -> str:
+    """单对象（v0.7.1 逻辑，alias `o`）—— R-SL-28 byte-equal v0.7.1。"""
+    physical = _resolve_physical(base_object, tables)
     allowed_dims: set[str] = set()
     for name in lf.metrics:
         allowed_dims.update(_json_list(metrics_by_name[name].get("dimensions")))
-
-    # 请求维度 ⊆ 可用维度（保守；否则回退）
     for d in lf.dimensions:
         if d not in allowed_dims:
             raise CompileError(f"维度 {d!r} ∉ metric 可用维度 {sorted(allowed_dims)}")
-
-    # SELECT: 维度（保序）+ metric caliber AS name（保序）
     select_parts = [f"o.{d}" for d in lf.dimensions]
     select_parts += [f"{metrics_by_name[name]['caliber']} AS {name}" for name in lf.metrics]
-
-    # WHERE: metric 口径内置 filters（并集去重保序）+ lf.filters + time 窗
     where: list[str] = []
     seen = set()
     for name in lf.metrics:
@@ -118,30 +185,62 @@ def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ct
             raise CompileError(f"lf.time={lf.time!r} 设定但无可解析日期列（回退 LLM 处理时间）")
         start, end = getattr(time_ctx, lf.time)
         where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
-
-    # GROUP BY: 有维度即按维度分组（聚合 caliber 单对象语义）
     sql = f"SELECT {', '.join(select_parts)} FROM {physical} o"
     if where:
         sql += " WHERE " + " AND ".join(where)
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"o.{d}" for d in lf.dimensions)
-    if lf.order_by:
-        obs = []
-        for o in lf.order_by:
-            field = o.get("field", "")
-            direction = "DESC" if str(o.get("dir", "asc")).lower() == "desc" else "ASC"
-            if field:
-                obs.append(f"{field} {direction}")
-        if obs:
-            sql += " ORDER BY " + ", ".join(obs)
-    sql += f" LIMIT {int(lf.limit) if lf.limit and lf.limit > 0 else _DEFAULT_LIMIT}"
+    return _guard(sql + _order_limit(lf))
 
-    # R-SL-22 笛卡尔积守护兜底（防 caliber/dimension 错配产多表语法）；
-    # fan-out 需 ≥2 JOIN，单对象 0 JOIN 不可能 → fan-out 守护留 v0.7.2 跨对象编译
-    is_cart, reason = is_cartesian(sql)
-    if is_cart:
-        raise CompileError(f"编译产出触发笛卡尔积守护: {reason}")
-    return sql
+
+def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables, time_ctx, relations) -> str:
+    """跨对象维度（单 base 聚合 + n:1/1:1 joined 维度表，base 不乘）。R-SL-30/31。"""
+    from knot.services.semantic import joingraph
+    objects = sorted({base} | set(owners.values()))
+    path = joingraph.find_join_path(objects, relations)
+    if path is None:
+        raise CompileError(f"对象 {objects} 无唯一 JOIN 路径（≤3 表）→ 回退")
+    if not joingraph.cardinality_safe(base, path):
+        raise CompileError("JOIN 含 1:n/n:n/unknown 边（base 会被乘）→ 回退（R-SL-31）")
+    aliases = _assign_aliases(path.tables)              # 多表 → t0/t1/…
+    phys = {t: _resolve_physical(t, tables) for t in path.tables}
+    ba = aliases[base]
+    # SELECT：维度（归属对象 alias）+ caliber（base，重写 o→base_alias）
+    select_parts = [f"{aliases[owners[d]]}.{d}" for d in lf.dimensions]
+    select_parts += [f"{_rewrite_caliber(metrics_by_name[n]['caliber'], ba)} AS {n}" for n in lf.metrics]
+    # FROM + JOIN（path 序，ON 用 alias）
+    from_sql = f"{phys[path.tables[0]]} {aliases[path.tables[0]]}"
+    for i, e in enumerate(path.edges):
+        nt = path.tables[i + 1]
+        from_sql += (f" JOIN {phys[nt]} {aliases[nt]} ON "
+                     f"{aliases[e.left_table]}.{e.left_col} = {aliases[e.right_table]}.{e.right_col}")
+    # WHERE：base filters（重写 o→base_alias）+ lf.filters + time（base date_col）
+    where: list[str] = []
+    seen = set()
+    for n in lf.metrics:
+        for f in _json_list(metrics_by_name[n].get("filters")):
+            rf = _rewrite_caliber(str(f), ba)
+            if rf not in seen:
+                seen.add(rf)
+                where.append(rf)
+    for f in lf.filters:
+        if str(f) not in seen:
+            seen.add(str(f))
+            where.append(str(f))
+    if lf.time:
+        if lf.time not in _TIME_KEYS:
+            raise CompileError(f"未知 time 枚举 {lf.time!r}")
+        date_col = _resolve_date_col(sorted(obj_dims.get(base, set())))
+        if date_col is None:
+            raise CompileError(f"lf.time={lf.time!r} 但 base 无日期列 → 回退")
+        start, end = getattr(time_ctx, lf.time)
+        where.append(f"{ba}.{date_col} BETWEEN '{start}' AND '{end}'")
+    sql = f"SELECT {', '.join(select_parts)} FROM {from_sql}"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    if lf.dimensions:
+        sql += " GROUP BY " + ", ".join(f"{aliases[owners[d]]}.{d}" for d in lf.dimensions)
+    return _guard(sql + _order_limit(lf))
 
 
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
@@ -155,4 +254,5 @@ def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     catalog_id = catalog.get("catalog_id") or 1
     metrics_by_name = {m["name"]: m for m in metric_repo.list_metrics(catalog_id)}
     tables = catalog.get("tables") or []
-    return _build_sql(lf, metrics_by_name, tables, time_ctx)
+    relations = catalog.get("relations") or []   # R-SL-30/31 跨对象维度 JOIN + 基数 gate
+    return _build_sql(lf, metrics_by_name, tables, time_ctx, relations)

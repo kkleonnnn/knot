@@ -109,3 +109,87 @@ def test_compile_logicform_isolates_active_catalog(monkeypatch):
     monkeypatch.setattr(mr, "list_metrics", fake_list)
     compile_logicform(LogicForm(metrics=["gmv"]), {"catalog_id": 7, "tables": _TABLES}, _time_ctx())
     assert captured["cid"] == 7                  # 传 active catalog_id（非 None 全取）
+
+
+# ─── C2 alias 分配 + caliber 重写（R-SL-26/28）────────────────────────
+
+def test_assign_aliases_single_object_o():
+    from knot.services.semantic.compiler import _assign_aliases
+    assert _assign_aliases(["orders"]) == {"orders": "o"}            # R-SL-28 v0.7.1 兼容
+
+
+def test_assign_aliases_multi_deterministic_sorted():
+    from knot.services.semantic.compiler import _assign_aliases
+    assert _assign_aliases(["orders", "users"]) == {"orders": "t0", "users": "t1"}
+    assert _assign_aliases(["users", "orders"]) == {"orders": "t0", "users": "t1"}  # 乱序同结果（确定性）
+
+
+def test_rewrite_caliber_single_o_unchanged():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(o.pay_amount)", "o") == "SUM(o.pay_amount)"        # byte-equal v0.7.1
+
+
+def test_rewrite_caliber_multi_alias():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(o.pay_amount)", "t0") == "SUM(t0.pay_amount)"
+    assert _rewrite_caliber("COUNT(DISTINCT o.user_id)", "t1") == "COUNT(DISTINCT t1.user_id)"
+    assert _rewrite_caliber("SUM(o.a) / COUNT(o.b)", "t0") == "SUM(t0.a) / COUNT(t0.b)"  # 多 ref
+
+
+def test_rewrite_caliber_word_boundary_no_false_hit():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(foo.x)", "t0") == "SUM(foo.x)"     # foo. 不误伤（o 非词首）
+    assert _rewrite_caliber("SUM(info.amt)", "t0") == "SUM(info.amt)"
+
+
+# ─── C3 跨对象维度 JOIN + 基数 gate（R-SL-30/31）──────────────────────
+
+_UC = {"name": "uc", "caliber": "COUNT(o.id)", "base_object": "shop.users",
+       "filters": "[]", "dimensions": '["region"]'}                 # users 对象（供 region 维度）
+_TABLES2 = [{"db": "shop", "table": "orders", "source_type": "db"},
+            {"db": "shop", "table": "users", "source_type": "db"}]
+_REL_N1 = [["shop.orders", "user_id", "shop.users", "id", "订单用户", "n:1"]]
+
+
+def test_single_object_still_uses_o_alias_r_sl_28():
+    """R-SL-28：单对象（维度全在 base）→ 走 v0.7.1 路径 alias `o`（byte-equal，非 t0）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"]), {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "FROM shop.orders o" in sql and "SUM(o.pay_amount) AS gmv" in sql  # alias o 不漂
+
+
+def test_cross_object_dimension_join():
+    """metrics gmv(orders) + 维度 region(users) → JOIN orders→users(n:1)；caliber 重写 + region 归 users alias。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"]),
+                     {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+    assert "JOIN shop.users" in sql and "ON" in sql
+    assert "AS gmv" in sql and "region" in sql and "GROUP BY" in sql
+    assert " o " not in sql.replace("FROM", "")  # 多对象不用裸 alias o（用 t0/t1）
+
+
+def test_cross_object_cardinality_1n_unsafe_fallback():
+    """orders→users 1:n（base orders 会被乘）→ CompileError 回退（R-SL-31）。"""
+    rel_1n = [["shop.orders", "user_id", "shop.users", "id", "x", "1:n"]]
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"]),
+                   {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), rel_1n)
+
+
+def test_cross_object_cardinality_unknown_fallback():
+    """orders→users 无基数（unknown）→ 回退（R-SL-31 严禁静默膨胀）。"""
+    rel_unk = [["shop.orders", "user_id", "shop.users", "id"]]      # len 4 → unknown
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"]),
+                   {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), rel_unk)
+
+
+def test_cross_object_dim_no_owner_fallback():
+    """维度无归属对象 → CompileError 回退（R-SL-30）。"""
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["nonexistent"]),
+                   {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+
+
+def test_multi_base_aggregation_fallback():
+    """metrics 跨 2 base（gmv on orders + uc on users 都聚合）→ CompileError 回退（R-SL-31 多 base 不支持）。"""
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
