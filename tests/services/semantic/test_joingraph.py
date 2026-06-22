@@ -88,3 +88,38 @@ def test_malformed_relation_skipped():
     # len<4 / 非 list 跳过（不崩）
     p = find_join_path(["orders", "users"], [["orders", "user_id"], "garbage", _AB])
     assert p.tables == ["orders", "users"]
+
+
+# ─── C3 基数 gate cardinality_safe（R-SL-31）──────────────────────────
+
+from knot.services.semantic.joingraph import cardinality_safe  # noqa: E402
+
+
+def test_cardinality_safe_single_object():
+    p = find_join_path(["orders"], [])
+    assert cardinality_safe("orders", p) is True          # 无 JOIN → 安全
+
+
+def test_cardinality_safe_n_to_1_base_many_side():
+    # orders(n)→users(1) n:1；base=orders（多侧），joined users 在 1 侧 → 安全
+    p = find_join_path(["orders", "users"], [_AB])
+    assert cardinality_safe("orders", p) is True
+
+
+def test_cardinality_unsafe_base_on_one_side():
+    # base=users（1 侧），joined orders 在「多」侧 → users 被乘 → 不安全
+    p = find_join_path(["orders", "users"], [_AB])
+    assert cardinality_safe("users", p) is False
+
+
+def test_cardinality_unsafe_1_to_n_edge():
+    # orders(1)→items(n) 1:n；base=orders，joined items 在「多」侧 → 不安全
+    o2i = ["orders", "id", "items", "order_id", "订单明细", "1:n"]
+    p = find_join_path(["orders", "items"], [o2i])
+    assert cardinality_safe("orders", p) is False
+
+
+def test_cardinality_unsafe_unknown():
+    unk = ["orders", "user_id", "users", "id"]               # len 4 → card unknown
+    p = find_join_path(["orders", "users"], [unk])
+    assert cardinality_safe("orders", p) is False            # unknown → 不安全 → 回退

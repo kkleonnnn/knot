@@ -94,6 +94,44 @@ def find_join_path(objects, relations) -> JoinPath | None:
     return _order_three(objs, uniq)
 
 
+def _child_on_one_side(edge: JoinEdge, child: str) -> bool:
+    """edge 中 child（远离 base 侧）须在「1」侧 → base（多侧）不被乘。R-SL-31 基数 gate 核心。"""
+    card = edge.cardinality
+    if card == "1:1":
+        return True
+    if card == "n:1":              # left=n, right=1 → 「1」侧 = right_table
+        return child == edge.right_table
+    if card == "1:n":              # left=1, right=n → 「1」侧 = left_table
+        return child == edge.left_table
+    return False                   # n:n / unknown → 不安全
+
+
+def cardinality_safe(base: str, path: JoinPath) -> bool:
+    """从 base BFS，每非-base 表经其指向 base 的边须在「1」侧（base 不乘）→ True；否则 False。
+
+    R-SL-31：单 base 聚合的 grain 不被 JOIN 乘 → 聚合不膨胀。1:n/n:n/unknown 边 → False（回退）。
+    """
+    if len(path.tables) <= 1:
+        return True                # 单对象，无 JOIN
+    if base not in path.tables:
+        return False
+    visited = {base}
+    frontier = [base]
+    while frontier:
+        nxt: list[str] = []
+        for parent in frontier:
+            for e in path.edges:
+                child = (e.right_table if e.left_table == parent
+                         else e.left_table if e.right_table == parent else None)
+                if child and child not in visited:
+                    if not _child_on_one_side(e, child):
+                        return False   # 该非-base 表在「多」侧 → base 被乘 → 不安全
+                    visited.add(child)
+                    nxt.append(child)
+        frontier = nxt
+    return len(visited) == len(path.tables)
+
+
 def _order_three(objs: list[str], uniq: list[JoinEdge]) -> JoinPath | None:
     """3 表 2 边 → BFS 从排序首表排序，验连通 + 每表连接前序（FROM/JOIN 有效序）。"""
     start = objs[0]
