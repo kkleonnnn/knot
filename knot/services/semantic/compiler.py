@@ -93,9 +93,12 @@ def _rewrite_caliber(caliber: str, alias: str) -> str:
     """caliber 的 `o.` → `<alias>.`（R-SL-26 多对象 alias 归属）。
 
     **alias == `o` → 原样返回**（单对象 v0.7.1 byte-equal，0 改）。
-    用 regex（非 sqlglot）：① sqlglot 本机不可用（盲发风险）② caliber 是约定格式（`o.<col>` 列引用），
-    `\\bo\\.` 词边界只命中别名 `o` 的列前缀，不误伤 `foo.x`（`o` 非词首）。字符串字面量含 `o.` 的极罕见
-    口径（聚合表达式几乎不含字面量）+ 基数 gate + 保守回退限制暴露面。
+    **regex（非 Stage 2 D4 LOCKED 的 sqlglot）—— 资深 2026-06-22 ratify**（守护者 Stage 3 复核 + 资深裁）：
+    `\\bo\\.` 词边界只命中别名 `o` 的列前缀，不误伤 `foo.x`/`info.x`（`o` 非词首；见
+    test_rewrite_caliber_word_boundary_no_false_hit）。回 sqlglot 反增 CI 迭代风险（重生成 caliber
+    重格式化不可本地预测）+ 边际 robustness 仅惠及 flag-off 路径。
+    ⚠️ **已知限制**：caliber 内字符串字面量含 `o.`（如 `'o.x'`）会被误改 —— 聚合口径几乎不含字面量，
+    pathological + 基数 gate + 保守回退三重兜底；若未来口径引入字面量则回 sqlglot。
     """
     if alias == "o":
         return caliber
