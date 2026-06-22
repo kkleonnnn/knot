@@ -109,3 +109,34 @@ def test_compile_logicform_isolates_active_catalog(monkeypatch):
     monkeypatch.setattr(mr, "list_metrics", fake_list)
     compile_logicform(LogicForm(metrics=["gmv"]), {"catalog_id": 7, "tables": _TABLES}, _time_ctx())
     assert captured["cid"] == 7                  # 传 active catalog_id（非 None 全取）
+
+
+# ─── C2 alias 分配 + caliber 重写（R-SL-26/28）────────────────────────
+
+def test_assign_aliases_single_object_o():
+    from knot.services.semantic.compiler import _assign_aliases
+    assert _assign_aliases(["orders"]) == {"orders": "o"}            # R-SL-28 v0.7.1 兼容
+
+
+def test_assign_aliases_multi_deterministic_sorted():
+    from knot.services.semantic.compiler import _assign_aliases
+    assert _assign_aliases(["orders", "users"]) == {"orders": "t0", "users": "t1"}
+    assert _assign_aliases(["users", "orders"]) == {"orders": "t0", "users": "t1"}  # 乱序同结果（确定性）
+
+
+def test_rewrite_caliber_single_o_unchanged():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(o.pay_amount)", "o") == "SUM(o.pay_amount)"        # byte-equal v0.7.1
+
+
+def test_rewrite_caliber_multi_alias():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(o.pay_amount)", "t0") == "SUM(t0.pay_amount)"
+    assert _rewrite_caliber("COUNT(DISTINCT o.user_id)", "t1") == "COUNT(DISTINCT t1.user_id)"
+    assert _rewrite_caliber("SUM(o.a) / COUNT(o.b)", "t0") == "SUM(t0.a) / COUNT(t0.b)"  # 多 ref
+
+
+def test_rewrite_caliber_word_boundary_no_false_hit():
+    from knot.services.semantic.compiler import _rewrite_caliber
+    assert _rewrite_caliber("SUM(foo.x)", "t0") == "SUM(foo.x)"     # foo. 不误伤（o 非词首）
+    assert _rewrite_caliber("SUM(info.amt)", "t0") == "SUM(info.amt)"

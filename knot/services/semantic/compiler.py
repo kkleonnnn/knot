@@ -27,6 +27,8 @@ _TIME_KEYS = {
 }
 # 日期列名模式（time 窗注入用；无 explicit date_column 字段 → 约定推断）
 _DATE_COL_RE = re.compile(r"^(date|dt|ds|day|日期|stat_date|biz_date)$", re.I)
+# caliber 别名 `o.` 列引用前缀（v0.7.1 约定）；多对象重写为各对象 alias（R-SL-26）
+_CALIBER_O_RE = re.compile(r"\bo\.")
 _DEFAULT_LIMIT = 1000  # lf.limit=0 时兜底
 
 
@@ -77,6 +79,27 @@ def _json_list(raw) -> list:
         return v if isinstance(v, list) else []
     except (ValueError, TypeError):
         return []
+
+
+def _assign_aliases(objects: list[str]) -> dict[str, str]:
+    """对象 → 确定性 alias。**单对象 → `o`**（R-SL-28 v0.7.1 byte-equal）；多对象 → 排序 `t0`/`t1`/…。"""
+    objs = sorted(set(objects))
+    if len(objs) == 1:
+        return {objs[0]: "o"}
+    return {o: f"t{i}" for i, o in enumerate(objs)}
+
+
+def _rewrite_caliber(caliber: str, alias: str) -> str:
+    """caliber 的 `o.` → `<alias>.`（R-SL-26 多对象 alias 归属）。
+
+    **alias == `o` → 原样返回**（单对象 v0.7.1 byte-equal，0 改）。
+    用 regex（非 sqlglot）：① sqlglot 本机不可用（盲发风险）② caliber 是约定格式（`o.<col>` 列引用），
+    `\\bo\\.` 词边界只命中别名 `o` 的列前缀，不误伤 `foo.x`（`o` 非词首）。字符串字面量含 `o.` 的极罕见
+    口径（聚合表达式几乎不含字面量）+ 基数 gate + 保守回退限制暴露面。
+    """
+    if alias == "o":
+        return caliber
+    return _CALIBER_O_RE.sub(f"{alias}.", caliber)
 
 
 def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ctx) -> str:
