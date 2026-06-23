@@ -36,6 +36,8 @@ AuditAction = Literal[
     "metric.create", "metric.update", "metric.delete",
     # v0.7.3 C3 LogicForm admin 修正（语义层第四刀；admin 改 AI 理解的口径归属 = 治理事件；44→45）
     "logicform.correct",
+    # v0.7.4 C1 LogicForm 修正 re-run 真执行（admin 执行确定性 SQL 验证修正；executed_sql 入审计 R-SL-42；45→46）
+    "logicform.rerun",
     # Saved Report
     "saved_report.create", "saved_report.update",
     "saved_report.delete", "saved_report.run",
