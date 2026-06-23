@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.4 — 语义层第五刀：LogicForm 修正 re-run 真执行 + 用户侧 engine 徽标
+## [Unreleased] - v0.7.5 — 语义层第六刀：LogicForm 版本历史 + diff（read-only）
+
+> **v0.7 第六刀**（资深 announce + AskUserQuestion 拍方向 ① 版本历史/diff > 事件/规则/动作层）：回溯 v0.7.4 修正血缘 —— admin 看「这条查询的 AI 理解**怎么演化**」。闭合 LogicForm 卖点完整故事：改 → 预览（v0.7.3）→ 执行验证（v0.7.4）→ 观测徽标 → **回溯（v0.7.5）**。
+> 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-49~56。read-only 0 mutation；`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.5-logicform-version-history.md](docs/plans/v0.7.5-logicform-version-history.md)。
+
+### Added
+- **C1 版本历史后端**：`semantic_audit_repo.list_by_message`（全版本链 ORDER BY id 时序）+ `GET /api/admin/logicform-audit/{id}/history`（require_admin + 继承 2FA）。每版本 SQL **分层（R-SL-51/56 保真度）**：near-miss（compile_error_reason 非空）显**存的 reason 不重编译**（历史真相）；hit（reason 空）重编译原 catalog（R-SL-40）+ try-except 现失败 `hit_recompile_failed`（口径漂移/删 → 与历史 near-miss 区分）。**read-only**：0 mutation / 0 新 message / 0 新侧表行 / 不发 audit（AuditAction 停 46）。
+- **C2 版本历史 + diff 前端**：`LogicFormHistory.jsx` [拆子组件 D4]（时间线点选 2 版本 + LogicForm 6 字段 diff + 分层 SQL）；AdminLogicForm 引入（key remount）保 ≤ 200。
+
+### Security / 保真度
+- **⭐ R-SL-56 SQL 保真度声明**（守护者 Stage 3 承重纠正）：版本历史 per-version SQL = 「**当前重编译**」（依**当前** metric 注册表/catalog）**非历史实跑** —— `compile_logicform` 用当前 `list_metrics`，metric caliber 改→SQL 失真 / metric 删→现编译失败。**LogicForm（canonical_json）才是忠实历史源**，diff 主体在 LogicForm（忠实），SQL 仅当前渲染。near-miss 显存 reason 不重编译（避复现可能不同的 error）。
+- read-only / AuditAction 停 46（回滚 = mutation 留 v0.7.6）；LogicForm/SQL/diff 仅 admin 面（脱敏 sustained）；OOS-1 catalog_id only（0 tenant）；8 contracts KEPT。
+
+### Deferred
+- v0.7.6+：回滚/恢复某版本（mutation + active-version 语义）+ 事件/规则/动作层。
+
+## [Released] - v0.7.4 — 语义层第五刀：LogicForm 修正 re-run 真执行 + 用户侧 engine 徽标
 
 > **v0.7 第五刀**（v0.7.3 特意推迟的最高风险半 + 数据已就绪半）：admin 改 LogicForm → **执行看真实数据**验证修正（F4）+ chat「确定性编译」徽标（F2）。
 > 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-41~48。`KNOT_SEMANTIC_LAYER` 默认 off。

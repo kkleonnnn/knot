@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.4 · 语义层第五刀（LogicForm 修正 re-run 真执行 + 用户侧 engine 徽标）：admin 改 LogicForm → 不止看 SQL，**执行看真实数据**验证修正（D2-A 原用户 engine 追溯 + `_is_safe_sql` DQL-only 收口 + 0 污染）+ chat「确定性编译」徽标（near-miss 不误标）；`/correct` 仍 compile-only（安全边界）；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.3 混合路由可观测 + LogicForm admin 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.5 · 语义层第六刀（LogicForm 版本历史 + diff · read-only）：admin 看「这条查询的 AI 理解**怎么演化**」—— 版本链（原始 + 历次修正）+ 6 字段 diff（**LogicForm = 忠实历史源**）+ 分层 SQL（hit「当前重编译」/ near-miss 显存 reason / 现失败区分）。闭合卖点完整故事：改→预览→执行验证→观测→**回溯**；read-only 0 mutation；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.4 修正 re-run 真执行 + engine 徽标 · v0.7.3 可观测 + 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
