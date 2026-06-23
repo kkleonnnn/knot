@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.3 — 语义层第四刀：混合路由可观测 + LogicForm admin 审计/修正
+## [Unreleased] - v0.7.4 — 语义层第五刀：LogicForm 修正 re-run 真执行 + 用户侧 engine 徽标
+
+> **v0.7 第五刀**（v0.7.3 特意推迟的最高风险半 + 数据已就绪半）：admin 改 LogicForm → **执行看真实数据**验证修正（F4）+ chat「确定性编译」徽标（F2）。
+> 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-41~48。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.4-logicform-rerun-badge.md](docs/plans/v0.7.4-logicform-rerun-badge.md)。
+
+### Added
+- **C1 re-run 真执行后端**：`POST /api/admin/logicform-audit/{id}/rerun`（require_admin + 继承 2FA gate）—— 从侧表行重编译（R-SL-40/47 原 catalog 烘焙）→ **D2-A 追溯原 message 用户 engine**（message→conv→user_id→get_user_engine，数据保真）→ **必经 `db_connector.execute_query`**（R-SL-43 载体 `_is_safe_sql` DQL-only/单语句/row-cap 收口，严禁裸连）→ 返 rows 临时（R-SL-44 0 新 message 零污染）+ `logicform.rerun` audit（R-SL-42 executed_sql 四元组）。0 LLM（R-SL-45）。AuditAction 45→46。
+- **C2 re-run UI**：AdminLogicForm 重编译成功后「执行看数据（真实执行）」按钮 → /rerun → 行数据表（临时，不写会话）。
+- **C3 F2 engine 徽标**：get_messages 批量 enrich engine（单查询防 N+1；原始行 is_corrected=0 compile_error_reason 空=semantic / near-miss 非空 或 无行=llm / 修正行 is_corrected=1 不参与）+ ResultBlock「确定性编译」小徽标（label-only 非 admin 安全；near-miss 不误标）。
+
+### Security / 边界
+- **`/correct` 保持 compile-only**（资深 v0.7.3 安全边界不动）；re-run 是独立 gate + 独立审计 + 真执行能力，守护者聚焦逐 commit 复核。
+- **R-SL-43 containment 载体 = `_is_safe_sql`**（守护者 Stage 3 纠正 Stage1+Stage2「LogicForm/compiler 保证 DQL-only」双错 —— compiler filters 裸进 WHERE，真收口在 execute_query 顶部 sqlglot AST 单语句/DQL-only；corrected filters 注入 `;`/DML 在此被拒）。精确边界：只读单语句，非「限定 metric 范围」（admin 可信 + executed_sql 全审计兜底）。
+- **OOS-1 死线 sustained**（0 tenant_id）；脱敏链 sustained（LogicForm/SQL 仅 admin 面；徽标 label-only）。
+
+### Deferred
+- v0.7.5+：LogicForm 版本历史/diff + 事件/规则/动作（5 层语义上层，高风险逐层放）。
+
+## [Released] - v0.7.3 — 语义层第四刀：混合路由可观测 + LogicForm admin 审计/修正
 
 > **v0.7 第四刀**（卖点落地）：让 LogicForm 浮出水面 —— 持久化 + 路由可观测 + admin 审计 + 修正。
 > 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板：D3 bundle + 侧表 + R-SL-40）。
