@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { TagChip, pillBtn } from '../Shared.jsx';
 import { toast, Spinner, Modal, ModalHeader } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
+import { LogicFormHistory } from './logicform/LogicFormHistory.jsx';   // v0.7.5 版本历史 + diff（拆子组件保 ≤200）
 import { api } from '../api.js';
 
 // v0.7.3 — LogicForm 审计屏（F3 read-only）：语义路径查询 + AI 如何理解（LogicForm）+ 编译 SQL +
@@ -188,6 +189,7 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
             {!openItem.hit ? <LFRow T={T} k="回退原因（near-miss）" v={openItem.compile_error_reason || '—'} kind="warn"/> : null}
             <LFRow T={T} k="Catalog / message" v={`catalog #${openItem.catalog_id} · message #${openItem.message_id}`}/>
             {openItem.is_corrected ? <LFRow T={T} k="修正来源" v={`原 message #${openItem.parent_message_id}`}/> : null}
+            <div><div style={_lbl(T)}>版本历史 + diff（read-only）</div><LogicFormHistory key={openItem.id} T={T} auditId={openItem.id}/></div>
           </div>
         </Modal>
       )}

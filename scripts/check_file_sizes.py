@@ -59,6 +59,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/AdminMetrics.jsx":       200,  # 内测健康 KPI 屏（≠ v0.7 metric registry）
     "frontend/src/screens/AdminMetricRegistry.jsx": 200,  # v0.7.0 C5 语义层指标注册表（≠ AdminMetrics KPI 屏）
     "frontend/src/screens/AdminLogicForm.jsx":     200,  # v0.7.3 C2 LogicForm 审计屏（read-only）
+    "frontend/src/screens/logicform/LogicFormHistory.jsx": 130,  # v0.7.5 C2 版本历史 + diff 子组件
     "frontend/src/screens/AdminQueryHistory.jsx":  250,
     "frontend/src/screens/AdminErrors.jsx":        150,
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻
