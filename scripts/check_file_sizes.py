@@ -60,6 +60,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/AdminMetricRegistry.jsx": 200,  # v0.7.0 C5 语义层指标注册表（≠ AdminMetrics KPI 屏）
     "frontend/src/screens/AdminLogicForm.jsx":     200,  # v0.7.3 C2 LogicForm 审计屏（read-only）
     "frontend/src/screens/logicform/LogicFormHistory.jsx": 130,  # v0.7.5 C2 版本历史 + diff 子组件
+    "frontend/src/screens/AdminMonitors.jsx":      200,  # v0.7.7 C5 事件/规则/动作监控屏（CRUD + 立即检查）
     "frontend/src/screens/AdminQueryHistory.jsx":  250,
     "frontend/src/screens/AdminErrors.jsx":        150,
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻
@@ -82,7 +83,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 (Btn/Tag 独立文件)
     "frontend/src/utils.jsx":                      200,  # v0.6.2.3 Foundation 纳管
     "frontend/src/decor/NarrativeMotif.jsx":       120,
-    "frontend/src/Shell.jsx":                      220,
+    "frontend/src/Shell.jsx":                      222,  # v0.7.7 C5 +指标监控 nav 行（admin 屏 nav 合理增长）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）
     "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试

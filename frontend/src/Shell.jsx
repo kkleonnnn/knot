@@ -93,6 +93,8 @@ export function AppShell({
                             onClick={() => onNavigate('admin-metric-registry')}/>
                 <SideNavRow T={T} icon={<I.flow/>} label="LogicForm 审计" active={active === 'admin-logicform'}
                             onClick={() => onNavigate('admin-logicform')}/>
+                <SideNavRow T={T} icon={<I.zap/>} label="指标监控" active={active === 'admin-monitors'}
+                            onClick={() => onNavigate('admin-monitors')}/>
                 {/* admin 看板（R-202: emoji 前缀 → SVG icon 统一） */}
                 {/* v0.6.4.2 — 预算 icon → Foundation I.budget（$ 圆；artboard ADMIN_NAV byte-equal） */}
                 <SideNavRow T={T} icon={<I.budget/>} label="预算" active={active === 'admin-budgets'}
