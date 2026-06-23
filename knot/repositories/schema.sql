@@ -328,3 +328,36 @@ CREATE TABLE IF NOT EXISTS message_feedback (
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_message ON message_feedback(message_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_score_time ON message_feedback(score, created_at);
+
+-- v0.7.7 事件/规则/动作三层 vertical slice（semantic_monitors = 事件+规则+动作合一 MVP，D2）
+-- ⚠️ OOS-1 死线：catalog_id = 语义层水平切分（per-catalog），严禁 tenant_id/project_id。
+-- 事件 = metric_name + comparator + threshold + time_window；规则 = enabled + 触发；动作 = action_type/target。
+CREATE TABLE IF NOT EXISTS semantic_monitors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    catalog_id      INTEGER NOT NULL DEFAULT 1,            -- OOS-1 水平切分非租户
+    name            TEXT    NOT NULL,                      -- admin 可读名
+    metric_name     TEXT    NOT NULL,                      -- 引用 metrics.name（监控哪个指标）
+    comparator      TEXT    NOT NULL,                      -- gt|lt|gte|lte|eq（阈值）/ pct_change_gt|pct_change_lt（环比异动）
+    threshold       REAL    NOT NULL,                      -- 阈值 / 变化百分比
+    baseline_period TEXT    DEFAULT '',                    -- 环比基准期 time_resolver 枚举（阈值类空）
+    time_window     TEXT    NOT NULL DEFAULT '',           -- 当期 time_resolver 枚举（如 today）
+    action_type     TEXT    NOT NULL DEFAULT 'webhook',    -- MVP: webhook（D5）
+    action_target   TEXT    NOT NULL DEFAULT '',           -- webhook URL（KNOT_WEBHOOK_ALLOWED_HOSTS 守护 R-SL-69）
+    enabled         INTEGER DEFAULT 1,
+    created_at      TEXT    DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (catalog_id, name)                              -- per-catalog monitor 名唯一
+);
+
+-- monitor 触发留痕侧表（append-only；每次 check 命中/未命中/skip 一行 R-SL-75）
+CREATE TABLE IF NOT EXISTS monitor_trigger_audit (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    monitor_id    INTEGER NOT NULL,                        -- soft FK semantic_monitors
+    catalog_id    INTEGER NOT NULL DEFAULT 1,              -- OOS-1
+    metric_value  REAL,                                    -- 评估 metric 标量值（NULL = skip 无值）
+    hit           INTEGER DEFAULT 0,                       -- 1 = 命中触发
+    status        TEXT    DEFAULT '',                      -- fired | no_hit | skipped（engine None / compile fail）
+    detail        TEXT    DEFAULT '',                      -- 动作结果 / skip 原因
+    created_at    TEXT    DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_monitor_trigger ON monitor_trigger_audit(monitor_id, created_at);
