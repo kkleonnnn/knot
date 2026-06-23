@@ -14,26 +14,30 @@ from knot.repositories.base import get_conn
 
 _COLS = (
     "id, message_id, catalog_id, logicform_json, compile_error_reason, "
-    "is_corrected, parent_message_id, created_at"
+    "is_corrected, parent_message_id, restored_from_audit_id, created_at"
 )
 
 
 def create_audit(message_id: int, catalog_id: int = 1, logicform_json: str = "",
                  compile_error_reason: str = "", is_corrected: int = 0,
-                 parent_message_id: int | None = None) -> int:
-    """写一条 LogicForm 审计行（语义命中 or near-miss）；返回新 id。
+                 parent_message_id: int | None = None,
+                 restored_from_audit_id: int | None = None) -> int:
+    """写一条 LogicForm 审计行（语义命中 / near-miss / 修正 / v0.7.6 append-only 恢复）；返回新 id。
 
     命中：logicform_json = canonical_json，compile_error_reason = ""。
     near-miss：logicform_json = 解析出的 LF（诊断），compile_error_reason = CompileError 原因。
+    v0.7.6 恢复（R-SL-60）：忠实复制源版本 logicform_json + compile_error_reason；
+      restored_from_audit_id = 源版本 id（NULL = 非恢复行）。append-only — 不删/改历史。
     """
     conn = get_conn()
     try:
         cur = conn.execute(
             "INSERT INTO semantic_query_audit "
-            "(message_id, catalog_id, logicform_json, compile_error_reason, is_corrected, parent_message_id) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(message_id, catalog_id, logicform_json, compile_error_reason, is_corrected, "
+            " parent_message_id, restored_from_audit_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (message_id, catalog_id, logicform_json, compile_error_reason,
-             is_corrected, parent_message_id),
+             is_corrected, parent_message_id, restored_from_audit_id),
         )
         conn.commit()
         return int(cur.lastrowid)

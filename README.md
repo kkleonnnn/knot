@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.5 · 语义层第六刀（LogicForm 版本历史 + diff · read-only）：admin 看「这条查询的 AI 理解**怎么演化**」—— 版本链（原始 + 历次修正）+ 6 字段 diff（**LogicForm = 忠实历史源**）+ 分层 SQL（hit「当前重编译」/ near-miss 显存 reason / 现失败区分）。闭合卖点完整故事：改→预览→执行验证→观测→**回溯**；read-only 0 mutation；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.4 修正 re-run 真执行 + engine 徽标 · v0.7.3 可观测 + 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.6 · 语义层第七刀（LogicForm 「标记采纳此版本」· append-only）：admin 在版本历史「标记采纳某历史版本」—— 用源版本 LogicForm 忠实复制新建修正行（append-only 不删历史，链尾=当前采纳）+ logicform.rollback 审计。⚠️ **诚实边界**：**仅审计留痕 · 不改查询行为**（侧表不回流编译，口径在指标注册表维护）—— 按钮文案「标记采纳此版本」非「恢复」。完成卖点 affordance 全集：改→预览→执行验证→观测→回溯→**采纳**；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.5 版本历史 + diff · v0.7.4 re-run 真执行 + 徽标 · v0.7.3 可观测 + 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

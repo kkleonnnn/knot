@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.5 — 语义层第六刀：LogicForm 版本历史 + diff（read-only）
+## [Unreleased] - v0.7.6 — 语义层第七刀：LogicForm「标记采纳此版本」（append-only 恢复）
+
+> **v0.7 第七刀**（资深 announce + AskUserQuestion 拍语义 = append-only 恢复 > 回流大工程/暂缓）：完成卖点 affordance 全集 —— 改 → 预览（v0.7.3）→ 执行验证（v0.7.4）→ 观测徽标 → 回溯/diff（v0.7.5）→ **采纳（v0.7.6）**。
+> 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-57~64。
+> ⚠️ **诚实边界（R-SL-61，三层诚实栈）**：「标记采纳」**仅审计留痕 · 不改查询行为** —— 侧表审计行**不回流查询路径**（query.py 只写不读，编译用 metric_repo+parser）+ 不改 metric 口径（口径单一真源在指标注册表）。
+> 详 [docs/plans/v0.7.6-logicform-rollback.md](docs/plans/v0.7.6-logicform-rollback.md)。
+
+### Added
+- **C1 append-only 恢复后端**：semantic_query_audit +`restored_from_audit_id` 列（schema fresh + base.py 幂等 ALTER）+ `POST /api/admin/logicform-audit/{id}/restore`（require_admin + 继承 2FA）—— 用源版本 `logicform_json` + `compile_error_reason` **忠实字节复制**新建修正行（is_corrected=1, parent, restored_from_audit_id=源 id）→ 链尾=当前采纳。**append-only**（0 删/0 改历史 R-SL-58）+ **0 重编译**（复制源状态非重新判定 R-SL-60，避 v0.7.5 保真度问题）+ catalog 继承（R-SL-63）+ `logicform.rollback` audit（R-SL-59）。AuditAction 46→47。
+- **C2 「标记采纳此版本」UI**：LogicFormHistory 每版本「标记采纳此版本」按钮（**严禁「恢复」字样** R-SL-61.3 point-of-use 诚实）+ inline note「仅审计留痕·不改查询行为」+ 恢复行「采纳自 #N」徽标。
+
+### Security / 诚实（三层诚实栈 R-SL-61.1/.2/.3）
+- **⭐ R-SL-61 诚实边界**（守护者 Stage 3 承重 — 诚实到 point-of-use 非仅文档）：恢复**不回流查询路径** + 不改 metric 口径 → 治理留痕非改查询行为。三层守护：**R-SL-61.1** 运行时 0-回流证明（恢复前后同问题 byte-equal SQL）+ **R-SL-61.2** 文档诚实（本段 + README）+ **R-SL-61.3** 按钮诚实（文案「标记采纳此版本」非「恢复」；/restore ≈ /correct 便利封装 + 零查询效果，点了不改查询的「恢复」按钮 = point-of-use 误导）。
+- append-only（0 删/0 改历史）；LogicForm/恢复仅 admin 面（脱敏 sustained）；OOS-1 catalog 继承（0 tenant）；8 contracts KEPT。
+
+### Deferred
+- v0.7.x+：回滚改变查询行为（修正回流 parser/few-shot · 需独立 Stage 0 预研）+ 事件/规则/动作层。
+
+## [Released] - v0.7.5 — 语义层第六刀：LogicForm 版本历史 + diff（read-only）
 
 > **v0.7 第六刀**（资深 announce + AskUserQuestion 拍方向 ① 版本历史/diff > 事件/规则/动作层）：回溯 v0.7.4 修正血缘 —— admin 看「这条查询的 AI 理解**怎么演化**」。闭合 LogicForm 卖点完整故事：改 → 预览（v0.7.3）→ 执行验证（v0.7.4）→ 观测徽标 → **回溯（v0.7.5）**。
 > 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-49~56。read-only 0 mutation；`KNOT_SEMANTIC_LAYER` 默认 off。
