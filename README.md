@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.6 · 语义层第七刀（LogicForm 「标记采纳此版本」· append-only）：admin 在版本历史「标记采纳某历史版本」—— 用源版本 LogicForm 忠实复制新建修正行（append-only 不删历史，链尾=当前采纳）+ logicform.rollback 审计。⚠️ **诚实边界**：**仅审计留痕 · 不改查询行为**（侧表不回流编译，口径在指标注册表维护）—— 按钮文案「标记采纳此版本」非「恢复」。完成卖点 affordance 全集：改→预览→执行验证→观测→回溯→**采纳**；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.5 版本历史 + diff · v0.7.4 re-run 真执行 + 徽标 · v0.7.3 可观测 + 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.7 · 语义层第八刀（事件/规则/动作三层 vertical slice）：5 层语义上层落地 —— admin 定义「指标异动监控」（事件 metric+阈值/环比 → 规则 → 动作 webhook）→「立即检查」一键端到端（事件评估 → 命中 → webhook 通知 + 留痕）。范式迈向**主动监控**，但克制三剪：手动触发（无调度）/ 通知非写回（read-only 铁律 sustained）/ 阈值非 LLM 归因。⚠️ fire 受 `KNOT_SEMANTIC_LAYER` flag（off 不 fire）+ webhook 独立 `KNOT_WEBHOOK_ALLOWED_HOSTS`。<br>**上版** v0.7.6 标记采纳此版本 · v0.7.5 版本历史/diff · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

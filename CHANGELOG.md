@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.6 — 语义层第七刀：LogicForm「标记采纳此版本」（append-only 恢复）
+## [Unreleased] - v0.7.7 — 语义层第八刀：事件/规则/动作三层 vertical slice
+
+> **v0.7 第八刀**（资深拍：一次连做上 3 层端到端可测）：5 层语义上层落地 —— 指标异动**主动监控**（事件 → 规则 → 动作 webhook）。完成「被动查询 → 主动监控」范式迈进，但**克制三剪**：手动「立即检查」（无调度）/ 通知非写回（read-only 铁律）/ 阈值·环比非 LLM 归因。
+> 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-65~77。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.7-event-rule-action-slice.md](docs/plans/v0.7.7-event-rule-action-slice.md) + [Stage 0 预研](docs/plans/event-rule-action-layer-prestudy-2026-06-23.md)。
+
+### Added
+- **C1 schema + repo**：`semantic_monitors`（事件+规则+动作合一 D2：metric_name + comparator + threshold + baseline_period + time_window + action_type + action_target + enabled + catalog_id；OOS-1 0 tenant）+ `monitor_trigger_audit` append-only 留痕侧表 + monitor_repo（CRUD + 触发；_reject_forbidden OOS-1 死锁）。AuditAction 47→51（monitor.create/update/delete/trigger）+ ResourceType +monitor。
+- **C2 eval 引擎**：`monitor_eval`（复用 compile_logicform metric-only LF 取标量 + 阈值/环比比较）→ {hit, metric_value, status, detail}。**0 LLM**（R-SL-70）+ fail-soft（R-SL-71：engine None / 编译失败 / 基准 0 → skipped 不中断整批）。
+- **C3 动作**：`WebhookNotificationAdapter`（兑现 base.py 预留 Protocol）POST n.target。
+- **C4 check-now 端点**：`POST /api/admin/monitors/check-now`（手动「立即检查」D1）+ CRUD 路由（admin 域 9→10，路由 40→46）。
+- **C5 admin UI**：`AdminMonitors.jsx`（CRUD + 「立即检查」+ 结果端到端 + 触发历史）。
+
+### Security / 守护（守护者 Stage 3 三纠正）
+- **⭐ R-SL-69 独立 egress allowlist**：webhook 用**独立 `KNOT_WEBHOOK_ALLOWED_HOSTS`**，**严禁混用数据源读取 allowlist `KNOT_HTTP_ALLOWED_HOSTS`**（守护者 F1：混用 = 污染数据源攻击面 —— 两个安全边界物理分离）。
+- **⭐ R-SL-77 flag-gate fire**：monitor check-now/fire 路径受 `KNOT_SEMANTIC_LAYER`（flag off → 不 fire；守「语义 off = 零生产风险」不变量于副作用最重处 —— 守护者 F2）。
+- **R-SL-68 read-only 铁律 sustained**：动作只通知/外发 0 写业务库；metric eval SQL 经 `_is_safe_sql` DQL-only 收口。
+- **R-SL-75 re-fire 诚实**（守护者 F3）：check-now 每命中确实 re-fire webhook（非「0 累积」）；定时化（fast-follow）前需 fired/resolved state 去重。
+- D3 engine = admin `get_user_engine`（事件无原查询用户；engine None 优雅 skip；catalog↔数据源绑定 = v0.7.4 同构 gap 留独立刀）；OOS-1 catalog_id（0 tenant）；8 contracts KEPT。
+
+### Deferred
+- 定时主动评估（调度器 apscheduler/K8s CronJob + fired-state 去重）+ 自动执行动作（写回，破 read-only 最高风险）+ LLM 归因事件。
+
+## [Released] - v0.7.6 — 语义层第七刀：LogicForm「标记采纳此版本」（append-only 恢复）
 
 > **v0.7 第七刀**（资深 announce + AskUserQuestion 拍语义 = append-only 恢复 > 回流大工程/暂缓）：完成卖点 affordance 全集 —— 改 → 预览（v0.7.3）→ 执行验证（v0.7.4）→ 观测徽标 → 回溯/diff（v0.7.5）→ **采纳（v0.7.6）**。
 > 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-57~64。
