@@ -125,10 +125,15 @@ def test_rerun_no_new_message_zero_pollution(client, auth_headers, monkeypatch):
     assert after == before                                    # 0 新 message（零污染）
 
 
-def test_rerun_original_user_engine_graceful_when_unavailable(client, auth_headers):
+def test_rerun_original_user_engine_graceful_when_unavailable(client, auth_headers, monkeypatch):
     """R-SL-47 / D2-A：re-run 追溯**原 message 用户** engine（message→conv→user_id→get_user_engine）；
-    无数据源（测试环境）→ engine None → ok:False 优雅降级（改源/真空不崩，非安全问题）。"""
+    admin seed 无数据源 → engine None → ok:False 优雅降级（改源/真空不崩，非安全问题）。
+
+    compile monkeypatch 良性（隔离 engine 解析；真 compile 由 test_compiler 覆盖）→ 确保走到 get_user_engine
+    （否则测试 DB 无 metric → compile 先失败返 compile_error，测不到 engine 分支）。
+    """
     aid, _mid, _cid = _seed_audit()
+    monkeypatch.setattr(compiler, "compile_logicform", lambda lf, cat, tc: "SELECT 1 AS x LIMIT 1")
     r = client.post(f"/api/admin/logicform-audit/{aid}/rerun", headers=auth_headers)
     assert r.status_code == 200
     body = r.json()
