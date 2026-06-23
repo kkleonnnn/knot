@@ -131,3 +131,55 @@ async def admin_rerun_logicform(audit_id: int, request: Request, admin=Depends(r
                   "row_count": len(rows), "db_error": db_error or ""})
 
     return {"ok": True, "sql": sql, "rows": rows, "row_count": len(rows), "db_error": db_error or ""}
+
+
+@router.get("/api/admin/logicform-audit/{audit_id}/history")
+async def admin_logicform_history(audit_id: int, admin=Depends(require_admin)):
+    """版本历史（v0.7.5 · **read-only** / R-SL-49~56）：审计行 → 该 message 全版本链
+    （原始 is_corrected=0 + 历次修正 is_corrected=1，ORDER BY id 时序 R-SL-53）。
+
+    每版本 SQL **分层**（R-SL-51/56 保真度 — 守护者 Stage 3）：
+    - **near-miss**（`compile_error_reason` 非空）→ 显**存的 reason 不重编译**（历史真相；重编译用当前
+      metric 会复现可能不同的 error / 现成功 → 失真）。
+    - **hit**（reason 空）→ 重编译原 catalog（R-SL-40）取 SQL，前端标注「当前重编译」非原始；现失败
+      （metric 漂移/删 → CompileError）→ try-except → kind=hit_recompile_failed，**与历史 near-miss 区分**。
+
+    **LogicForm（canonical_json）才是忠实历史源**（diff 主体，每版本原样回传）；SQL 仅当前渲染。
+    read-only：0 mutation / 0 新 message / 0 新侧表行 / 不发 audit（看演化非治理事件 R-SL-50）。
+    """
+    import json
+
+    from knot.core import time_resolver
+    from knot.services import query_helper
+    from knot.services.semantic import compiler
+    from knot.services.semantic.logicform import LogicForm
+
+    orig = semantic_audit_repo.get_audit(audit_id)
+    if orig is None:
+        raise HTTPException(status_code=404, detail="审计行不存在")
+
+    versions = semantic_audit_repo.list_by_message(orig["message_id"])   # 全版本链（R-SL-53）
+    row = catalog_repo.get_catalog(orig["catalog_id"])                   # R-SL-40 原 catalog 一次解析（全版本同 catalog_id）
+    catalog = (query_helper._parse_catalog_content(row) if row
+               else {"catalog_id": orig["catalog_id"], "tables": [], "relations": []})
+    time_ctx = time_resolver.resolve_time_context()
+
+    out = []
+    for v in versions:
+        entry = {
+            "audit_id": v["id"], "is_corrected": v["is_corrected"],
+            "created_at": v["created_at"], "parent_message_id": v["parent_message_id"],
+            "logicform_json": v["logicform_json"],          # 忠实历史源（diff 主体 R-SL-56）
+        }
+        if v["compile_error_reason"]:
+            # near-miss：显存的 reason 不重编译（R-SL-51 历史真相）
+            entry.update(kind="near_miss", reason=v["compile_error_reason"])
+        else:
+            # hit：重编译取当前 SQL（R-SL-56 前端标注「当前重编译」）；现失败 → 区分历史 near-miss
+            try:
+                lf = LogicForm.from_dict(json.loads(v["logicform_json"] or "{}"))
+                entry.update(kind="hit", sql=compiler.compile_logicform(lf, catalog, time_ctx))
+            except compiler.CompileError as e:
+                entry.update(kind="hit_recompile_failed", reason=str(e))   # 口径可能已变更
+        out.append(entry)
+    return out

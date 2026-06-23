@@ -14,8 +14,8 @@ _ADMIN_DIR = Path(__file__).resolve().parents[2] / "knot" / "api" / "admin"
 _DOMAINS = ["users", "datasources", "models", "api_keys", "budgets", "stats", "or_catalog", "metrics", "logicform"]
 
 
-def test_admin_router_aggregates_38_routes():
-    """R-AS-1：admin.router 聚合 9 域 = 38 路由（30 + metrics 5 + logicform list 1 + correct 1 + v0.7.4 rerun 1；穿透 FastAPI 0.137 懒包装）。"""
+def test_admin_router_aggregates_39_routes():
+    """R-AS-1：admin.router 聚合 9 域 = 39 路由（30 + metrics 5 + logicform list 1 + correct 1 + rerun 1 + v0.7.5 history 1；穿透 FastAPI 0.137 懒包装）。"""
     from fastapi import APIRouter, FastAPI
 
     from knot.api import admin
@@ -31,7 +31,7 @@ def test_admin_router_aggregates_38_routes():
         r for r in flatten_app_routes(app)
         if getattr(r, "path", "").startswith("/api/admin/")
     ]
-    assert len(admin_routes) == 38, f"admin 应聚合 38 路由（30 + metrics 5 + logicform list 1 + correct 1 + rerun 1）；实际 {len(admin_routes)}"
+    assert len(admin_routes) == 39, f"admin 应聚合 39 路由（30 + metrics 5 + logicform list 1 + correct 1 + rerun 1 + history 1）；实际 {len(admin_routes)}"
 
 
 def test_ds_stats_cache_reexport_same_object():
