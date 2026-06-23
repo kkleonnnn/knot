@@ -82,3 +82,17 @@ def get_by_message(message_id: int) -> dict | None:
         return dict(row) if row else None
     finally:
         conn.close()
+
+
+def list_by_message(message_id: int) -> list[dict]:
+    """某 message 的**全版本链**（原始 is_corrected=0 + 历次修正 is_corrected=1）ORDER BY id ASC = 时序
+    （v0.7.5 版本历史 R-SL-53）。read-only —— 不改任何行。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            f"SELECT {_COLS} FROM semantic_query_audit WHERE message_id=? ORDER BY id",
+            (message_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
