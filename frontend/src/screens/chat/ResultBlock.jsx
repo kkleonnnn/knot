@@ -48,7 +48,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
     () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(_dismissKey) === '1'
   );
   const { sql, rows, explanation, confidence, error, input_tokens, output_tokens, cost_usd, retry_count, query_time_ms,
-          insight, suggested_followups, is_clarification,
+          insight, suggested_followups, is_clarification, engine,
           agent_costs, recovery_attempt,
           budget_status, budget_meta,
           error_kind, user_message, is_retryable } = msg;  // v0.4.2 分桶 + 自纠正 / v0.4.3 预算告警 / v0.4.4 错误翻译
@@ -137,6 +137,13 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* v0.7.4 F2/R-SL-46：engine 徽标 — 仅 semantic（确定性编译）显示，缺省=llm（near-miss 派生 llm 不显）；label-only 非 admin 安全 */}
+      {engine === 'semantic' && (
+        <div title="确定性语义编译（LogicForm）— 非 LLM 生成"
+          style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px',
+            borderRadius: 999, background: `color-mix(in oklch, ${T.accent} 10%, transparent)`,
+            color: T.accent, fontSize: 10.5, fontFamily: T.mono, letterSpacing: '0.04em' }}>确定性编译</div>
+      )}
       {showBudgetBanner && (
         <BudgetBanner T={T} budget_status={budget_status} budget_meta={budget_meta} onDismiss={handleBudgetDismiss}/>
       )}
