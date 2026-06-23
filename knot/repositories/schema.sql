@@ -204,6 +204,7 @@ CREATE TABLE IF NOT EXISTS semantic_query_audit (
     compile_error_reason TEXT    DEFAULT '',          -- near-miss CompileError 原因；命中为空
     is_corrected         INTEGER DEFAULT 0,           -- admin 修正产生的行标 1（F4）
     parent_message_id    INTEGER,                     -- 修正链：指向原 message（审计血缘）
+    restored_from_audit_id INTEGER,                   -- v0.7.6 append-only 恢复来源版本 id（R-SL-60；NULL=原始/修正/near-miss）
     created_at           TEXT    DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_sqa_message ON semantic_query_audit(message_id);

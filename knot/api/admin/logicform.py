@@ -169,6 +169,7 @@ async def admin_logicform_history(audit_id: int, admin=Depends(require_admin)):
         entry = {
             "audit_id": v["id"], "is_corrected": v["is_corrected"],
             "created_at": v["created_at"], "parent_message_id": v["parent_message_id"],
+            "restored_from_audit_id": v["restored_from_audit_id"],   # v0.7.6 「采纳自 vN」徽标（NULL=非恢复行）
             "logicform_json": v["logicform_json"],          # 忠实历史源（diff 主体 R-SL-56）
         }
         if v["compile_error_reason"]:
@@ -183,3 +184,31 @@ async def admin_logicform_history(audit_id: int, admin=Depends(require_admin)):
                 entry.update(kind="hit_recompile_failed", reason=str(e))   # 口径可能已变更
         out.append(entry)
     return out
+
+
+@router.post("/api/admin/logicform-audit/{audit_id}/restore")
+async def admin_restore_logicform(audit_id: int, request: Request, admin=Depends(require_admin)):
+    """admin 标记采纳某历史版本（v0.7.6 C1 · **append-only 恢复** / R-SL-57~64）。
+
+    用源版本 audit_id 的 `logicform_json` + `compile_error_reason` **忠实字节复制**新建修正行
+    （is_corrected=1, parent_message_id=源 message_id, restored_from_audit_id=源 id）→ 链尾 = 当前采纳。
+    **append-only**：0 删除 / 0 修改历史行（R-SL-58）。**0 重编译**（R-SL-60 复制源状态非重新判定，
+    避 v0.7.5 保真度问题）。catalog 继承源（R-SL-63）。+ logicform.rollback audit（R-SL-59）。
+
+    ⚠️ **诚实边界（R-SL-61）**：恢复**不回流查询路径**（侧表不参与编译）+ 不改 metric 口径 →
+    治理留痕（admin 记录采纳哪个理解版本）**非改变查询行为**。前端按钮「标记采纳此版本」非「恢复」（R-SL-61.3）。
+    /restore ≈ /correct 用旧版本预填的便利封装（守护者 Stage 3 reframe）。
+    """
+    src = semantic_audit_repo.get_audit(audit_id)
+    if src is None:
+        raise HTTPException(status_code=404, detail="审计行不存在")
+
+    # R-SL-60 忠实字节复制源版本状态（logicform_json + compile_error_reason），0 重编译；catalog 继承 R-SL-63
+    new_aid = semantic_audit_repo.create_audit(
+        message_id=src["message_id"], catalog_id=src["catalog_id"],
+        logicform_json=src["logicform_json"], compile_error_reason=src["compile_error_reason"],
+        is_corrected=1, parent_message_id=src["message_id"], restored_from_audit_id=src["id"],
+    )
+    audit(request, admin, action="logicform.rollback", resource_type="logicform", resource_id=new_aid,
+          detail={"restored_from_audit_id": audit_id, "message_id": src["message_id"], "new_audit_id": new_aid})
+    return {"ok": True, "audit_id": new_aid, "restored_from_audit_id": audit_id}

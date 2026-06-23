@@ -140,6 +140,12 @@ def init_db():
     if "catalog_id" not in audit_cols_v0625:
         conn.execute("ALTER TABLE audit_log ADD COLUMN catalog_id INTEGER")
 
+    # v0.7.6 semantic_query_audit.restored_from_audit_id：append-only 恢复来源版本 id（R-SL-60；
+    #   NULL = 原始/修正/near-miss；非 NULL = 「采纳」恢复行的源版本 audit id）。幂等 ADD COLUMN。
+    sqa_cols_v076 = {row[1] for row in conn.execute("PRAGMA table_info(semantic_query_audit)").fetchall()}
+    if "restored_from_audit_id" not in sqa_cols_v076:
+        conn.execute("ALTER TABLE semantic_query_audit ADD COLUMN restored_from_audit_id INTEGER")
+
     # catalogs 表 seed — 现有 app_settings 4-key catalog 内容搬为 catalog id=1（byte-equal copy）
     # 幂等：仅 catalogs 空时执行；app_settings 空（fresh install）→ 空内容行
     #   （与现状一致 — catalog_loader 内容为空时回退 file 默认；commit 3 reload 改读本表）
