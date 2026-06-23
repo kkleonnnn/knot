@@ -87,12 +87,25 @@ def get_messages(conv_id: int, viewer_user_id: int | None = None) -> list:
             "ORDER BY m.created_at",
             (viewer_user_id, conv_id),
         ).fetchall()
-    conn.close()
     result = []
     for r in rows:
         d = dict(r)
         d["rows"] = json.loads(d.get("rows_json") or "[]")
         result.append(d)
+    # v0.7.4 F2/R-SL-46：批量派生 engine 徽标（同 conn 单查询防 N+1）。
+    # 仅原始行 is_corrected=0（修正行 is_corrected=1 不参与 → 反映原始查询引擎，非事后修正）；
+    # 侧表有原始行且 compile_error_reason 空=semantic，非空（near-miss 回退 LLM）或无行=llm。
+    if result:
+        ids = [d["id"] for d in result]
+        ph = ",".join("?" * len(ids))
+        arows = conn.execute(
+            f"SELECT message_id, compile_error_reason FROM semantic_query_audit "
+            f"WHERE is_corrected=0 AND message_id IN ({ph})", ids,
+        ).fetchall()
+        emap = {a["message_id"]: ("semantic" if not a["compile_error_reason"] else "llm") for a in arows}
+        for d in result:
+            d["engine"] = emap.get(d["id"], "llm")
+    conn.close()
     return result
 
 

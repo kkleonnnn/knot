@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.3 · 语义层第四刀（混合路由可观测 + LogicForm admin 审计/修正）：LogicForm 持久化（侧表 + 解析时 catalog）+ 路由可观测（命中/near-miss）+ admin「LogicForm 审计」屏（看 AI 如何理解每个查询）+ **修正**（改 LogicForm → 原 catalog 重编译 → 看修正 SQL，比改 SQL 友好）；混合路由 binary gate 不放松；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.2 跨对象 JOIN 编译 · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表六位一体。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.4 · 语义层第五刀（LogicForm 修正 re-run 真执行 + 用户侧 engine 徽标）：admin 改 LogicForm → 不止看 SQL，**执行看真实数据**验证修正（D2-A 原用户 engine 追溯 + `_is_safe_sql` DQL-only 收口 + 0 污染）+ chat「确定性编译」徽标（near-miss 不误标）；`/correct` 仍 compile-only（安全边界）；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.3 混合路由可观测 + LogicForm admin 审计/修正 · v0.7.2 跨对象 JOIN · v0.7.1 LogicForm 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

@@ -35,6 +35,8 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
   const [editLF, setEditLF] = useState('');         // F4 修正：可编辑 LogicForm
   const [correctRes, setCorrectRes] = useState(null);
   const [correcting, setCorrecting] = useState(false);
+  const [rerunRes, setRerunRes] = useState(null);   // F4 re-run：真执行结果（临时，不写会话）
+  const [rerunning, setRerunning] = useState(false);
 
   useEffect(() => {
     api.get('/api/admin/logicform-audit')
@@ -46,6 +48,21 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
     setOpenItem(r);
     setEditLF(JSON.stringify(_parseLF(r.logicform_json), null, 2));   // 预填可编辑 LogicForm
     setCorrectRes(null);
+    setRerunRes(null);
+  }
+
+  async function handleRerun(auditId) {
+    // F4 真执行（R-SL-43/44）：重编译 + 原用户 engine + execute_query；rows 临时返回不写会话
+    setRerunning(true);
+    try {
+      const res = await api.post(`/api/admin/logicform-audit/${auditId}/rerun`);
+      setRerunRes(res);
+      toast(res.ok ? `执行完成（${res.row_count ?? 0} 行）` : '执行失败（见下）', !res.ok);
+    } catch (e) {
+      toast(`执行失败: ${e.message}`, true);
+    } finally {
+      setRerunning(false);
+    }
   }
 
   async function handleCorrect() {
@@ -131,9 +148,35 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
                 <div style={{ marginTop: 10 }}>
                   <div style={_lbl(T)}>修正后 SQL（确定性 · 已落审计血缘 is_corrected）</div>
                   <pre style={_pre(T)}>{correctRes.sql}</pre>
+                  {/* F4 真执行：原用户 engine + execute_query（DQL-only）→ rows 临时（不写会话）*/}
+                  <button onClick={() => handleRerun(correctRes.audit_id)} disabled={rerunning}
+                          style={{ ...pillBtn(T, false), padding: '6px 14px', marginTop: 8 }}>
+                    {rerunning ? <><Spinner size={11} color={T.accent}/> 执行中…</> : '执行看数据（真实执行 · 验证修正）'}
+                  </button>
                 </div>
               ) : correctRes && !correctRes.ok ? (
                 <div style={{ marginTop: 8, fontSize: 12, color: T.warn }}>编译失败：{correctRes.compile_error}</div>
+              ) : null}
+              {rerunRes && rerunRes.ok && !rerunRes.db_error ? (
+                <div style={{ marginTop: 10 }}>
+                  <div style={_lbl(T)}>执行结果（{rerunRes.row_count} 行 · 临时 · 不写用户会话）</div>
+                  {rerunRes.rows && rerunRes.rows.length ? (
+                    <div style={{ overflow: 'auto', maxHeight: 240, border: `1px solid ${T.border}`, borderRadius: 6 }}>
+                      <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
+                        <thead><tr>{Object.keys(rerunRes.rows[0]).map(k => (
+                          <th key={k} style={{ padding: '6px 10px', textAlign: 'left', background: insetBg, color: T.subtext, fontFamily: T.mono, fontSize: 11, whiteSpace: 'nowrap' }}>{k}</th>
+                        ))}</tr></thead>
+                        <tbody>{rerunRes.rows.map((row, i) => (
+                          <tr key={i}>{Object.values(row).map((v, j) => (
+                            <td key={j} style={{ padding: '6px 10px', borderTop: `1px solid ${T.borderSoft}`, color: T.text, whiteSpace: 'nowrap' }}>{String(v)}</td>
+                          ))}</tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  ) : <div style={{ fontSize: 12, color: T.muted }}>无数据</div>}
+                </div>
+              ) : rerunRes && (rerunRes.db_error || !rerunRes.ok) ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: T.warn }}>{rerunRes.db_error || rerunRes.error || rerunRes.compile_error}</div>
               ) : null}
             </div>
             {openItem.hit && openItem.sql ? (
