@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TagChip } from '../../Shared.jsx';
+import { TagChip, pillBtn } from '../../Shared.jsx';
 import { toast, Spinner } from '../../utils.jsx';
 import { api } from '../../api.js';
 
@@ -23,16 +23,29 @@ function _kindTag(T, v) {
 export function LogicFormHistory({ T, auditId }) {
   const [versions, setVersions] = useState(null);   // null = loading
   const [sel, setSel] = useState([]);               // 选中 diff 的 version index（≤2）
+  const [restoring, setRestoring] = useState(null); // 正在「标记采纳」的源 audit_id
+  const [refresh, setRefresh] = useState(0);        // restore 后 refetch 触发（effect dep）
 
-  // 父以 key={auditId} 强制 remount → fresh useState（loading + 清选择）；effect 仅异步 fetch（避 set-state-in-effect）
+  // 父以 key={auditId} 强制 remount；refresh 计数器触发 restore 后 refetch（effect 仅异步 fetch，避 set-state-in-effect）
   useEffect(() => {
     api.get(`/api/admin/logicform-audit/${auditId}/history`)
        .then(d => setVersions(Array.isArray(d) ? d : []))
        .catch(e => { toast(`版本历史加载失败: ${e.message}`, true); setVersions([]); });
-  }, [auditId]);
+  }, [auditId, refresh]);
 
   function toggle(i) {
     setSel(s => s.includes(i) ? s.filter(x => x !== i) : (s.length >= 2 ? [s[1], i] : [...s, i]));
+  }
+
+  // R-SL-61.3 point-of-use 诚实：按钮文案「标记采纳此版本」(严禁功能性状态变更措辞) —— append-only 留痕，不改查询行为
+  async function handleAdopt(srcId, e) {
+    e.stopPropagation();   // 不触发 diff 选择
+    setRestoring(srcId);
+    try {
+      const res = await api.post(`/api/admin/logicform-audit/${srcId}/restore`);
+      if (res && res.ok) { toast('已标记采纳此版本（仅审计留痕）'); setRefresh(x => x + 1); }
+    } catch (err) { toast(`标记失败: ${err.message}`, true); }
+    finally { setRestoring(null); }
   }
 
   if (versions === null) return <div style={{ padding: 16, textAlign: 'center' }}><Spinner color={T.accent}/></div>;
@@ -51,11 +64,17 @@ export function LogicFormHistory({ T, auditId }) {
             background: sel.includes(i) ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent' }}>
             <span style={{ fontFamily: T.mono, fontSize: 11, color: T.subtext }}>{v.is_corrected ? '修正' : '原始'}</span>
             {_kindTag(T, v)}
+            {v.restored_from_audit_id ? <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>采纳自 #{v.restored_from_audit_id}</span> : null}
             <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginLeft: 'auto' }}>{v.created_at}</span>
+            <button onClick={e => handleAdopt(v.audit_id, e)} disabled={restoring === v.audit_id}
+                    style={{ ...pillBtn(T, false), padding: '3px 8px', fontSize: 10.5 }}>
+              {restoring === v.audit_id ? '…' : '标记采纳此版本'}
+            </button>
           </div>
         ))}
       </div>
       <div style={{ fontSize: 11, color: T.muted }}>点选 2 版本看 diff —— LogicForm = 忠实历史；SQL = 当前重编译</div>
+      <div style={{ fontSize: 11, color: T.muted }}>「标记采纳此版本」仅审计留痕 · <b style={{ color: T.subtext }}>不改查询行为</b>（口径在指标注册表维护）</div>
 
       {showDiff && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
