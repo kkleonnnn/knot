@@ -18,6 +18,7 @@ def test_schema_no_tenant_and_has_catalog_id(tmp_db_path):
     assert cols == {
         "id", "message_id", "catalog_id", "logicform_json",
         "compile_error_reason", "is_corrected", "parent_message_id", "created_at",
+        "restored_from_audit_id",   # v0.7.6 append-only 恢复来源（OOS-1 合规非 tenant 列）
     }
 
 
