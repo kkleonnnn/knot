@@ -732,6 +732,6 @@ def test_metric_no_date_column_byte_equal_existing():
     """R-SL-142 byte-equal：未声明 date_column + 维度 `["date","city"]`（_GMV 存量）→ 编译 SQL 与 v0.7.16 exact ==。"""
     lf = LogicForm(metrics=["gmv"], dimensions=["city"], time="this_month_to_latest", limit=10)
     assert _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx()) == (
-        "SELECT SUM(o.pay_amount) AS gmv FROM shop.orders o "
+        "SELECT o.city, SUM(o.pay_amount) AS gmv FROM shop.orders o "   # 单对象 SELECT = 维度 + caliber
         "WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21' "
         "GROUP BY o.city LIMIT 10")
