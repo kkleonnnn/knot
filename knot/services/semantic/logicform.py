@@ -33,6 +33,7 @@ class LogicForm:
     having: list[str] = field(default_factory=list)
     window: list[dict] = field(default_factory=list)   # v0.7.9 窗口列 [{func,arg?,partition_by,order_by,as_name}]
     qualify: list[str] = field(default_factory=list)   # v0.7.10 窗口结果过滤（分区 top-N，QUALIFY 语义）；alias-based 引 window as_name；需 window（R-SL-94）
+    outer: dict = field(default_factory=dict)          # v0.7.14 结果再聚合（CTE 外层）{func:count|sum|avg|min|max, arg?:metric/维度}
 
     def to_canonical_json(self) -> str:
         """确定性 canonical JSON —— 固定字段序 + 紧凑分隔；同内容 LogicForm → byte-equal。
@@ -54,6 +55,8 @@ class LogicForm:
             obj["window"] = [dict(sorted(w.items())) for w in self.window]
         if self.qualify:   # R-SL-91：空省略键（末位，window 后）→ 存量 byte-equal
             obj["qualify"] = list(self.qualify)
+        if self.outer:   # R-SL-118：空省略键（末位，qualify 后）→ 存量 byte-equal
+            obj["outer"] = dict(sorted(self.outer.items()))
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
     @classmethod
@@ -74,4 +77,5 @@ class LogicForm:
             having=list(d.get("having") or []),
             window=[dict(w) for w in (d.get("window") or []) if isinstance(w, dict)],
             qualify=list(d.get("qualify") or []),
+            outer=dict(d.get("outer") or {}) if isinstance(d.get("outer"), dict) else {},
         )
