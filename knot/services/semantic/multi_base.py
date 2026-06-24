@@ -89,4 +89,4 @@ def _build_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
         sel_metrics.append(f"{a}.{name}")
     driver = "(" + " UNION ".join(union_branches) + ") dim"   # 维度并集（对称不丢）
     sel_dims = ", ".join(f"dim.{d}" for d in lf.dimensions)
-    return f"SELECT {sel_dims}, {', '.join(sel_metrics)} FROM {driver}" + "".join(agg_joins)
+    return f"SELECT {sel_dims}, {', '.join(sel_metrics)} FROM {driver}" + "".join(agg_joins) + _order_limit(lf)
