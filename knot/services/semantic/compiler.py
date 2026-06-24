@@ -170,15 +170,22 @@ def _window_col(w: dict) -> str:
 
 
 def _finalize(inner_core: str, lf) -> str:
-    """inner core（SELECT..GROUP BY）→ 最终 SQL。有 window → **两层**（F2：inner = core + having 不调 _order_limit；
-    外层 `SELECT sub.*, <窗口列> FROM (inner) sub` + **整个 _order_limit**）；无 window → 单层 byte-equal（v0.7.1~.8 0 漂移）。"""
+    """inner core（SELECT..GROUP BY）→ 最终 SQL。**递进 byte-equal**：
+    无 window → 单层（v0.7.1~.8 0 漂移）；window 无 qualify → 两层（v0.7.9 byte-equal：外层
+    `SELECT sub.*, <窗口列> FROM (inner) sub`）；window + qualify → **三层**（v0.7.10 分区 top-N：
+    外层 `SELECT * FROM (<两层>) win WHERE <qualify>`，QUALIFY 语义用外层 WHERE，不赌 Doris QUALIFY）。
+    `_order_limit` 永远只在**最外层** append 一次（非生成后剥离 — R-SL-92）。"""
+    if lf.qualify and not lf.window:
+        raise CompileError("qualify 需 window 列（无 window 的分区过滤无意义）→ 回退")   # R-SL-94 严禁静默丢弃（否则返全量非 top-N）
     inner = inner_core + _having_clause(lf)
-    if lf.window:
-        cols = ", ".join(_window_col(w) for w in lf.window)
-        final = f"SELECT sub.*, {cols} FROM ({inner}) sub" + _order_limit(lf)
-    else:
-        final = inner + _order_limit(lf)
-    return _guard(final)
+    if not lf.window:
+        return _guard(inner + _order_limit(lf))                          # 单层 v0.7.1~.8 byte-equal
+    cols = ", ".join(_window_col(w) for w in lf.window)
+    win = f"SELECT sub.*, {cols} FROM ({inner}) sub"                     # 窗口两层（不调 _order_limit）
+    if not lf.qualify:
+        return _guard(win + _order_limit(lf))                            # 两层 v0.7.9 byte-equal
+    qual = " AND ".join(str(q) for q in lf.qualify)                      # 三层：QUALIFY 语义 → 外层 WHERE
+    return _guard(f"SELECT * FROM ({win}) win WHERE {qual}" + _order_limit(lf))
 
 
 def _guard(sql: str) -> str:
