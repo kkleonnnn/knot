@@ -186,3 +186,20 @@ def test_prompt_teaches_qualify_alias_based():
     p = parser._build_prompt([_GMV])
     assert "qualify" in p and "分区 top-N" in p
     assert "as_name" in p and "严禁" in p              # alias 死线（引 window as_name）+ 禁 raw o.col/裸 caliber
+
+
+# ─── v0.7.14 outer（结果再聚合）prompt 教学 + 透传 R-SL-123 ───────────────
+
+@pytest.mark.asyncio
+async def test_outer_extracted_through(monkeypatch):
+    """R-SL-123：LLM 产出 outer → 透传 LogicForm.outer（compiler compile_logicform 消费）；_validate_hit 不变（outer 后处理）。"""
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["city"],"having":["gmv > 10000"],"outer":{"func":"count"}}')
+    r = await parser.parse_to_logicform("GMV 超 1 万的城市数", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm) and r["logicform"].outer == {"func": "count"}
+
+
+def test_prompt_teaches_outer_aggregate():
+    """R-SL-123：prompt 教 outer 结果再聚合 + func 白名单 + arg alias-based。"""
+    p = parser._build_prompt([_GMV])
+    assert "outer" in p and "结果再聚合" in p
+    assert "count|sum|avg|min|max" in p and "城市数" in p   # func 白名单 + 头号用例示例
