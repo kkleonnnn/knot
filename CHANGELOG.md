@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.8 — 语义层第九刀：对象层编译覆盖深化（HAVING 聚合后过滤）
+## [Unreleased] - v0.7.9 — 语义层第十刀：对象层编译覆盖深化（窗口函数 排名/同环比/累计）
+
+> **v0.7 第十刀**（资深 announce 窗口；承 ② 编译覆盖深化）：解锁排名/同环比/累计（窗口-over-聚合）走确定性编译，降 LLM 回退。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-84~90。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.9-compile-coverage-window.md](docs/plans/v0.7.9-compile-coverage-window.md)。
+
+### Added
+- **C1 编译器两层**：LogicForm +`window: list[dict]`（canonical 空省略键末位 R-SL-88 → 存量 byte-equal）；compiler `_WINDOW_FUNCS` 枚举白名单 + `_window_col`（alias-based OVER）+ `_finalize`（有 window → 外层 `SELECT sub.*, <窗口列> FROM (inner) sub` + 整个 _order_limit；无 window → 单层 byte-equal）。单/跨对象两路。
+- **C2 parser**：prompt 教 window（NL「各地区 GMV 排名」→ row_number partition/order；「GMV 环比」→ lag arg）。
+
+### Security / 正确性
+- **⭐ R-137 框法纠正（守护者 Stage 3 F1 — 我 + Stage 2 共写假前提）**：单层窗口+GROUP BY **合法**（标准 SQL 求值序 GROUP BY→窗口→SELECT，OVER 引聚合表达式）；**两层是为 alias 干净而选**（外层 OVER 引子查询 alias 列 gmv，免同层聚合表达式 + 多对象 o.→t0 重写），**非单层不可能**。docstring/plan 不写假 SQL 事实。
+- **R-SL-85 func 枚举白名单**（row_number/rank/dense_rank/lag/lead/sum/avg）：key 映射**真实 SQL 函数**（`dense_rank`→DENSE_RANK，非 Stage 2 笔误 `rank_dense` 否则生成不存在函数）+ avg 保留 + 每 func 合法 SQL 生成测试 + 未知 func → CompileError 回退。
+- **R-SL-86 多对象 alias-based OVER**：外层 OVER 引子查询 alias 列（内层 caliber 重写 t0，外层引 alias 干净）。
+- **R-SL-87 inner/outer 干净构造**（守护者 F2）：inner = `sql + _having_clause`（**不调 _order_limit，非 string-strip**）+ 外层包 + 整个 _order_limit；最终经 `_is_safe_sql` DQL-only 收口（read-only 铁律）。
+- **R-SL-84 byte-equal**：window 空 → 单层 SQL byte-equal（不退化包子查询；现有查询 0 漂移）。
+- **0 资产膨胀**（R-SL-90）：0 新 schema/路由/AuditAction（admin 46 + AuditAction 51 不变）；8 contracts KEPT；OOS-1 sustained。compiler.py BACKEND_ACK 320。
+
+### Deferred（编译覆盖逐项放）
+- 分区内 top-N 过滤（QUALIFY，需核 Doris 支持 + 三层）/ 自定义 frame（ROWS/RANGE）/ 多 base 聚合 / CTE。
+
+## [Released] - v0.7.8 — 语义层第九刀：对象层编译覆盖深化（HAVING 聚合后过滤）
 
 > **v0.7 第九刀**（资深拍 ② 编译覆盖深化 · 不碰新基础设施 · kk 边做边测）：提升确定性编译命中率、降 LLM 回退。
 > 第一刀 = **HAVING（聚合后过滤）** —— 「哪些城市 GMV>10000」这类聚合后筛选现回退 LLM → 转确定性编译。
