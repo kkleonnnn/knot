@@ -222,3 +222,35 @@ def test_prompt_teaches_outer_aggregate():
     p = parser._build_prompt([_GMV])
     assert "outer" in p and "结果再聚合" in p
     assert "count|sum|avg|min|max" in p and "城市数" in p   # func 白名单 + 头号用例示例
+
+
+# ─── v0.7.16 派生指标（占比/人均 = metric÷metric）R-SL-136 ────────────
+_ARPU = {"name": "arpu", "display": "人均消费", "caliber": "", "base_object": "",
+         "aliases": '["客单价"]', "dimensions": "", "lineage": '{"op":"divide","left":"gmv","right":"dau"}'}
+
+
+def test_validate_hit_allows_derived():
+    """⭐ R-SL-136：派生 metric base_object 空是设计 → _validate_hit 过（旧逻辑 `"" not in objs` 会误拒）。"""
+    assert parser._validate_hit(LogicForm(metrics=["arpu"]), [_GMV, _DAU, _ARPU]) is True
+
+
+def test_validate_hit_derived_skips_empty_base():
+    """派生 + 原子混查：派生跳过空 base 判定，原子有 base → 过（compiler 决多派生回退）；空 base 原子仍拒。"""
+    assert parser._validate_hit(LogicForm(metrics=["arpu", "gmv"]), [_GMV, _DAU, _ARPU]) is True   # 派生跳过 + gmv 有 base
+    bad = {"name": "bad", "base_object": "", "lineage": ""}                                        # 非派生 + 空 base
+    assert parser._validate_hit(LogicForm(metrics=["bad"]), [bad]) is False                        # 空 base 原子仍拒
+
+
+def test_prompt_teaches_derived_scalar_only():
+    """R-SL-136：prompt 教派生按 name 引用 + 仅标量（不配 dimensions/having/window）。"""
+    p = parser._build_prompt([_GMV])
+    assert "派生指标" in p and "仅支持标量" in p
+    assert "客单价" in p or "ARPU" in p          # 占比/人均头号用例示例
+
+
+@pytest.mark.asyncio
+async def test_derived_extracted_through(monkeypatch):
+    """⭐ R-SL-136：LLM 产出派生 metric → _validate_hit 过 → 透传 LogicForm（compiler 展开 metric÷metric）。"""
+    _mock_allm(monkeypatch, '{"metrics":["arpu"]}')
+    r = await parser.parse_to_logicform("本月人均消费", [_GMV, _DAU, _ARPU], "model")
+    assert isinstance(r["logicform"], LogicForm) and r["logicform"].metrics == ["arpu"]
