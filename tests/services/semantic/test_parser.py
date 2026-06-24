@@ -74,11 +74,12 @@ async def test_multi_base_scalar_returns_logicform(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_multi_base_with_dims_returns_none(monkeypatch):
-    """v0.7.11：多 base + 维度 → None 回退（parser pre-guard；聚合后 JOIN 留后续刀）。"""
+async def test_multi_base_with_dims_returns_logicform(monkeypatch):
+    """v0.7.12：多 base + 维度 → LogicForm（parser 放宽；compiler 共同维度 authoritative）。
+    （v0.7.11 此 case parser pre-guard 返 None；v0.7.12 交 compiler 维度并集驱动编译。）"""
     _mock_allm(monkeypatch, '{"metrics":["gmv","dau"],"dimensions":["date"]}')
-    r = await parser.parse_to_logicform("问", [_GMV, _DAU], "model")
-    assert r["logicform"] is None
+    r = await parser.parse_to_logicform("各天 GMV 和活跃", [_GMV, _DAU], "model")
+    assert isinstance(r["logicform"], LogicForm) and r["logicform"].dimensions == ["date"]
 
 
 @pytest.mark.asyncio
@@ -94,10 +95,10 @@ def test_validate_hit_single_object():
     assert parser._validate_hit(LogicForm(metrics=["gmv"]), [_GMV]) is True
 
 
-def test_validate_hit_allows_scalar_multi_base():
-    """v0.7.11：标量多 base（无维度）→ True；多 base + 维度 → False（回退，compiler 全矩阵双防）。"""
-    assert parser._validate_hit(LogicForm(metrics=["gmv", "dau"]), [_GMV, _DAU]) is True
-    assert parser._validate_hit(LogicForm(metrics=["gmv", "dau"], dimensions=["date"]), [_GMV, _DAU]) is False
+def test_validate_hit_allows_multi_base():
+    """v0.7.12：多 base 标量 + 多 base 带维度 → 都 True（compiler 共同维度 authoritative，非共同 → raise 回退）。"""
+    assert parser._validate_hit(LogicForm(metrics=["gmv", "dau"]), [_GMV, _DAU]) is True               # 标量多 base
+    assert parser._validate_hit(LogicForm(metrics=["gmv", "dau"], dimensions=["date"]), [_GMV, _DAU]) is True  # 多 base+维度（compiler 决）
 
 
 def test_validate_hit_rejects_undefined():
@@ -116,10 +117,10 @@ def test_prompt_allows_cross_object_dimensions():
     assert "可跨对象" in p                              # v0.7.2 维度可跨对象（prompt 放宽）
 
 
-def test_prompt_teaches_scalar_multi_base():
-    """v0.7.11：prompt 教 metrics 可引用不同对象**仅当无维度**（标量多 base）；多对象+维度回退。"""
+def test_prompt_teaches_multi_base_common_dimension():
+    """v0.7.12：prompt 教 metrics 可引用不同对象 + 多对象带维度须「共同维度」（非共同回退）。"""
     p = parser._build_prompt([_GMV])
-    assert "不同对象" in p and "仅当无维度" in p
+    assert "不同对象" in p and "共同维度" in p
 
 
 @pytest.mark.asyncio

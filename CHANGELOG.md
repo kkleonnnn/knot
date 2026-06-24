@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.11 — 语义层第十二刀：对象层编译覆盖深化（多 base 标量聚合）
+## [Unreleased] - v0.7.12 — 语义层第十三刀：对象层编译覆盖深化（多 base + 维度「聚合后 JOIN」）
+
+> **v0.7 第十三刀**（资深拍 编译覆盖续 → 多 base + 维度；承 v0.7.11 标量多 base → 加维度）：让「各城市 GMV 和 DAU」（gmv@orders + dau@users 按 city）走确定性编译。
+> **JOIN 类型抉择（资深拍 Option U 维度并集驱动）**：UNION + LEFT JOIN 各聚合 → 对称不丢数据 + Doris-proven（0 FULL OUTER，避 Doris 未知）。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-105~111。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.12-compile-coverage-multi-base-dimensional.md](docs/plans/v0.7.12-compile-coverage-multi-base-dimensional.md)。
+
+### Added
+- **C1 compiler 维度并集驱动**：`_build_multi_base_sql` 拆分发器（guards 共用 + 按 dims 分支）+ `_build_multi_base_scalar_sql`（v0.7.11 body 平移 byte-equal）+ `_build_multi_base_dimensional_sql`（`(各 metric DISTINCT dims+own filter UNION) dim LEFT JOIN 各 agg t{i} ON dim.d=t{i}.d`）。
+- **C2 parser 放宽**：`_validate_hit` 去「多 base + 维度拒」pre-guard（compiler 共同维度 authoritative）+ `_LOGICFORM_SYS` 教共同维度。
+
+### Guard
+- **⭐ R-SL-106 维度并集驱动（资深拍 Option U）+ per-metric agg（守护者 Stage 3 bug 纠正）**：每 metric 独立 agg + **自己的 filters**（同 base 不同 filter metric 各自正确；per-base 合用 `names[0]` 会静默算错 — 两 stage 都漏，守护者深挖发现）。对称不丢 + Doris-proven（仅 UNION+LEFT；现有 prompt L51-54 已用 LEFT JOIN 聚合子查询模式）。
+- **⭐ R-SL-108 基数 BY CONSTRUCTION**：维度并集 driver 1 行/组合 + 各 agg 1 行/组合 → LEFT JOIN on 维度 **1:1 不膨胀**（聚合-后-JOIN，非 v0.7.2 JOIN-后-聚合坑）；过 is_cartesian（LEFT-with-ON 不误判）+ _is_safe_sql（Union ∈ allowed_roots）。
+- **R-SL-107 共同维度 gate**：每 lf.dimension ∈ 每个引用 metric 可用维度；非共同 → raise 回退。
+- **R-SL-105 scalar 路径 byte-equal**（v0.7.11 无维度多 base 不受影响）；having/window/qualify/filters guards 共用 sustained。
+- **R-SL-109 NULL-dim**：ON 用 `=`（资深拍 — 业务维度 DWD 兜底非 NULL）+ 注释写明 OSS 部署若维度可空须升 `<=>`（守护者 Stage 3）。
+
+### Note
+- compiler 394 ≤400 ACK（资深拍 C 留 compiler 续 v0.7.11；⚠️ 逼近 400 → 下刀抽 `multi_base.py` 纯重构，CompileError 5+ 外部契约须 re-export，0 循环 import）。
+- R-SL-111：0 新 schema/路由/AuditAction（51 sustained）；OOS-1 死线 sustained。OOS：多 base + 维度的「聚合后 JOIN」INNER/FULL-OUTER 其他变体、CTE、自定义 frame 留后续刀。
+
+## [Released] - v0.7.11 — 语义层第十二刀：对象层编译覆盖深化（多 base 标量聚合）
 
 > **v0.7 第十二刀**（资深拍 编译覆盖续 → 多 base 聚合；最高风险刀 — v0.7.2 基数膨胀承重坑区域）：让**标量多 base 聚合**（「本月 GMV 和 DAU」，gmv@orders + dau@users）走确定性编译，而非 R-SL-31 raise 回退。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-98~104。`KNOT_SEMANTIC_LAYER` 默认 off。

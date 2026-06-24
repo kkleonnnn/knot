@@ -207,8 +207,9 @@ def test_multi_base_scalar_metrics_order_preserved():
     assert sql.index("AS uc") < sql.index("AS gmv")
 
 
-def test_multi_base_with_dimensions_fallback():
-    """R-SL-101：多 base + 维度 → CompileError 回退（聚合后 JOIN 正确性承重，留后续刀）。"""
+def test_multi_base_non_common_dimension_fallback():
+    """R-SL-107（v0.7.12）：维度非共同（city ∈ gmv[orders] ∉ uc[users dims=region]）→ CompileError 回退。
+    （v0.7.11 此 case 是「多 base+维度一律 fallback」；v0.7.12 共同维度可编 → 仅非共同维度 fallback。）"""
     with pytest.raises(CompileError):
         _build_sql(LogicForm(metrics=["gmv", "uc"], dimensions=["city"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
 
@@ -245,6 +246,56 @@ def test_multi_base_scalar_passes_safety_gates():
     sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
     assert is_cartesian(sql)[0] is False                 # 0 JOIN / 无 comma-FROM → 不误判（R-SL-100）
     assert _is_safe_sql(sql)[0] is True                  # Select 根 + 嵌套 Subquery ∈ allowed_roots（R-SL-103）
+
+
+# ─── v0.7.12 多 base + 维度「聚合后 JOIN」维度并集驱动（Option U）R-SL-105~108 ──
+# 共同维度 fixtures（gmv@orders + dau@users 共享 city）
+_GMV_C = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+          "filters": "[]", "dimensions": '["date","city"]'}
+_DAU_C = {"name": "dau", "caliber": "COUNT(o.id)", "base_object": "shop.users",
+          "filters": "[]", "dimensions": '["city"]'}
+
+
+def test_multi_base_dimensional_union_driver():
+    """R-SL-106：维度并集驱动 — UNION driver + LEFT JOIN 各 metric agg + ON dim.dim=t{i}.dim（对称不丢）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv", "dau"], dimensions=["city"]),
+                     {"gmv": _GMV_C, "dau": _DAU_C}, _TABLES2, _time_ctx())
+    assert sql.startswith("SELECT dim.city, t0.gmv, t1.dau FROM (SELECT DISTINCT o.city FROM shop.orders o "
+                          "UNION SELECT DISTINCT o.city FROM shop.users o) dim")
+    assert "LEFT JOIN (SELECT o.city, SUM(o.pay_amount) AS gmv FROM shop.orders o GROUP BY o.city) t0 ON dim.city = t0.city" in sql
+    assert "LEFT JOIN (SELECT o.city, COUNT(o.id) AS dau FROM shop.users o GROUP BY o.city) t1 ON dim.city = t1.city" in sql
+    assert sql.endswith("LIMIT 1000")
+
+
+def test_multi_base_dimensional_per_metric_filters():
+    """⭐ R-SL-106 守护者 Stage 3 bug 守护：同 base 两 metric 不同 filter → 各 agg **自己的 filter**（非共用 names[0]）。"""
+    paid = {"name": "paid_gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+            "filters": '["o.status=\'paid\'"]', "dimensions": '["city"]'}
+    allg = {"name": "all_gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+            "filters": "[]", "dimensions": '["city"]'}
+    sql = _build_sql(LogicForm(metrics=["paid_gmv", "all_gmv", "dau"], dimensions=["city"]),
+                     {"paid_gmv": paid, "all_gmv": allg, "dau": _DAU_C}, _TABLES2, _time_ctx())
+    assert "SUM(o.pay_amount) AS paid_gmv FROM shop.orders o WHERE o.status='paid' GROUP BY o.city" in sql  # paid 有 filter
+    assert "SUM(o.pay_amount) AS all_gmv FROM shop.orders o GROUP BY o.city" in sql      # all_gmv 无 WHERE（未被 paid 污染）
+
+
+def test_multi_base_dimensional_passes_safety_gates():
+    """R-SL-108：维度并集驱动（UNION + LEFT JOIN）过 is_cartesian（LEFT-with-ON 不误判）+ _is_safe_sql（Union∈allowed_roots）。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    from knot.services.sql_validator import is_cartesian
+    sql = _build_sql(LogicForm(metrics=["gmv", "dau"], dimensions=["city"]),
+                     {"gmv": _GMV_C, "dau": _DAU_C}, _TABLES2, _time_ctx())
+    assert is_cartesian(sql)[0] is False                 # LEFT JOIN 有 ON（非 CROSS）+ UNION 分支无 join → 不误判
+    assert _is_safe_sql(sql)[0] is True                  # Select 根 + Union + 嵌套 Subquery ∈ allowed_roots
+
+
+def test_multi_base_dimensional_time_per_metric_base():
+    """R-SL-109：多 base 维度 + time → 维度域 UNION 分支 + agg 各注入自己 base 的日期窗（共同维度 date）。"""
+    gmv_d = dict(_GMV_C); dau_d = dict(_DAU_C); dau_d["dimensions"] = '["date","city"]'
+    sql = _build_sql(LogicForm(metrics=["gmv", "dau"], dimensions=["date"], time="this_month_to_latest"),
+                     {"gmv": gmv_d, "dau": dau_d}, _TABLES2, _time_ctx())
+    assert "SELECT DISTINCT o.date FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+    assert "FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21' GROUP BY o.date) t0" in sql
 
 
 # ─── v0.7.8 HAVING（聚合后过滤）R-SL-78~81 ────────────────────────────

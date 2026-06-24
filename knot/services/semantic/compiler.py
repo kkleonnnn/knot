@@ -304,19 +304,25 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
 
 
 def _build_multi_base_sql(lf, metrics_by_name, tables, time_ctx) -> str:
-    """多 base 标量聚合（R-SL-98~101）：每 metric → 独立标量子查询入 SELECT（FROM-less，0 JOIN）。
+    """多 base 聚合分发（R-SL-105）：无维度 → 标量子查询入 SELECT（v0.7.11，0 JOIN）；
+    有维度 → 维度并集驱动 + LEFT JOIN 各聚合（v0.7.12 Option U，聚合后 JOIN）。
 
-    基数安全 BY CONSTRUCTION（R-SL-100）：标量子查询 GROUP-BY-less → 各返 1 行；外层 FROM-less → 1 行；
-    0 JOIN → 无 fan-out，免疫 v0.7.2「JOIN 后聚合」基数承重坑（不需 joingraph/cardinality_safe）。
-    各子查询单 base alias `o`（caliber/filters `o.` 前缀在各自子查询内有效，免 _rewrite_caliber）。
+    guards（having/window/qualify/filters → raise）二者共用 —— 单 base grain 概念 / 多 base 归属歧义；
+    raise CompileError（混合架构优雅回退 LLM），非 assert（守护者 Stage 3 — -O 禁用守护 + 崩溃非回退）。
     """
-    # ⭐ 全矩阵 raise-guard（守护者 Stage 3 — 非 assert）：标量形态 SELECT (subq) AS m, …（FROM-less 1 行）
-    # 无法表达 dims（无组）/ having（无组）/ window（无分区）/ qualify（无 window）/ filters（多 base 归属歧义）。
-    # raise CompileError（触发混合架构优雅回退 LLM），非 assert（-O 禁用守护 + 崩溃非回退）。
-    if lf.dimensions or lf.having or lf.window or lf.qualify or lf.filters:
-        raise CompileError("多 base 仅标量（维度/having/window/qualify/filters 任一非空 → 回退；聚合后 JOIN 留后续刀）")
+    if lf.having or lf.window or lf.qualify or lf.filters:
+        raise CompileError("多 base + having/window/qualify/filters → 回退（单 base grain 概念 / 归属歧义）")
     if lf.time and lf.time not in _TIME_KEYS:
         raise CompileError(f"未知 time 枚举 {lf.time!r}")
+    if not lf.dimensions:
+        return _build_multi_base_scalar_sql(lf, metrics_by_name, tables, time_ctx)
+    return _build_multi_base_dimensional_sql(lf, metrics_by_name, tables, time_ctx)
+
+
+def _build_multi_base_scalar_sql(lf, metrics_by_name, tables, time_ctx) -> str:
+    """多 base 标量聚合（R-SL-98~100；v0.7.11 body 平移，SQL byte-equal）：每 metric → 独立标量子查询
+    入 SELECT（FROM-less，0 JOIN）。基数 BY CONSTRUCTION：标量子查询各返 1 行 + FROM-less → 1 行；
+    0 JOIN 无 fan-out，免疫 v0.7.2 基数坑。各子查询单 base alias `o`（免 _rewrite_caliber）。"""
     subs = []
     for name in lf.metrics:                                   # 保序（lf.metrics 序 = SELECT 列序）
         m = metrics_by_name[name]                             # 存在性已由 _metric_bases 校验
@@ -333,6 +339,44 @@ def _build_multi_base_sql(lf, metrics_by_name, tables, time_ctx) -> str:
             sub += " WHERE " + " AND ".join(where)
         subs.append(f"({sub}) AS {name}")
     return _guard("SELECT " + ", ".join(subs) + _order_limit(lf))
+
+
+def _build_multi_base_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
+    """多 base + 维度（R-SL-106~109；Option U 维度并集驱动 · 资深拍）：维度并集 driver + LEFT JOIN
+    各 metric 聚合 → 对称不丢数据（FULL OUTER 语义用 UNION+LEFT 模拟，0 FULL OUTER，Doris-proven）。
+
+    ⭐ per-metric agg（守护者 Stage 3 — 非 per-base 合并）：每 metric 独立 agg + **自己的 filters**
+    （同 base 不同 filter metric 各自正确，与 scalar 一致；per-base 合用 names[0] 会静默算错）。
+    基数 BY CONSTRUCTION：driver 1 行/维度组合 + 各 agg 1 行/组合 → LEFT JOIN on 维度 1:1 不膨胀。
+    """
+    union_branches, agg_joins, sel_metrics = [], [], []
+    for i, name in enumerate(lf.metrics):                     # per-metric（保序 t0/t1/…）
+        m = metrics_by_name[name]                             # 存在性已由 _metric_bases 校验
+        avail = set(_json_list(m.get("dimensions")))
+        for d in lf.dimensions:                               # 共同维度：每 dim ∈ 该 metric 可用维度（R-SL-107）
+            if d not in avail:
+                raise CompileError(f"维度 {d!r} ∉ metric {name!r} 可用维度（多 base 需共同维度）→ 回退")
+        physical = _resolve_physical(m["base_object"], tables)    # HTTP/未匹配 → raise
+        where = [str(f) for f in _json_list(m.get("filters"))]    # ⭐ 各 metric 自己的 filters（非 names[0] 共用）
+        if lf.time:
+            date_col = _resolve_date_col(sorted(avail))
+            if date_col is None:
+                raise CompileError(f"metric {name!r} base 无日期列但 lf.time 设定 → 回退")
+            start, end = getattr(time_ctx, lf.time)
+            where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+        dim_cols = ", ".join(f"o.{d}" for d in lf.dimensions)
+        w = (" WHERE " + " AND ".join(where)) if where else ""
+        union_branches.append(f"SELECT DISTINCT {dim_cols} FROM {physical} o{w}")
+        agg = f"SELECT {dim_cols}, {m['caliber']} AS {name} FROM {physical} o{w} GROUP BY {dim_cols}"
+        a = f"t{i}"
+        # NULL-dim：`=`（资深拍 — 业务维度 DWD 兜底非 NULL）；⚠️ OSS 部署若维度可空须升 `<=>`（守护者 Stage 3）
+        on = " AND ".join(f"dim.{d} = {a}.{d}" for d in lf.dimensions)
+        agg_joins.append(f" LEFT JOIN ({agg}) {a} ON {on}")
+        sel_metrics.append(f"{a}.{name}")
+    driver = "(" + " UNION ".join(union_branches) + ") dim"   # 维度并集（对称不丢）
+    sel_dims = ", ".join(f"dim.{d}" for d in lf.dimensions)
+    sql = f"SELECT {sel_dims}, {', '.join(sel_metrics)} FROM {driver}" + "".join(agg_joins)
+    return _guard(sql + _order_limit(lf))
 
 
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
