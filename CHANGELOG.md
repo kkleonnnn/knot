@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.9 — 语义层第十刀：对象层编译覆盖深化（窗口函数 排名/同环比/累计）
+## [Unreleased] - v0.7.10 — 语义层第十一刀：对象层编译覆盖深化（分区 top-N）
+
+> **v0.7 第十一刀**（资深拍 ② 编译覆盖续 → 分区 top-N；承 v0.7.9 窗口列 → 在窗口结果上过滤「前 N」）：解锁「各地区 GMV 前 3」走确定性编译，降 LLM 回退。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-91~97。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.10-compile-coverage-partition-topn.md](docs/plans/v0.7.10-compile-coverage-partition-topn.md)。
+
+### Added
+- **C1 编译器三层**：LogicForm +`qualify: list[str]`（QUALIFY 语义 · alias-based 引 window `as_name`；canonical 空省略键末位 R-SL-91 → 存量 byte-equal）；compiler `_finalize` **递进 byte-equal 三层**——无 window → 单层（v0.7.1~.8 0 漂移）/ window 无 qualify → 两层（v0.7.9 byte-equal）/ window + qualify → 三层 `SELECT * FROM (<两层>) win WHERE <qualify>`（QUALIFY 语义用外层 WHERE，不赌 Doris QUALIFY；`Subquery` ∈ `_is_safe_sql` allowed_roots）。`_order_limit` 永远只在最外层 append 一次（R-SL-92，非生成后剥离）。
+- **C2 parser 教学**：`_LOGICFORM_SYS` +qualify（JSON 格式 + 铁律 bullet）——「各地区 GMV 前 3」→ window(as_name:rk) + qualify=["rk <= 3"]；⚠️ alias 死线引 window `as_name`，严禁 raw o.col/裸 caliber。
+
+### Guard
+- **R-SL-94**：qualify 非空但 window 空 → CompileError 回退（严禁静默丢弃 → 否则返全量非 top-N 错答案）。
+- **⭐ R-SL-95（守护者 Stage 3 纠 Stage 2 错框法）**：qualify alias 正确性守护在 **parser 死线教学（门 B 主防线），非 `_is_safe_sql`**（门 A 只 DQL-only 收口 — 两个门别混）。raw `o.col` qualify 是合法只读 SELECT → 过 `_is_safe_sql` → DB execute 报 unknown column（非 `_is_safe_sql` 拦截）。测试 = parser-prompt-content（非 compiler 拒绝；同 v0.7.8 HAVING R-SL-80）。
+- **R-SL-96**：三层（嵌套 `Subquery`）过 `_is_safe_sql` DQL-only 收口（单/多对象）；`_is_safe_sql` 只查非-DQL，不守 alias 正确性。
+- **R-SL-97**：0 新 schema/路由/AuditAction（51 sustained）；compiler 309 ≤320 ACK；OOS-1 死线 sustained（qualify 纯 SQL surface，0 tenant_id）。
+
+### Tests
+- compiler +6（递进 byte-equal 三态 + 三层 top-N 单/多对象 alias-based + R-SL-94 悬空 CompileError + `_is_safe_sql` 三层收口单/多 + canonical omit/末位）；parser +2（qualify 透传 + parser-prompt-content 教学断言）。
+
+## [Released] - v0.7.9 — 语义层第十刀：对象层编译覆盖深化（窗口函数 排名/同环比/累计）
 
 > **v0.7 第十刀**（资深 announce 窗口；承 ② 编译覆盖深化）：解锁排名/同环比/累计（窗口-over-聚合）走确定性编译，降 LLM 回退。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-84~90。`KNOT_SEMANTIC_LAYER` 默认 off。

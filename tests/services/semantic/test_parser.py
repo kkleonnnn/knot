@@ -148,3 +148,23 @@ def test_prompt_teaches_window_whitelist_alias_based():
     p = parser._build_prompt([_GMV])
     assert "window" in p and "row_number" in p and "dense_rank" in p   # 白名单含 dense_rank（真实函数名）
     assert "排名" in p and "alias-based" in p                          # 教学 + alias 强制
+
+
+# ─── v0.7.10 分区 top-N（qualify）prompt 教学 + 透传 R-SL-95 ───────────
+
+@pytest.mark.asyncio
+async def test_qualify_extracted_through(monkeypatch):
+    """LLM 产出 qualify（alias-based 引 window as_name）→ 透传 LogicForm.qualify（compiler C1 三层消费）。"""
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["region"],'
+               '"window":[{"func":"row_number","partition_by":["region"],"order_by":[{"field":"gmv","dir":"desc"}],"as_name":"rk"}],'
+               '"qualify":["rk <= 3"]}')
+    r = await parser.parse_to_logicform("各地区 GMV 前 3", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm)
+    assert r["logicform"].qualify == ["rk <= 3"]      # 透传（compiler 三层消费）
+
+
+def test_prompt_teaches_qualify_alias_based():
+    """R-SL-95：alias 正确性守护在 **parser 死线教学**（非 _is_safe_sql）—— prompt 教 qualify 引 window as_name + 严禁 raw。"""
+    p = parser._build_prompt([_GMV])
+    assert "qualify" in p and "分区 top-N" in p
+    assert "as_name" in p and "严禁" in p              # alias 死线（引 window as_name）+ 禁 raw o.col/裸 caliber

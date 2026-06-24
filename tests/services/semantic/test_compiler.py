@@ -287,3 +287,67 @@ def test_canonical_window_omitted_when_empty():
     assert '"window"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
     j = LogicForm(metrics=["gmv"], window=[{"func": "row_number", "as_name": "rk"}]).to_canonical_json()
     assert '"window"' in j and j.endswith("}")
+
+
+# ─── v0.7.10 分区 top-N（窗口结果过滤）三层 R-SL-91~96 ──────────────────
+
+_W_RK = [{"func": "row_number", "partition_by": ["city"],
+          "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}]
+
+
+def test_qualify_empty_byte_equal_two_level():
+    """R-SL-93：window + qualify 空 → 两层 byte-equal（不退化加第三层；v0.7.9 0 漂移）。"""
+    m = {"gmv": _GMV}
+    two = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=_W_RK), m, _TABLES, _time_ctx())
+    q0 = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=_W_RK, qualify=[]), m, _TABLES, _time_ctx())
+    assert two == q0 and ") win WHERE" not in q0      # qualify 空不加第三层
+
+
+def test_qualify_partition_topn_single_object():
+    """R-SL-92：三层 —— 外层 SELECT * FROM (<两层>) win WHERE <qualify> + 最外层 _order_limit（只一次）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], limit=20, window=_W_RK, qualify=["rk <= 3"])
+    sql = _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert sql.startswith(
+        "SELECT * FROM (SELECT sub.*, ROW_NUMBER() OVER (PARTITION BY city ORDER BY gmv DESC) AS rk FROM (")
+    assert ") sub) win WHERE rk <= 3 LIMIT 20" in sql   # 第三层 WHERE + 最外层 LIMIT（非内层）
+    assert sql.count("LIMIT") == 1                       # R-SL-92 _order_limit 只在最外层一次
+
+
+def test_qualify_partition_topn_multi_object_alias_based():
+    """⭐ R-SL-95：多对象三层 qualify 引 alias（rk）—— 内层 caliber 重写 t0，窗口 OVER 引 alias，qualify 引窗口 as_name。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["region"], qualify=["rk <= 5"],
+                   window=[{"func": "rank", "partition_by": ["region"],
+                            "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}])
+    sql = _build_sql(lf, {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+    assert "SUM(t0.pay_amount) AS gmv" in sql            # 内层 caliber 重写 t0
+    assert "RANK() OVER (PARTITION BY region ORDER BY gmv DESC) AS rk" in sql  # 窗口 OVER 引 alias gmv（非 t0.）
+    assert ") win WHERE rk <= 5 LIMIT" in sql            # 第三层 qualify 引窗口 as_name rk（alias-based）
+    assert sql.startswith("SELECT * FROM (")             # 三层包裹
+
+
+def test_qualify_without_window_raises():
+    """R-SL-94：qualify 非空但 window 空 → CompileError 回退（严禁静默丢弃 → 否则返全量非 top-N 错答案）。"""
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], qualify=["rk <= 3"]),
+                   {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_qualify_three_level_passes_is_safe_sql():
+    """R-SL-96：三层（嵌套 Subquery）过 _is_safe_sql DQL-only 收口（单 + 多对象）——外层 Select 根 + Subquery ∈ allowed_roots。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    single = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=_W_RK, qualify=["rk <= 3"]),
+                        {"gmv": _GMV}, _TABLES, _time_ctx())
+    multi = _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"], qualify=["rk <= 5"],
+                                 window=[{"func": "rank", "partition_by": ["region"],
+                                          "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}]),
+                       {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+    assert _is_safe_sql(single)[0] is True
+    assert _is_safe_sql(multi)[0] is True               # 非-DQL 收口（不守 alias 正确性 — 两个门别混 R-SL-95/96）
+
+
+def test_canonical_qualify_omitted_when_empty():
+    """R-SL-91：qualify 空 → canonical 省略键（存量 byte-equal）；非空 → qualify 末位（window 后）。"""
+    assert '"qualify"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
+    j = LogicForm(metrics=["gmv"], window=[{"func": "row_number", "as_name": "rk"}],
+                  qualify=["rk <= 3"]).to_canonical_json()
+    assert j.endswith('"qualify":["rk <= 3"]}')          # 末位（window 后）+ 非空才出现
