@@ -40,6 +40,8 @@ AuditAction = Literal[
     "logicform.rerun",
     # v0.7.6 C1 LogicForm append-only 恢复（admin 标记采纳某历史版本；治理留痕非改查询行为 R-SL-61；46→47）
     "logicform.rollback",
+    # v0.7.7 C1 事件/规则/动作监控 CRUD + 触发（指标异动主动监控；fire 受 KNOT_SEMANTIC_LAYER R-SL-77；47→51）
+    "monitor.create", "monitor.update", "monitor.delete", "monitor.trigger",
     # Saved Report
     "saved_report.create", "saved_report.update",
     "saved_report.delete", "saved_report.run",
@@ -59,7 +61,7 @@ AuditAction = Literal[
 
 AuditResourceType = Literal[
     "user", "datasource", "api_key", "budget",
-    "agent_model", "prompt", "catalog", "metric", "logicform", "few_shots",
+    "agent_model", "prompt", "catalog", "metric", "logicform", "monitor", "few_shots",
     "saved_report", "audit",
     # v0.6.0.3 F-A: 反馈关联 message
     "message",
