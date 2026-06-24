@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.10 — 语义层第十一刀：对象层编译覆盖深化（分区 top-N）
+## [Unreleased] - v0.7.11 — 语义层第十二刀：对象层编译覆盖深化（多 base 标量聚合）
+
+> **v0.7 第十二刀**（资深拍 编译覆盖续 → 多 base 聚合；最高风险刀 — v0.7.2 基数膨胀承重坑区域）：让**标量多 base 聚合**（「本月 GMV 和 DAU」，gmv@orders + dau@users）走确定性编译，而非 R-SL-31 raise 回退。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-98~104。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.11-compile-coverage-multi-base.md](docs/plans/v0.7.11-compile-coverage-multi-base.md)。
+
+### Added
+- **C1 compiler 多 base 标量**：`_resolve_single_object`→`_metric_bases`（存在性 + base 集排序）；`_build_sql` 多 base 分支（len(bases)>1 → `_build_multi_base_sql`，单 base 路径之前）；`_build_multi_base_sql` = **标量子查询入 SELECT**（每 metric → `(SELECT <caliber> FROM <physical> o WHERE <filters>[AND time]) AS <name>` 保序；外层 FROM-less，**0 JOIN**；各子查询单 base alias `o` 免 _rewrite_caliber）。
+- **C2 parser 双改**：`_validate_hit` 放宽（允许标量多 base；多 base + 维度仍拒）+ `_LOGICFORM_SYS` 铁律放宽（metrics 可跨对象仅当无维度）。
+
+### Guard
+- **⭐ R-SL-100 基数安全 BY CONSTRUCTION**：标量子查询 GROUP-BY-less → 各返 1 行 + 外层 FROM-less → 1 行；**0 JOIN → 无 fan-out**，免疫 v0.7.2「JOIN 后聚合」基数膨胀承重坑（不需 joingraph/cardinality_safe）。过 `is_cartesian`（无 join/无 comma-FROM）。
+- **⭐ R-SL-101 全矩阵 raise-guard（守护者 Stage 3 — 非 assert）**：多 base + {dimensions \| having \| window \| qualify \| filters} 任一非空 → `raise CompileError`（标量 FROM-less 1 行无法表达；Stage 2 的 `assert not dimensions` 被否决 — 漏 having/window/qualify/filters + assert `-O` 禁用/崩溃非回退）。多 base + time 但某 base 无日期列 → raise。
+- **R-SL-102 既有测试语义变更**：无维度多 base 从 fallback → 确定性编译（capability upgrade）；多 base + 维度仍 fallback（守护边界）。
+- **R-SL-103**：标量多 base（FROM-less + 嵌套 `Subquery`）过 `_is_safe_sql` DQL-only 收口（单/多 metric）。
+
+### Note
+- 多 base + 维度的「聚合后 JOIN on 共同维度」（INNER 丢只在一边的维度值 / FULL OUTER 正确性承重）→ 留后续刀。
+- 抽 module 机制 = 资深拍 **C（留 compiler + ACK bump 320→355）**（CompileError 外部契约 5+ 引用 + 承重刀少动件；0 循环 import）。R-SL-104：0 新 schema/路由/AuditAction（51 sustained）；OOS-1 死线 sustained。
+
+## [Released] - v0.7.10 — 语义层第十一刀：对象层编译覆盖深化（分区 top-N）
 
 > **v0.7 第十一刀**（资深拍 ② 编译覆盖续 → 分区 top-N；承 v0.7.9 窗口列 → 在窗口结果上过滤「前 N」）：解锁「各地区 GMV 前 3」走确定性编译，降 LLM 回退。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-91~97。`KNOT_SEMANTIC_LAYER` 默认 off。
