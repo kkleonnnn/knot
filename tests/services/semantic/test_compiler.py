@@ -534,3 +534,69 @@ def test_canonical_outer_omitted_when_empty():
     assert '"outer"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
     j = LogicForm(metrics=["gmv"], outer={"func": "count"}).to_canonical_json()
     assert j.endswith('"outer":{"func":"count"}}')
+
+
+# ─── v0.7.15 自定义窗口 frame（ROWS BETWEEN 移动平均）R-SL-125~129 ───────────
+
+def _win_frame(frame, func="avg", order=True):
+    w = {"func": func, "arg": "gmv", "as_name": "ma", "frame": frame}
+    if order:
+        w["order_by"] = [{"field": "date", "dir": "asc"}]
+    return LogicForm(metrics=["gmv"], dimensions=["date"], window=[w])
+
+
+def test_window_frame_moving_average():
+    """R-SL-126/127：avg + order_by + frame → `AVG(gmv) OVER (ORDER BY date ASC ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`。"""
+    sql = _build_sql(_win_frame({"preceding": 6, "following": 0}), {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "AVG(gmv) OVER (ORDER BY date ASC ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS ma" in sql
+
+
+def test_window_frame_unbounded():
+    """R-SL-126：unbounded 边界枚举正确编译。"""
+    sql = _build_sql(_win_frame({"preceding": "unbounded", "following": 0}), {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" in sql
+
+
+def test_window_frame_injection_safe_raises():
+    """⭐ R-SL-126：frame 边界非「非负 int/unbounded」（恶意串/负/bool）→ CompileError（0 裸拼）。"""
+    for bad in ["6; DROP TABLE x", -1, True]:
+        with pytest.raises(CompileError):
+            _build_sql(_win_frame({"preceding": bad, "following": 0}), {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_window_frame_ranking_raises():
+    """R-SL-127：ranking/lag/lead + frame → CompileError（frame 仅 sum/avg 聚合窗口）。"""
+    for func in ("row_number", "rank", "lag"):
+        with pytest.raises(CompileError):
+            _build_sql(_win_frame({"preceding": 6, "following": 0}, func=func), {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_window_frame_needs_order_by_raises():
+    """R-SL-127：frame 无 ORDER BY → CompileError。"""
+    with pytest.raises(CompileError):
+        _build_sql(_win_frame({"preceding": 6, "following": 0}, order=False), {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_window_no_frame_byte_equal():
+    """R-SL-128：window 无 frame → v0.7.9 两层 SQL byte-equal（frame additive，存量 0 漂移）。"""
+    w_noframe = LogicForm(metrics=["gmv"], dimensions=["city"],
+                          window=[{"func": "rank", "partition_by": ["city"],
+                                   "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}])
+    sql = _build_sql(w_noframe, {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "ROWS BETWEEN" not in sql and "RANK() OVER (PARTITION BY city ORDER BY gmv DESC) AS rk" in sql
+
+
+def test_window_frame_passes_safety_gates():
+    """R-SL-129：ROWS BETWEEN（OVER window spec）过 _is_safe_sql DQL-only + is_cartesian。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    from knot.services.sql_validator import is_cartesian
+    sql = _build_sql(_win_frame({"preceding": 6, "following": 0}), {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert is_cartesian(sql)[0] is False and _is_safe_sql(sql)[0] is True
+
+
+def test_canonical_frame_recursive_sort():
+    """R-SL-125：window frame 嵌套 dict 递归排 → 语义相等 frame 不同键序 **等 canonical**（与 order_by 对齐）。"""
+    w1 = LogicForm(metrics=["g"], window=[{"func": "avg", "frame": {"preceding": 6, "following": 0}}]).to_canonical_json()
+    w2 = LogicForm(metrics=["g"], window=[{"func": "avg", "frame": {"following": 0, "preceding": 6}}]).to_canonical_json()
+    assert w1 == w2                                              # 不同键序 → 等 canonical
+    assert '"frame":{"following":0,"preceding":6}' in w1         # frame 内递归排（f<p）

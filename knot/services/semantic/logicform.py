@@ -52,7 +52,11 @@ class LogicForm:
         if self.having:   # R-SL-81：空省略键（末位）→ 与存量 canonical（无 having）byte-equal
             obj["having"] = list(self.having)
         if self.window:   # R-SL-88：空省略键（末位，having 后）→ 存量 byte-equal
-            obj["window"] = [dict(sorted(w.items())) for w in self.window]
+            obj["window"] = [   # R-SL-125：frame 嵌套 dict 值也递归排（与 order_by 对齐 → 语义相等 frame 等 canonical）
+                {k: (dict(sorted(v.items())) if k == "frame" and isinstance(v, dict) else v)
+                 for k, v in sorted(w.items())}
+                for w in self.window
+            ]
         if self.qualify:   # R-SL-91：空省略键（末位，window 后）→ 存量 byte-equal
             obj["qualify"] = list(self.qualify)
         if self.outer:   # R-SL-118：空省略键（末位，qualify 后）→ 存量 byte-equal

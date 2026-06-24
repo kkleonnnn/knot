@@ -22,6 +22,7 @@ from knot.services.semantic import multi_base
 from knot.services.semantic.compile_helpers import (
     _TIME_KEYS,
     CompileError,
+    _frame_clause,
     _json_list,
     _order_limit,
     _resolve_date_col,
@@ -128,6 +129,8 @@ def _window_col(w: dict) -> str:
            for o in (w.get("order_by") or []) if o.get("field")]
     if obs:
         over.append("ORDER BY " + ", ".join(obs))
+    if w.get("frame"):   # v0.7.15 自定义 frame（ROWS BETWEEN）— gate + 注入安全在 _frame_clause
+        over.append(_frame_clause(w, takes_arg, bool(obs)))
     return f"{sqlfunc}({arg}) OVER ({' '.join(over)}) AS {w.get('as_name') or w.get('func')}"
 
 

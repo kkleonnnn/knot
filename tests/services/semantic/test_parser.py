@@ -168,6 +168,25 @@ def test_prompt_teaches_window_whitelist_alias_based():
     assert "排名" in p and "alias-based" in p                          # 教学 + alias 强制
 
 
+# ─── v0.7.15 window frame（移动平均）prompt 教学 + 透传 R-SL-130 ──────────
+
+@pytest.mark.asyncio
+async def test_window_frame_extracted_through(monkeypatch):
+    """R-SL-130：LLM 产出 window.frame → 透传 LogicForm.window[0]["frame"]（compiler _frame_clause 消费）。"""
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["date"],"window":'
+               '[{"func":"avg","arg":"gmv","order_by":[{"field":"date","dir":"asc"}],"frame":{"preceding":6,"following":0},"as_name":"ma7"}]}')
+    r = await parser.parse_to_logicform("GMV 7 日移动平均", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm)
+    assert r["logicform"].window[0]["frame"] == {"preceding": 6, "following": 0}
+
+
+def test_prompt_teaches_window_frame():
+    """R-SL-130：prompt 教 frame 滑动窗口（仅 sum/avg + 结构化 preceding/following + unbounded）。"""
+    p = parser._build_prompt([_GMV])
+    assert "frame" in p and "移动平均" in p
+    assert "preceding" in p and "unbounded" in p          # 结构化边界 + unbounded 枚举
+
+
 # ─── v0.7.10 分区 top-N（qualify）prompt 教学 + 透传 R-SL-95 ───────────
 
 @pytest.mark.asyncio

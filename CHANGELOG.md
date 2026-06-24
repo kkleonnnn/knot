@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.14 — 语义层第十五刀：对象层编译覆盖深化（CTE 结果再聚合）
+## [Unreleased] - v0.7.15 — 语义层第十六刀：对象层编译覆盖深化（自定义窗口 frame ROWS BETWEEN）
+
+> **v0.7 第十六刀**（资深拍 自定义窗口 frame）：窗口支持 `ROWS BETWEEN` frame → 移动平均/滑动窗口。**编译覆盖深化七刀齐**。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板 修 frame canonical）。R-SL 续号 R-SL-125~131。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.15-compile-coverage-window-frame.md](docs/plans/v0.7.15-compile-coverage-window-frame.md)。
+
+### Added
+- **C1 compiler frame**：compile_helpers `_frame_bound` + `_frame_clause`（注入安全 SQL 片段）+ compiler `_window_col` frame gate/append（`if w.get("frame"): over.append(_frame_clause(...))`）。window dict +`frame` 子字段（如 7 日移动平均 `{func:avg, order_by:[date asc], frame:{preceding:6, following:0}}`）。
+- **C2 parser**：`_LOGICFORM_SYS` window 教学 +frame（移动平均/滑动窗口 + 仅 sum/avg + 结构化 preceding/following 非负 int/unbounded）。
+
+### Guard
+- **⭐ R-SL-126 注入安全 `_frame_bound`**：frame 边界仅**非负 int**（`isinstance int` + 排 bool + ≥0）或 `"unbounded"` 枚举；输出全受控（int repr + 字面 PRECEDING/FOLLOWING/CURRENT ROW/UNBOUNDED）；**0 用户字符串裸拼**；恶意串/负/float/bool/None/裸片段 → CompileError 回退。
+- **R-SL-127 frame gate**：仅 sum/avg 聚合窗口（ranking/lag/lead + frame → raise）+ frame 需 ORDER BY（无 → raise）。
+- **R-SL-128 无 frame byte-equal**：window 无 frame → v0.7.9 两层 SQL 不变（frame additive；存量 0 漂移）。
+- **⭐ R-SL-125 frame canonical 递归排（守护者 Stage 3 minor + 资深拍修）**：window canonical 对 frame 嵌套 dict 值递归排（与 order_by L48 对齐）→ 语义相等 frame 不同键序 **等 canonical**（免版本历史 spurious diff）；SQL det 经 `_frame_clause` 显式读保 R-SL-17。
+- **R-SL-129 `_is_safe_sql`**：`ROWS BETWEEN`（OVER window spec 非写节点）过 DQL-only。
+
+### Note
+- R-SL-131：0 新 schema/路由/AuditAction（51 sustained）；compiler 300→303 **ACK 重加 310**（frame 主体 `_frame_clause`/`_frame_bound` 在 compile_helpers leaf；v0.7.13 抽 module 移出 ACK 后 feature 增长再 ACK）；OOS-1 死线 sustained。
+- OOS：`RANGE/GROUPS BETWEEN` frame 模式（仅 ROWS）；派生指标模型（metric÷metric）；主动监控深化。
+
+## [Released] - v0.7.14 — 语义层第十五刀：对象层编译覆盖深化（CTE 结果再聚合）
 
 > **v0.7 第十五刀**（资深拍 CTE → AskUserQuestion 拍 **结果再聚合**）：复用全部现有编译覆盖作 CTE body + 外层再聚合一层。让「GMV 超 1 万的城市数」「top-5 城市 GMV 合计」走确定性编译。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板 修）。R-SL 续号 R-SL-118~124。`KNOT_SEMANTIC_LAYER` 默认 off。
