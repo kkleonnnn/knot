@@ -10,7 +10,12 @@ test monkeypatch `compiler.is_cartesian`）；compiler `_build_sql` 多 base 分
 from __future__ import annotations
 
 from knot.services.semantic.compile_helpers import (
-    CompileError, _TIME_KEYS, _json_list, _order_limit, _resolve_date_col, _resolve_physical,
+    _TIME_KEYS,
+    CompileError,
+    _json_list,
+    _order_limit,
+    _resolve_date_col,
+    _resolve_physical,
 )
 
 

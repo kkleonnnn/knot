@@ -18,11 +18,9 @@ from __future__ import annotations
 import re
 
 from knot.services.semantic import multi_base
-# v0.7.13 抽 leaf：re-export CompileError/_TIME_KEYS 供 `compiler.X` 外部访问
-# （5+ 生产 `except compiler.CompileError` + `compiler._TIME_KEYS`）；helper 为 compiler 留守函数自用。
 from knot.services.semantic.compile_helpers import (
-    CompileError,
     _TIME_KEYS,
+    CompileError,
     _json_list,
     _order_limit,
     _resolve_date_col,
@@ -30,6 +28,8 @@ from knot.services.semantic.compile_helpers import (
 )
 from knot.services.sql_validator import is_cartesian
 
+# v0.7.13 抽 leaf：compile_helpers re-export CompileError/_TIME_KEYS 供 `compiler.X` 外部访问
+# （5+ 生产 `except compiler.CompileError` + `compiler._TIME_KEYS`）；其余 helper 为 compiler 留守函数自用。
 # caliber 别名 `o.` 列引用前缀（v0.7.1 约定）；多对象重写为各对象 alias（R-SL-26）
 _CALIBER_O_RE = re.compile(r"\bo\.")
 
