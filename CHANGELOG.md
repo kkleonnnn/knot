@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.13 — 语义层第十四刀：抽 multi_base.py 纯重构（compiler 瘦身 + 无环分层）
+## [Unreleased] - v0.7.14 — 语义层第十五刀：对象层编译覆盖深化（CTE 结果再聚合）
+
+> **v0.7 第十五刀**（资深拍 CTE → AskUserQuestion 拍 **结果再聚合**）：复用全部现有编译覆盖作 CTE body + 外层再聚合一层。让「GMV 超 1 万的城市数」「top-5 城市 GMV 合计」走确定性编译。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板 修）。R-SL 续号 R-SL-118~124。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.14-compile-coverage-cte-outer-aggregate.md](docs/plans/v0.7.14-compile-coverage-cte-outer-aggregate.md)。
+
+### Added
+- **C1 compiler outer-aggregate**：LogicForm +`outer`（canonical 空省略键末位 qualify 后 R-SL-118）；`compile_logicform` outer wrap（唯一 outer reader，`_build_sql` 不读 → 0 递归）`WITH r AS (<现有编译>) SELECT <_outer_expr> FROM r`；`_outer_expr` func 白名单 count/sum/avg/min/max + count(*) 无 arg + 其他 func arg alias-based ∈ metrics∪dimensions（严禁 raw，同 having R-SL-80）。
+- **C2 parser**：`_LOGICFORM_SYS` +outer 教学（结果再聚合 + func 白名单 + arg alias-based）；`_validate_hit` 不变（outer 后处理）。
+
+### Guard
+- **⭐ R-SL-122 inner LIMIT 修复（守护者 Stage 3 必纠 — aggregate-input-cap 非 display-cap）**：outer 聚合全部（`lf.limit==0`）→ inner **无 LIMIT**（count groups 不被 cap = 正确标量答案，非默认 1000 cap 的静默错数字）；显式 top-N（`lf.limit>0`）→ inner 保 LIMIT（top-N 后聚合 intentional）。实现 `compile_helpers._order_limit` 负 limit 哨兵（`lf.limit<0` → 无 LIMIT，**非 string-strip — v0.7.9 教训**）+ `compile_logicform` `replace(lf, limit=-1)`；存量 limit≥0 byte-equal。
+- **R-SL-119 outer 空 byte-equal**：outer 空 → 无 CTE wrap，与 `_build_sql` 输出 byte-equal（存量 0 漂移）。
+- **R-SL-121 基数 by-construction + 安全门**：outer 标量 1 行；CTE 过 `_is_safe_sql`（`With` ∈ allowed_roots）+ `is_cartesian`（CTE body 已 guarded + outer 无 join）。
+
+### Note
+- 占比/人均（metric÷metric）需扩 metric 模型（原子 caliber 无派生算术）→ OOS（独立「派生指标」模型刀）；两级聚合 grain-change → OOS。
+- R-SL-124：0 新 schema/路由/AuditAction（51 sustained）；compiler 275→300 ≤300（合并 _outer_expr guard 保 v0.7.13 移出 ACK win）；OOS-1 死线 sustained。
+
+## [Released] - v0.7.13 — 语义层第十四刀：抽 multi_base.py 纯重构（compiler 瘦身 + 无环分层）
 
 > **v0.7 第十四刀**（资深拍 纯重构；compiler.py 394 逼近 ACK 400 → 趁对象层编译闭环抽 module）：**0 行为变更 / 0 循环 import**，偿语义层编译器技术债 + 锁长期健壮性。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT 无修订**（罕见全清 · 0 实质 finding）→ 资深拍板）。R-SL 续号 R-SL-112~117。
