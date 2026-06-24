@@ -112,3 +112,20 @@ async def test_cross_object_dim_passes_through(monkeypatch):
     r = await parser.parse_to_logicform("各地区成交额", [_GMV], "model")
     assert isinstance(r["logicform"], LogicForm)
     assert r["logicform"].dimensions == ["region"]   # 跨对象维度不被 parser 拦（compiler C3 解析归属）
+
+
+# ─── v0.7.8 HAVING（聚合后过滤）prompt 教学 + 透传 R-SL-80 ────────────
+
+@pytest.mark.asyncio
+async def test_having_extracted_through(monkeypatch):
+    """LLM 产出 having（alias-based）→ 透传 LogicForm.having（compiler C1 消费）。"""
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["city"],"having":["gmv > 10000"]}')
+    r = await parser.parse_to_logicform("GMV 超 1 万的城市", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm) and r["logicform"].having == ["gmv > 10000"]
+
+
+def test_prompt_teaches_alias_based_having():
+    """R-SL-80：prompt 教 HAVING 强制 alias-based（引 metric name）+ 严禁原始口径/表前缀。"""
+    p = parser._build_prompt([_GMV])
+    assert "having" in p and "聚合后过滤" in p
+    assert "metric name 作 alias" in p and "严禁" in p   # 强制 alias + 禁 raw o.col/裸 caliber
