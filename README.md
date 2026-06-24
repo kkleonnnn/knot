@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.10 · 语义层第十一刀（编译覆盖深化：分区 top-N）：LogicForm +`qualify` → 确定性编译**三层**（聚合 → 窗口列 → 外层 `WHERE rk <= N` 过滤），解锁「各地区 GMV 前 3」（窗口结果过滤；现回退 LLM → 转确定性）。QUALIFY 语义用**外层 WHERE**（不赌 Doris QUALIFY；`Subquery` ∈ `_is_safe_sql` allowed_roots）；qualify alias-based 引 window `as_name`（守护在 parser 死线教学）；qualify 空 → 两层 byte-equal（v0.7.9 0 漂移）；三层经 `_is_safe_sql` DQL-only 收口。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.11 · 语义层第十二刀（编译覆盖深化：多 base 标量聚合）：LogicForm 多 base（≥2 聚合对象）→ 确定性编译**标量子查询入 SELECT**（每 metric 独立标量子查询，**0 JOIN**），解锁「本月 GMV 和 DAU」（gmv@orders + dau@users 跨对象标量；现回退 LLM → 转确定性）。**0 JOIN 按构造免疫基数膨胀坑**（标量子查询各返 1 行 + FROM-less → 1 行；不需 joingraph）；全矩阵 raise-guard（维度/having/window/qualify/filters 任一非空 → 优雅回退；多 base + 维度的「聚合后 JOIN」留后续刀）；过 `is_cartesian` + `_is_safe_sql` 双安全门。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
