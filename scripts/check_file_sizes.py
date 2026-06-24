@@ -27,7 +27,7 @@ BACKEND_ACK = {
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数
-    # compiler.py 394→275（v0.7.13 抽 multi_base.py + compile_helpers.py）→ ≤300 default cap auto-discover，移出 ACK
+    "knot/services/semantic/compiler.py":  310,  # v0.7.13 抽 multi_base/compile_helpers 394→275 曾移出 ACK；v0.7.14 outer 300 / v0.7.15 +窗口 frame gate 303（frame 主体 _frame_clause 在 compile_helpers leaf）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
 }
 

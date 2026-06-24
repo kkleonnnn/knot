@@ -72,3 +72,24 @@ def _order_limit(lf) -> str:
         return out
     out += f" LIMIT {int(lf.limit) if lf.limit and lf.limit > 0 else _DEFAULT_LIMIT}"
     return out
+
+
+def _frame_bound(v, side: str) -> str:
+    """窗口 frame 边界（v0.7.15 R-SL-126 注入安全）：仅**非负 int**（排 bool）或 `"unbounded"`；0 → CURRENT ROW。
+    side = 'PRECEDING' | 'FOLLOWING'。输出全受控（int repr + 字面），0 用户字符串裸拼。"""
+    if isinstance(v, str) and v.strip().lower() == "unbounded":
+        return f"UNBOUNDED {side}"
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:   # 排 bool（True→1 防误）+ 仅非负 int
+        raise CompileError(f"frame 边界 {v!r} 须非负 int 或 'unbounded' → 回退")
+    return "CURRENT ROW" if v == 0 else f"{v} {side}"
+
+
+def _frame_clause(w: dict, takes_arg: bool, has_order_by: bool) -> str:
+    """窗口 frame `ROWS BETWEEN <start> AND <end>`（v0.7.15 R-SL-127 gate）：
+    仅 sum/avg 聚合窗口（ranking/lag/lead → raise）+ 需 ORDER BY（无 → raise）；边界经 `_frame_bound` 注入安全。"""
+    if not takes_arg or str(w.get("func")) in ("lag", "lead"):
+        raise CompileError(f"frame 仅 sum/avg 聚合窗口支持（func={w.get('func')!r}）→ 回退")
+    if not has_order_by:
+        raise CompileError("frame（ROWS BETWEEN）需 ORDER BY → 回退")
+    f = w["frame"]
+    return f"ROWS BETWEEN {_frame_bound(f.get('preceding'), 'PRECEDING')} AND {_frame_bound(f.get('following'), 'FOLLOWING')}"
