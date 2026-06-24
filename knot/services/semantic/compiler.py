@@ -137,6 +137,12 @@ def _order_limit(lf) -> str:
     return out
 
 
+def _having_clause(lf) -> str:
+    """HAVING 片段（v0.7.8；GROUP BY 后 / ORDER BY 前）。**强制 alias-based** 引 metric alias（R-SL-80 —
+    多对象 raw o. 不重写会断）；原始表达式镜像 filters，注入由 execute_query 顶 _is_safe_sql DQL-only 收口。"""
+    return (" HAVING " + " AND ".join(str(h) for h in lf.having)) if lf.having else ""
+
+
 def _guard(sql: str) -> str:
     """R-SL-22 笛卡尔积守护兜底（防 caliber/dimension/JOIN 错配产多表膨胀语法）。"""
     is_cart, reason = is_cartesian(sql)
@@ -190,7 +196,7 @@ def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx)
         sql += " WHERE " + " AND ".join(where)
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"o.{d}" for d in lf.dimensions)
-    return _guard(sql + _order_limit(lf))
+    return _guard(sql + _having_clause(lf) + _order_limit(lf))
 
 
 def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables, time_ctx, relations) -> str:
@@ -240,7 +246,7 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
         sql += " WHERE " + " AND ".join(where)
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"{aliases[owners[d]]}.{d}" for d in lf.dimensions)
-    return _guard(sql + _order_limit(lf))
+    return _guard(sql + _having_clause(lf) + _order_limit(lf))
 
 
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
