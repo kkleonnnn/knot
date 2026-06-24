@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from knot.services.semantic.compile_helpers import _resolve_date_col, _resolve_metric_date_col
 from knot.services.semantic.compiler import CompileError, _build_sql, compile_logicform
 from knot.services.semantic.logicform import LogicForm
 
@@ -678,3 +679,59 @@ def test_derived_passes_safety_gates():
     sql = _build_sql(LogicForm(metrics=["arpu"]), _DERIVED_MBN, _TABLES2, _time_ctx())
     assert is_cartesian(sql)[0] is False                         # FROM-less + 0 JOIN → 不误判
     assert _is_safe_sql(sql)[0] is True                          # Select 根 + 嵌套 Subquery ∈ allowed_roots
+
+
+# ─── v0.7.17 metric 显式 date_column + 两遍 _resolve_date_col（修 sta_date gap）R-SL-140~146 ──
+# OHX 风格：显式 date_column=sta_date（维度无 regex-匹配日期列）+ 无 date_column 靠 sta_date 维度兜底
+_GMV_DC = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+           "filters": "[]", "dimensions": '["symbol","city"]', "date_column": "sta_date"}
+_GMV_STA = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+            "filters": "[]", "dimensions": '["sta_date","city"]', "date_column": ""}
+
+
+def test_date_col_two_pass_byte_equal_order_drift():
+    """⭐ R-SL-142（守护者 Stage 3 order-drift 守护）：多日期列 pass1 旧 exact 逐字 → `["created_date","dt"]` 返 `dt`（非 _date$ 列抢占）。"""
+    assert _resolve_date_col(sorted(["created_date", "dt"])) == "dt"          # exact 'dt' 赢 _date$ 'created_date'
+    assert _resolve_date_col(sorted(["amount_date", "stat_date"])) == "stat_date"  # pass1 保留 stat_date
+    assert _resolve_date_col(["date", "city"]) == "date"                      # 存量 byte-equal
+
+
+def test_date_col_two_pass_fills_sta_date():
+    """R-SL-143：pass2 `.endswith("_date")` 兜底 → `sta_date` 命中（修 OHX gap；单 regex re.match 锚首失效）。"""
+    assert _resolve_date_col(["sta_date", "symbol"]) == "sta_date"
+    assert _resolve_date_col(["symbol", "sta_date"]) == "sta_date"            # pass2 与序无关（pass1 全 miss）
+
+
+def test_date_col_no_overmatch():
+    """R-SL-143：无 `_date` 后缀不过匹配（守护者盲刺）→ None（→ time raise → 回退）。"""
+    assert _resolve_date_col(["city"]) is None
+    assert _resolve_date_col(["city_candidate", "update_state"]) is None
+
+
+def test_resolve_metric_date_col_explicit_wins():
+    """R-SL-141/144：显式 date_column 绝对优先（即使维度无匹配列）；空白串 strip→fallback。"""
+    assert _resolve_metric_date_col(_GMV_DC) == "sta_date"                    # 显式赢，dims=[symbol,city] 无 _date
+    assert _resolve_metric_date_col(_GMV_DC, ["symbol"]) == "sta_date"        # fallback_dims 无关，显式赢
+    assert _resolve_metric_date_col(_GMV_STA) == "sta_date"                   # 未声明 → dims 兜底
+    assert _resolve_metric_date_col({"date_column": "  ", "dimensions": '["date"]'}) == "date"  # 空白 strip→fallback
+
+
+def test_metric_date_column_explicit_injects():
+    """R-SL-144：metric date_column=sta_date + time → SQL 含 `o.sta_date BETWEEN`（维度无 _date 列仍注入）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], time="this_month_to_latest"), {"gmv": _GMV_DC}, _TABLES, _time_ctx())
+    assert "o.sta_date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+
+
+def test_metric_date_column_regex_fallback_injects():
+    """R-SL-143：metric 无 date_column + 维度含 sta_date → 两遍 pass2 命中 → 注入（修 OHX gap）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], time="this_month_to_latest"), {"gmv": _GMV_STA}, _TABLES, _time_ctx())
+    assert "o.sta_date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+
+
+def test_metric_no_date_column_byte_equal_existing():
+    """R-SL-142 byte-equal：未声明 date_column + 维度 `["date","city"]`（_GMV 存量）→ 编译 SQL 与 v0.7.16 exact ==。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], time="this_month_to_latest", limit=10)
+    assert _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx()) == (
+        "SELECT SUM(o.pay_amount) AS gmv FROM shop.orders o "
+        "WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21' "
+        "GROUP BY o.city LIMIT 10")

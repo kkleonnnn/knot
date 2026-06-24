@@ -26,6 +26,7 @@ class MetricCreateRequest(BaseModel):
     base_object: str = ""
     filters: str = ""              # JSON list
     dimensions: str = ""           # JSON list
+    date_column: str = ""          # 时间窗注入列名（v0.7.17；显式优先，空=按维度名 regex 推断）
     lineage: str = ""              # 结构化派生定义 JSON {op,left,right}（v0.7.16 激活；空=原子）
     freshness_lag_days: int = 1
     enabled: int = 1
@@ -39,6 +40,7 @@ class MetricUpdateRequest(BaseModel):
     base_object: str | None = None
     filters: str | None = None
     dimensions: str | None = None
+    date_column: str | None = None
     lineage: str | None = None
     freshness_lag_days: int | None = None
     enabled: int | None = None

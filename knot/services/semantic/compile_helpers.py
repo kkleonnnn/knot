@@ -17,8 +17,10 @@ _TIME_KEYS = {
     "this_year", "this_year_to_latest", "this_month", "this_month_to_latest",
     "last_week", "last_7_days_to_latest", "same_period_last_year",
 }
-# 日期列名模式（time 窗注入用；无 explicit date_column 字段 → 约定推断）
-_DATE_COL_RE = re.compile(r"^(date|dt|ds|day|日期|stat_date|biz_date)$", re.I)
+# 日期列名 exact 模式（time 窗注入 regex fallback pass1；metric 未声明 date_column 时约定推断）
+# ⚠️ v0.7.17 两遍解析 pass1 = 此 exact regex 逐字（含 stat_date/biz_date —— 删之引 order-drift）；
+#    pass2 = `.endswith("_date")` 字符串法（非 `_date$` regex —— re.match 锚首使后缀失效，单 regex 是 NO-OP）。
+_DATE_COL_EXACT_RE = re.compile(r"^(date|dt|ds|day|日期|stat_date|biz_date)$", re.I)
 _DEFAULT_LIMIT = 1000  # lf.limit=0 时兜底
 
 
@@ -38,11 +40,30 @@ def _resolve_physical(base_object: str, tables: list[dict]) -> str:
 
 
 def _resolve_date_col(allowed_dims: list[str]) -> str | None:
-    """从可用维度找日期列（time 窗注入用）；无 → None（调用方按 lf.time 是否设定决定 raise）。"""
-    for d in allowed_dims:
-        if _DATE_COL_RE.match(str(d).strip()):
+    """从可用维度找日期列（time 窗注入 regex fallback）；无 → None（调用方按 lf.time 决定 raise）。
+
+    v0.7.17 **两遍解析（strictly additive，守护者 Stage 3 承重修订）**：
+    - pass1 = `_DATE_COL_EXACT_RE` 逐字（旧行为 byte-equal：旧 exact 命中 → 同列同序）；
+    - pass2 = `.endswith("_date")` 兜底（仅 pass1 全 None 时填；修 `sta_date` gap）。
+    单遍合并会让 `_date$` 列抢占旧 exact 列（`["amount_date","stat_date"]` 漂 `amount_date` = 选错日期列）。
+    """
+    for d in allowed_dims:                       # pass1：旧 exact regex（order + result 逐字保留）
+        if _DATE_COL_EXACT_RE.match(str(d).strip()):
+            return str(d).strip()
+    for d in allowed_dims:                        # pass2：`_date` 后缀兜底（仅 pass1 全 miss 时）
+        if str(d).strip().lower().endswith("_date"):
             return str(d).strip()
     return None
+
+
+def _resolve_metric_date_col(m: dict, fallback_dims: list[str] | None = None) -> str | None:
+    """metric 日期列解析（v0.7.17 R-SL-141）：**显式 `date_column` 优先**（注册表显式定义哲学）；
+    未声明（空）→ regex fallback on dims（`fallback_dims` 给定用之，否则 m.dimensions）→ 保 byte-equal。"""
+    explicit = (m.get("date_column") or "").strip()
+    if explicit:
+        return explicit
+    dims = fallback_dims if fallback_dims is not None else _json_list(m.get("dimensions"))
+    return _resolve_date_col(dims)
 
 
 def _json_list(raw) -> list:
@@ -104,7 +125,7 @@ def _scalar_subquery(m: dict, tables: list[dict], time_ctx=None, lf_time: str = 
     physical = _resolve_physical(m["base_object"], tables)
     where = [str(f) for f in _json_list(m.get("filters"))]
     if lf_time:
-        date_col = _resolve_date_col(_json_list(m.get("dimensions")))
+        date_col = _resolve_metric_date_col(m)   # v0.7.17 显式 date_column 优先 + regex fallback
         if date_col is None:
             raise CompileError(f"metric {m.get('name')!r} base 无日期列但 time 设定 → 回退")
         start, end = getattr(time_ctx, lf_time)

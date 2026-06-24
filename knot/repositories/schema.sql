@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     base_object        TEXT    DEFAULT '',           -- 挂的对象/表（v0.7.2 对象层消费）
     filters            TEXT    DEFAULT '',           -- JSON list 口径内置过滤（非密）
     dimensions         TEXT    DEFAULT '',           -- JSON list 可下钻维度
+    date_column        TEXT    DEFAULT '',           -- 时间窗注入列名（v0.7.17；显式优先，空=按维度名 regex 推断）
     lineage            TEXT    DEFAULT '',           -- 结构化派生定义 JSON {op,left,right}（v0.7.16 激活；空=原子）
     freshness_lag_days INTEGER DEFAULT 1,            -- 复用 time_resolver D-1 默认
     enabled            INTEGER DEFAULT 1,            -- 软开关
