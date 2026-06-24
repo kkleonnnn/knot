@@ -226,3 +226,64 @@ def test_canonical_having_omitted_when_empty():
     assert '"having"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
     j = LogicForm(metrics=["gmv"], having=["gmv > 100"]).to_canonical_json()
     assert j.endswith('"having":["gmv > 100"]}')          # 末位 + 非空才出现
+
+
+# ─── v0.7.9 窗口函数（排名/同环比/累计）两层 R-SL-84~88 ──────────────────
+
+def test_window_empty_byte_equal():
+    """R-SL-84：window 空 → 单层 SQL byte-equal（不退化包子查询；现有查询 0 漂移）。"""
+    m = {"gmv": _GMV}
+    base = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"]), m, _TABLES, _time_ctx())
+    win0 = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=[]), m, _TABLES, _time_ctx())
+    assert base == win0 and "OVER" not in win0 and ") sub" not in win0   # 单层不退化
+
+
+def test_window_ranking_two_level():
+    """R-SL-87：两层 —— 外层 SELECT sub.* + 窗口列 + 整个 _order_limit；内层聚合（无 LIMIT）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], limit=10,
+                   window=[{"func": "row_number", "partition_by": ["city"],
+                            "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}])
+    sql = _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert sql.startswith("SELECT sub.*, ROW_NUMBER() OVER (PARTITION BY city ORDER BY gmv DESC) AS rk FROM (")
+    assert "GROUP BY o.city) sub LIMIT 10" in sql        # 内层 GROUP BY（无 LIMIT）+ 外层 LIMIT
+
+
+def test_window_multi_object_alias_based():
+    """⭐ R-SL-86：多对象窗口 OVER 引 **alias**（gmv）—— 内层 caliber 重写 t0，外层 OVER 引子查询 alias 列。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["region"],
+                   window=[{"func": "rank", "partition_by": ["region"],
+                            "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}])
+    sql = _build_sql(lf, {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+    assert "RANK() OVER (PARTITION BY region ORDER BY gmv DESC) AS rk" in sql   # 外层 OVER 引 alias gmv（非 t0.）
+    assert "SUM(t0.pay_amount) AS gmv" in sql            # 内层 caliber 重写 t0
+    assert "FROM (" in sql and ") sub" in sql            # 两层包裹
+
+
+def test_window_func_whitelist_real_sql_names():
+    """R-SL-85：func key 映射**真实 SQL 函数**（dense_rank→DENSE_RANK 非 RANK_DENSE）+ 带参 lag/sum/avg。"""
+    def col(func, arg=None):
+        w = {"func": func, "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "x"}
+        if arg:
+            w["arg"] = arg
+        return _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=[w]),
+                          {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "DENSE_RANK() OVER" in col("dense_rank")      # dense_rank → DENSE_RANK（非 Stage2 笔误 RANK_DENSE）
+    assert "ROW_NUMBER() OVER" in col("row_number")
+    assert "LAG(gmv) OVER" in col("lag", "gmv")          # 带参
+    assert "SUM(gmv) OVER" in col("sum", "gmv")
+    assert "AVG(gmv) OVER" in col("avg", "gmv")          # avg 保留（Stage2 误删）
+
+
+def test_window_unknown_func_raises():
+    """R-SL-85：未知 func（如 Stage2 笔误 rank_dense）→ CompileError 回退（非静默生成不存在函数）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"],
+                   window=[{"func": "rank_dense", "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "x"}])
+    with pytest.raises(CompileError):
+        _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_canonical_window_omitted_when_empty():
+    """R-SL-88：window 空 → canonical 省略键（存量 byte-equal）；非空 → window 末位（having 后）。"""
+    assert '"window"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
+    j = LogicForm(metrics=["gmv"], window=[{"func": "row_number", "as_name": "rk"}]).to_canonical_json()
+    assert '"window"' in j and j.endswith("}")

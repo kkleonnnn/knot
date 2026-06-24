@@ -143,6 +143,44 @@ def _having_clause(lf) -> str:
     return (" HAVING " + " AND ".join(str(h) for h in lf.having)) if lf.having else ""
 
 
+# v0.7.9 窗口函数白名单（func key → 真实 SQL 函数, 是否带参）；R-SL-85 防注入 + 真实函数名（dense_rank→DENSE_RANK）
+_WINDOW_FUNCS = {
+    "row_number": ("ROW_NUMBER", False), "rank": ("RANK", False), "dense_rank": ("DENSE_RANK", False),
+    "lag": ("LAG", True), "lead": ("LEAD", True), "sum": ("SUM", True), "avg": ("AVG", True),
+}
+
+
+def _window_col(w: dict) -> str:
+    """单个窗口列 SQL（v0.7.9 R-SL-85/86）：`<FUNC>(<arg?>) OVER (PARTITION BY .. ORDER BY ..) AS <as_name>`。
+    func 枚举白名单（未知 → CompileError 回退）；PARTITION/ORDER/arg 引 metric alias 或 dimension（alias-based —
+    外层 OVER 引子查询列，免同层聚合表达式 + 多对象 o.→t0 重写）。"""
+    fn = _WINDOW_FUNCS.get(str(w.get("func", "")))
+    if fn is None:
+        raise CompileError(f"未知窗口函数 {w.get('func')!r}（白名单 {sorted(_WINDOW_FUNCS)}）→ 回退")
+    sqlfunc, takes_arg = fn
+    arg = str(w.get("arg") or "") if takes_arg else ""
+    over = []
+    if w.get("partition_by"):
+        over.append("PARTITION BY " + ", ".join(str(p) for p in w["partition_by"]))
+    obs = [f"{o.get('field', '')} {'DESC' if str(o.get('dir', 'asc')).lower() == 'desc' else 'ASC'}"
+           for o in (w.get("order_by") or []) if o.get("field")]
+    if obs:
+        over.append("ORDER BY " + ", ".join(obs))
+    return f"{sqlfunc}({arg}) OVER ({' '.join(over)}) AS {w.get('as_name') or w.get('func')}"
+
+
+def _finalize(inner_core: str, lf) -> str:
+    """inner core（SELECT..GROUP BY）→ 最终 SQL。有 window → **两层**（F2：inner = core + having 不调 _order_limit；
+    外层 `SELECT sub.*, <窗口列> FROM (inner) sub` + **整个 _order_limit**）；无 window → 单层 byte-equal（v0.7.1~.8 0 漂移）。"""
+    inner = inner_core + _having_clause(lf)
+    if lf.window:
+        cols = ", ".join(_window_col(w) for w in lf.window)
+        final = f"SELECT sub.*, {cols} FROM ({inner}) sub" + _order_limit(lf)
+    else:
+        final = inner + _order_limit(lf)
+    return _guard(final)
+
+
 def _guard(sql: str) -> str:
     """R-SL-22 笛卡尔积守护兜底（防 caliber/dimension/JOIN 错配产多表膨胀语法）。"""
     is_cart, reason = is_cartesian(sql)
@@ -196,7 +234,7 @@ def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx)
         sql += " WHERE " + " AND ".join(where)
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"o.{d}" for d in lf.dimensions)
-    return _guard(sql + _having_clause(lf) + _order_limit(lf))
+    return _finalize(sql, lf)
 
 
 def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables, time_ctx, relations) -> str:
@@ -246,7 +284,7 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
         sql += " WHERE " + " AND ".join(where)
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"{aliases[owners[d]]}.{d}" for d in lf.dimensions)
-    return _guard(sql + _having_clause(lf) + _order_limit(lf))
+    return _finalize(sql, lf)
 
 
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
