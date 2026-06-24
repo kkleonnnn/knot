@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.15 — 语义层第十六刀：对象层编译覆盖深化（自定义窗口 frame ROWS BETWEEN）
+## [Unreleased] - v0.7.16 — 语义层第十七刀：派生指标模型（占比/人均 metric÷metric · 标量+单层）
+
+> **v0.7 第十七刀**（资深拍 派生指标模型 · **首个非编译覆盖方向 — metric 模型层扩展**）：占比/人均类
+> **派生指标 = metric÷metric** 走确定性编译（标量+单层，FROM-less 0 JOIN 免疫基数坑）。lineage 列激活
+> （v0.7.0 inert → 结构化 `{op,left,right}`，**0 schema ALTER**）；op 白名单（divide/multiply/add/subtract）
+> 注入安全 + left/right 解析注册表原子 metric（单层防循环）+ divide→NULLIF 除零 + per-dep time 注入「本月 arpu」。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **承重修订**：删 time-gate 反转 Stage 1/2 过度保守 + placement=multi_base 免 ACK → 资深拍板）。R-SL 续号 R-SL-132~139。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.16-derived-metric-model.md](docs/plans/v0.7.16-derived-metric-model.md)。
+
+### Added
+
+- **派生指标模型**（compile_helpers + multi_base + compiler）：单 metric 派生 → `SELECT (left subq) <op> [NULLIF](right subq) AS name`（FROM-less 0 JOIN）；`build_derived_sql`/`_derived_expr`（op 白名单 + left/right 注册表原子 metric 解析 + 单层防循环 + divide→NULLIF）；`_scalar_subquery` 抽共享（multi_base v0.7.11 标量子查询 byte-equal）。
+- **lineage 列激活**（metric_repo + schema 注释 + admin endpoint）：`_validate_lineage` 形状校验（op∈白名单 + left/right）；create 放宽（caliber 必填 OR lineage 合法派生）；`MetricCreateRequest.caliber` 默认 ""（派生免 caliber）。
+- **parser 派生感知**：`_validate_hit` 派生 metric 跳过空 base 检查（R-SL-136）；`_LOGICFORM_SYS` 派生教学（按 name 引用 + 仅标量）。
+- **AdminMetricRegistry 派生定义 field**：left 指标 + op 下拉 + right 指标 → 组装 lineage JSON。
+
+### Notes
+
+- 路由 = `len(lf.metrics)==1 且派生`，dispatch **先于 `_metric_bases`**（防派生空 base_object 被误 raise）；混查/多派生 → graceful 回退。
+- compiler 307 ≤ ACK 310（multi_base placement 免 ACK bump）；Contract 9 守；0 新 schema/路由/AuditAction。
+
+## [Released] - v0.7.15 — 语义层第十六刀：对象层编译覆盖深化（自定义窗口 frame ROWS BETWEEN）
 
 > **v0.7 第十六刀**（资深拍 自定义窗口 frame）：窗口支持 `ROWS BETWEEN` frame → 移动平均/滑动窗口。**编译覆盖深化七刀齐**。
 > 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板 修 frame canonical）。R-SL 续号 R-SL-125~131。`KNOT_SEMANTIC_LAYER` 默认 off。

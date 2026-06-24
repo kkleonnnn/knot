@@ -93,3 +93,49 @@ def _frame_clause(w: dict, takes_arg: bool, has_order_by: bool) -> str:
         raise CompileError("frame（ROWS BETWEEN）需 ORDER BY → 回退")
     f = w["frame"]
     return f"ROWS BETWEEN {_frame_bound(f.get('preceding'), 'PRECEDING')} AND {_frame_bound(f.get('following'), 'FOLLOWING')}"
+
+
+def _scalar_subquery(m: dict, tables: list[dict], time_ctx=None, lf_time: str = "") -> str:
+    """原子 metric 标量子查询 `(SELECT <caliber> FROM <physical> o [WHERE <filters>[AND time]])`（v0.7.16 抽共享）。
+
+    **带括号无别名**；含 per-dep time 注入（lf_time 设 → 该 metric date_col 窗，无日期列 → raise）。
+    multi_base `_build_scalar_sql`（+ AS name）与 derived `_derived_expr`（包算术）复用 → byte-equal v0.7.11。
+    """
+    physical = _resolve_physical(m["base_object"], tables)
+    where = [str(f) for f in _json_list(m.get("filters"))]
+    if lf_time:
+        date_col = _resolve_date_col(_json_list(m.get("dimensions")))
+        if date_col is None:
+            raise CompileError(f"metric {m.get('name')!r} base 无日期列但 time 设定 → 回退")
+        start, end = getattr(time_ctx, lf_time)
+        where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+    sub = f"SELECT {m['caliber']} FROM {physical} o"
+    if where:
+        sub += " WHERE " + " AND ".join(where)
+    return f"({sub})"
+
+
+# v0.7.16 派生指标 op 白名单 → SQL 运算符（R-SL-133 注入安全）
+_OP_SQL = {"divide": "/", "multiply": "*", "add": "+", "subtract": "-"}
+
+
+def _parse_lineage(m: dict):
+    """metric.lineage → 派生定义 dict {op,left,right} 或 None（原子/空/非法）（v0.7.16）。"""
+    raw = m.get("lineage")
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        d = raw
+    else:
+        try:
+            d = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+    if isinstance(d, dict) and d.get("op") and d.get("left") and d.get("right"):
+        return d
+    return None
+
+
+def _is_derived(m: dict) -> bool:
+    """派生 metric = lineage 为合法派生定义 {op,left,right}（R-SL-132 判别）。"""
+    return _parse_lineage(m) is not None

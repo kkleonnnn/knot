@@ -4,7 +4,8 @@
 - OOS-1 死线：metrics 表 0 tenant_id/project_id（14 列契约）+ create/update 拒 tenant_id/project_id 注入
 - metric_repo CRUD（create/get/list/update/delete）+ name+caliber 必填
 - per-catalog name 唯一（UNIQUE(catalog_id, name)）+ 不同 catalog 同名 OK + list_metrics(catalog_id) 过滤
-- lineage v0.7.0 inert 存储（不解析/不校验内容；自引用/循环 DFS 校验留 v0.7.1 编译时）
+- lineage v0.7.16 激活：结构化派生定义 {op∈白名单,left,right} 形状校验（`_validate_lineage`）；
+  派生 metric 免 caliber；deps 原子/单层防循环留编译时（compiler）—— repo 仅校验形状
 """
 import sqlite3
 
@@ -99,11 +100,44 @@ def test_list_metrics_by_catalog(tmp_db_path):
     assert len(c1) == 1 and c1[0]["name"] == "gmv"
 
 
-# ─── lineage inert（v0.7.0 不校验内容；DFS 校验留 v0.7.1）────────────
+# ─── lineage v0.7.16 派生定义形状校验（_validate_lineage）────────────
 
-def test_lineage_inert_stored_unparsed(tmp_db_path):
-    # v0.7.0 lineage 仅 inert 存储 — 任意 JSON（含派生依赖）照存不解析/不校验（DFS 留 v0.7.1）
-    mid = metric_repo.create_metric(
-        catalog_id=1, name="arpu", caliber="gmv / dau", lineage='["gmv","dau"]',
-    )
-    assert metric_repo.get_metric(mid)["lineage"] == '["gmv","dau"]'
+def test_derived_lineage_stored(tmp_db_path):
+    # v0.7.16：派生 metric lineage = 结构化 {op,left,right}，照存（编译时再解析 deps）
+    lin = '{"op":"divide","left":"gmv","right":"dau"}'
+    mid = metric_repo.create_metric(catalog_id=1, name="arpu", lineage=lin)   # 派生免 caliber
+    assert metric_repo.get_metric(mid)["lineage"] == lin
+
+
+def test_derived_metric_exempt_from_caliber(tmp_db_path):
+    # 派生（有 lineage）免 caliber；原子（无 lineage）须 caliber
+    mid = metric_repo.create_metric(catalog_id=1, name="arpu",
+                                    lineage='{"op":"multiply","left":"a","right":"b"}')
+    assert metric_repo.get_metric(mid)["caliber"] == ""          # 派生无 caliber
+
+
+def test_create_no_caliber_no_lineage_raises(tmp_db_path):
+    # 既无 caliber 又无 lineage → MetadataError（原子须 caliber / 派生须 lineage）
+    with pytest.raises(MetadataError):
+        metric_repo.create_metric(catalog_id=1, name="bad")
+
+
+def test_lineage_bad_op_rejected(tmp_db_path):
+    # op ∉ 白名单（divide/multiply/add/subtract）→ MetadataError（形状校验）
+    with pytest.raises(MetadataError):
+        metric_repo.create_metric(catalog_id=1, name="x",
+                                  lineage='{"op":"powerrr","left":"a","right":"b"}')
+
+
+def test_lineage_missing_operand_rejected(tmp_db_path):
+    # lineage 缺 left/right → MetadataError
+    with pytest.raises(MetadataError):
+        metric_repo.create_metric(catalog_id=1, name="x", lineage='{"op":"divide","left":"a"}')
+
+
+def test_lineage_non_json_rejected(tmp_db_path):
+    # lineage 非合法 JSON → MetadataError（旧 inert list '["gmv","dau"]' 在 v0.7.16 也属非派生定义被拒）
+    with pytest.raises(MetadataError):
+        metric_repo.create_metric(catalog_id=1, name="x", caliber="SUM(o.a)", lineage="not json")
+    with pytest.raises(MetadataError):
+        metric_repo.create_metric(catalog_id=1, name="y", caliber="SUM(o.a)", lineage='["gmv","dau"]')

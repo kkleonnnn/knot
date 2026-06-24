@@ -600,3 +600,81 @@ def test_canonical_frame_recursive_sort():
     w2 = LogicForm(metrics=["g"], window=[{"func": "avg", "frame": {"following": 0, "preceding": 6}}]).to_canonical_json()
     assert w1 == w2                                              # 不同键序 → 等 canonical
     assert '"frame":{"following":0,"preceding":6}' in w1         # frame 内递归排（f<p）
+
+
+# ─── v0.7.16 派生指标模型（占比/人均 = metric÷metric · 标量+单层）R-SL-132~139 ──
+# 派生 fixtures：arpu = gmv÷dau（gmv@orders + dau@users 跨 base 标量；派生 base_object 空 + lineage object）
+_GMV_D = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+          "filters": "[]", "dimensions": '["date"]', "lineage": ""}
+_DAU_D = {"name": "dau", "caliber": "COUNT(DISTINCT o.user_id)", "base_object": "shop.users",
+          "filters": "[]", "dimensions": '["date"]', "lineage": ""}
+_ARPU = {"name": "arpu", "caliber": "", "base_object": "",
+         "lineage": '{"op":"divide","left":"gmv","right":"dau"}'}
+_DERIVED_MBN = {"gmv": _GMV_D, "dau": _DAU_D, "arpu": _ARPU}
+
+
+def test_derived_scalar_divide_nullif():
+    """R-SL-132~135：派生 arpu=gmv÷dau → `(left subq) / NULLIF(right subq, 0) AS arpu`（FROM-less 0 JOIN + 除零防护）。"""
+    sql = _build_sql(LogicForm(metrics=["arpu"]), _DERIVED_MBN, _TABLES2, _time_ctx())
+    assert sql == ("SELECT (SELECT SUM(o.pay_amount) FROM shop.orders o) / "
+                   "NULLIF((SELECT COUNT(DISTINCT o.user_id) FROM shop.users o), 0) AS arpu")
+    assert " JOIN " not in sql                                   # 0 JOIN（标量子查询算术，免疫基数坑）
+
+
+def test_derived_dispatch_before_metric_bases():
+    """⭐ R-SL-136：派生 base_object 空 → dispatch **先于** _metric_bases（否则空 base 被误 raise）。"""
+    sql = _build_sql(LogicForm(metrics=["arpu"]), _DERIVED_MBN, _TABLES2, _time_ctx())
+    assert "AS arpu" in sql                                      # 派生 base_object='' 不触发 _metric_bases 空 base raise
+
+
+def test_derived_ops_no_nullif_except_divide():
+    """R-SL-133：×/+/− op → 对应 SQL 运算符；**仅 divide 包 NULLIF**（其余裸算术）。"""
+    for op, sym in (("multiply", "*"), ("add", "+"), ("subtract", "-")):
+        m = dict(_ARPU); m["lineage"] = f'{{"op":"{op}","left":"gmv","right":"dau"}}'
+        sql = _build_sql(LogicForm(metrics=["arpu"]), {**_DERIVED_MBN, "arpu": m}, _TABLES2, _time_ctx())
+        assert f" {sym} " in sql and "NULLIF" not in sql
+
+
+def test_derived_unknown_op_raises():
+    """⭐ R-SL-133 注入安全：op ∉ 白名单（divide/multiply/add/subtract）→ CompileError（0 裸拼运算符）。"""
+    m = dict(_ARPU); m["lineage"] = '{"op":"powerrr","left":"gmv","right":"dau"}'
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["arpu"]), {**_DERIVED_MBN, "arpu": m}, _TABLES2, _time_ctx())
+
+
+def test_derived_dep_not_in_registry_raises():
+    """R-SL-134：派生 left/right ∉ 注册表 → CompileError 回退（无 gmv/dau 定义）。"""
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["arpu"]), {"arpu": _ARPU}, _TABLES2, _time_ctx())
+
+
+def test_derived_nested_single_level_raises():
+    """⭐ R-SL-135 单层防循环：left/right 须**原子** metric；嵌套派生（left=派生）→ CompileError（免 DFS 循环）。"""
+    nested = {"name": "x", "caliber": "", "base_object": "",
+              "lineage": '{"op":"divide","left":"arpu","right":"dau"}'}   # left=arpu(派生)
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["x"]), {**_DERIVED_MBN, "x": nested}, _TABLES2, _time_ctx())
+
+
+def test_derived_non_scalar_fallback():
+    """R-SL-137：派生仅标量 — dimensions/having/window/qualify/outer/filters 任一 → CompileError（维度派生留后续）。"""
+    for extra in ({"dimensions": ["city"]}, {"having": ["arpu>1"]},
+                  {"filters": ["o.x=1"]}, {"limit": 0, "outer": {"func": "count"}}):
+        with pytest.raises(CompileError):
+            _build_sql(LogicForm(metrics=["arpu"], **extra), _DERIVED_MBN, _TABLES2, _time_ctx())
+
+
+def test_derived_time_per_dep_injection():
+    """⭐ R-SL-138（守护者修订 1）：本月 arpu → time **per-dep 注入**两子查询（gmv@orders.date + dau@users.date 各自窗）。"""
+    sql = _build_sql(LogicForm(metrics=["arpu"], time="this_month_to_latest"), _DERIVED_MBN, _TABLES2, _time_ctx())
+    assert "FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+    assert "FROM shop.users o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+
+
+def test_derived_passes_safety_gates():
+    """R-SL-139：派生标量（FROM-less + 嵌套 Subquery 算术）过 is_cartesian（0 JOIN 不误判）+ _is_safe_sql DQL-only。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    from knot.services.sql_validator import is_cartesian
+    sql = _build_sql(LogicForm(metrics=["arpu"]), _DERIVED_MBN, _TABLES2, _time_ctx())
+    assert is_cartesian(sql)[0] is False                         # FROM-less + 0 JOIN → 不误判
+    assert _is_safe_sql(sql)[0] is True                          # Select 根 + 嵌套 Subquery ∈ allowed_roots

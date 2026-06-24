@@ -23,6 +23,7 @@ from knot.services.semantic.compile_helpers import (
     _TIME_KEYS,
     CompileError,
     _frame_clause,
+    _is_derived,
     _json_list,
     _order_limit,
     _resolve_date_col,
@@ -163,7 +164,10 @@ def _guard(sql: str) -> str:
 
 def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ctx, relations=None) -> str:
     """确定性 SQL 构建（纯，可单测）。单对象 → v0.7.1 byte-equal（R-SL-28）；跨对象维度 → 多表 JOIN；
-    多 base（≥2 聚合对象）→ 标量子查询入 SELECT（R-SL-98/99，0 JOIN 按构造免疫基数坑）。"""
+    多 base（≥2 聚合对象）→ 标量子查询入 SELECT（R-SL-98/99）；单 metric 派生 → metric÷metric 标量（R-SL-132~139）。"""
+    if len(lf.metrics) == 1 and _is_derived(metrics_by_name.get(lf.metrics[0], {})):
+        # v0.7.16 派生指标（先于 _metric_bases —— 派生 base_object 空会被 L54 raise 误杀；R-SL-136）
+        return _guard(multi_base.build_derived_sql(lf, metrics_by_name, tables, time_ctx))
     bases = _metric_bases(list(lf.metrics), metrics_by_name)  # 存在性 + base 集（排序确定性）
     if len(bases) > 1:
         # v0.7.13：多 base 抽 multi_base.py（返 raw）；_guard 留 compiler 跨 build path 统一应用（R-SL-114）
