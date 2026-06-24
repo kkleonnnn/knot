@@ -189,10 +189,62 @@ def test_cross_object_dim_no_owner_fallback():
                    {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
 
 
-def test_multi_base_aggregation_fallback():
-    """metrics 跨 2 base（gmv on orders + uc on users 都聚合）→ CompileError 回退（R-SL-31 多 base 不支持）。"""
+# ─── v0.7.11 多 base 标量聚合（标量子查询入 SELECT · 0 JOIN）R-SL-98~103 ──────
+# R-SL-102 语义变更：v0.7.11 前 test_multi_base_aggregation_fallback（无维度 gmv+uc → CompileError）；
+# 现无维度多 base → 确定性编译（capability upgrade）；多 base + 维度/非标量 → 仍 fallback（守护边界）。
+
+def test_multi_base_scalar_aggregation():
+    """R-SL-98/99/100：多 base 标量 → 标量子查询入 SELECT（0 JOIN，保序，按构造 1 行）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+    assert sql == ("SELECT (SELECT SUM(o.pay_amount) FROM shop.orders o WHERE o.status='paid') AS gmv, "
+                   "(SELECT COUNT(o.id) FROM shop.users o) AS uc LIMIT 1000")
+    assert " JOIN " not in sql                           # 0 JOIN（标量子查询入 SELECT 而非 JOIN）
+
+
+def test_multi_base_scalar_metrics_order_preserved():
+    """R-SL-99：lf.metrics 保序 = SELECT 列序（uc 先则 uc 列在前；非 base 排序）。"""
+    sql = _build_sql(LogicForm(metrics=["uc", "gmv"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+    assert sql.index("AS uc") < sql.index("AS gmv")
+
+
+def test_multi_base_with_dimensions_fallback():
+    """R-SL-101：多 base + 维度 → CompileError 回退（聚合后 JOIN 正确性承重，留后续刀）。"""
     with pytest.raises(CompileError):
-        _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+        _build_sql(LogicForm(metrics=["gmv", "uc"], dimensions=["city"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+
+
+def test_multi_base_non_scalar_fallback():
+    """⭐ R-SL-101 全矩阵 raise（守护者 Stage 3 — 非 assert）：多 base + having/window/qualify/filters 任一 → 回退。"""
+    m = {"gmv": _GMV, "uc": _UC}
+    for extra in ({"having": ["gmv > 1"]}, {"window": [{"func": "rank", "as_name": "r"}]},
+                  {"qualify": ["r <= 1"]}, {"filters": ["o.x = 1"]}):
+        with pytest.raises(CompileError):
+            _build_sql(LogicForm(metrics=["gmv", "uc"], **extra), m, _TABLES2, _time_ctx())
+
+
+def test_multi_base_time_base_without_date_fallback():
+    """R-SL-101：多 base + time 但某 base（uc dims=[region]）无日期列 → CompileError 回退。"""
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv", "uc"], time="this_month_to_latest"),
+                   {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+
+
+def test_multi_base_scalar_with_time_per_base():
+    """多 base 标量 + time：各 base 子查询各注入**自己 base** 的日期窗。"""
+    uc_dated = dict(_UC); uc_dated["dimensions"] = '["date","region"]'    # users 带 date
+    sql = _build_sql(LogicForm(metrics=["gmv", "uc"], time="this_month_to_latest"),
+                     {"gmv": _GMV, "uc": uc_dated}, _TABLES2, _time_ctx())
+    assert "FROM shop.orders o WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+    assert "FROM shop.users o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+
+
+def test_multi_base_scalar_passes_safety_gates():
+    """R-SL-100/103：标量多 base（FROM-less + 嵌套 Subquery）过 is_cartesian + _is_safe_sql DQL-only。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    from knot.services.sql_validator import is_cartesian
+    sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+    assert is_cartesian(sql)[0] is False                 # 0 JOIN / 无 comma-FROM → 不误判（R-SL-100）
+    assert _is_safe_sql(sql)[0] is True                  # Select 根 + 嵌套 Subquery ∈ allowed_roots（R-SL-103）
 
 
 # ─── v0.7.8 HAVING（聚合后过滤）R-SL-78~81 ────────────────────────────

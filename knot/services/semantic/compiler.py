@@ -36,8 +36,12 @@ class CompileError(Exception):
     """编译无法干净确定性完成 → 调用方回退 LLM（混合架构 R-SL-14）。"""
 
 
-def _resolve_single_object(lf_metrics: list[str], metrics_by_name: dict[str, dict]) -> str:
-    """全部引用 metric ∈ 注册表 + 共享同一 base_object（单对象 R-SL-18）；否则 raise。"""
+def _metric_bases(lf_metrics: list[str], metrics_by_name: dict[str, dict]) -> list[str]:
+    """存在性校验 + 返回引用 metric 的 base_object 集（排序确定性）。任一未定义 / 无 base → raise。
+
+    单 base（len==1）/ 多 base（len>1）由 `_build_sql` 按 len 分发（R-SL-98）：单 base 走 v0.7.1/.2
+    路径；多 base 走标量聚合（R-SL-99）。v0.7.11 前是 `_resolve_single_object`（多 base 直接 raise）。
+    """
     if not lf_metrics:
         raise CompileError("LogicForm 无 metric 引用")
     objs = set()
@@ -45,10 +49,11 @@ def _resolve_single_object(lf_metrics: list[str], metrics_by_name: dict[str, dic
         m = metrics_by_name.get(name)
         if m is None:
             raise CompileError(f"未定义 metric: {name!r}")
-        objs.add((m.get("base_object") or "").strip())
-    if len(objs) != 1 or "" in objs:
-        raise CompileError(f"非单对象（base_object={objs}）—— 跨对象 JOIN 留 v0.7.2")
-    return objs.pop()
+        b = (m.get("base_object") or "").strip()
+        if not b:
+            raise CompileError(f"metric {name!r} 无 base_object")
+        objs.add(b)
+    return sorted(objs)
 
 
 def _resolve_physical(base_object: str, tables: list[dict]) -> str:
@@ -197,8 +202,12 @@ def _guard(sql: str) -> str:
 
 
 def _build_sql(lf, metrics_by_name: dict[str, dict], tables: list[dict], time_ctx, relations=None) -> str:
-    """确定性 SQL 构建（纯，可单测）。单对象 → v0.7.1 byte-equal（R-SL-28）；跨对象维度 → 多表 JOIN。"""
-    base = _resolve_single_object(list(lf.metrics), metrics_by_name)  # 单聚合 base（多 base → raise R-SL-31）
+    """确定性 SQL 构建（纯，可单测）。单对象 → v0.7.1 byte-equal（R-SL-28）；跨对象维度 → 多表 JOIN；
+    多 base（≥2 聚合对象）→ 标量子查询入 SELECT（R-SL-98/99，0 JOIN 按构造免疫基数坑）。"""
+    bases = _metric_bases(list(lf.metrics), metrics_by_name)  # 存在性 + base 集（排序确定性）
+    if len(bases) > 1:
+        return _build_multi_base_sql(lf, metrics_by_name, tables, time_ctx)  # 多 base 标量聚合（R-SL-98）
+    base = bases[0]
     obj_dims = _object_dims_map(metrics_by_name)
     owners = {d: _resolve_dim_owner(d, base, obj_dims) for d in lf.dimensions}
     if all(o == base for o in owners.values()):
@@ -292,6 +301,38 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"{aliases[owners[d]]}.{d}" for d in lf.dimensions)
     return _finalize(sql, lf)
+
+
+def _build_multi_base_sql(lf, metrics_by_name, tables, time_ctx) -> str:
+    """多 base 标量聚合（R-SL-98~101）：每 metric → 独立标量子查询入 SELECT（FROM-less，0 JOIN）。
+
+    基数安全 BY CONSTRUCTION（R-SL-100）：标量子查询 GROUP-BY-less → 各返 1 行；外层 FROM-less → 1 行；
+    0 JOIN → 无 fan-out，免疫 v0.7.2「JOIN 后聚合」基数承重坑（不需 joingraph/cardinality_safe）。
+    各子查询单 base alias `o`（caliber/filters `o.` 前缀在各自子查询内有效，免 _rewrite_caliber）。
+    """
+    # ⭐ 全矩阵 raise-guard（守护者 Stage 3 — 非 assert）：标量形态 SELECT (subq) AS m, …（FROM-less 1 行）
+    # 无法表达 dims（无组）/ having（无组）/ window（无分区）/ qualify（无 window）/ filters（多 base 归属歧义）。
+    # raise CompileError（触发混合架构优雅回退 LLM），非 assert（-O 禁用守护 + 崩溃非回退）。
+    if lf.dimensions or lf.having or lf.window or lf.qualify or lf.filters:
+        raise CompileError("多 base 仅标量（维度/having/window/qualify/filters 任一非空 → 回退；聚合后 JOIN 留后续刀）")
+    if lf.time and lf.time not in _TIME_KEYS:
+        raise CompileError(f"未知 time 枚举 {lf.time!r}")
+    subs = []
+    for name in lf.metrics:                                   # 保序（lf.metrics 序 = SELECT 列序）
+        m = metrics_by_name[name]                             # 存在性已由 _metric_bases 校验
+        physical = _resolve_physical(m["base_object"], tables)    # HTTP/未匹配 → raise
+        where = [str(f) for f in _json_list(m.get("filters"))]    # 各 base 口径内置 filters（alias o 不重写）
+        if lf.time:
+            date_col = _resolve_date_col(_json_list(m.get("dimensions")))
+            if date_col is None:
+                raise CompileError(f"metric {name!r} base 无日期列但 lf.time 设定 → 回退")
+            start, end = getattr(time_ctx, lf.time)
+            where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+        sub = f"SELECT {m['caliber']} FROM {physical} o"
+        if where:
+            sub += " WHERE " + " AND ".join(where)
+        subs.append(f"({sub}) AS {name}")
+    return _guard("SELECT " + ", ".join(subs) + _order_limit(lf))
 
 
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
