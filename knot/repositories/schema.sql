@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS catalogs (
 -- ⚠️ OOS-1 死线 sustained：metric 归 catalog_id（语义层水平切分）；严禁 tenant_id / project_id 列。
 --    catalog_id = 逻辑外键（soft ref → catalogs(id)，无 enforced FK；与 users.active_catalog_id /
 --    audit_log.catalog_id 同为裸 INTEGER，项目未启 PRAGMA foreign_keys）。
--- lineage：派生指标依赖（JSON list）；v0.7.0 仅 inert 存储，自引用/循环 DFS 校验留 v0.7.1（编译时）。
+-- lineage：v0.7.16 激活为结构化派生定义 JSON object {op,left,right}（占比/人均 metric÷metric）；单层 deps 编译校验，嵌套 DFS 留后续。
 CREATE TABLE IF NOT EXISTS metrics (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
     catalog_id         INTEGER NOT NULL DEFAULT 1,  -- soft ref catalogs(id)；OOS-1 水平切分非租户
@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     base_object        TEXT    DEFAULT '',           -- 挂的对象/表（v0.7.2 对象层消费）
     filters            TEXT    DEFAULT '',           -- JSON list 口径内置过滤（非密）
     dimensions         TEXT    DEFAULT '',           -- JSON list 可下钻维度
-    lineage            TEXT    DEFAULT '',           -- JSON list 派生依赖（inert；v0.7.1 编译校验）
+    lineage            TEXT    DEFAULT '',           -- 结构化派生定义 JSON {op,left,right}（v0.7.16 激活；空=原子）
     freshness_lag_days INTEGER DEFAULT 1,            -- 复用 time_resolver D-1 默认
     enabled            INTEGER DEFAULT 1,            -- 软开关
     created_at         TEXT    DEFAULT (datetime('now','localtime')),

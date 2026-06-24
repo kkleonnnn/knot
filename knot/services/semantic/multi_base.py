@@ -10,12 +10,16 @@ test monkeypatch `compiler.is_cartesian`）；compiler `_build_sql` 多 base 分
 from __future__ import annotations
 
 from knot.services.semantic.compile_helpers import (
+    _OP_SQL,
     _TIME_KEYS,
     CompileError,
+    _is_derived,
     _json_list,
     _order_limit,
+    _parse_lineage,
     _resolve_date_col,
     _resolve_physical,
+    _scalar_subquery,
 )
 
 
@@ -38,21 +42,8 @@ def _build_scalar_sql(lf, metrics_by_name, tables, time_ctx) -> str:
     """多 base 标量聚合（R-SL-98~100）：每 metric → 独立标量子查询入 SELECT（FROM-less，0 JOIN）。
     基数 BY CONSTRUCTION：标量子查询各返 1 行 + FROM-less → 1 行；0 JOIN 无 fan-out，免疫 v0.7.2 基数坑。
     各子查询单 base alias `o`（免 _rewrite_caliber）。返 raw（compiler 包 _guard）。"""
-    subs = []
-    for name in lf.metrics:                                   # 保序（lf.metrics 序 = SELECT 列序）
-        m = metrics_by_name[name]                             # 存在性已由 _metric_bases 校验
-        physical = _resolve_physical(m["base_object"], tables)    # HTTP/未匹配 → raise
-        where = [str(f) for f in _json_list(m.get("filters"))]    # 各 base 口径内置 filters（alias o 不重写）
-        if lf.time:
-            date_col = _resolve_date_col(_json_list(m.get("dimensions")))
-            if date_col is None:
-                raise CompileError(f"metric {name!r} base 无日期列但 lf.time 设定 → 回退")
-            start, end = getattr(time_ctx, lf.time)
-            where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
-        sub = f"SELECT {m['caliber']} FROM {physical} o"
-        if where:
-            sub += " WHERE " + " AND ".join(where)
-        subs.append(f"({sub}) AS {name}")
+    subs = [f"{_scalar_subquery(metrics_by_name[name], tables, time_ctx, lf.time)} AS {name}"
+            for name in lf.metrics]   # v0.7.16 复用 _scalar_subquery（抽共享 byte-equal；保序 = SELECT 列序）
     return "SELECT " + ", ".join(subs) + _order_limit(lf)
 
 
@@ -90,3 +81,35 @@ def _build_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
     driver = "(" + " UNION ".join(union_branches) + ") dim"   # 维度并集（对称不丢）
     sel_dims = ", ".join(f"dim.{d}" for d in lf.dimensions)
     return f"SELECT {sel_dims}, {', '.join(sel_metrics)} FROM {driver}" + "".join(agg_joins) + _order_limit(lf)
+
+
+def build_derived_sql(lf, metrics_by_name, tables, time_ctx) -> str:
+    """派生指标标量编译（v0.7.16 R-SL-132~139；placement=multi_base 资深拍）：单 metric 派生 →
+    `SELECT (left subq) <op> NULLIF(right subq, 0) AS name`（FROM-less，0 JOIN）。返 raw（compiler 包 _guard）。
+
+    标量 gate（去 time —— time per-dep 注入已在 _scalar_subquery；filters 禁 — 下推 dep 歧义）。
+    路由（compiler）保证 len(lf.metrics)==1 且该 metric 派生。
+    """
+    if lf.dimensions or lf.having or lf.window or lf.qualify or lf.outer or lf.filters:
+        raise CompileError("派生指标仅标量（维度/having/window/qualify/outer/filters → 回退；维度派生留后续）")
+    name = lf.metrics[0]
+    return "SELECT " + _derived_expr(metrics_by_name[name], metrics_by_name, tables, time_ctx, lf.time) + f" AS {name}"
+
+
+def _derived_expr(m, metrics_by_name, tables, time_ctx, lf_time) -> str:
+    """派生表达式 `(left subq) <op> [NULLIF](right subq)`（R-SL-133/134/135）：op 白名单 + left/right
+    解析注册表**原子** metric（单层防循环）+ divide → NULLIF 除零；left/right 标量子查询含 per-dep time。"""
+    lin = _parse_lineage(m)                       # {op, left, right}
+    op = _OP_SQL.get(lin["op"])
+    if op is None:
+        raise CompileError(f"未知派生 op {lin['op']!r}（白名单 {sorted(_OP_SQL)}）→ 回退")
+    left_m, right_m = metrics_by_name.get(lin["left"]), metrics_by_name.get(lin["right"])
+    if not left_m or not right_m:
+        raise CompileError(f"派生 left/right ({lin['left']!r}/{lin['right']!r}) ∉ 注册表 → 回退")
+    if _is_derived(left_m) or _is_derived(right_m):   # ⭐ 单层：left/right 须原子（嵌套留后续，免 DFS）
+        raise CompileError("派生 left/right 须原子 metric（嵌套派生留后续）→ 回退")
+    left = _scalar_subquery(left_m, tables, time_ctx, lf_time)
+    right = _scalar_subquery(right_m, tables, time_ctx, lf_time)
+    if lin["op"] == "divide":                     # ⭐ 除零防护
+        right = f"NULLIF({right}, 0)"
+    return f"{left} {op} {right}"

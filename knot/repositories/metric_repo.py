@@ -6,10 +6,12 @@
    `_UPDATABLE` 白名单 + `_reject_forbidden` 入口死锁（拒 tenant_id/project_id 注入）。
 
 镜像 catalog_repo（v0.6.2.5）：get_conn / close / MetadataError / `_COLS` / `_UPDATABLE` / dict 返回。
-per-catalog name 唯一（schema `UNIQUE(catalog_id, name)`）。lineage v0.7.0 inert 存储
-（自引用/循环 DFS 校验留 v0.7.1 编译时；本仓不解析 lineage 内容）。
+per-catalog name 唯一（schema `UNIQUE(catalog_id, name)`）。lineage v0.7.16 激活为**结构化派生定义**
+`{op,left,right}`（占比/人均 metric÷metric）；repo 仅校验形状（`_validate_lineage`），deps 原子/单层防循环留编译时。
 """
 from __future__ import annotations
+
+import json
 
 from knot.models.errors import MetadataError
 from knot.repositories.base import get_conn
@@ -36,6 +38,25 @@ def _reject_forbidden(fields: dict) -> None:
     bad = [k for k in _FORBIDDEN_KEYS if k in fields]
     if bad:
         raise MetadataError(f"OOS-1 死线：metric 严禁 {bad} 列（catalog_id = 水平切分非租户隔离）")
+
+
+# v0.7.16 派生指标 op 白名单（与 compile_helpers._OP_SQL 对齐；repo ⊥ semantic 层不 import，本地常量）
+_DERIVED_OPS = {"divide", "multiply", "add", "subtract"}
+
+
+def _validate_lineage(lineage) -> None:
+    """派生 metric lineage 校验（v0.7.16）：空（原子）OK；非空须**结构化派生定义** {op∈白名单, left, right}。
+
+    deps 原子性 / 跨注册表存在 / 单层防循环留**编译时**（compiler `_derived_expr`）——repo 仅校验形状。
+    """
+    if not lineage:
+        return  # 原子 metric
+    try:
+        d = json.loads(lineage) if isinstance(lineage, str) else lineage
+    except (ValueError, TypeError):
+        raise MetadataError("lineage 须合法 JSON（派生定义 {op,left,right}）")
+    if not (isinstance(d, dict) and d.get("op") in _DERIVED_OPS and d.get("left") and d.get("right")):
+        raise MetadataError(f"派生 lineage 须 {{op∈{sorted(_DERIVED_OPS)}, left, right}}")
 
 
 def list_metrics(catalog_id: int | None = None) -> list[dict]:
@@ -70,8 +91,11 @@ def create_metric(catalog_id: int = 1, **fields) -> int:
     """
     _reject_forbidden(fields)
     cols = [k for k in _UPDATABLE if k in fields]
-    if "name" not in cols or "caliber" not in cols:
-        raise MetadataError("metric 须含 name + caliber（口径单一真源）")
+    _validate_lineage(fields.get("lineage"))   # v0.7.16 派生定义形状校验
+    if "name" not in cols:
+        raise MetadataError("metric 须含 name")
+    if "caliber" not in cols and not fields.get("lineage"):   # 原子须 caliber；派生（lineage）免 caliber
+        raise MetadataError("metric 须含 caliber（原子口径）或 lineage（派生定义 {op,left,right}）")
     conn = get_conn()
     try:
         placeholders = ", ".join(["?"] * (len(cols) + 1))
