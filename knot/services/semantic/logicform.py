@@ -20,6 +20,8 @@ class LogicForm:
     - time: time_resolver 枚举 key（如 this_month_to_latest）；"" = 不限时间窗
     - order_by: [{"field": <metric|dim>, "dir": "asc"|"desc"}]
     - limit: 0 = 不限（编译器兜底默认 LIMIT）
+    - having: 聚合后过滤（HAVING；v0.7.8）—— **强制 alias-based** 引 metric name（如 ["gmv > 10000"]），
+      严禁原始 o.col/裸 caliber（多对象 o. 不重写 → DB 报未知列 R-SL-80）
     """
 
     metrics: list[str]
@@ -28,6 +30,7 @@ class LogicForm:
     time: str = ""
     order_by: list[dict] = field(default_factory=list)
     limit: int = 0
+    having: list[str] = field(default_factory=list)
 
     def to_canonical_json(self) -> str:
         """确定性 canonical JSON —— 固定字段序 + 紧凑分隔；同内容 LogicForm → byte-equal。
@@ -35,18 +38,17 @@ class LogicForm:
         list 保序（metrics/dimensions 顺序语义相关）；order_by 内 dict key 排序（确定性）。
         用途：① 确定性自检（R-SL-17 基础）② 编译缓存 key ③ admin 审计 surface（v0.7.3）。
         """
-        return json.dumps(
-            {
-                "metrics": list(self.metrics),
-                "dimensions": list(self.dimensions),
-                "filters": list(self.filters),
-                "time": self.time,
-                "order_by": [dict(sorted(o.items())) for o in self.order_by],
-                "limit": int(self.limit),
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        obj = {
+            "metrics": list(self.metrics),
+            "dimensions": list(self.dimensions),
+            "filters": list(self.filters),
+            "time": self.time,
+            "order_by": [dict(sorted(o.items())) for o in self.order_by],
+            "limit": int(self.limit),
+        }
+        if self.having:   # R-SL-81：空省略键（末位）→ 与存量 canonical（无 having）byte-equal
+            obj["having"] = list(self.having)
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
     @classmethod
     def from_dict(cls, d: dict) -> LogicForm:
@@ -63,4 +65,5 @@ class LogicForm:
             time=str(d.get("time") or ""),
             order_by=[dict(o) for o in (d.get("order_by") or []) if isinstance(o, dict)],
             limit=int(d.get("limit") or 0),
+            having=list(d.get("having") or []),
         )

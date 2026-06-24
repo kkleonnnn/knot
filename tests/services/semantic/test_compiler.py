@@ -193,3 +193,36 @@ def test_multi_base_aggregation_fallback():
     """metrics 跨 2 base（gmv on orders + uc on users 都聚合）→ CompileError 回退（R-SL-31 多 base 不支持）。"""
     with pytest.raises(CompileError):
         _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+
+
+# ─── v0.7.8 HAVING（聚合后过滤）R-SL-78~81 ────────────────────────────
+
+def test_having_empty_byte_equal():
+    """R-SL-78：having 空 → SQL byte-equal（无 HAVING；现有查询 0 漂移）。"""
+    m = {"gmv": _GMV}
+    base = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"]), m, _TABLES, _time_ctx())
+    empty = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], having=[]), m, _TABLES, _time_ctx())
+    assert base == empty and "HAVING" not in empty
+
+
+def test_having_single_object():
+    """单对象 HAVING：GROUP BY 后 / LIMIT 前，引 metric alias。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], having=["gmv > 10000"]),
+                     {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "GROUP BY o.city HAVING gmv > 10000 LIMIT" in sql
+
+
+def test_having_multi_object_alias_based():
+    """⭐ R-SL-80：多对象 HAVING 用 **alias**（gmv）编对 —— caliber 重写 t0 但 HAVING 引 SELECT alias（非 raw o.）。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"], having=["gmv > 10000"]),
+                     {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
+    assert "HAVING gmv > 10000" in sql                    # alias-based（非 raw o.pay_amount）
+    assert "SUM(t0.pay_amount) AS gmv" in sql             # caliber 重写 t0 + alias gmv（HAVING 引此 alias）
+    assert sql.index("GROUP BY") < sql.index("HAVING") < sql.index("LIMIT")   # 子句序：GROUP BY → HAVING → LIMIT
+
+
+def test_canonical_having_omitted_when_empty():
+    """R-SL-81：having 空 → canonical 省略键（与存量 canonical byte-equal）；非空 → having 末位。"""
+    assert '"having"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
+    j = LogicForm(metrics=["gmv"], having=["gmv > 100"]).to_canonical_json()
+    assert j.endswith('"having":["gmv > 100"]}')          # 末位 + 非空才出现
