@@ -12,7 +12,7 @@ import { api } from '../api.js';
 // op/left/right = UI-only 派生字段（提交时组装 lineage JSON；编辑时从 lineage 反解）
 const _EMPTY = {
   name: '', display: '', caliber: '', aliases: '',
-  base_object: '', dimensions: '', freshness_lag_days: 1, enabled: 1,
+  base_object: '', dimensions: '', date_column: '', freshness_lag_days: 1, enabled: 1,
   op: '', left: '', right: '',
 };
 const _DERIVED_OPS = ['divide', 'multiply', 'add', 'subtract'];   // 与后端 _DERIVED_OPS / compile_helpers._OP_SQL 对齐
@@ -37,7 +37,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
     try { const lin = m.lineage && JSON.parse(m.lineage); if (lin && lin.op) { op = lin.op; left = lin.left || ''; right = lin.right || ''; } } catch { /* 非派生 */ }
     setDraft({
       name: m.name, display: m.display || '', caliber: m.caliber || '', aliases: m.aliases || '',
-      base_object: m.base_object || '', dimensions: m.dimensions || '',
+      base_object: m.base_object || '', dimensions: m.dimensions || '', date_column: m.date_column || '',
       freshness_lag_days: m.freshness_lag_days ?? 1, enabled: m.enabled ?? 1,
       op, left, right,
     });
@@ -116,12 +116,14 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
               <input style={{ ...inputStyleMono(T), width: '100%', maxWidth: 560 }} value={draft.aliases}
                      onChange={e => setDraft({ ...draft, aliases: e.target.value })} placeholder='["成交额","gmv"]'/>
             </FormRow>
-            <FormRow T={T} label="基础对象 / 维度" hint="base_object + dimensions（v0.7.0 inert；v0.7.1 编译用）">
+            <FormRow T={T} label="基础对象 / 维度 / 日期列" hint="base_object + dimensions（JSON）+ 日期列（时间窗注入用，如 sta_date；留空按维度名启发式推断）">
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input style={{ ...inputStyleMono(T), width: 180 }} value={draft.base_object}
                        onChange={e => setDraft({ ...draft, base_object: e.target.value })} placeholder="orders"/>
-                <input style={{ ...inputStyleMono(T), width: 280 }} value={draft.dimensions}
+                <input style={{ ...inputStyleMono(T), width: 240 }} value={draft.dimensions}
                        onChange={e => setDraft({ ...draft, dimensions: e.target.value })} placeholder='["date","city"]'/>
+                <input style={{ ...inputStyleMono(T), width: 130 }} value={draft.date_column}
+                       onChange={e => setDraft({ ...draft, date_column: e.target.value })} placeholder="sta_date"/>
               </div>
             </FormRow>
             <FormRow T={T} label="数据延迟 / 启用" last>
