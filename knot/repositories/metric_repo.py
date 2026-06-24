@@ -85,8 +85,9 @@ def get_metric(metric_id: int) -> dict | None:
 
 
 def create_metric(catalog_id: int = 1, **fields) -> int:
-    """新建 metric；返回新 id。name + caliber 必填；OOS-1 拒 tenant_id/project_id。
+    """新建 metric；返回新 id。name 必填 + (caliber 原子口径 OR lineage 派生定义) 二选一；OOS-1 拒 tenant_id/project_id。
 
+    派生 metric（lineage）免 caliber → 插 '' 满足 schema NOT NULL（0 schema 改）。
     per-catalog name 重复 → sqlite3.IntegrityError（schema UNIQUE(catalog_id, name)）。
     """
     _reject_forbidden(fields)
@@ -96,6 +97,9 @@ def create_metric(catalog_id: int = 1, **fields) -> int:
         raise MetadataError("metric 须含 name")
     if "caliber" not in cols and not fields.get("lineage"):   # 原子须 caliber；派生（lineage）免 caliber
         raise MetadataError("metric 须含 caliber（原子口径）或 lineage（派生定义 {op,left,right}）")
+    if "caliber" not in fields:               # 派生免 caliber → 插 '' 满足 schema NOT NULL（R-SL-132 0 schema 改）
+        fields["caliber"] = ""
+        cols = [k for k in _UPDATABLE if k in fields]   # 重算含 caliber
     conn = get_conn()
     try:
         placeholders = ", ".join(["?"] * (len(cols) + 1))
