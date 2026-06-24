@@ -20,13 +20,13 @@ router = APIRouter()
 class MetricCreateRequest(BaseModel):
     catalog_id: int = 1
     name: str
-    caliber: str
+    caliber: str = ""              # 原子指标必填；派生指标（lineage）免 caliber（repo _validate 兜底）
     display: str = ""
     aliases: str = ""              # JSON list
     base_object: str = ""
     filters: str = ""              # JSON list
     dimensions: str = ""           # JSON list
-    lineage: str = ""              # JSON list（inert — v0.7.1 编译校验）
+    lineage: str = ""              # 结构化派生定义 JSON {op,left,right}（v0.7.16 激活；空=原子）
     freshness_lag_days: int = 1
     enabled: int = 1
 

@@ -2,17 +2,20 @@
 // ⚠️ ≠ AdminMetrics.jsx（内测健康 KPI 屏）；route admin-metric-registry / nav 指标注册表。
 // UI v2 设计系统（镜像 AdminBudgets + tab_resources tokens：T.card/border/radius12 + brandSoft +
 // pillBtn/FormRow/inputStyleMono/theadStyle）。CRUD → /api/admin/metrics-registry（C2 端点）。
-// OOS-1：metric.catalog_id 水平切分（默认 1）；lineage v0.7.0 inert（v0.7.1 LogicForm 编译）。
+// OOS-1：metric.catalog_id 水平切分（默认 1）；lineage v0.7.16 激活为派生定义 {op,left,right}（占比/人均）。
 import { useState, useEffect } from 'react';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
 import { api } from '../api.js';
 
+// op/left/right = UI-only 派生字段（提交时组装 lineage JSON；编辑时从 lineage 反解）
 const _EMPTY = {
   name: '', display: '', caliber: '', aliases: '',
   base_object: '', dimensions: '', freshness_lag_days: 1, enabled: 1,
+  op: '', left: '', right: '',
 };
+const _DERIVED_OPS = ['divide', 'multiply', 'add', 'subtract'];   // 与后端 _DERIVED_OPS / compile_helpers._OP_SQL 对齐
 const GRID = '1.2fr 1.3fr 1.8fr 0.6fr 0.6fr 70px';
 
 export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
@@ -30,20 +33,30 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
 
   function handleEdit(m) {
     setEditingId(m.id);
+    let op = '', left = '', right = '';                  // 从 lineage JSON 反解派生字段
+    try { const lin = m.lineage && JSON.parse(m.lineage); if (lin && lin.op) { op = lin.op; left = lin.left || ''; right = lin.right || ''; } } catch { /* 非派生 */ }
     setDraft({
-      name: m.name, display: m.display || '', caliber: m.caliber, aliases: m.aliases || '',
+      name: m.name, display: m.display || '', caliber: m.caliber || '', aliases: m.aliases || '',
       base_object: m.base_object || '', dimensions: m.dimensions || '',
       freshness_lag_days: m.freshness_lag_days ?? 1, enabled: m.enabled ?? 1,
+      op, left, right,
     });
   }
   function handleReset() { setEditingId(null); setDraft(_EMPTY); }
 
   async function handleSave() {
-    if (!draft.name.trim() || !draft.caliber.trim()) { toast('指标名 + 口径必填', true); return; }
+    const isDerived = draft.op && draft.left.trim() && draft.right.trim();   // op+左右 齐 → 派生
+    if (!draft.name.trim() || (!draft.caliber.trim() && !isDerived)) {
+      toast('指标名必填；口径 或 派生定义（运算 + 左右指标）二选一', true); return;
+    }
+    // 组装 lineage（派生 → JSON {op,left,right}；否则空）；op/left/right 是 UI-only 不入 payload
+    const lineage = isDerived ? JSON.stringify({ op: draft.op, left: draft.left.trim(), right: draft.right.trim() }) : '';
+    const { op: _o, left: _l, right: _r, ...rest } = draft;
+    const payload = { ...rest, lineage };
     setSaving(true);
     try {
-      if (editingId) await api.put(`/api/admin/metrics-registry/${editingId}`, draft);
-      else await api.post('/api/admin/metrics-registry', draft);
+      if (editingId) await api.put(`/api/admin/metrics-registry/${editingId}`, payload);
+      else await api.post('/api/admin/metrics-registry', payload);
       toast(editingId ? '指标已更新' : '指标已创建');
       handleReset();
       load();
@@ -82,9 +95,22 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
               <input style={{ ...inputStyleMono(T), width: 280, fontFamily: T.sans }} value={draft.display}
                      onChange={e => setDraft({ ...draft, display: e.target.value })} placeholder="成交额 GMV"/>
             </FormRow>
-            <FormRow T={T} label="口径" hint="指标的 SQL 聚合表达式（口径单一真源）">
+            <FormRow T={T} label="口径" hint="原子指标的 SQL 聚合表达式（口径单一真源）；派生指标留空、用下方派生定义">
               <input style={{ ...inputStyleMono(T), width: '100%', maxWidth: 560 }} value={draft.caliber}
                      onChange={e => setDraft({ ...draft, caliber: e.target.value })} placeholder="SUM(o.pay_amount)"/>
+            </FormRow>
+            <FormRow T={T} label="派生定义" hint="占比/人均 = 指标÷指标（左右填已定义指标名；与口径二选一；divide 自动除零保护）">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input style={{ ...inputStyleMono(T), width: 150 }} value={draft.left}
+                       onChange={e => setDraft({ ...draft, left: e.target.value })} placeholder="gmv（左指标）"/>
+                <select style={{ ...inputStyleMono(T), width: 110 }} value={draft.op}
+                        onChange={e => setDraft({ ...draft, op: e.target.value })}>
+                  <option value="">（无）</option>
+                  {_DERIVED_OPS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <input style={{ ...inputStyleMono(T), width: 150 }} value={draft.right}
+                       onChange={e => setDraft({ ...draft, right: e.target.value })} placeholder="dau（右指标）"/>
+              </div>
             </FormRow>
             <FormRow T={T} label="别名" hint='JSON 数组，自然语言匹配用（如 ["成交额","gmv"]）'>
               <input style={{ ...inputStyleMono(T), width: '100%', maxWidth: 560 }} value={draft.aliases}
