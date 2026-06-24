@@ -16,6 +16,7 @@ caliber alias 固定 `o`（守护者 Stage 3 锁）：caliber 形如 `SUM(o.pay_
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from knot.services.semantic import multi_base
 from knot.services.semantic.compile_helpers import (
@@ -260,11 +261,29 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
     return _finalize(sql, lf)
 
 
+# v0.7.14 结果再聚合（CTE 外层聚合）白名单（R-SL-120）
+_OUTER_FUNCS = {"count", "sum", "avg", "min", "max"}
+
+
+def _outer_expr(lf) -> str:
+    """outer 聚合 `<FUNC>(<arg?>) AS result`（R-SL-120）：func 白名单 + count(*) 无 arg + 其他 func arg **alias-based ∈ metrics∪dimensions**（引 inner 输出列；严禁 raw caliber/表前缀，同 having R-SL-80）。"""
+    func = str(lf.outer.get("func", "")).lower()
+    if func not in _OUTER_FUNCS:
+        raise CompileError(f"未知 outer 聚合 {func!r}（白名单 {sorted(_OUTER_FUNCS)}）→ 回退")
+    arg = str(lf.outer.get("arg") or "")
+    if func == "count" and not arg:
+        return "COUNT(*) AS result"
+    if not arg or arg not in set(lf.metrics) | set(lf.dimensions):   # 缺 arg / raw / 越界（alias-based 守护）
+        raise CompileError(f"outer {func} arg {arg!r} 须非空且 ∈ metrics∪维度（alias-based）→ 回退")
+    return f"{func.upper()}({arg}) AS result"
+
+
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     """主入口：从 active catalog 解析 metric（R-SL-21 catalog 隔离）→ 确定性编译 SQL。
 
     catalog = current_catalog() dict（含 catalog_id + tables）。仅取 active catalog 的 metric
     （`list_metrics(catalog_id)` — 非 None 全取，OOS-1 编译隔离）。
+    v0.7.14：lf.outer → 结果再聚合 `WITH r AS (<现有编译>) SELECT <outer> FROM r`（_build_sql 不读 lf.outer，0 递归）。
     """
     from knot.repositories import metric_repo  # 延迟 import（避 import-time 环 + 测试可 patch）
 
@@ -272,4 +291,10 @@ def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     metrics_by_name = {m["name"]: m for m in metric_repo.list_metrics(catalog_id)}
     tables = catalog.get("tables") or []
     relations = catalog.get("relations") or []   # R-SL-30/31 跨对象维度 JOIN + 基数 gate
-    return _build_sql(lf, metrics_by_name, tables, time_ctx, relations)
+    inner_lf = lf
+    if lf.outer and not lf.limit:                # R-SL-122：outer 聚合全部（无显式 top-N）→ inner 无 LIMIT（哨兵 -1）
+        inner_lf = replace(lf, limit=-1)
+    inner = _build_sql(inner_lf, metrics_by_name, tables, time_ctx, relations)   # 复用全部现有覆盖作 CTE body
+    if lf.outer:
+        return _guard(f"WITH r AS ({inner}) SELECT {_outer_expr(lf)} FROM r")    # CTE 外层聚合（R-SL-119）
+    return inner   # outer 空 → 无 wrap，存量 byte-equal

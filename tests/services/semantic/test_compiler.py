@@ -471,3 +471,66 @@ def test_v0713_multi_base_routes_through_build_sql():
     sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
     assert sql.startswith("SELECT (SELECT SUM(o.pay_amount)")          # 标量多 base SQL 不变（纯移动）
     assert " JOIN " not in sql
+
+
+# ─── v0.7.14 CTE 结果再聚合（outer-aggregate）R-SL-118~123 ──────────────────
+
+def _compile_outer(monkeypatch, lf):
+    """经 compile_logicform 编译（outer wrap 在 compile_logicform 非 _build_sql；monkeypatch metric_repo）。"""
+    import knot.repositories.metric_repo as mr
+    monkeypatch.setattr(mr, "list_metrics", lambda cid: [_GMV])
+    return compile_logicform(lf, {"catalog_id": 1, "tables": _TABLES}, _time_ctx())
+
+
+def test_outer_count_groups_no_limit(monkeypatch):
+    """⭐ R-SL-122：outer count + limit=0 → CTE body **无 LIMIT**（count groups 不被 cap = 正确标量答案；守护者 Stage 3 必纠）。"""
+    sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"],
+                                                having=["gmv > 10000"], outer={"func": "count"}))
+    assert sql.startswith("WITH r AS (") and sql.endswith("SELECT COUNT(*) AS result FROM r")
+    assert "HAVING gmv > 10000" in sql        # 复用 v0.7.8 HAVING 作 body
+    assert "LIMIT" not in sql                 # ⭐ inner 无 LIMIT（修复：count groups 不被 cap）
+
+
+def test_outer_sum_topn_keeps_limit(monkeypatch):
+    """R-SL-122：outer sum + 显式 limit=5（top-N）→ inner 保 LIMIT 5（top-5 后聚合 intentional）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], limit=5,
+                   order_by=[{"field": "gmv", "dir": "desc"}], outer={"func": "sum", "arg": "gmv"})
+    sql = _compile_outer(monkeypatch, lf)
+    assert "LIMIT 5) SELECT SUM(gmv) AS result FROM r" in sql   # inner 保 top-5 LIMIT + 外层 SUM
+
+
+def test_outer_empty_byte_equal(monkeypatch):
+    """R-SL-119：outer 空 → 无 CTE wrap，与 _build_sql 输出 byte-equal（存量 0 漂移）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"])
+    via_compile = _compile_outer(monkeypatch, lf)
+    direct = _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert via_compile == direct and "WITH r" not in via_compile
+
+
+def test_outer_unknown_func_raises(monkeypatch):
+    """R-SL-120：未知 outer func → CompileError 回退。"""
+    with pytest.raises(CompileError):
+        _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"], outer={"func": "median"}))
+
+
+def test_outer_arg_not_in_columns_raises(monkeypatch):
+    """R-SL-120：outer arg ∉ metrics∪dimensions（raw o.col/越界）→ CompileError（alias-based 守护，同 having R-SL-80）。"""
+    with pytest.raises(CompileError):
+        _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"],
+                                              outer={"func": "sum", "arg": "o.pay_amount"}))
+
+
+def test_outer_passes_safety_gates(monkeypatch):
+    """R-SL-121：CTE（WITH）过 _is_safe_sql（With∈allowed_roots）+ is_cartesian（CTE body guarded + outer 无 join）。"""
+    from knot.adapters.db.doris import _is_safe_sql
+    from knot.services.sql_validator import is_cartesian
+    sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"], outer={"func": "count"}))
+    assert is_cartesian(sql)[0] is False
+    assert _is_safe_sql(sql)[0] is True
+
+
+def test_canonical_outer_omitted_when_empty():
+    """R-SL-118：outer 空 → canonical 省略键（存量 byte-equal）；非空 → outer 末位（qualify 后）。"""
+    assert '"outer"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
+    j = LogicForm(metrics=["gmv"], outer={"func": "count"}).to_canonical_json()
+    assert j.endswith('"outer":{"func":"count"}}')

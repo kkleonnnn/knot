@@ -57,12 +57,18 @@ def _json_list(raw) -> list:
 
 
 def _order_limit(lf) -> str:
-    """ORDER BY + LIMIT 片段（单/多对象共用）。"""
+    """ORDER BY + LIMIT 片段（单/多对象共用）。
+
+    R-SL-122：`lf.limit < 0` = 负哨兵 → **无 LIMIT 子句**（v0.7.14 outer-aggregate inner 聚合全部 groups；
+    compile_logicform 在 outer+lf.limit==0 时 replace(lf, limit=-1) 设；LLM 出 limit≥0 → 存量 byte-equal）。
+    """
     out = ""
     if lf.order_by:
         obs = [f"{o.get('field', '')} {'DESC' if str(o.get('dir', 'asc')).lower() == 'desc' else 'ASC'}"
                for o in lf.order_by if o.get("field")]
         if obs:
             out += " ORDER BY " + ", ".join(obs)
+    if lf.limit and lf.limit < 0:   # 负哨兵 → 无 LIMIT（outer-aggregate inner 聚合全部）
+        return out
     out += f" LIMIT {int(lf.limit) if lf.limit and lf.limit > 0 else _DEFAULT_LIMIT}"
     return out

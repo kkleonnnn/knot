@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.13 · 语义层第十四刀（纯重构：抽 multi_base.py + compile_helpers.py）：对象层编译能力闭环后，把多 base 编译逻辑（标量 + 维度并集驱动）+ 共用 helper 从 compiler.py（394 行）抽到 `multi_base.py` + `compile_helpers.py` 无环 leaf —— **compiler 回 275 行（≤300）、0 行为变更（所有 SQL byte-equal）、0 循环 import**（Contract 9 锁 `{compile_helpers, multi_base} ⊥ compiler`，8→9 contracts；CompileError 单定义 + re-export 守 5+ 外部契约）。偿语义层编译器技术债 + 锁长期健壮性。`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.14 · 语义层第十五刀（编译覆盖深化：CTE 结果再聚合）：复用全部现有编译覆盖（HAVING/窗口/分区top-N/多base/维度）作 CTE body + **外层再聚合一层** —— `WITH r AS (<现有编译>) SELECT COUNT(*)/SUM(col) FROM r`，解锁「GMV 超 1 万的**城市数**」「top-5 城市 GMV **合计**」（现回退 LLM → 转确定性）。func 白名单 count/sum/avg/min/max + arg alias-based（严禁 raw）；**outer 聚合全部时 inner 无 LIMIT**（count groups 不被 cap = 正确标量答案，守护者 Stage 3 区分 aggregate-input-cap vs display-cap）；显式 top-N 保 LIMIT；基数按构造 1 行；过 `is_cartesian` + `_is_safe_sql`（With）双安全门。占比/人均（metric÷metric）需扩 metric 模型 → OOS。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
