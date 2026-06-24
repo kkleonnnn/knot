@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.7 — 语义层第八刀：事件/规则/动作三层 vertical slice
+## [Unreleased] - v0.7.8 — 语义层第九刀：对象层编译覆盖深化（HAVING 聚合后过滤）
+
+> **v0.7 第九刀**（资深拍 ② 编译覆盖深化 · 不碰新基础设施 · kk 边做边测）：提升确定性编译命中率、降 LLM 回退。
+> 第一刀 = **HAVING（聚合后过滤）** —— 「哪些城市 GMV>10000」这类聚合后筛选现回退 LLM → 转确定性编译。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-78~83。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.8-compile-coverage-having.md](docs/plans/v0.7.8-compile-coverage-having.md)。
+
+### Added
+- **C1 编译器**：LogicForm +`having: list[str]`（canonical **空省略键末位** R-SL-81 → 与存量 canonical byte-equal）；compiler `_having_clause` + 单/跨对象两路 GROUP BY 后 / ORDER BY 前插 HAVING（子句序 GROUP BY→HAVING→LIMIT）。
+- **C2 parser**：prompt 教 HAVING（NL「GMV 超 1 万的城市」→ dimensions+having）。
+
+### Security / 正确性
+- **⭐ R-SL-80 多对象 alias-based HAVING**（守护者 Stage 3）：HAVING **强制引 metric alias**（SELECT `AS gmv`）—— 多对象 caliber 重写 `o.→t0` 但 HAVING 引 alias 编对；**严禁原始 `o.col`/裸 caliber**（多对象 `o.` 不重写 → 过 _is_safe_sql 但 DB 报未知列 = 非干净回退）。parser prompt enforce + 多对象 HAVING 测试。执行者坐实 `_build_multi_object_sql` lf.filters 原始不重写的非对称。
+- **R-SL-79 注入熔断**：HAVING 原始表达式镜像 filters，注入 `;`/DML 由 execute_query 顶 `_is_safe_sql` DQL-only 收口（v0.7.4 R-SL-43 验过；read-only 铁律 sustained）。
+- **R-SL-78 byte-equal**：having 空 → 编译 SQL 与 v0.7.1~.7 byte-equal（现有查询 0 漂移）。
+- **0 资产膨胀**（R-SL-83）：0 新 schema / 路由 / AuditAction（admin 路由 46 + AuditAction 51 不变）；8 contracts KEPT；OOS-1 sustained。flag-gated + 0 LLM 编译 + 未命中回退 LLM（混合架构）。
+
+### Deferred（编译覆盖逐项放）
+- 窗口函数（排名/同环比）/ 多 base 聚合（v0.7.2 承重坑）/ CTE/子查询 —— 各风险递增独立后续刀。
+
+## [Released] - v0.7.7 — 语义层第八刀：事件/规则/动作三层 vertical slice
 
 > **v0.7 第八刀**（资深拍：一次连做上 3 层端到端可测）：5 层语义上层落地 —— 指标异动**主动监控**（事件 → 规则 → 动作 webhook）。完成「被动查询 → 主动监控」范式迈进，但**克制三剪**：手动「立即检查」（无调度）/ 通知非写回（read-only 铁律）/ 阈值·环比非 LLM 归因。
 > 完整 v3 三阶段（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS** → 资深拍板）。R-SL 续号 R-SL-65~77。`KNOT_SEMANTIC_LAYER` 默认 off。
