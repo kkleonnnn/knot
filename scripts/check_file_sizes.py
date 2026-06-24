@@ -27,6 +27,7 @@ BACKEND_ACK = {
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数
+    "knot/services/semantic/compiler.py":  320,  # v0.7.9 确定性编译器核心（累积单/跨对象/基数/HAVING/窗口两层覆盖）；无 split 计划
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
 }
 

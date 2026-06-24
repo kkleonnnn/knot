@@ -31,6 +31,7 @@ class LogicForm:
     order_by: list[dict] = field(default_factory=list)
     limit: int = 0
     having: list[str] = field(default_factory=list)
+    window: list[dict] = field(default_factory=list)   # v0.7.9 窗口列 [{func,arg?,partition_by,order_by,as_name}]
 
     def to_canonical_json(self) -> str:
         """确定性 canonical JSON —— 固定字段序 + 紧凑分隔；同内容 LogicForm → byte-equal。
@@ -48,6 +49,8 @@ class LogicForm:
         }
         if self.having:   # R-SL-81：空省略键（末位）→ 与存量 canonical（无 having）byte-equal
             obj["having"] = list(self.having)
+        if self.window:   # R-SL-88：空省略键（末位，having 后）→ 存量 byte-equal
+            obj["window"] = [dict(sorted(w.items())) for w in self.window]
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
     @classmethod
@@ -66,4 +69,5 @@ class LogicForm:
             order_by=[dict(o) for o in (d.get("order_by") or []) if isinstance(o, dict)],
             limit=int(d.get("limit") or 0),
             having=list(d.get("having") or []),
+            window=[dict(w) for w in (d.get("window") or []) if isinstance(w, dict)],
         )

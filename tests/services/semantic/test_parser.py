@@ -129,3 +129,22 @@ def test_prompt_teaches_alias_based_having():
     p = parser._build_prompt([_GMV])
     assert "having" in p and "聚合后过滤" in p
     assert "metric name 作 alias" in p and "严禁" in p   # 强制 alias + 禁 raw o.col/裸 caliber
+
+
+# ─── v0.7.9 窗口函数 prompt 教学 + 透传 R-SL-85/86 ───────────────────
+
+@pytest.mark.asyncio
+async def test_window_extracted_through(monkeypatch):
+    """LLM 产出 window（alias-based）→ 透传 LogicForm.window（compiler C1 消费）。"""
+    _mock_allm(monkeypatch, '{"metrics":["gmv"],"dimensions":["region"],"window":'
+               '[{"func":"row_number","partition_by":["region"],"order_by":[{"field":"gmv","dir":"desc"}],"as_name":"rk"}]}')
+    r = await parser.parse_to_logicform("各地区 GMV 排名", [_GMV], "model")
+    assert isinstance(r["logicform"], LogicForm)
+    assert r["logicform"].window and r["logicform"].window[0]["func"] == "row_number"
+
+
+def test_prompt_teaches_window_whitelist_alias_based():
+    """R-SL-85/86：prompt 教 window func 白名单（dense_rank 非 rank_dense）+ alias-based partition/order。"""
+    p = parser._build_prompt([_GMV])
+    assert "window" in p and "row_number" in p and "dense_rank" in p   # 白名单含 dense_rank（真实函数名）
+    assert "排名" in p and "alias-based" in p                          # 教学 + alias 强制

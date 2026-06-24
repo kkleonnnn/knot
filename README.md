@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.8 · 语义层第九刀（编译覆盖深化：HAVING 聚合后过滤）：LogicForm +`having` → 确定性编译 GROUP BY 后加 HAVING，解锁「哪些城市 GMV>10000」「订单数≥100 的渠道」（现回退 LLM → 转确定性，提升命中率）。**强制 alias-based**（引 metric name，多对象 raw o. 不重写会断）；HAVING 注入由 `_is_safe_sql` DQL-only 收口；having 空 → SQL byte-equal（现有查询 0 漂移）。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.7 事件/规则/动作三层 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.9 · 语义层第十刀（编译覆盖深化：窗口函数 排名/同环比/累计）：LogicForm +`window` → 确定性编译**两层**（内层聚合 + 外层 `ROW_NUMBER()/RANK()/LAG()/SUM() OVER (...)`），解锁「各地区 GMV 排名」「GMV 环比」「累计 GMV」（现回退 LLM → 转确定性）。func **枚举白名单** + 外层 OVER 引 metric **alias**（多对象干净）；window 空 → SQL byte-equal（现有查询 0 漂移）；最终经 `_is_safe_sql` DQL-only 收口。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
