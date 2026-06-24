@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.12 — 语义层第十三刀：对象层编译覆盖深化（多 base + 维度「聚合后 JOIN」）
+## [Unreleased] - v0.7.13 — 语义层第十四刀：抽 multi_base.py 纯重构（compiler 瘦身 + 无环分层）
+
+> **v0.7 第十四刀**（资深拍 纯重构；compiler.py 394 逼近 ACK 400 → 趁对象层编译闭环抽 module）：**0 行为变更 / 0 循环 import**，偿语义层编译器技术债 + 锁长期健壮性。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT 无修订**（罕见全清 · 0 实质 finding）→ 资深拍板）。R-SL 续号 R-SL-112~117。
+> 详 [docs/plans/v0.7.13-extract-multi-base-module.md](docs/plans/v0.7.13-extract-multi-base-module.md)。
+
+### Changed（纯重构 · byte-equal）
+- **`compile_helpers.py` [NEW 纯 leaf]**：`CompileError` + `_TIME_KEYS`/`_DATE_COL_RE`/`_DEFAULT_LIMIT` + `_resolve_physical`/`_resolve_date_col`/`_json_list`/`_order_limit`（compiler+multi_base 共用；**仅 import stdlib，0 import semantic 兄弟**）。
+- **`multi_base.py` [NEW]**：`build_multi_base_sql` + `_build_scalar_sql` + `_build_dimensional_sql`（v0.7.11/.12 body 平移，返 **raw SQL** 不自 _guard）；**import compile_helpers only，0 import compiler**。
+- **`compiler.py` 394→275（≤300 移出 BACKEND_ACK）**：移出 multi_base + helpers；re-export `CompileError`/`_TIME_KEYS`（→ `compiler.CompileError` 5+ 外部契约 + `compiler._TIME_KEYS` byte-equal）；`_guard`+`is_cartesian` **留 compiler**（test monkeypatch `compiler.is_cartesian` + 单/跨对象 `_finalize` 自 guard）；`_build_sql` 多 base 分支 = `_guard(multi_base.build_multi_base_sql(...))`（_guard 跨 build path 统一）。
+
+### Guard
+- **R-SL-114 `_guard` 归属（grounded）**：`test_cartesian_guard_wired` monkeypatch `compiler.is_cartesian` + 单/跨对象 `_finalize` 自 guard → `_guard`+`is_cartesian` 留 compiler；multi_base 返 raw，compiler 包 `_guard`（0 循环 import）。
+- **R-SL-115 CompileError re-export identity**：compile_helpers 单定义 + compiler/multi_base 都 import → 同一类对象 → 5 生产 `except compiler.CompileError` 捕获 multi_base raise（哨兵测试 +2）。
+- **R-SL-116 Contract 9 `semantic-compile-acyclic`（8→9）**：`{compile_helpers, multi_base}` ⊥ `compiler`（forbidden）—— 结构性防 multi_base→compiler 循环复发（镜像 v0.6.5.12 Contract 8 catalog-loaders-pure）。
+- **R-SL-117 0 行为变更 byte-equal**：所有 SQL 输出不变（纯移动）；测试 import 0 改（_build_sql/compile_logicform/CompileError/_assign_aliases/_rewrite_caliber 全留 compiler 或 re-export）；0 新 schema/路由/AuditAction（51 sustained）。
+
+## [Released] - v0.7.12 — 语义层第十三刀：对象层编译覆盖深化（多 base + 维度「聚合后 JOIN」）
 
 > **v0.7 第十三刀**（资深拍 编译覆盖续 → 多 base + 维度；承 v0.7.11 标量多 base → 加维度）：让「各城市 GMV 和 DAU」（gmv@orders + dau@users 按 city）走确定性编译。
 > **JOIN 类型抉择（资深拍 Option U 维度并集驱动）**：UNION + LEFT JOIN 各聚合 → 对称不丢数据 + Doris-proven（0 FULL OUTER，避 Doris 未知）。

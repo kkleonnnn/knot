@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.12 · 语义层第十三刀（编译覆盖深化：多 base + 维度「聚合后 JOIN」）：承 v0.7.11 标量多 base → 加维度。**维度并集驱动**（各 base 独立聚合 + 维度并集 UNION 做驱动 + LEFT JOIN 各聚合），解锁「各城市 GMV 和 DAU」（gmv@orders + dau@users 按 city 切；现回退 LLM → 转确定性）。**对称不丢数据**（FULL OUTER 语义用 UNION+LEFT 模拟，0 FULL OUTER 避 Doris 未知）+ **基数按构造免疫膨胀**（聚合后 JOIN 1:1）；per-metric agg（各 metric 自己的 filter，同 base 不同 filter 各自正确）；共同维度 gate（非共同维度 → 回退）；过 `is_cartesian` + `_is_safe_sql` 双安全门。0 新 schema/路由/AuditAction；`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.13 · 语义层第十四刀（纯重构：抽 multi_base.py + compile_helpers.py）：对象层编译能力闭环后，把多 base 编译逻辑（标量 + 维度并集驱动）+ 共用 helper 从 compiler.py（394 行）抽到 `multi_base.py` + `compile_helpers.py` 无环 leaf —— **compiler 回 275 行（≤300）、0 行为变更（所有 SQL byte-equal）、0 循环 import**（Contract 9 锁 `{compile_helpers, multi_base} ⊥ compiler`，8→9 contracts；CompileError 单定义 + re-export 守 5+ 外部契约）。偿语义层编译器技术债 + 锁长期健壮性。`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

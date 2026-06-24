@@ -27,7 +27,7 @@ BACKEND_ACK = {
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数
-    "knot/services/semantic/compiler.py":  400,  # v0.7.12 确定性编译器核心（+多base维度并集驱动）；资深拍 C 留 compiler+ACK bump；⚠️ 逼近 400 → 下刀抽 multi_base.py 纯重构（CompileError 外部契约 5+ 引用须 re-export；0 循环 import）
+    # compiler.py 394→275（v0.7.13 抽 multi_base.py + compile_helpers.py）→ ≤300 default cap auto-discover，移出 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
 }
 

@@ -454,3 +454,20 @@ def test_canonical_qualify_omitted_when_empty():
     j = LogicForm(metrics=["gmv"], window=[{"func": "row_number", "as_name": "rk"}],
                   qualify=["rk <= 3"]).to_canonical_json()
     assert j.endswith('"qualify":["rk <= 3"]}')          # 末位（window 后）+ 非空才出现
+
+
+# ─── v0.7.13 抽 multi_base.py 纯重构 — CompileError re-export identity 哨兵 R-SL-115 ──
+
+def test_v0713_compile_error_reexport_identity():
+    """R-SL-115：CompileError 单定义 compile_helpers + compiler/multi_base re-export **同一类对象**
+    → `except compiler.CompileError` 捕获 multi_base raise（5+ 生产 except 不破；Contract 9 只查 no-import 不查 identity）。"""
+    from knot.services.semantic import compile_helpers, compiler, multi_base
+    assert compiler.CompileError is compile_helpers.CompileError       # compiler re-export 同对象
+    assert multi_base.CompileError is compile_helpers.CompileError     # multi_base import 同对象
+
+
+def test_v0713_multi_base_routes_through_build_sql():
+    """R-SL-117：多 base 走 multi_base.build_multi_base_sql（compiler `_build_sql` 包 _guard）byte-equal。"""
+    sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
+    assert sql.startswith("SELECT (SELECT SUM(o.pay_amount)")          # 标量多 base SQL 不变（纯移动）
+    assert " JOIN " not in sql

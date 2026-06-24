@@ -1,4 +1,4 @@
-"""tests/test_contracts_renamed.py — contract 数守护（v0.5.0 R-71 7 条 + v0.6.5.12 收官③ catalog-loaders-pure 第 8 条）+ Contract 7 forbidden 同步守护（TDD）。
+"""tests/test_contracts_renamed.py — contract 数守护（v0.5.0 R-71 7 条 + v0.6.5.12 catalog-loaders-pure 第 8 + v0.7.13 semantic-compile-acyclic 第 9）+ Contract 7 forbidden 同步守护（TDD）。
 
 R-71 关键：Contract 7 crypto-only-in-allowed-callers 的 forbidden_modules 必须从
 旧名 改 knot.core.crypto，否则 lint-imports 显示 KEPT 但实际 forbidden
@@ -29,11 +29,12 @@ def test_R71_root_package_is_knot():
     )
 
 
-def test_R71_contract_count_is_8():
+def test_R71_contract_count_is_9():
     cfg = _parse_importlinter()
     contract_sections = [s for s in cfg.sections() if s.startswith("importlinter:contract:")]
-    assert len(contract_sections) == 8, (
-        f"contract 数应为 8（v0.5.0 R-71 7 条 + v0.6.5.12 收官③ catalog-loaders-pure 第 8 条）；找到 {len(contract_sections)}"
+    assert len(contract_sections) == 9, (
+        f"contract 数应为 9（v0.5.0 R-71 7 条 + v0.6.5.12 catalog-loaders-pure 第 8 + v0.7.13 "
+        f"semantic-compile-acyclic 第 9）；找到 {len(contract_sections)}"
     )
 
 
