@@ -26,7 +26,7 @@ from knot.services.semantic.compile_helpers import (
     _is_derived,
     _json_list,
     _order_limit,
-    _resolve_date_col,
+    _resolve_metric_date_col,
     _resolve_physical,
 )
 from knot.services.sql_validator import is_cartesian
@@ -205,7 +205,7 @@ def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx)
     if lf.time:
         if lf.time not in _TIME_KEYS:
             raise CompileError(f"未知 time 枚举 {lf.time!r}")
-        date_col = _resolve_date_col(sorted(allowed_dims))
+        date_col = _resolve_metric_date_col(metrics_by_name[lf.metrics[0]], sorted(allowed_dims))
         if date_col is None:
             raise CompileError(f"lf.time={lf.time!r} 设定但无可解析日期列（回退 LLM 处理时间）")
         start, end = getattr(time_ctx, lf.time)
@@ -255,7 +255,7 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
     if lf.time:
         if lf.time not in _TIME_KEYS:
             raise CompileError(f"未知 time 枚举 {lf.time!r}")
-        date_col = _resolve_date_col(sorted(obj_dims.get(base, set())))
+        date_col = _resolve_metric_date_col(metrics_by_name[lf.metrics[0]], sorted(obj_dims.get(base, set())))
         if date_col is None:
             raise CompileError(f"lf.time={lf.time!r} 但 base 无日期列 → 回退")
         start, end = getattr(time_ctx, lf.time)

@@ -17,7 +17,7 @@ from knot.services.semantic.compile_helpers import (
     _json_list,
     _order_limit,
     _parse_lineage,
-    _resolve_date_col,
+    _resolve_metric_date_col,
     _resolve_physical,
     _scalar_subquery,
 )
@@ -64,7 +64,7 @@ def _build_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
         physical = _resolve_physical(m["base_object"], tables)    # HTTP/未匹配 → raise
         where = [str(f) for f in _json_list(m.get("filters"))]    # ⭐ 各 metric 自己的 filters（非 names[0] 共用）
         if lf.time:
-            date_col = _resolve_date_col(sorted(avail))
+            date_col = _resolve_metric_date_col(m, sorted(avail))   # v0.7.17 显式 date_column 优先
             if date_col is None:
                 raise CompileError(f"metric {name!r} base 无日期列但 lf.time 设定 → 回退")
             start, end = getattr(time_ctx, lf.time)

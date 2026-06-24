@@ -146,6 +146,12 @@ def init_db():
     if "restored_from_audit_id" not in sqa_cols_v076:
         conn.execute("ALTER TABLE semantic_query_audit ADD COLUMN restored_from_audit_id INTEGER")
 
+    # v0.7.17 metrics.date_column：时间窗注入列名（显式优先；空=按维度名 regex 推断）。
+    #   存量 metric ADD COLUMN 得空串 = 未声明 = regex fallback（不破存量编译）。幂等 ADD COLUMN。
+    metrics_cols_v0717 = {row[1] for row in conn.execute("PRAGMA table_info(metrics)").fetchall()}
+    if "date_column" not in metrics_cols_v0717:
+        conn.execute("ALTER TABLE metrics ADD COLUMN date_column TEXT DEFAULT ''")
+
     # catalogs 表 seed — 现有 app_settings 4-key catalog 内容搬为 catalog id=1（byte-equal copy）
     # 幂等：仅 catalogs 空时执行；app_settings 空（fresh install）→ 空内容行
     #   （与现状一致 — catalog_loader 内容为空时回退 file 默认；commit 3 reload 改读本表）

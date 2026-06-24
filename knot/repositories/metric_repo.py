@@ -19,14 +19,14 @@ from knot.repositories.base import get_conn
 # metrics 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1 死线）
 _COLS = (
     "id, catalog_id, name, display, aliases, caliber, base_object, filters, "
-    "dimensions, lineage, freshness_lag_days, enabled, created_at, updated_at"
+    "dimensions, date_column, lineage, freshness_lag_days, enabled, created_at, updated_at"
 )
 
 # create / update 允许的内容字段（不含 id / catalog_id / created_at / updated_at；
 # 严禁 tenant_id / project_id 注入 — OOS-1 死线）
 _UPDATABLE = (
     "name", "display", "aliases", "caliber", "base_object",
-    "filters", "dimensions", "lineage", "freshness_lag_days", "enabled",
+    "filters", "dimensions", "date_column", "lineage", "freshness_lag_days", "enabled",
 )
 
 # OOS-1 死线：严禁列（防顺手引租户隔离）

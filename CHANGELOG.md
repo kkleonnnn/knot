@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.16 — 语义层第十七刀：派生指标模型（占比/人均 metric÷metric · 标量+单层）
+## [Unreleased] - v0.7.17 — 语义层第十八刀：metric 显式 date_column（修 `sta_date` 时间窗编译 gap）
+
+> **v0.7 第十八刀**（v0.7.16 后价值自测 A → 资深拍「两者都做」）：价值自测 grounded 真实 OHX catalog
+> **第一发现即 blocker** —— 编译器 date-col 正则 `^(date|dt|ds|day|日期|stat_date|biz_date)$` miss 实际日期列
+> `sta_date`（正则有 `stat_date` 带 t）→ `_resolve_date_col` 返 None → 时间窗 metric raise → 回退 LLM →
+> **语义层时间窗查询命中 ≈ 0%**。修法 = 显式 `date_column` 字段（优先）+ 两遍 regex fallback（pass1 旧 exact
+> 逐字 byte-equal + pass2 `.endswith("_date")` 兜底）。
+> 完整 v3（Stage 1 → Stage 2 → 守护者 Stage 3 **ACCEPT WITH REVISIONS**：regex 加宽 order-drift 承重修订 →
+> 两遍解析；执行者 R-137 精化机制：`re.match` 锚首使单 regex `_date$` 是 NO-OP → pass2 必用 `.endswith`）。
+> R-SL 续号 R-SL-140~146。`KNOT_SEMANTIC_LAYER` 默认 off。
+> 详 [docs/plans/v0.7.17-metric-date-column.md](docs/plans/v0.7.17-metric-date-column.md)。
+
+### Added
+
+- **metric 显式 `date_column` 字段**（schema +幂等 ALTER + metric_repo `_COLS`/`_UPDATABLE` + endpoint + AdminMetricRegistry「日期列」field）：注册时声明时间窗注入列名（如 `sta_date`），0 猜测；OOS-1 sustained（列名非 tenant_id）。
+- **`_resolve_metric_date_col(m, fallback_dims)`**：显式 date_column 优先 + regex fallback；4 个 date-col 解析点（compiler 单/跨对象 + compile_helpers `_scalar_subquery` + multi_base 维度）接入。
+
+### Changed
+
+- **`_resolve_date_col` → 两遍解析**（strictly additive）：pass1 = 旧 exact regex **逐字不改**（含 `stat_date|biz_date`）→ 旧 exact 命中 byte-equal；pass2 = `.endswith("_date")` 兜底 → 修 `sta_date` gap。守护者 order-drift 守护（`["amount_date","stat_date"]` 仍返 `stat_date` 不漂 `amount_date`）。
+
+### Notes
+
+- **0 新 schema 表 / 0 新路由 / 0 新 AuditAction**（仅 metrics +1 列；admin 46 / AuditAction 51 sustained）；Contract 9 守（`_resolve_metric_date_col` 在 compile_helpers leaf）；compiler 307 ≤ ACK 310。
+- minor defer（同 v0.7.16 R-SL-139）：显式 date_column 无 create-time 列存在性校验（打错 → DB 错 → 回退）。
+
+## [Released] - v0.7.16 — 语义层第十七刀：派生指标模型（占比/人均 metric÷metric · 标量+单层）
 
 > **v0.7 第十七刀**（资深拍 派生指标模型 · **首个非编译覆盖方向 — metric 模型层扩展**）：占比/人均类
 > **派生指标 = metric÷metric** 走确定性编译（标量+单层，FROM-less 0 JOIN 免疫基数坑）。lineage 列激活
