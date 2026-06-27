@@ -61,9 +61,13 @@ async def test_flag_on_hit_returns_agentresult(monkeypatch):
     monkeypatch.setattr(time_resolver, "resolve_time_context", lambda *a, **k: None)
     monkeypatch.setattr(query_helper, "assert_catalog_context", lambda *a, **k: None)
     monkeypatch.setattr(db_connector, "execute_query", lambda eng, sql: ([{"x": 1}], ""))
-    result, audit = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", cost_service.empty_buckets(), 1, {})
+    buckets = cost_service.empty_buckets()
+    result, audit = await query_steps.run_semantic_compile_step("q", "engine", "k", "", "", buckets, 1, {})
     assert result is not None and result.sql == "SELECT 1" and result.rows == [{"x": 1}] and result.success
     assert audit and audit["logicform_json"] and audit["compile_error_reason"] == ""  # 命中 → 审计行 + canonical lf（R-SL-40）
+    # v0.7.18 R-SL-147：AgentResult 携带 parse cost+token（修 P1；原置 0 → 顶层 token 汇总命中时漏 parse）。
+    assert result.total_input_tokens == 5 and result.total_output_tokens == 7 and result.total_cost_usd == 0.003
+    assert buckets["sql_planner"]["cost"] == 0.003   # cost 仍入桶（R-SL-19；top-level cost 取桶，无双计）
 
 
 @pytest.mark.asyncio
