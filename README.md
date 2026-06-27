@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.17 · 语义层第十八刀（metric 显式 `date_column`：修时间窗编译 gap）：价值自测 grounded 真实 catalog 发现编译器 date-col 正则 miss 实际日期列（如 `sta_date`）→ 时间窗查询命中 ≈ 0%。修法 = **显式 `date_column` metric 字段**（优先，契合注册表显式定义哲学）+ **两遍 regex fallback**（pass1 旧 exact 逐字保 byte-equal + pass2 `.endswith("_date")` 兜底；strictly additive，order-drift 守护）。metric 模型 +`date_column`（幂等 ALTER，0 新表/路由/AuditAction）；4 个 date-col 解析点接入「显式优先」；admin 注册屏 +「日期列」field。`KNOT_SEMANTIC_LAYER` 默认 off。<br>**上版** v0.7.16 派生指标 metric÷metric · v0.7.15 自定义窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.18 · 语义层命中路径令牌统计修复（P1 bugfix）：Codex 审查发现 `KNOT_SEMANTIC_LAYER=true` 命中时顶层 `input/output_tokens` 漏计 parse（NL→LogicForm）LLM 令牌 —— 命中返回的 `AgentResult` 把 token 置 0（parse cost 已入 sql_planner 桶），顶层 token 汇总走结果和故漏（cost 取桶仍对）。修 = 命中 `AgentResult` 携带 parse cost+token（与 ReAct 路径对称），无双计。语义层默认 off，上线/灰度前修。<br>**上版** v0.7.17 metric 显式 date_column · v0.7.16 派生指标 metric÷metric · v0.7.15 自定义窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

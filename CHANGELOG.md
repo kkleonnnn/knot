@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.17 — 语义层第十八刀：metric 显式 date_column（修 `sta_date` 时间窗编译 gap）
+## [Unreleased] - v0.7.18 — 语义层命中路径令牌统计修复（P1 bugfix）
+
+> **P1 bugfix**（Codex 审查 PR #186 发现 + 执行者 R-137 grounded 确认）：`KNOT_SEMANTIC_LAYER=true` 语义层
+> 命中时，顶层 `input_tokens`/`output_tokens`（→ message 行 + 用户用量）**漏计 parse（NL→LogicForm）LLM 令牌**。
+> 根因：`run_semantic_compile_step` 命中返回 `AgentResult` 把 token 置 0（parse cost 经 `add_agent_cost` 入
+> `sql_planner` 桶 R-SL-19）→ query.py 顶层 `clarifier + sql_result.token + presenter` 汇总漏 parse（cost 取桶仍对）。
+> 修 = 命中 `AgentResult` 携带 parse cost+token（与 ReAct `run_sql_planner_step` 对称），无双计（top-level cost 仍取桶）。
+> 语义层默认 off → 上线/灰度前必修。R-SL-147。轻量 v3（Codex=Stage-2 等效 + R-137 + 资深 directive）。
+> 详 [docs/plans/v0.7.18-semantic-token-accounting.md](docs/plans/v0.7.18-semantic-token-accounting.md)。
+
+### Fixed
+
+- **语义层命中令牌漏计（P1）**：`run_semantic_compile_step` 命中 `AgentResult` 携带 `parse_res` 的 cost/input_tokens/output_tokens（取代置 0）→ message/user-usage token 不再偏低；top-level cost 仍取 `aggregate_agent_costs` 桶（无双计；R-SL-19 parse cost 入 sql_planner 桶 sustained）。test_routing 命中测试断言 token 携带 + 桶 cost 不变。
+
+### Notes
+
+- 0 新 schema/路由/AuditAction；ReAct（LLM 回退）路径不变；非流式接口本就不接语义层（Codex P2，独立决策）。
+
+## [Released] - v0.7.17 — 语义层第十八刀：metric 显式 date_column（修 `sta_date` 时间窗编译 gap）
 
 > **v0.7 第十八刀**（v0.7.16 后价值自测 A → 资深拍「两者都做」）：价值自测 grounded 真实 OHX catalog
 > **第一发现即 blocker** —— 编译器 date-col 正则 `^(date|dt|ds|day|日期|stat_date|biz_date)$` miss 实际日期列
