@@ -753,3 +753,18 @@ def test_v0719_datetime_col_half_open_range():
     m_d = {**m_dt, "date_column": "sta_date"}
     sql2 = _build_sql(LogicForm(metrics=["x"], time="today"), {"x": m_d}, _TABLES, tc)
     assert "o.sta_date BETWEEN '2026-06-29' AND '2026-06-29'" in sql2
+
+
+def test_v0719_r2_at_ts_suffix_cols_half_open():
+    """⭐ v0.7.19 R2（守护者 Stage 3 对抗 skeptic 确认）：DATETIME 列名后缀 `_at`/`_ts`
+    （created_at/event_ts）对齐代码库自认的 http_planner._TS_SUFFIXES → 半开区间。
+    旧版只认 `_time` → `_at`/`_ts` 列误走 BETWEEN 静默漏当天（与 C3 同 bug，未修；本 R2 闭合）。
+    DATE 后缀（sta_date/date/dt/ds）仍 BETWEEN（byte-equal 守住，两向都验）。"""
+    from knot.services.semantic.compile_helpers import _date_range_clause
+    for col in ("o.created_at", "o.event_ts", "o.sta_time", "o.update_time"):
+        c = _date_range_clause(col, "2026-06-29", "2026-06-29")
+        assert "BETWEEN" not in c, col
+        assert f"{col} >= '2026-06-29 00:00:00' AND {col} < '2026-06-30 00:00:00'" == c, col
+    for col in ("o.sta_date", "o.date", "o.dt", "o.ds"):               # DATE 后缀 → byte-equal BETWEEN
+        c = _date_range_clause(col, "2026-06-29", "2026-06-29")
+        assert c == f"{col} BETWEEN '2026-06-29' AND '2026-06-29'", col

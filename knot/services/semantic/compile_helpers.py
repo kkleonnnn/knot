@@ -69,17 +69,31 @@ def _resolve_metric_date_col(m: dict, fallback_dims: list[str] | None = None) ->
     return _resolve_date_col(dims)
 
 
-def _date_range_clause(col_expr: str, start: str, end: str) -> str:
-    """时间窗 WHERE 片段（v0.7.19）—— **按日期列类型分流**（列名推断）：
+# v0.7.19 R2（守护者 Stage 3）：DATETIME 列名后缀集对齐代码库自认的时间戳后缀
+# `http_planner._TS_SUFFIXES = ("_time", "_at", "_ts")`。旧版只认 `_time`/含 time →
+# `_at`/`_ts`（如 `created_at`/`event_ts`）DATETIME 列误走 BETWEEN → 静默漏当天（与 C3 同 bug）。
+# compile_helpers 是 leaf（stdlib only，不 import http_planner）→ 本地镜像 + 注释锚定真相源。
+# 注：半开区间对 DATE 列也安全（date 比较 datetime 字面量仍正确），故"宁可多判 DATETIME"无副作用；
+# 真正的 per-metric 权威仍是显式 `date_column`（v0.7.17），本启发式仅 fallback。
+# ⚠️ 局限（守护者 Stage 3 critic）：启发式看不到物理类型——数值 epoch 列（largeint/decimal）若误名
+#    `_at`/`_time`（OHX 真实有 largeint `create_at`/`settle_at`）会被判半开 → `数值 >= 'date 00:00:00'`
+#    类型不匹配。但仅经显式 date_column 可达（auto regex `_resolve_date_col` 永不选 _at/_ts/_time）+ R2 前
+#    BETWEEN 在这类列上也已类型错 → 非 R2 回归、非阻塞。type-aware 检测（按 catalog 列类型元数据）= follow-on。
+_DATETIME_COL_SUFFIXES = ("_time", "_at", "_ts")
 
-    - **DATETIME 列**（`*_time` / 含 time，如 dwd `sta_time`/`update_time`）→ **半开区间**
-      `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`。旧 `BETWEEN 'date' AND 'date'`
-      在 datetime 列上 = `BETWEEN '...00:00:00' AND '...00:00:00'` → **只匹配午夜那一瞬 → 漏全天**
-      （实测 dwd 今天查询返 NULL）；半开区间覆盖全天且无日末 sub-second gap（每一瞬恰属一天）。
+
+def _date_range_clause(col_expr: str, start: str, end: str) -> str:
+    """时间窗 WHERE 片段（v0.7.19）—— **按日期列类型分流**（列名推断 fallback）：
+
+    - **DATETIME 列**（后缀 ∈ `_time`/`_at`/`_ts` 或含 time，如 dwd `sta_time`/`update_time`/
+      `created_at`/`event_ts`）→ **半开区间** `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`。
+      旧 `BETWEEN 'date' AND 'date'` 在 datetime 列上 = `BETWEEN '...00:00:00' AND '...00:00:00'`
+      → **只匹配午夜那一瞬 → 漏全天**（实测 dwd 今天查询返 NULL）；半开区间覆盖全天且无日末
+      sub-second gap（每一瞬恰属一天）。
     - **DATE 列**（如 ads `sta_date`/`date`）→ `BETWEEN 'start' AND 'end'`（date 比较两端 inclusive，存量 byte-equal）。
     """
     col = col_expr.rsplit(".", 1)[-1].lower()
-    if col.endswith("_time") or "time" in col:
+    if col.endswith(_DATETIME_COL_SUFFIXES) or "time" in col:
         y, m, d = (int(x) for x in str(end).split("-"))
         end_excl = (date(y, m, d) + timedelta(days=1)).isoformat()
         return f"{col_expr} >= '{start} 00:00:00' AND {col_expr} < '{end_excl} 00:00:00'"
