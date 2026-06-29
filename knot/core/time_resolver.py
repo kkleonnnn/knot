@@ -63,6 +63,13 @@ class TimeContext:
     # 同比基准（vs 去年同期）
     same_period_last_year: tuple[str, str]        # 去年对应"今年到最新"段
 
+    # 日粒度（v0.7.19；与 lag 无关 — 含今天那天的字面单日窗口，配合 dwd 明细源用；ads 源查今天天然空）
+    today: tuple[str, str]                        # (今天, 今天)
+    yesterday: tuple[str, str]                    # (昨天, 昨天)
+    # 完整过去（v0.7.19；不含今天 → 走 ads 汇总）
+    last_month: tuple[str, str]                   # 上月整月
+    last_year: tuple[str, str]                    # 去年整年
+
     # 节假日提示
     holidays_in_this_month: list[tuple[str, str, str]] = field(default_factory=list)
     is_holiday_today: bool = False
@@ -199,6 +206,12 @@ def resolve_time_context(
     last_week_mon = this_week_mon - timedelta(days=7)
     last_week_sun = this_week_mon - timedelta(days=1)
 
+    # v0.7.19 完整过去（不含今天 → 走 ads）：上月 / 去年
+    last_month_end = this_month_start - timedelta(days=1)   # 上月最后一天
+    last_month_start = last_month_end.replace(day=1)
+    last_year_start = date(t.year - 1, 1, 1)
+    last_year_end = date(t.year - 1, 12, 31)
+
     # 最近 7 天到最新数据
     l7_start = latest - timedelta(days=6)
 
@@ -231,6 +244,10 @@ def resolve_time_context(
         "last_week": (_iso(last_week_mon), _iso(last_week_sun)),
         "last_7_days_to_latest": (_iso(l7_start), _iso(latest)),
         "same_period_last_year": (_iso(sply_start), _iso(sply_end)),
+        "today": (_iso(t), _iso(t)),                                  # v0.7.19 日粒度（lag 无关）
+        "yesterday": (_iso(t - timedelta(days=1)), _iso(t - timedelta(days=1))),
+        "last_month": (_iso(last_month_start), _iso(last_month_end)),  # v0.7.19 完整过去（→ ads）
+        "last_year": (_iso(last_year_start), _iso(last_year_end)),
         "holidays_in_this_month": holidays,
         "is_holiday_today": is_holiday,
     }

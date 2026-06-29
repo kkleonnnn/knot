@@ -16,6 +16,8 @@ import re
 _TIME_KEYS = {
     "this_year", "this_year_to_latest", "this_month", "this_month_to_latest",
     "last_week", "last_7_days_to_latest", "same_period_last_year",
+    "today", "yesterday",            # v0.7.19 日粒度（含今天那天的单日窗口）
+    "last_month", "last_year",       # v0.7.19 完整过去（→ ads 汇总）
 }
 # 日期列名 exact 模式（time 窗注入 regex fallback pass1；metric 未声明 date_column 时约定推断）
 # ⚠️ v0.7.17 两遍解析 pass1 = 此 exact regex 逐字（含 stat_date/biz_date —— 删之引 order-drift）；

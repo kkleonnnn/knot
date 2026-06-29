@@ -138,6 +138,7 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
         return None, None
     parse_res = await parser.parse_to_logicform(
         refined_question, metrics, sql_planner_key, api_key, openrouter_api_key,
+        business_rules=catalog.get("business_rules", ""),   # v0.7.19 库表时效路由（今天/实时→dwd）
     )
     cost_service.add_agent_cost(  # R-SL-19 复用 sql_planner planning 桶
         agent_buckets, "sql_planner",
@@ -147,8 +148,17 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     if lf is None:
         return None, None                                  # parse 未命中 → 无 LogicForm → 无审计行
     lf_json = lf.to_canonical_json()                       # canonical 单源（R-SL-17；非 sort_keys）
+    # v0.7.19 per-metric 新鲜度：按引用 metric 的 freshness_lag_days 取 min（最新源）解析 time_ctx
+    # → dwd metric(lag=0) 的 *_to_latest/today 解析到【今天】，ads(lag=1)到【昨天】；含今天窗口走 dwd 才真拿到今天。
+    _by_name = {m["name"]: m for m in metrics}
+    # ⚠️ 不能用 `or 1`：dwd 的 freshness_lag_days=0 是 falsy 会被吞成 1（→ latest 退回昨天 → 漏今天）。
+    def _lag_of(m):
+        v = m.get("freshness_lag_days")
+        return 1 if v is None else int(v)
+    _lags = [_lag_of(_by_name[n]) for n in lf.metrics if n in _by_name]
+    _lag = min(_lags) if _lags else 1
     try:
-        sql = compiler.compile_logicform(lf, catalog, time_resolver.resolve_time_context())
+        sql = compiler.compile_logicform(lf, catalog, time_resolver.resolve_time_context(data_freshness_lag_days=_lag))
     except compiler.CompileError as e:
         # near-miss：解析出 LF 但编译歧义 → 回退 LLM + 存审计行（诊断「为何回退」R-SL-34/D4）
         return None, {"catalog_id": catalog_id, "logicform_json": lf_json, "compile_error_reason": str(e)}
