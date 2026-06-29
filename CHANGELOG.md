@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **parser 路由感知**：metric 行加 `表=base_object` + 注入 catalog `business_rules`（此前仅 clarifier/sql_planner 有，parser 路由盲）+ `_LOGICFORM_SYS` 加「库表时效路由第一判据」轴 + 时间词→枚举映射。
 - **time_resolver**：TimeContext +4 枚举（`today`/`yesterday` 日粒度 lag 无关 + `last_month`/`last_year` 完整过去；R-PA-PB-2 守护者评审；prompt_block byte-equal sustained）。`_TIME_KEYS`/`_TIME_ENUMS` 同步。
-- **query_steps per-metric 新鲜度**：按引用 metric `min(freshness_lag_days)` 解析 time_ctx（dwd lag=0→latest 今天 / ads lag=1→昨天）。⚠️ 禁 `or 1`（dwd lag=0 falsy 会被吞成 1 → 漏今天 = 本修复命门）。
+- **query_steps per-metric 新鲜度**：按引用 metric `min(freshness_lag_days)` 解析 time_ctx（dwd lag=0→latest 今天 / ads lag=1→昨天）。⚠️ 禁 `or 1`（dwd lag=0 falsy 会被吞成 1 → 漏今天 = 命门之一）。
+- **DATETIME 列时间窗半开区间（命门之二，R-SL-152）**：`_date_range_clause` 按日期列类型分流 —— DATETIME 列（`*_time`，如 dwd `sta_time`/`update_time`）用 `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`（旧 `BETWEEN 'date' AND 'date'` 在 datetime 列只匹配午夜瞬间 → **全天漏空 NULL**，实测 dwd 今天查询返空）；DATE 列（ads `sta_date`）保 `BETWEEN`（存量 byte-equal）。半开区间无日末 sub-second gap。
 
 ### Notes（DB 内容 = 运维侧应用，不在本 PR）
 

@@ -13,6 +13,7 @@ from knot.services.semantic.compile_helpers import (
     _OP_SQL,
     _TIME_KEYS,
     CompileError,
+    _date_range_clause,
     _is_derived,
     _json_list,
     _order_limit,
@@ -68,7 +69,7 @@ def _build_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
             if date_col is None:
                 raise CompileError(f"metric {name!r} base 无日期列但 lf.time 设定 → 回退")
             start, end = getattr(time_ctx, lf.time)
-            where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+            where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
         dim_cols = ", ".join(f"o.{d}" for d in lf.dimensions)
         w = (" WHERE " + " AND ".join(where)) if where else ""
         union_branches.append(f"SELECT DISTINCT {dim_cols} FROM {physical} o{w}")

@@ -22,6 +22,7 @@ from knot.services.semantic import multi_base
 from knot.services.semantic.compile_helpers import (
     _TIME_KEYS,
     CompileError,
+    _date_range_clause,
     _frame_clause,
     _is_derived,
     _json_list,
@@ -209,7 +210,7 @@ def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx)
         if date_col is None:
             raise CompileError(f"lf.time={lf.time!r} 设定但无可解析日期列（回退 LLM 处理时间）")
         start, end = getattr(time_ctx, lf.time)
-        where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+        where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
     sql = f"SELECT {', '.join(select_parts)} FROM {physical} o"
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -259,7 +260,7 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
         if date_col is None:
             raise CompileError(f"lf.time={lf.time!r} 但 base 无日期列 → 回退")
         start, end = getattr(time_ctx, lf.time)
-        where.append(f"{ba}.{date_col} BETWEEN '{start}' AND '{end}'")
+        where.append(_date_range_clause(f"{ba}.{date_col}", start, end))   # v0.7.19 半开区间
     sql = f"SELECT {', '.join(select_parts)} FROM {from_sql}"
     if where:
         sql += " WHERE " + " AND ".join(where)

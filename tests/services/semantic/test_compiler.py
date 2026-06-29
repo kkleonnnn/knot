@@ -735,3 +735,21 @@ def test_metric_no_date_column_byte_equal_existing():
         "SELECT o.city, SUM(o.pay_amount) AS gmv FROM shop.orders o "   # 单对象 SELECT = 维度 + caliber
         "WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21' "
         "GROUP BY o.city LIMIT 10")
+
+
+# ─── v0.7.19 DATETIME 日期列半开区间（修 dwd sta_time 全天漏空）──────────────
+def test_v0719_datetime_col_half_open_range():
+    """⭐ v0.7.19：DATETIME 列（sta_time/update_time）→ 半开区间 `>= start 00:00:00 AND < (end+1) 00:00:00`
+    覆盖全天（旧 `BETWEEN 'date' AND 'date'` 在 datetime 列只匹配午夜瞬间 → 全天漏空 NULL，实测 dwd 今天返空）。
+    DATE 列（sta_date）保 BETWEEN（存量 byte-equal）。"""
+    from types import SimpleNamespace
+    tc = SimpleNamespace(today=("2026-06-29", "2026-06-29"))
+    m_dt = {"name": "x", "caliber": "SUM(o.amt)", "base_object": "shop.orders",
+            "filters": "[]", "dimensions": "[]", "date_column": "sta_time"}
+    sql = _build_sql(LogicForm(metrics=["x"], time="today"), {"x": m_dt}, _TABLES, tc)
+    assert "BETWEEN" not in sql                                                    # datetime 不用 BETWEEN
+    assert "o.sta_time >= '2026-06-29 00:00:00' AND o.sta_time < '2026-06-30 00:00:00'" in sql  # 半开覆盖全天
+    # DATE 列对照：仍 BETWEEN（存量不变）
+    m_d = {**m_dt, "date_column": "sta_date"}
+    sql2 = _build_sql(LogicForm(metrics=["x"], time="today"), {"x": m_d}, _TABLES, tc)
+    assert "o.sta_date BETWEEN '2026-06-29' AND '2026-06-29'" in sql2

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, timedelta
 
 # TimeContext tuple 字段（time_resolver；lf.time 枚举 key）
 _TIME_KEYS = {
@@ -66,6 +67,23 @@ def _resolve_metric_date_col(m: dict, fallback_dims: list[str] | None = None) ->
         return explicit
     dims = fallback_dims if fallback_dims is not None else _json_list(m.get("dimensions"))
     return _resolve_date_col(dims)
+
+
+def _date_range_clause(col_expr: str, start: str, end: str) -> str:
+    """时间窗 WHERE 片段（v0.7.19）—— **按日期列类型分流**（列名推断）：
+
+    - **DATETIME 列**（`*_time` / 含 time，如 dwd `sta_time`/`update_time`）→ **半开区间**
+      `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`。旧 `BETWEEN 'date' AND 'date'`
+      在 datetime 列上 = `BETWEEN '...00:00:00' AND '...00:00:00'` → **只匹配午夜那一瞬 → 漏全天**
+      （实测 dwd 今天查询返 NULL）；半开区间覆盖全天且无日末 sub-second gap（每一瞬恰属一天）。
+    - **DATE 列**（如 ads `sta_date`/`date`）→ `BETWEEN 'start' AND 'end'`（date 比较两端 inclusive，存量 byte-equal）。
+    """
+    col = col_expr.rsplit(".", 1)[-1].lower()
+    if col.endswith("_time") or "time" in col:
+        y, m, d = (int(x) for x in str(end).split("-"))
+        end_excl = (date(y, m, d) + timedelta(days=1)).isoformat()
+        return f"{col_expr} >= '{start} 00:00:00' AND {col_expr} < '{end_excl} 00:00:00'"
+    return f"{col_expr} BETWEEN '{start}' AND '{end}'"
 
 
 def _json_list(raw) -> list:
@@ -131,7 +149,7 @@ def _scalar_subquery(m: dict, tables: list[dict], time_ctx=None, lf_time: str = 
         if date_col is None:
             raise CompileError(f"metric {m.get('name')!r} base 无日期列但 time 设定 → 回退")
         start, end = getattr(time_ctx, lf_time)
-        where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+        where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
     sub = f"SELECT {m['caliber']} FROM {physical} o"
     if where:
         sub += " WHERE " + " AND ".join(where)
