@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.18 — 语义层命中路径令牌统计修复（P1 bugfix）
+## [Unreleased] - v0.7.19 — 数据新鲜度路由修复（5 源统一轴 + 时间精度）
+
+> 价值自测发现「今天合约量→ads 日报→空」；Codex 审计（PR #186）+ ultracode workflow 复审确认**线上 5 个路由源
+> （business_rules / 知识库 / few-shot / clarifier / sql_planner prompt）一致漏「时间窗触达今天→dwd 明细」轴**，
+> few-shot #35 是可执行铁证（`本周注册和活跃 → ads 周报最新行` = 漏今天）。系统性少算「本月/本周/今年迄今」
+> 双源度量（充值/交易量/盈亏/注册）的今天那一天。
+> 正确轴（资深确认）= **时间窗右边界是否触达今天/现在**：触达今天/迄今 → dwd（明细含今天，可 SUM 出平台总量）；
+> 完整过去（昨天/上月/上周/同比去年）→ ads（汇总更快更完整）。**本月/本周/今年默认迄今含今天 → 双源走 dwd**。
+> R-SL-148~151。详 [docs/plans/v0.7.19-freshness-routing.md](docs/plans/v0.7.19-freshness-routing.md)。
+
+### Fixed / Changed
+
+- **parser 路由感知**：metric 行加 `表=base_object` + 注入 catalog `business_rules`（此前仅 clarifier/sql_planner 有，parser 路由盲）+ `_LOGICFORM_SYS` 加「库表时效路由第一判据」轴 + 时间词→枚举映射。
+- **time_resolver**：TimeContext +4 枚举（`today`/`yesterday` 日粒度 lag 无关 + `last_month`/`last_year` 完整过去；R-PA-PB-2 守护者评审；prompt_block byte-equal sustained）。`_TIME_KEYS`/`_TIME_ENUMS` 同步。
+- **query_steps per-metric 新鲜度**：按引用 metric `min(freshness_lag_days)` 解析 time_ctx（dwd lag=0→latest 今天 / ads lag=1→昨天）。⚠️ 禁 `or 1`（dwd lag=0 falsy 会被吞成 1 → 漏今天 = 本修复命门）。
+
+### Notes（DB 内容 = 运维侧应用，不在本 PR）
+
+- 5 个路由源（OHX catalog business_rules / 知识库 #75 / few-shot #35 / clarifier+sql_planner prompt admin 覆盖版）+ presenter 增强 + metric 注册表（freshness_lag ads=1/dwd=0 + 加 user_reg dwd → 41 metric）= 本地 DB 改 + 导出 `~/Downloads/knot-freshness-fix/` 供运维应用线上。仓库 generic seed `knot/prompts/*.md` axis 补充 = follow-on。
+
+## [Released] - v0.7.18 — 语义层命中路径令牌统计修复（P1 bugfix）
 
 > **P1 bugfix**（Codex 审查 PR #186 发现 + 执行者 R-137 grounded 确认）：`KNOT_SEMANTIC_LAYER=true` 语义层
 > 命中时，顶层 `input_tokens`/`output_tokens`（→ message 行 + 用户用量）**漏计 parse（NL→LogicForm）LLM 令牌**。
