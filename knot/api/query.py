@@ -392,14 +392,28 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             "output": {"sql": sql_result.sql, "steps": len(sql_result.steps)}})
                 await asyncio.sleep(0)
 
-            yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
-            await asyncio.sleep(0)
-            presenter_result = await query_steps.run_presenter_step(
-                req.question, sql_result.sql, sql_result.rows,
-                query_steps.select_agent_key("presenter", user_agent_cfg, model_key, api_key, openrouter_api_key),
-                api_key, openrouter_api_key, agent_buckets,
-            )
-            confidence = presenter_result.get("confidence", "high")
+            # v0.7.20 R-SL-153/154（守护者 Stage 3 + adversarial 复核纠正）：presenter 仅在「成功且无 error」时运行。
+            # gate = success AND not error（= sql_planner success 公式第一子句）；单 not success 会漏「有 SQL 但执行失败」
+            # （execute_query 出错返 ([], err) 非 None → success 恒 True）= problem 1/2 本身。详 query_steps.should_run_presenter。
+            _present = query_steps.should_run_presenter(sql_result.success, sql_result.error)
+            if _present:
+                yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
+                await asyncio.sleep(0)
+                presenter_result = await query_steps.run_presenter_step(
+                    req.question, sql_result.sql, sql_result.rows,
+                    query_steps.select_agent_key("presenter", user_agent_cfg, model_key, api_key, openrouter_api_key),
+                    api_key, openrouter_api_key, agent_buckets,
+                )
+                confidence = presenter_result.get("confidence", "high")
+                fail_kind = fail_msg = None
+            else:
+                # 失败/放弃 → 跳过 presenter（防幻觉，0 LLM）；共享尾保留（R-SL-160），仅 insight 置空 + 填友好 error_kind/user_message。
+                from knot.services import http_planner
+                presenter_result = {"insight": "", "suggested_followups": [],
+                                    "input_tokens": 0, "output_tokens": 0}
+                confidence = "low"
+                fail_kind, fail_msg = http_planner.failure_error_meta(
+                    sql_result.sql, bool(sql_result.error))   # R-SL-155 三子case（纯函数·可单测）
 
             final_rows = (sql_result.rows or [])[:cfg.MAX_RESULT_ROWS]
             query_time_ms = int((time.time() - t0) * 1000)
@@ -411,8 +425,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                             + presenter_result["output_tokens"])
             logger.info(f"presenter done confidence={confidence} cost_usd={total_cost:.4f} "
                         f"recovery_attempt={recovery_attempt}")
-            yield emit({"type": "agent_done", "agent": "presenter",
-                        "output": {"insight": presenter_result["insight"], "confidence": confidence}})
+            if _present:                                        # R-SL-153：失败不发 presenter agent_done（未运行）
+                yield emit({"type": "agent_done", "agent": "presenter",
+                            "output": {"insight": presenter_result["insight"], "confidence": confidence}})
             mid = message_repo.save_message(
                 conv_id=conv_id, question=req.question, sql=sql_result.sql,
                 explanation=clarifier_result["analysis_approach"] or sql_result.explanation,
@@ -436,7 +451,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "type": "final", "message_id": mid,
                 "sql": sql_result.sql, "rows": final_rows,
                 "explanation": clarifier_result["analysis_approach"] or sql_result.explanation,
-                "confidence": confidence, "error": sql_result.error or "",
+                # v0.7.20：error 兜底 fail_msg —— abandon 案 sql_result.error="" 但需 truthy 让前端
+                # showErrorBanner=!!(error&&error_kind) 渲染（adversarial 复核 B-ground 抓的前端门控）；成功 error="" byte-equal
+                "confidence": confidence, "error": sql_result.error or fail_msg or "",
                 "insight": presenter_result["insight"],
                 "suggested_followups": presenter_result["suggested_followups"],
                 "input_tokens": total_input, "output_tokens": total_output,
@@ -445,8 +462,10 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "agent_costs": cost_service.to_sse_payload(agent_buckets),
                 "recovery_attempt": recovery_attempt,
                 "budget_status": budget_status, "budget_meta": budget_meta,
-                # v0.4.4 R-30/33：成功路径错误字段全 None（双路径字段集 diff = ∅）
-                "error_kind": None, "user_message": None, "is_retryable": None,
+                # v0.4.4 R-30/33：成功路径错误字段全 None（双路径字段集 diff = ∅）；
+                # v0.7.20 R-SL-155/160：失败分支填友好 error_kind/user_message（成功 fail_kind=None → 全 None byte-equal）
+                "error_kind": fail_kind, "user_message": fail_msg,
+                "is_retryable": False if fail_kind else None,
             })
             await asyncio.sleep(0)
         except BIAgentError as e:
