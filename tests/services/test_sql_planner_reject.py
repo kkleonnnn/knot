@@ -127,3 +127,35 @@ def test_strip_sql_sustained():
     assert _strip_sql("```sql\nSELECT 1\n```") == "SELECT 1"
     assert _strip_sql("`SELECT 1`") == "SELECT 1"
     assert _strip_sql("  SELECT 1  ") == "SELECT 1"
+
+
+# ─── v0.7.19 C5 — 尾部散文剥离（防 opus 附「注：…」段污染 SQL 解析）──────────
+
+
+def test_strip_trailing_chinese_note():
+    """opus 偶在 SQL 后附「注：…」中文说明 → _strip_sql 剥掉（生产 futures_position_list bug）。"""
+    raw = ("SELECT market, side, total_notional_value\n"
+           "FROM futures_admin.futures_position_list\n"
+           "WHERE market = 'BTC-USDT' AND side = 1\n\n"
+           "注：该查询针对平台当前持仓（实时）虚拟表，必填参数 交易对 = BTC-USDT。")
+    out = _strip_sql(raw)
+    assert "注：" not in out
+    assert out.endswith("side = 1")
+    assert _get_first_sql_keyword(out) == "SELECT"
+
+
+def test_strip_trailing_note_english():
+    out = _strip_sql("SELECT 1 FROM t\n\nNote: platform query, realtime only.")
+    assert "Note:" not in out and out == "SELECT 1 FROM t"
+
+
+def test_strip_trailing_prose_preserves_cte_blank_lines():
+    """合法 SQL：CTE 与主查询间空行（ASCII 关键字续段）→ 全保留，不误伤。"""
+    sql = "WITH c AS (\n  SELECT a FROM t\n)\n\nSELECT * FROM c"
+    assert _strip_sql(sql) == sql
+
+
+def test_strip_trailing_prose_preserves_inline_cjk_literal():
+    """内联 CJK 字符串字面量（city='北京'）不在空行后整段起手 → 不受影响。"""
+    sql = "SELECT * FROM t\nWHERE city = '北京'\n  AND name = '上海'"
+    assert _strip_sql(sql) == sql

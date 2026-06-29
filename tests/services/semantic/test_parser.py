@@ -254,3 +254,10 @@ async def test_derived_extracted_through(monkeypatch):
     _mock_allm(monkeypatch, '{"metrics":["arpu"]}')
     r = await parser.parse_to_logicform("本月人均消费", [_GMV, _DAU, _ARPU], "model")
     assert isinstance(r["logicform"], LogicForm) and r["logicform"].metrics == ["arpu"]
+
+
+def test_v0719_absolute_year_falls_back_not_relative_enum():
+    """v0.7.19：parser prompt 教「绝对具体年份/日期 → metrics=[] 回退」（防 2025年→this_year=2026 错年）。"""
+    p = parser._build_prompt([_GMV])
+    assert "绝对具体年份" in p and "回退" in p
+    assert "锚当前年" in p or "错年" in p          # 解释为何不能塞 this_year/last_year

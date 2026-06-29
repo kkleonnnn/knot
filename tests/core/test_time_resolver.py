@@ -302,3 +302,24 @@ def test_timecontext_is_frozen():
         raise AssertionError("应抛 FrozenInstanceError")
     except dataclasses.FrozenInstanceError:
         pass
+
+
+def test_v0719_day_grain_and_complete_past_enums():
+    """v0.7.19：日粒度 today/yesterday（lag 无关）+ 完整过去 last_month/last_year。"""
+    ctx = resolve_time_context(today_override=date(2026, 6, 29), data_freshness_lag_days=1)
+    assert ctx.today == ("2026-06-29", "2026-06-29")        # 单日今天（lag 无关）
+    assert ctx.yesterday == ("2026-06-28", "2026-06-28")
+    assert ctx.last_month == ("2026-05-01", "2026-05-31")   # 上月整月
+    assert ctx.last_year == ("2025-01-01", "2025-12-31")    # 去年整年
+    # lag 无关：lag=0 时 today 仍是 (今天,今天)
+    ctx0 = resolve_time_context(today_override=date(2026, 6, 29), data_freshness_lag_days=0)
+    assert ctx0.today == ("2026-06-29", "2026-06-29")
+
+
+def test_v0719_freshness_lag_drives_to_latest():
+    """v0.7.19 per-metric 新鲜度命门：lag=0（dwd）→ *_to_latest 到【今天】；lag=1（ads）→【昨天】。
+    防 query_steps `or 1` 陷阱（dwd lag=0 被吞成 1 → 漏今天）。"""
+    dwd = resolve_time_context(today_override=date(2026, 6, 29), data_freshness_lag_days=0)
+    ads = resolve_time_context(today_override=date(2026, 6, 29), data_freshness_lag_days=1)
+    assert dwd.this_month_to_latest == ("2026-06-01", "2026-06-29")   # dwd 含今天
+    assert ads.this_month_to_latest == ("2026-06-01", "2026-06-28")   # ads 到昨天

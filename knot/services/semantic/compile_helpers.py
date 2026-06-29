@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, timedelta
 
 # TimeContext tuple 字段（time_resolver；lf.time 枚举 key）
 _TIME_KEYS = {
     "this_year", "this_year_to_latest", "this_month", "this_month_to_latest",
     "last_week", "last_7_days_to_latest", "same_period_last_year",
+    "today", "yesterday",            # v0.7.19 日粒度（含今天那天的单日窗口）
+    "last_month", "last_year",       # v0.7.19 完整过去（→ ads 汇总）
 }
 # 日期列名 exact 模式（time 窗注入 regex fallback pass1；metric 未声明 date_column 时约定推断）
 # ⚠️ v0.7.17 两遍解析 pass1 = 此 exact regex 逐字（含 stat_date/biz_date —— 删之引 order-drift）；
@@ -64,6 +67,37 @@ def _resolve_metric_date_col(m: dict, fallback_dims: list[str] | None = None) ->
         return explicit
     dims = fallback_dims if fallback_dims is not None else _json_list(m.get("dimensions"))
     return _resolve_date_col(dims)
+
+
+# v0.7.19 R2（守护者 Stage 3）：DATETIME 列名后缀集对齐代码库自认的时间戳后缀
+# `http_planner._TS_SUFFIXES = ("_time", "_at", "_ts")`。旧版只认 `_time`/含 time →
+# `_at`/`_ts`（如 `created_at`/`event_ts`）DATETIME 列误走 BETWEEN → 静默漏当天（与 C3 同 bug）。
+# compile_helpers 是 leaf（stdlib only，不 import http_planner）→ 本地镜像 + 注释锚定真相源。
+# 注：半开区间对 DATE 列也安全（date 比较 datetime 字面量仍正确），故"宁可多判 DATETIME"无副作用；
+# 真正的 per-metric 权威仍是显式 `date_column`（v0.7.17），本启发式仅 fallback。
+# ⚠️ 局限（守护者 Stage 3 critic）：启发式看不到物理类型——数值 epoch 列（largeint/decimal）若误名
+#    `_at`/`_time`（OHX 真实有 largeint `create_at`/`settle_at`）会被判半开 → `数值 >= 'date 00:00:00'`
+#    类型不匹配。但仅经显式 date_column 可达（auto regex `_resolve_date_col` 永不选 _at/_ts/_time）+ R2 前
+#    BETWEEN 在这类列上也已类型错 → 非 R2 回归、非阻塞。type-aware 检测（按 catalog 列类型元数据）= follow-on。
+_DATETIME_COL_SUFFIXES = ("_time", "_at", "_ts")
+
+
+def _date_range_clause(col_expr: str, start: str, end: str) -> str:
+    """时间窗 WHERE 片段（v0.7.19）—— **按日期列类型分流**（列名推断 fallback）：
+
+    - **DATETIME 列**（后缀 ∈ `_time`/`_at`/`_ts` 或含 time，如 dwd `sta_time`/`update_time`/
+      `created_at`/`event_ts`）→ **半开区间** `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`。
+      旧 `BETWEEN 'date' AND 'date'` 在 datetime 列上 = `BETWEEN '...00:00:00' AND '...00:00:00'`
+      → **只匹配午夜那一瞬 → 漏全天**（实测 dwd 今天查询返 NULL）；半开区间覆盖全天且无日末
+      sub-second gap（每一瞬恰属一天）。
+    - **DATE 列**（如 ads `sta_date`/`date`）→ `BETWEEN 'start' AND 'end'`（date 比较两端 inclusive，存量 byte-equal）。
+    """
+    col = col_expr.rsplit(".", 1)[-1].lower()
+    if col.endswith(_DATETIME_COL_SUFFIXES) or "time" in col:
+        y, m, d = (int(x) for x in str(end).split("-"))
+        end_excl = (date(y, m, d) + timedelta(days=1)).isoformat()
+        return f"{col_expr} >= '{start} 00:00:00' AND {col_expr} < '{end_excl} 00:00:00'"
+    return f"{col_expr} BETWEEN '{start}' AND '{end}'"
 
 
 def _json_list(raw) -> list:
@@ -129,7 +163,7 @@ def _scalar_subquery(m: dict, tables: list[dict], time_ctx=None, lf_time: str = 
         if date_col is None:
             raise CompileError(f"metric {m.get('name')!r} base 无日期列但 time 设定 → 回退")
         start, end = getattr(time_ctx, lf_time)
-        where.append(f"o.{date_col} BETWEEN '{start}' AND '{end}'")
+        where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
     sub = f"SELECT {m['caliber']} FROM {physical} o"
     if where:
         sub += " WHERE " + " AND ".join(where)

@@ -17,14 +17,39 @@ import re
 from knot.adapters.db import doris as db_connector
 from knot.services import sql_validator
 
+# v0.7.19 C5：尾部散文剥离 — LLM（尤其 opus）偶在 SQL 后附「注：…」中文说明段，
+# 污染 sqlglot AST 校验 + HTTP 虚拟表 SQL→param 提取（→「安全检查未通过」+ presenter 幻觉）。
+_CJK_RE = re.compile(r"[一-鿿㐀-䶿]")
+
+
+def _strip_trailing_prose(s: str) -> str:
+    """剥掉 SQL 末尾以空行分隔、CJK / Note 起手的散文说明块。
+
+    安全边界：仅切「空行后整段以 CJK 或 Note 起手」的块；合法 SQL（SELECT/WITH/
+    逗号 CTE 续段以 ASCII 关键字起手）全保留。内联 CJK 字符串字面量（如 city='北京'）
+    不在空行后整段起手，不受影响。
+    """
+    parts = re.split(r"\n[ \t]*\n", s)
+    if len(parts) <= 1:
+        return s
+    kept = [parts[0]]
+    for p in parts[1:]:
+        head = p.lstrip()
+        if head and (_CJK_RE.match(head[0]) or head[:5].lower().startswith("note")):
+            break                      # 尾部 prose 说明 → 丢弃此块及之后
+        kept.append(p)
+    return "\n\n".join(kept).rstrip()
+
 
 def _strip_sql(s: str) -> str:
-    """剥掉 LLM 常见的 markdown 围栏：```sql ... ``` / ``` ... ``` / 单反引号。"""
+    """剥掉 LLM 常见的 markdown 围栏：```sql ... ``` / ``` ... ``` / 单反引号
+    + 尾部散文说明（v0.7.19 C5 — 防 opus 附「注：…」段污染 SQL 解析）。"""
     s = s.strip()
     m = re.match(r"^```(?:sql)?\s*([\s\S]*?)\s*```$", s, re.IGNORECASE)
     if m:
         s = m.group(1)
-    return s.strip().strip("`").strip()
+    s = s.strip().strip("`").strip()
+    return _strip_trailing_prose(s)
 
 
 # v0.6.2.1 R-PB-C3-1：SQL 起手 token 检测（防 LLM 输出非 SQL 中文/拒答 fail-open 通过）

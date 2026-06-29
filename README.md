@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.18 · 语义层命中路径令牌统计修复（P1 bugfix）：Codex 审查发现 `KNOT_SEMANTIC_LAYER=true` 命中时顶层 `input/output_tokens` 漏计 parse（NL→LogicForm）LLM 令牌 —— 命中返回的 `AgentResult` 把 token 置 0（parse cost 已入 sql_planner 桶），顶层 token 汇总走结果和故漏（cost 取桶仍对）。修 = 命中 `AgentResult` 携带 parse cost+token（与 ReAct 路径对称），无双计。语义层默认 off，上线/灰度前修。<br>**上版** v0.7.17 metric 显式 date_column · v0.7.16 派生指标 metric÷metric · v0.7.15 自定义窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.19 · 数据新鲜度路由修复（5 源统一轴 + 时间精度）：价值自测 + Codex 审计发现线上 5 个路由源（business_rules/知识库/few-shot/clarifier/sql_planner prompt）一致漏「时间窗触达今天→明细源」轴，系统性少算「本月/本周/今年迄今」双源度量的今天那一天。修法 = 统一植入「**时间窗右边界是否触达今天/现在**」第一性轴（触达今天/迄今→dwd 明细[含今天]；完整过去→ads 汇总[更快]；本月=迄今=含今天=dwd）。代码：parser 注入 business_rules + `表=base_object` 路由 + today/yesterday/last_month/last_year 时间枚举 + per-metric 新鲜度（dwd lag=0 latest=今天 / ads lag=1 昨天）。<br>**上版** v0.7.18 令牌统计修复 · v0.7.17 metric 显式 date_column · v0.7.16 派生指标 metric÷metric · v0.7.15 自定义窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

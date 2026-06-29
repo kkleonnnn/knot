@@ -735,3 +735,36 @@ def test_metric_no_date_column_byte_equal_existing():
         "SELECT o.city, SUM(o.pay_amount) AS gmv FROM shop.orders o "   # 单对象 SELECT = 维度 + caliber
         "WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21' "
         "GROUP BY o.city LIMIT 10")
+
+
+# ─── v0.7.19 DATETIME 日期列半开区间（修 dwd sta_time 全天漏空）──────────────
+def test_v0719_datetime_col_half_open_range():
+    """⭐ v0.7.19：DATETIME 列（sta_time/update_time）→ 半开区间 `>= start 00:00:00 AND < (end+1) 00:00:00`
+    覆盖全天（旧 `BETWEEN 'date' AND 'date'` 在 datetime 列只匹配午夜瞬间 → 全天漏空 NULL，实测 dwd 今天返空）。
+    DATE 列（sta_date）保 BETWEEN（存量 byte-equal）。"""
+    from types import SimpleNamespace
+    tc = SimpleNamespace(today=("2026-06-29", "2026-06-29"))
+    m_dt = {"name": "x", "caliber": "SUM(o.amt)", "base_object": "shop.orders",
+            "filters": "[]", "dimensions": "[]", "date_column": "sta_time"}
+    sql = _build_sql(LogicForm(metrics=["x"], time="today"), {"x": m_dt}, _TABLES, tc)
+    assert "BETWEEN" not in sql                                                    # datetime 不用 BETWEEN
+    assert "o.sta_time >= '2026-06-29 00:00:00' AND o.sta_time < '2026-06-30 00:00:00'" in sql  # 半开覆盖全天
+    # DATE 列对照：仍 BETWEEN（存量不变）
+    m_d = {**m_dt, "date_column": "sta_date"}
+    sql2 = _build_sql(LogicForm(metrics=["x"], time="today"), {"x": m_d}, _TABLES, tc)
+    assert "o.sta_date BETWEEN '2026-06-29' AND '2026-06-29'" in sql2
+
+
+def test_v0719_r2_at_ts_suffix_cols_half_open():
+    """⭐ v0.7.19 R2（守护者 Stage 3 对抗 skeptic 确认）：DATETIME 列名后缀 `_at`/`_ts`
+    （created_at/event_ts）对齐代码库自认的 http_planner._TS_SUFFIXES → 半开区间。
+    旧版只认 `_time` → `_at`/`_ts` 列误走 BETWEEN 静默漏当天（与 C3 同 bug，未修；本 R2 闭合）。
+    DATE 后缀（sta_date/date/dt/ds）仍 BETWEEN（byte-equal 守住，两向都验）。"""
+    from knot.services.semantic.compile_helpers import _date_range_clause
+    for col in ("o.created_at", "o.event_ts", "o.sta_time", "o.update_time"):
+        c = _date_range_clause(col, "2026-06-29", "2026-06-29")
+        assert "BETWEEN" not in c, col
+        assert f"{col} >= '2026-06-29 00:00:00' AND {col} < '2026-06-30 00:00:00'" == c, col
+    for col in ("o.sta_date", "o.date", "o.dt", "o.ds"):               # DATE 后缀 → byte-equal BETWEEN
+        c = _date_range_clause(col, "2026-06-29", "2026-06-29")
+        assert c == f"{col} BETWEEN '2026-06-29' AND '2026-06-29'", col

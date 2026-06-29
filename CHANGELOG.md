@@ -5,7 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.18 — 语义层命中路径令牌统计修复（P1 bugfix）
+## [Unreleased] - v0.7.19 — 数据新鲜度路由修复（5 源统一轴 + 时间精度）
+
+> 价值自测发现「今天合约量→ads 日报→空」；Codex 审计（PR #186）+ ultracode workflow 复审确认**线上 5 个路由源
+> （business_rules / 知识库 / few-shot / clarifier / sql_planner prompt）一致漏「时间窗触达今天→dwd 明细」轴**，
+> few-shot #35 是可执行铁证（`本周注册和活跃 → ads 周报最新行` = 漏今天）。系统性少算「本月/本周/今年迄今」
+> 双源度量（充值/交易量/盈亏/注册）的今天那一天。
+> 正确轴（资深确认）= **时间窗右边界是否触达今天/现在**：触达今天/迄今 → dwd（明细含今天，可 SUM 出平台总量）；
+> 完整过去（昨天/上月/上周/同比去年）→ ads（汇总更快更完整）。**本月/本周/今年默认迄今含今天 → 双源走 dwd**。
+> R-SL-148~152。详 [docs/plans/v0.7.19-freshness-routing.md](docs/plans/v0.7.19-freshness-routing.md)。
+>
+> **⚠️ 框架诚实（守护者 Stage 3 critic 补全 — 别读成开箱即用的「确定性路由修复」）**：本 PR（仓库侧）交付的是**管道 + LLM 路由 steering**，非 self-contained 确定性 fix。
+> ① **dwd-vs-ads 的选取是 LLM parser 的软判断**（business_rules + prompt 提命中率），**非硬不变量**——语义层的确定性保证一直是「**编译**」（LogicForm→SQL 可审计），**非「选哪张表 / 哪个 metric」**（后者 v0.7.0 起即 LLM 中介，非本 PR 引入、非回归）。
+> ② **激活靠带外运维**：freshness 实际生效依赖 **DB 内容**（catalog `business_rules` + 每 metric `freshness_lag_days`）。fresh checkout 上 `business_rules` 默认空 + `freshness_lag_days` 默认 1（schema.sql）→ `_lag = min(lags)` 恒为 1 → **dwd lag=0 命门路径不触发**（管道在、未激活）。**无 CI 守护 + 无 fresh-install seed**（5 源内容侧靠运维手动应用，见 Notes）。
+
+### Fixed / Changed
+
+- **parser 路由感知**：metric 行加 `表=base_object` + 注入 catalog `business_rules`（此前仅 clarifier/sql_planner 有，parser 路由盲）+ `_LOGICFORM_SYS` 加「库表时效路由第一判据」轴 + 时间词→枚举映射。
+- **time_resolver**：TimeContext +4 枚举（`today`/`yesterday` 日粒度 lag 无关 + `last_month`/`last_year` 完整过去；R-PA-PB-2 守护者评审；prompt_block byte-equal sustained）。`_TIME_KEYS`/`_TIME_ENUMS` 同步。
+- **query_steps per-metric 新鲜度**：按引用 metric `min(freshness_lag_days)` 解析 time_ctx（dwd lag=0→latest 今天 / ads lag=1→昨天）。⚠️ 禁 `or 1`（dwd lag=0 falsy 会被吞成 1 → 漏今天 = 命门之一）。
+- **DATETIME 列时间窗半开区间（命门之二，R-SL-152）**：`_date_range_clause` 按日期列类型分流 —— DATETIME 列（后缀 ∈ `_time`/`_at`/`_ts` 或含 time，如 dwd `sta_time`/`update_time`）用 `>= 'start 00:00:00' AND < '(end+1日) 00:00:00'`（旧 `BETWEEN 'date' AND 'date'` 在 datetime 列只匹配午夜瞬间 → **全天漏空 NULL**，实测 dwd 今天查询返空）；DATE 列（ads `sta_date`）保 `BETWEEN`（存量 byte-equal）。半开区间无日末 sub-second gap。
+- **绝对年份/日期 → 回退 LLM（C4）**：parser 时间词只映射相对枚举；写死的绝对年份/月份/日期（如「2025年」）→ `metrics=[]` 回退 LLM（按具体日期写 SQL），严禁塞 `this_year`/`last_year`（锚当前年算错年）。配套 clarifier prompt（DB+导出）保留相对时间词原样（根因修——防「去年」被展开成「2025年」后误判 this_year=2026）。
+- **`_strip_sql` 剥尾部散文（C5）**：作用于 **LLM ReAct SQL 路径**（sync+async；**非** HTTP 虚拟表 param 提取、亦不碰语义编译路径——blast radius 比初述广）—— opus 偶在 SQL 后附「注：…」中文说明段污染 sqlglot AST 校验 → 「安全检查未通过」+ presenter 幻觉。`_strip_trailing_prose` 剥空行分隔 + CJK/Note 起手段落（合法 SQL/CTE/内联 CJK 字面量不误伤）。⚠️ 已知 CJK 列名 + LLM 空行排版有假阳性误截风险（**优雅失败**：截断 SQL → 执行报错非静默错），follow-on 收紧。
+- **DATETIME 列后缀集对齐（R2，守护者 Stage 3）**：`_date_range_clause` DATETIME 判定后缀 `_time` → 扩 `("_time","_at","_ts")` 对齐代码库自认的 `http_planner._TS_SUFFIXES`（旧只认 `_time` → `_at`/`_ts` 列误走 BETWEEN 静默漏当天 = 半开区间同 bug 未修全；`dwd_user_reg` 误用 `sta_date` 是确认实例）。DATE 列仍 BETWEEN（byte-equal 两向守）。注：列名启发式仅 fallback，权威是显式 `date_column`（v0.7.17）。
+
+### Notes（DB 内容 = 运维侧应用，不在本 PR）
+
+- 5 个路由源（OHX catalog business_rules / 知识库 #75 / few-shot #35 / clarifier+sql_planner prompt admin 覆盖版）+ presenter 增强 + metric 注册表（freshness_lag ads=1/dwd=0 + 加 user_reg dwd → 41 metric）= 本地 DB 改 + 导出 `~/Downloads/knot-freshness-fix/` 供运维应用线上。
+- **激活前置（critic）**：上述内容**未应用前，本 PR 的 freshness 管道 inert** —— `freshness_lag_days` 默认 1 → dwd lag=0 路径不触发；`business_rules` 默认空 → parser 路由轴无注入。**0 CI 守护 + 0 fresh-install seed**。仓库 generic seed `knot/prompts/*.md` axis 补充 + 每 metric freshness seed = follow-on。
+- **follow-on：type-aware 日期列检测（守护者 Stage 3 9-agent critic）**：`_date_range_clause` 列名启发式看不到物理类型 —— 真实 OHX 有 largeint epoch `_at` 列（`create_at`/`settle_at` 等）+ 1 个 decimal `update_time`，R2 后被判半开 → `数值 >= 'date 00:00:00'` 类型不匹配。**非阻塞**（仅经显式 `date_column` 可达——auto regex `_resolve_date_col` 永不选 `_at`/`_ts`/`_time`；且 R2 前 BETWEEN 在这类列上也已类型错 → 换一种错非破坏正确）。根治 = 按 catalog 列类型元数据做 type-aware 检测。同登记：C4 年份 backstop（须收窄防误触发）/ clarifier seed-prompt preserve / 混 dwd+ads 单查 `min(lag)` 静默少算 ads / C5 `_strip_sql` 假阳性收紧（`gmt_*`/`*_dt` datetime 命名 = 行业假设，真实 OHX 0 命中）。
+
+## [Released] - v0.7.18 — 语义层命中路径令牌统计修复（P1 bugfix）
 
 > **P1 bugfix**（Codex 审查 PR #186 发现 + 执行者 R-137 grounded 确认）：`KNOT_SEMANTIC_LAYER=true` 语义层
 > 命中时，顶层 `input_tokens`/`output_tokens`（→ message 行 + 用户用量）**漏计 parse（NL→LogicForm）LLM 令牌**。
