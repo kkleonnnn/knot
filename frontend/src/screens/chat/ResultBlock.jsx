@@ -79,8 +79,13 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
 
   const cols = rows && rows.length > 0 ? Object.keys(rows[0]) : [];
   const isNumericCol = (col) => rows && rows.some(r => typeof r[col] === 'number' && r[col] !== null);
-  const numericCols = cols.filter(isNumericCol);
-  const labelCols = cols.filter(c => !isNumericCol(c));
+  // v0.7.23 图表硬化：语义路径 dimension_cols=lf.dimensions（labelCol）→ numericCols=数值−维度（守护者 R-SL-170：
+  // 保数值过滤 + 排维度 → 数值 ID-as-维度排除 / 窗口·派生数值度量保留画）；LLM/旧消息空 → fallback typeof（byte-equal）。
+  const dimensionCols = (msg.dimension_cols && msg.dimension_cols.length) ? msg.dimension_cols : [];
+  const columnLabels = msg.column_labels || {};
+  const numericColsAll = cols.filter(isNumericCol);
+  const numericCols = dimensionCols.length ? numericColsAll.filter(c => !dimensionCols.includes(c)) : numericColsAll;
+  const labelCols = dimensionCols.length ? dimensionCols : cols.filter(c => !isNumericCol(c));
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
   // v0.4.1 R-S4 三级优先级链：display_hint > INTENT_TO_HINT[intent] > inferIntentFromShape
@@ -181,12 +186,12 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
       )}
 
       {rows && rows.length > 0 && isMetric && (
-        <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols}/>
+        <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels}/>
       )}
 
       {rows && rows.length > 0 && !isMetric && (
         <TableContainer
-          T={T} rows={rows} cols={cols} labelCols={labelCols} numericCols={numericCols}
+          T={T} rows={rows} cols={cols} labelCols={labelCols} numericCols={numericCols} columnLabels={columnLabels}
           chartable={chartable} isMetric={isMetric} isDetail={isDetail} isRetention={isRetention}
           showChart={showChart} chartData={chartData} pieData={pieData}
           chartType={chartType} setChartType={setChartType} activeType={activeType}

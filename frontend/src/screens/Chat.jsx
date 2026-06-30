@@ -147,6 +147,8 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
           input_tokens: ev.input_tokens, output_tokens: ev.output_tokens,
           cost_usd: ev.cost_usd, query_time_ms: ev.query_time_ms,
           intent: ev.intent || null,
+          // v0.7.23 呈现：语义路径 metric 列中文表头 + 图表硬化（LLM/旧消息无 → fallback raw/typeof）
+          column_labels: ev.column_labels || {}, dimension_cols: ev.dimension_cols || [],
           // v0.4.2 新增（向前展开）
           agent_costs: ev.agent_costs || null,
           recovery_attempt: ev.recovery_attempt || 0,

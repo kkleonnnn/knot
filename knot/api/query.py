@@ -461,6 +461,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "input_tokens": total_input, "output_tokens": total_output,
                 "cost_usd": total_cost, "query_time_ms": query_time_ms, "intent": intent,
                 "engine": engine_used,  # v0.7.3 F2/R-SL-35：semantic（确定性编译）/ llm（兜底）路径徽标
+                # v0.7.23 呈现：语义路径 metric 列中文表头 + 图表 dimension_cols（LLM 路径 AgentResult 默认空 → 前端 fallback）
+                "column_labels": sql_result.column_labels, "dimension_cols": sql_result.dimension_cols,
                 "agent_costs": cost_service.to_sse_payload(agent_buckets),
                 "recovery_attempt": recovery_attempt,
                 "budget_status": budget_status, "budget_meta": budget_meta,
