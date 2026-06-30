@@ -151,18 +151,25 @@ HTTP 虚拟表的"持仓"类（futures_position_list / futures_user_pending）**
 
 按用户问法 override：
 - 用户问"总量/合计/平均/最大/最小/有多少" → intent=metric（明确要单一聚合标量）
-- 用户问"列表/明细/情况/有哪些/全部/查看" → intent=detail（多行）
+- 用户问"列表/明细/情况/有哪些/全部/查看" → intent=detail（多行裸明细）
 - 用户问"按 X 排序/Top N/最大持仓" → intent=rank
 - 用户问"按 X 分布/占比" → intent=distribution
+- 用户问"**各 X / 按 X / 分 X 的〔盈亏/金额/数量/费率 等可聚合指标〕**"（分组聚合）→ intent=rank
+  （默认分组排序展示；"占比"→distribution、"每日/趋势"→trend、"对比"→compare）。
+  ⚠️ **分组聚合 ≠ detail**：detail 仅"裸明细列表"（某 market+side 的全部持仓行）；
+  "各 X 的〔聚合指标〕"是跨组分析（HTTP 当前快照产不出，须走 SQL 历史/聚合）。
+  反向守护：**裸快照"当前/实时 持仓"（无 各/按/分 分组语）仍归 detail**，勿误升 rank。
 
 示例：
-- "平台BTC当前卖出持仓"        → intent=detail（多行 — 该市场该方向全部持仓）
+- "平台BTC当前卖出持仓"        → intent=detail（裸快照 — 该市场该方向全部持仓多行，无分组聚合语）
 - "平台BTC卖出持仓情况"        → intent=detail（"情况"=多行展示，非单一指标）
 - "平台BTC卖出持仓总量"        → intent=metric（明确"总量"聚合）
 - "平台BTC卖出持仓最大杠杆"    → intent=metric（明确单一标量）
-- "用户1000260当前持仓"        → intent=detail（多行 — 该用户全部仓位）
+- "用户1000260当前持仓"        → intent=detail（裸快照 — 该用户全部仓位多行）
 - "用户1000260有几个持仓"      → intent=metric（计数标量）
 - "持仓量Top10用户"            → intent=rank
+- "各交易对的持仓盈亏"          → intent=rank（按交易对分组聚合盈亏 = 分析类，非裸明细）
+- "各交易对持仓盈亏排名"        → intent=rank（"排名" + 分组聚合）
 
 **8. 复合 metric — 一句问 2+ 聚合指标（v0.6.2.2 A5）**
 用户一句话问多个聚合指标（"X 和 Y" / "X、Y、Z" / "X 以及 Y"）→ intent=metric（sustained 单标量类）+ **refined_question 保留全部指标**（不丢弃第 2+ 个）。
