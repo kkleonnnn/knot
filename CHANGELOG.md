@@ -5,7 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.21 — 多行结果误渲染 MetricCard 修复（图文不一致）（前端 bugfix）
+## [Unreleased] - v0.7.22 — 持仓盈亏路由结构信号修复（Layer A intent veto + Layer B 分组聚合）+ clarifier 收敛（bugfix + 收敛）
+
+> 价值自测第二轮 #3/#4：「本月各交易对的持仓盈亏」「各交易对持仓盈亏排名」→「持仓」lexicon 抢路由 HTTP 当前持仓快照（缺 market+side 必填）→ 失败。守护者 flag 1（R-137 校正）：结构信号非 exclusion 打地鼠（#188 同病），机制从「时间窗」校正为「intent」（grounded：clarifier 无时间字段 + time_resolver 不解析文本 → intent 是唯一现成结构信号）。kk live 3+1 通过（#2 修复 + #1/#3/今年 无回归 + 相对时间词/脱敏纪律生效）。
+
+### Fixed
+
+- **Layer A（intent 结构信号 veto · R-SL-161/162）**：`pick_http_route` 收 `intent`（additive 默认 None；query.py 调用点传 `clarifier_result.get("intent")`；单参默认 None **byte-equal 现状**）；`intent ∈ {trend,compare,rank,distribution,retention}` 5 分析类 → `return None`（走 SQL）。**early-return 先于 Layer 3 + lexicon loop**（否则「持仓」lexicon 先命中返 HTTP → veto 不触发，同 v0.7.16 dispatch 先于 `_metric_bases` class）。HTTP 当前快照物理产不出趋势/排名/分布/留存/对比 → 解 #4。`_ANALYTICAL_INTENTS` frozenset；6 单测（含同查询 analytical→None vs detail→HTTP 对比证 early-return）。
+- **Layer B（clarifier.md point 7 · R-SL-163）**：「各X/按X/分X 的〔盈亏/金额/数量/费率 可聚合指标〕」（分组聚合）→ rank（占比→distribution / 趋势→trend / 对比→compare）。⚠️ 裸快照「当前/实时持仓」（无 各/按/分 分组语）仍归 detail → Layer A 不接 → **HTTP 正路不断** → 解 #3。
+
+### Changed（clarifier.md 收敛 · scope 扩 资深拍 B · 恢复单一真相源）
+
+- 价值自测发现本地/线上 DB clarifier = 2026-05-25 admin 定制 fork（`updated_by≠NULL`），幂等 seed 不覆盖 → 跑远古版（缺 point 5-8 + Layer B + 近期改进）。gap 分析：14 条定制规则 **12 条已在 catalog `business_rules`**（`{business_rules}` 注入），定制硬编是重复。只 2 真 gap 各归正位：
+  - **相对时间词纪律**（clarifier 纪律 → clarifier.md）：升级弱版（原仅周报/月报）→ 全相对词 + **严禁展开绝对年份**（「去年」→保持「去年」不写「2025 年」）= v0.7.19「去年→今年」误判 **clarifier 层根治**。
+  - **side/type 编码**（业务规则 → catalog `business_rules`）：1=空/2=多、1=逐仓/2=全仓。
+  - + 通用 **脱敏-output 纪律**（refined/clarification/analysis 三用户可见字段严禁物理库表名/裸英文字段名，用中文业务术语）。
+- clarifier.md 保持**部署无关通用**（OHX 规则走 business_rules 注入，非硬编）→ 架构归位，减重复减硬编，符合 OSS sanitize。
+
+### Deploy（⚠️ 部署须 re-seed — 详 `~/Downloads/knot-v0.7.22-deploy/`）
+
+- 幂等 seed 不覆盖（R-PA-2.3）+ get_prompt DB 优先 → **clarifier.md 改动不随代码自动生效**：已有 DB clarifier 行的环境（本地 + 线上）须手动 re-seed（admin UI 覆盖有审计 = 生产首选 / 清 DB 行重启 / 直更 DB 行应急）+ business_rules 补 side 编码。本地已 re-seed（4655→7253，`updated_by→NULL`；定制版备份 scratchpad）。
+- ⚠️ 纯代码改（Layer A）须重启 server 加载；prompt 改（Layer B）DB 实时读免重启（本 PATCH 调试时混过一次）。
+
+### Notes
+
+- 守护者 Stage 3 **ACCEPT WITH REVISIONS**（R1 撞号 renumber 161~167 / R2 early-return 位置 / R3 LOCK 条件化 live 测）+ C1/C2/C2.5 逐 commit APPROVED。
+- **Layer C 残留（defer v0.7.25 · silent-wrong 真 bug 非 polish）**：单交易对+时间窗（「本月BTC盈亏」intent=metric）漏 HTTP = 忽略时间窗返当前快照冒充本月不报错；需 time-window 文本检测器（语义层时间窗复用）。
+- 既存 v0.6.1.4 futures 示例段（clarifier.md）→ 全 OSS-genericity 独立清理（pre-existing 非本刀；CI `audit_ohx_leakage` 校验 delta 无新泄漏）。
+- R-SL-161~167（跳号 — v0.7.20 已用 153~160 避撞号）。`check_file_sizes` http_planner 565→580。
+
+## [Released] - v0.7.21 — 多行结果误渲染 MetricCard 修复（图文不一致）（前端 bugfix）
 
 > 价值自测 problem 3 / E 实例：「当前平台 BTC 多头持仓」（HTTP 返 5 个持仓）→ presenter 文字分析全 5 行（重点 row[1] 大仓 持仓ID 46284/用户ID 502），但数据卡片只渲染 row[0]（持仓ID 83128/用户ID 1001544）→ **图文不一致**。
 
