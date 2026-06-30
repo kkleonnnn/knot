@@ -132,3 +132,53 @@ def test_exclusion_regex_patterns(monkeypatch):
     for q in ["历史持仓", "已平仓持仓", "强平持仓", "爆仓持仓", "ADL 持仓",
               "3 天前持仓", "2 月前持仓", "昨天持仓", "前天持仓", "上周持仓", "上月持仓"]:
         assert http_planner.pick_http_route(q) is None, f"{q!r} 应命中 exclusion → SQL"
+
+
+# ─── Layer A（v0.7.22 R-SL-162）— intent 结构信号 veto（价值自测 #3/#4）──────
+
+
+def test_layerA_analytical_intents_veto_http(monkeypatch):
+    """5 分析类 intent（trend/compare/rank/distribution/retention）→ None（走 SQL），
+    即使 "持仓" lexicon 命中 HTTP 表。
+
+    关键（R-SL-162 ③ early-return）：本查询单参/detail 本会命中 HTTP（见
+    test_layerA_metric_detail_intent_still_http + test_layerA_default_none_byte_equal）；
+    analytical intent 仍 veto → 证 Layer A early-return 先于 Layer 1 lexicon match。
+    解 #4（各交易对持仓盈亏排名 → rank → SQL）。
+    """
+    _mock_catalog(monkeypatch)
+    for intent in ["trend", "compare", "rank", "distribution", "retention"]:
+        assert http_planner.pick_http_route("平台 BTC 卖出持仓", intent) is None, \
+            f"intent={intent!r}（分析类）应 veto HTTP → SQL（HTTP 快照产不出分析类）"
+
+
+def test_layerA_metric_detail_intent_still_http(monkeypatch):
+    """metric / detail intent → 不 veto，"持仓" 裸快照仍走 HTTP（R-SL-163 边界 ·
+    裸快照仍 detail → HTTP 正路不断）。"""
+    _mock_catalog(monkeypatch)
+    for intent in ["metric", "detail"]:
+        result = http_planner.pick_http_route("平台 BTC 卖出持仓", intent)
+        assert result is not None, f"intent={intent!r} 应留 HTTP-eligible（裸快照）"
+        assert result[0] == "futures_admin.futures_position_list"
+
+
+def test_layerA_default_none_byte_equal(monkeypatch):
+    """intent=None（默认 / 旧单参调用）→ 跳过 Layer A，byte-equal 现状 HTTP 路由（R-SL-161）。"""
+    _mock_catalog(monkeypatch)
+    r_explicit_none = http_planner.pick_http_route("平台 BTC 卖出持仓", None)
+    r_single_param = http_planner.pick_http_route("平台 BTC 卖出持仓")  # 旧单参省略 intent
+    assert r_explicit_none is not None and r_single_param is not None
+    assert r_explicit_none[0] == r_single_param[0] == "futures_admin.futures_position_list"
+
+
+def test_layerA_does_not_break_layer3_exclusion(monkeypatch):
+    """intent=detail + "历史持仓" → Layer 3 exclusion 仍命中 → None（Layer A 不干扰 Layer 3）。"""
+    _mock_catalog(monkeypatch)
+    assert http_planner.pick_http_route("查询用户历史持仓", "detail") is None
+
+
+def test_layerA_unknown_intent_no_veto(monkeypatch):
+    """intent 非 5 分析类（如脏值 / 旧 intent）→ 不 veto，走原 Layer 1/3（防误杀）。"""
+    _mock_catalog(monkeypatch)
+    result = http_planner.pick_http_route("平台 BTC 卖出持仓", "garbage_intent")
+    assert result is not None and result[0] == "futures_admin.futures_position_list"

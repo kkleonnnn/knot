@@ -98,10 +98,22 @@ _EXCLUSION_RE = re.compile(
     r"历史|已平仓|强平|爆仓|ADL|\d+\s*天前?|\d+\s*月前?|昨天|前天|上周|上月",
 )
 
+# v0.7.22 R-SL-162 — Layer A intent veto 集：clarifier VALID_INTENTS 的 5 分析类子集
+# HTTP 当前快照物理产不出趋势/排名/分布/留存/对比 → 这 5 类 intent 强制走 SQL
+# metric/detail 不在此集（快照能答；metric 时间窗歧义 = Layer C defer v0.7.25）
+_ANALYTICAL_INTENTS = frozenset({"trend", "compare", "rank", "distribution", "retention"})
 
-def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
-    """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained + ε1 单 commit + Layer 2 改 Clarifier prompt）。
 
+def pick_http_route(
+    refined_question: str, intent: str | None = None
+) -> tuple[str, dict] | None:
+    """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained）+ v0.7.22 Layer A intent veto。
+
+    Layer A（v0.7.22 R-SL-162 · intent 结构信号 · 最先判）：intent ∈ 5 分析类
+        {trend,compare,rank,distribution,retention} → return None（走 SQL）。HTTP 当前快照
+        物理产不出趋势/排名/分布/留存/对比。必须先于 Layer 3 + Layer 1（lexicon），否则
+        「持仓」lexicon 先命中返 HTTP → veto 不触发。intent=None（默认 / 旧单参调用）→ 跳过
+        Layer A = byte-equal 现状；metric/detail 留 HTTP-eligible（metric 时间窗歧义 = Layer C）。
     Layer 1（白名单主路由）：catalog source:http 表 + lexicon 关键词命中 + entity-aware ranking
     Layer 2（模糊 entity）：clarifier prompt 在 ambiguous entity 时设 is_clear=false 弹二次确认
         （故 Layer 2 不在本函数实现 — 由 clarifier.md 责任；refined_question 到达此函数时
@@ -116,6 +128,15 @@ def pick_http_route(refined_question: str) -> tuple[str, dict] | None:
         CrossSourceJoinNotSupported: 检测到混源（R-PB2-4 sustained — 真正跨源 JOIN）
     """
     catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained
+
+    # Layer A（v0.7.22 R-SL-162）— intent 结构信号 veto，必须先于 Layer 3 + Layer 1 lexicon
+    # HTTP 当前快照物理产不出 5 分析类 → 强制 SQL；intent=None（旧单参）跳过 = byte-equal 现状
+    if intent in _ANALYTICAL_INTENTS:
+        logger.info(
+            f"pick_http_route Layer A: analytical intent={intent!r} → SQL "
+            f"(HTTP snapshot can't produce analytical), refined='{refined_question[:80]}'",
+        )
+        return None
 
     # Layer 3 — exclusion regex 优先（防"历史持仓"误路由 HTTP 当前持仓表）
     # 即使 lexicon 含"持仓"关键词命中 HTTP 表，含历史信号也降级 SQL

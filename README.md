@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.21 · 多行结果误渲染 MetricCard 修复（图文不一致 · 前端 bugfix）：价值自测发现「当前平台 BTC 多头持仓」（返 5 个持仓）presenter 文字分析全 5 行、但数据卡片只渲染 rows[0] → 图文不一致。根因 = 多行结果被 intent='metric' 判成单值 metric → MetricCard 只显 rows[0]。修法 = `isMetric` 加 `&& rows.length === 1`（metric_card 仅单行；多行落 detail_table 显全行，与 presenter 叙事一致；单行复合 metric _MultiStatGrid 不受影响）。<br>**上版** v0.7.20 presenter 失败盲 + HTTP 虚拟表友好拒 · v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.15 窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.0~.9 语义层基座。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.22 · 持仓盈亏路由结构信号修复 + clarifier 收敛（bugfix + 收敛）：价值自测发现「本月各交易对的持仓盈亏」「各交易对持仓盈亏排名」被「持仓」lexicon 抢路由到 HTTP 当前持仓快照（缺 market+side）→ 应走 SQL 历史聚合。修法 = **Layer A**（`pick_http_route` 收 intent，分析类 intent {trend/compare/rank/distribution/retention} → veto 走 SQL，HTTP 快照产不出分析类；early-return 先于 lexicon）+ **Layer B**（clarifier「各X/按X 聚合指标」→ rank/distribution，裸快照仍 detail）+ **clarifier.md 收敛**（恢复单一真相源 — 相对时间词纪律「去年不展开 2025」+ 脱敏-output 纪律；OHX 规则走 business_rules 注入非硬编）。<br>**上版** v0.7.21 多行结果归一 detail_table · v0.7.20 presenter 失败盲 + HTTP 友好拒 · v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.0~.15 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

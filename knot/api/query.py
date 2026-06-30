@@ -245,7 +245,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             # 在 clarifier 之后 / sql_planner 之前判定走 HTTP 还是 SQL 路径
             from knot.services import http_planner
             try:
-                http_route = http_planner.pick_http_route(clarifier_result["refined_question"])
+                http_route = http_planner.pick_http_route(
+                    clarifier_result["refined_question"], clarifier_result.get("intent")
+                )
             except http_planner.CrossSourceJoinNotSupported as e:
                 # R-PB2-4: 跨源 JOIN 硬 raise → 友好错误
                 logger.info(f"cross-source guard triggered: {e}")
