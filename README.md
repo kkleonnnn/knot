@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.19 · 数据新鲜度路由修复（5 源统一轴 + 时间精度）：价值自测 + Codex 审计发现线上 5 个路由源（business_rules/知识库/few-shot/clarifier/sql_planner prompt）一致漏「时间窗触达今天→明细源」轴，系统性少算「本月/本周/今年迄今」双源度量的今天那一天。修法 = 统一植入「**时间窗右边界是否触达今天/现在**」第一性轴（触达今天/迄今→dwd 明细[含今天]；完整过去→ads 汇总[更快]；本月=迄今=含今天=dwd）。代码：parser 注入 business_rules + `表=base_object` 路由 + today/yesterday/last_month/last_year 时间枚举 + per-metric 新鲜度（dwd lag=0 latest=今天 / ads lag=1 昨天）。<br>**上版** v0.7.18 令牌统计修复 · v0.7.17 metric 显式 date_column · v0.7.16 派生指标 metric÷metric · v0.7.15 自定义窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base 重构 · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口函数 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.6 标记采纳 · v0.7.5 版本历史 · v0.7.4 re-run · v0.7.3 审计/修正 · v0.7.2 跨对象 · v0.7.1 单对象 · v0.7.0 指标注册表。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.20 · presenter 失败盲修复 + HTTP 虚拟表友好拒（bugfix）：价值自测发现 SQL 执行失败时 presenter 仍幻觉「无数据/空集」（错误被包装成看似合理的空结果）+ 平台实时接口虚拟表误走 SQL 报原始 `Unknown database`。修法 = presenter gate 在「**成功且无 error**」才运行（execute_query 出错返空 rows 非 None → 单 not-success 漏判「有 SQL 但执行失败」，须 `success AND not error`；真空成功仍说「无数据」）+ HTTP 虚拟表 SQL 检测 → 友好「请用『当前/实时持仓』表述」（复用既有 error_kind，0 前端改）。<br>**上版** v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.15 窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.0~.6 语义层基座。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

@@ -18,7 +18,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+import sqlglot
 from loguru import logger
+from sqlglot import exp
 
 from knot.adapters.http import HTTPAdapterError, execute
 from knot.services.agents import catalog as catalog_loader
@@ -34,6 +36,54 @@ _TRUNCATE_LIMIT = 20  # R-PB2-10 max rows
 
 class CrossSourceJoinNotSupported(Exception):
     """R-PB2-4: catalog 命中多个 source_type（SQL + HTTP）— 跨源 JOIN narrow 二刀不支持。"""
+
+
+def http_table_in_sql(sql: str) -> str | None:
+    """v0.7.20 B（守护者 Stage 3 LOCKED）：检测 SQL 是否引用 HTTP 虚拟表（source_type=http）。
+
+    场景：pick_http_route Layer 1 漏路由 → sql_planner 误把 HTTP 虚拟表当真库写
+    `SELECT … FROM futures_admin.X` → Doris/pymysql 报原始 `Unknown database 'futures_admin'`。
+    本 helper 让 query.py 失败分支改报友好 error_kind=`data_unavailable`（「该数据在实时接口，
+    请用『当前/实时持仓』表述」），而非原始 DB 报错 + presenter 幻觉。
+
+    返命中的第一个 HTTP 虚拟表全名（"db.table"，与 is_http_table 入参格式一致）或 None。
+    sqlglot 解析失败 → **fail-open None**（畸形 SQL 不因本 helper 崩溃；R-SL-155 不误伤普通失败）。
+    """
+    if not sql or not sql.strip():
+        return None
+    try:
+        tree = sqlglot.parse_one(sql, read="doris")
+    except Exception:
+        return None
+    if tree is None:
+        return None
+    for t in tree.find_all(exp.Table):
+        if not t.name:
+            continue
+        full = f"{t.db}.{t.name}" if t.db else t.name
+        if catalog_loader.is_http_table(full):
+            return full
+    return None
+
+
+def failure_error_meta(sql: str, has_db_error: bool) -> tuple[str | None, str | None]:
+    """v0.7.20（守护者 Stage 3 R-SL-155）：查询失败/放弃 → 返 (error_kind, user_message) 友好元数据。
+
+    纯函数（确定性、可单测）。query.py 失败分支调用（presenter gate 后；成功路径不调）。三子case：
+    - ① SQL 误引 HTTP 虚拟表（优先 — 即便 has_db_error=True，如 `Unknown database 'futures_admin'`）
+      → `data_unavailable` + 指引「当前/实时持仓」表述（复用前端既有 7 kind，0 前端改）。
+    - ② ReAct 放弃（无 http 引用 且 has_db_error=False，即无有效 SQL 也无 DB 错）→ `sql_invalid` + 「未能生成有效查询」。
+    - ③ 普通 DB 错（has_db_error=True，非 http）→ `(None, None)` **原样透传**（不误伤 problem 2 Unknown column）。
+    """
+    http_tbl = http_table_in_sql(sql)
+    if http_tbl:                                          # ①（先于 db_error 判定）
+        return "data_unavailable", (
+            f"「{http_tbl}」是平台实时接口数据（如当前持仓 / 挂单），无法用 SQL 查询。"
+            "请改用「当前 / 实时持仓」等表述，例如「当前平台 BTC 多头持仓」。"
+        )
+    if not has_db_error:                                  # ② ReAct 放弃，无 SQL 无错
+        return "sql_invalid", "未能生成有效查询，请换个更具体的表述（指明指标 / 时间范围 / 维度）。"
+    return None, None                                     # ③ 普通 DB 错 → 原样透传
 
 
 # ─── 路由决策 ──────────────────────────────────────────────────────────

@@ -90,6 +90,19 @@ async def run_sql_planner_step(refined_question: str, schema_text: str, engine,
     return result, recovery_attempt
 
 
+def should_run_presenter(success: bool, error: str) -> bool:
+    """v0.7.20（守护者 Stage 3 + adversarial 复核纠正）：是否运行 presenter（= 有可呈现的有效结果）。
+
+    = `success and not error` = sql_planner success 公式第一子句 `bool(final_sql and not final_error)`。
+    ⚠️ **不能只用 `not success`**：execute_query 出错返 `([], err)` 永不返 None → success 公式第二子句
+    `final_rows is not None` 恒 True → **有 SQL 但执行失败（problem 1/2 Unknown db/column）success=True**，
+    `not success` gate 会放行 presenter 幻觉「无数据」（守护者 Stage 3 表「DB 错→success=False」事实错，
+    adversarial skeptic grounded 推翻）。也**不能只用 `not error`**：ReAct 放弃（无 SQL）error=""。
+    三场景：① DB 错（success=True / error set）跳 ② 放弃（success=False / error="")跳 ③ 真空成功（success=True / error="")跑。
+    """
+    return bool(success and not error)
+
+
 async def run_presenter_step(question: str, sql: str, rows: list,
                              presenter_key: str, api_key: str, openrouter_api_key: str,
                              agent_buckets: dict) -> dict:

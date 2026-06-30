@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.19 — 数据新鲜度路由修复（5 源统一轴 + 时间精度）
+## [Unreleased] - v0.7.20 — presenter 失败盲修复（A）+ HTTP 虚拟表 SQL 友好拒（B）（bugfix）
+
+> 价值自测 3 问题暴露 5 根因，资深拍 ① 修 A+B（C 建模=content / D LLM freshness=follow-on / E 呈现=独立 PATCH）。守护者 Stage 3 ACCEPT WITH REVISIONS → **ultracode adversarial workflow 复核纠正守护者 `not success` gate**（见 A）。
+
+### Fixed
+
+- **A presenter 失败盲（🔴 P0 跨 problem 1+2）**：SQL 失败时 presenter 仍幻觉「无数据/空集」叙事（与红色报错 banner 并存 → 错误被包装成看似合理的空结果，分析师会信错）。修：query.py presenter（agent_start + run_presenter_step + agent_done）gate 在 `should_run_presenter(success, error) = success AND not error`（query_steps 纯函数·可单测）。⚠️ **adversarial 复核纠正守护者 Stage 3 的 `not success` 单条件**：`execute_query` 出错返 `([], err)` 永不返 None → success 公式（sql_planner.py）第二子句 `final_rows is not None` 恒 True → **有 SQL 但执行失败（problem 1/2 Unknown db/column）success=True** → `not success` gate 放行 presenter 继续幻觉。三场景：DB 错(跳) / ReAct 放弃(跳) / 真空成功(跑说「无数据」合法)。共享尾（save_message/semantic_audit/update_user_usage/final）保留；成功路径 byte-equal。
+- **B HTTP 虚拟表 SQL 友好拒（problem 1）**：pick_http_route 漏路由 → sql_planner 误把平台实时接口虚拟表当真库写 `SELECT … FROM futures_admin.X` → Doris/pymysql 原始 `Unknown database 'futures_admin'`。修：`http_planner.http_table_in_sql`（sqlglot 提表 + `is_http_table`；fail-open）+ `failure_error_meta` 纯函数（① http→`data_unavailable` 指引「当前/实时持仓」表述 ② 放弃→`sql_invalid` ③ 普通 DB 错→原样透传不误伤 Unknown column）。复用前端既有 7 error_kind → **0 前端改**。abandon 案 final `error` 兜底 `fail_msg`（让前端 showErrorBanner 渲染）。
+
+### Notes
+
+- C「合约盈亏 by 交易对」建模（`user_future_pnl`@dwd_user_future_deal 无 market → 应用 `user_position_pnl`@dwd_user_position_history）= **content 侧** metric seed 调整 + 导出运维应用。D LLM 回退路径 freshness 漏今天（T-1）+ E 语义层呈现 spartan（英文表头 / 无图 / 少字段）= follow-on / 独立 PATCH。
+- 验证：should_run_presenter 4 案 + http_table_in_sql + failure_error_meta 3 案单测；A gate 集成经 ultracode 4-agent adversarial workflow grounding（skeptic broke_it 抓 not-success 洞 → critic revise_before_commit → 纠正 + 锁单测）。check_file_sizes query.py 465→485 / http_planner 508→565 ACK bump。
+
+## [Released] - v0.7.19 — 数据新鲜度路由修复（5 源统一轴 + 时间精度）
 
 > 价值自测发现「今天合约量→ads 日报→空」；Codex 审计（PR #186）+ ultracode workflow 复审确认**线上 5 个路由源
 > （business_rules / 知识库 / few-shot / clarifier / sql_planner prompt）一致漏「时间窗触达今天→dwd 明细」轴**，
