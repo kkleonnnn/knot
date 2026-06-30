@@ -51,6 +51,9 @@ class AgentResult:
     total_cost_usd: float
     total_input_tokens: int
     total_output_tokens: int
+    # v0.7.23 呈现（additive 默认空；语义路径填，LLM/sync/fix 既有构造 byte-equal · R-SL-168）
+    column_labels: dict = field(default_factory=dict)   # {metric.name: 中文 display}（表头中文 #5 · R-SL-169）
+    dimension_cols: list = field(default_factory=list)  # lf.dimensions（图表 labelCols；valueCols=结果列−此 · R-SL-170）
 
 
 def _is_executable_query(sql: str) -> bool:

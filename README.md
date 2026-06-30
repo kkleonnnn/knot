@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.22 · 持仓盈亏路由结构信号修复 + clarifier 收敛（bugfix + 收敛）：价值自测发现「本月各交易对的持仓盈亏」「各交易对持仓盈亏排名」被「持仓」lexicon 抢路由到 HTTP 当前持仓快照（缺 market+side）→ 应走 SQL 历史聚合。修法 = **Layer A**（`pick_http_route` 收 intent，分析类 intent {trend/compare/rank/distribution/retention} → veto 走 SQL，HTTP 快照产不出分析类；early-return 先于 lexicon）+ **Layer B**（clarifier「各X/按X 聚合指标」→ rank/distribution，裸快照仍 detail）+ **clarifier.md 收敛**（恢复单一真相源 — 相对时间词纪律「去年不展开 2025」+ 脱敏-output 纪律；OHX 规则走 business_rules 注入非硬编）。<br>**上版** v0.7.21 多行结果归一 detail_table · v0.7.20 presenter 失败盲 + HTTP 友好拒 · v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.0~.15 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.23 · 语义层呈现：表头中文（column_labels）+ numericCols 图表硬化（presentation）：价值自测 #5「语义层表头没翻译」（`user_position_pnl`/`market` 英文）+ 数值型 ID 列（user_id/持仓ID）被画无意义图。修法 = **column_labels**（语义路径 `sql_planner.AgentResult` 带 `{metric.name→metric.display}` → payload → 前端表头 `{labels[c]||c}`；**0 改 compiler SQL alias** — metric.name 是 HAVING/window/qualify 引用锚）+ **图表硬化**（`dimension_cols`=lf.dimensions → 前端 labelCols=维度 / valueCols=数值−维度，含窗口/派生度量、排数值 ID-as-维度）。LLM/旧消息无 → fallback raw/typeof。#1 比率% + 维度中文标签拆 follow-on。<br>**上版** v0.7.22 持仓路由 intent veto + clarifier 收敛 · v0.7.21 多行归一 detail_table · v0.7.20 presenter 失败盲 + HTTP 友好拒 · v0.7.19 数据新鲜度 · v0.7.18 令牌统计 · v0.7.0~.17 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

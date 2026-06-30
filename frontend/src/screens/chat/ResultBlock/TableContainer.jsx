@@ -13,7 +13,7 @@ const CHART_BTNS = [
 // v0.6.0.14 lint sweep: 删 chartable / isMetric / isRetention / chartType / isDateLike 未使用 props
 // 这些是 v0.6.0.2 拆分时 over-passed 的 props，TableContainer 内部不需要（父 ResultBlock 已用于
 // 决定 showChart）。保留 cols 等仍在使用的字段。
-export function TableContainer({ T, rows, cols, labelCols, numericCols, isDetail,
+export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLabels = {}, isDetail,
                                   showChart, chartData, pieData, setChartType, activeType,
                                   msg, onDownload, exportMessageCsv }) {
   return (
@@ -21,7 +21,7 @@ export function TableContainer({ T, rows, cols, labelCols, numericCols, isDetail
       {showChart && (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 12px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{labelCols[0]} · {numericCols[0]}</span>
+            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{columnLabels[labelCols[0]] || labelCols[0]} · {columnLabels[numericCols[0]] || numericCols[0]}</span>
             <div style={{ display: 'flex', gap: 3 }}>
               {CHART_BTNS.map(btn => (
                 <button key={btn.id} onClick={() => setChartType(btn.id)} style={{
@@ -51,7 +51,7 @@ export function TableContainer({ T, rows, cols, labelCols, numericCols, isDetail
             <thead>
               {/* v0.5.38 全站表头底色 brandSoft 8% → T.bg gray sustained */}
               <tr style={{ background: T.bg }}>
-                {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{columnLabels[c] || c}</th>)}
               </tr>
             </thead>
             <tbody>

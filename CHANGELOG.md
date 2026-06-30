@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.22 — 持仓盈亏路由结构信号修复（Layer A intent veto + Layer B 分组聚合）+ clarifier 收敛（bugfix + 收敛）
+## [Unreleased] - v0.7.23 — 语义层呈现：表头中文（column_labels）+ numericCols 图表硬化（presentation）
+
+> 价值自测 #5「语义层表头没翻译」（`user_position_pnl`/`market` 英文）+ #190 numericCols（数值型 ID 列 user_id/持仓ID 被画无意义图）。守护者 flag 2（v0.7.22 预定）：表头中文**绝不动 compiler SQL alias**（metric.name 是 HAVING/window/qualify 引用锚）→ payload `column_labels` map + 前端渲染。资深拍 ① 收窄 #5 + numericCols，#1 比率% 拆单独刀。
+
+### Added / Changed
+
+- **#5 表头中文（column_labels · R-SL-168/169）**：`sql_planner.AgentResult` +additive 字段 `column_labels`（`{metric.name→metric.display}`，纯 helper `_semantic_display_meta` 算）+ `dimension_cols`（默认空；LLM/sync/fix 既有构造 byte-equal）→ `query.py` payload → `Chat.jsx` onFinal → ResultBlock/TableContainer/MetricCard 表头 `{columnLabels[c]||c}`。修最丑的 `user_position_pnl`→`持仓盈亏`。**0 改 compiler SQL alias（守护者 flag 2 · R-SL-171）**——metric.name 仍作别名（HAVING/window/qualify 锚不破）。
+- **numericCols 图表硬化（dimension_cols · R-SL-170）**：前端 **labelCols=dimension_cols / valueCols=numericCols−dimension_cols**（🔴 守护者承重：用 `lf.dimensions` 非 `lf.metrics`，否则窗口列 `OVER(...) AS as_name` ∉ lf.metrics 被排除不画 = 回归；数值 ID-as-维度排除 / 窗口·派生数值度量保留画）。dimension_cols 空（LLM/旧消息）→ fallback typeof（byte-equal）。
+- 锚点 ⑤ verified：维度输出键 == lf.dimensions（compiler 单/多对象 `<alias>.{d}` 无 AS 改键 :193/235）。
+
+### Notes / Defer（follow-on）
+
+- ⚠️ **R-137 修正（C1）**：AgentResult 在 `sql_planner.py:43`（query 路径 `agent_module=sql_planner`），非 `models/agent.py:51` 同名副本（双定义 pre-existing；test_routing 当场抓出、改对文件 + revert models/agent.py）。
+- ⚠️ **DB 0 schema**：column_labels/dimension_cols 不落库 → 重看旧消息 fallback raw/typeof（仅 live 查询得中文/硬化；display-only graceful，符合 0-schema 约束）。
+- **D1 维度中文标签**（market→交易对）：CatalogTable 无列级注释（列注释在 live DB INFORMATION_SCHEMA），语义路径不 fetch schema → 需额外 introspection / 新 field_labels → defer（metric.display 已修最丑的；维度可读英文）。
+- **D2 #1 比率%**（future_fee_rate 卡片显 0）：需 metric 模型加 format/unit 字段 + 偏 content → 单独刀。
+- **D3 LLM 路径 numericCols**：LLM 无 lf.metrics → dimension_cols 空 → fallback typeof（ID 列误画残留，与 D1 同 follow-on）。
+- **`models.agent.AgentResult` 孤儿死代码删**（C1 双 AgentResult 债，无 importer → follow-on 删消歧）。
+- 守护者 Stage 3 **ACCEPT WITH REVISIONS**（metric_cols→dimension_cols 承重修订）+ C1/C2 逐 commit APPROVED；R-SL-168~174（接 167 无撞号）；check_file_sizes ResultBlock 295→305。
+
+## [Released] - v0.7.22 — 持仓盈亏路由结构信号修复（Layer A intent veto + Layer B 分组聚合）+ clarifier 收敛（bugfix + 收敛）
 
 > 价值自测第二轮 #3/#4：「本月各交易对的持仓盈亏」「各交易对持仓盈亏排名」→「持仓」lexicon 抢路由 HTTP 当前持仓快照（缺 market+side 必填）→ 失败。守护者 flag 1（R-137 校正）：结构信号非 exclusion 打地鼠（#188 同病），机制从「时间窗」校正为「intent」（grounded：clarifier 无时间字段 + time_resolver 不解析文本 → intent 是唯一现成结构信号）。kk live 3+1 通过（#2 修复 + #1/#3/今年 无回归 + 相对时间词/脱敏纪律生效）。
 
