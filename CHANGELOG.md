@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.20 — presenter 失败盲修复（A）+ HTTP 虚拟表 SQL 友好拒（B）（bugfix）
+## [Unreleased] - v0.7.21 — 多行结果误渲染 MetricCard 修复（图文不一致）（前端 bugfix）
+
+> 价值自测 problem 3 / E 实例：「当前平台 BTC 多头持仓」（HTTP 返 5 个持仓）→ presenter 文字分析全 5 行（重点 row[1] 大仓 持仓ID 46284/用户ID 502），但数据卡片只渲染 row[0]（持仓ID 83128/用户ID 1001544）→ **图文不一致**。
+
+### Fixed
+
+- **多行结果被判 metric_card → 归一 detail_table（一处修两症状）**：根因 grounded（msg 146）—— intent='metric'（clarifier 把「持仓汇总」判单值）+ rows=5 行。两症状：① `MetricCard` 经 `_MultiStatGrid`/`_SingleMetric` 只渲染 `rows[0]`（持仓ID 83128）→ 与 presenter 多行叙事（重点 row[1] 大仓 46284）图文不一致；② 落 chartable 分支把 ID/类别数值列（持仓ID/用户ID/方向）当 metric 画**无意义折线图**。修：`ResultBlock.jsx` 归一 `if (layoutHint === 'metric_card' && rows.length > 1) layoutHint = 'detail_table'` → `isMetric=False` + `isDetail=True` → `showChart = chartable && !isMetric && !isDetail` = **False** → 纯明细表显全 5 行、无图 → 与 presenter 叙事一致。
+- **不受影响**（R-E-2/3）：单行复合 metric（「今日充值和提现」1 行 2 numericCols → 仍 metric_card → `_MultiStatGrid`，v0.6.2.2 byte-equal）+ 单值 metric（1 行）→ MetricCard 不变；`line/bar/pie/rank_view` intent 不经此归一分支 → 正常出图（合法趋势图不受影响）。
+- 前端 robust：任何多行被误判 metric 都归一落表无图，不依赖 clarifier intent 修对（clarifier「列出持仓→detail_table」分类 = OOS 内容侧）。
+
+### Notes
+
+- 「用户问『持仓汇总』但 API 返 5 条明细」（summary vs detail）= 更深内容层 OOS（presenter 文字已做汇总分析，本刀只修图文一致）。problem 2（合约盈亏 by 交易对 → metric seed content）+ b（merge file-http 权威）各自独立。
+- 前端零测试栈 → 无单测；4 case grounded 逻辑推演（单值/单行复合/多行/0 行）+ manual 重测。static 重建（前端改）。
+
+## [Released] - v0.7.20 — presenter 失败盲修复（A）+ HTTP 虚拟表 SQL 友好拒（B）（bugfix）
 
 > 价值自测 3 问题暴露 5 根因，资深拍 ① 修 A+B（C 建模=content / D LLM freshness=follow-on / E 呈现=独立 PATCH）。守护者 Stage 3 ACCEPT WITH REVISIONS → **ultracode adversarial workflow 复核纠正守护者 `not success` gate**（见 A）。
 

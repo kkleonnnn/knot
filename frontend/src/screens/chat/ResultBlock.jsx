@@ -84,7 +84,10 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
   // v0.4.1 R-S4 三级优先级链：display_hint > INTENT_TO_HINT[intent] > inferIntentFromShape
-  const layoutHint = resolveEffectiveHint(msg, rows, cols);
+  let layoutHint = resolveEffectiveHint(msg, rows, cols);
+  // v0.7.21：多行被误判 metric_card → 归一 detail_table（修两症状：MetricCard 只渲 rows[0] 图文不一致 +
+  // chartable 把 ID/类别列当 metric 画无意义图）。单行复合 metric/_MultiStatGrid + line/pie intent 不经此分支。详 plan v0.7.21。
+  if (layoutHint === 'metric_card' && rows && rows.length > 1) layoutHint = 'detail_table';
   const isMetric = layoutHint === 'metric_card';
   const isDetail = layoutHint === 'detail_table';
   const isRetention = layoutHint === 'retention_matrix';

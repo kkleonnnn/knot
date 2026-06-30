@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.20 · presenter 失败盲修复 + HTTP 虚拟表友好拒（bugfix）：价值自测发现 SQL 执行失败时 presenter 仍幻觉「无数据/空集」（错误被包装成看似合理的空结果）+ 平台实时接口虚拟表误走 SQL 报原始 `Unknown database`。修法 = presenter gate 在「**成功且无 error**」才运行（execute_query 出错返空 rows 非 None → 单 not-success 漏判「有 SQL 但执行失败」，须 `success AND not error`；真空成功仍说「无数据」）+ HTTP 虚拟表 SQL 检测 → 友好「请用『当前/实时持仓』表述」（复用既有 error_kind，0 前端改）。<br>**上版** v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.15 窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.9 窗口 · v0.7.8 HAVING · v0.7.7 事件/规则/动作 · v0.7.0~.6 语义层基座。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.21 · 多行结果误渲染 MetricCard 修复（图文不一致 · 前端 bugfix）：价值自测发现「当前平台 BTC 多头持仓」（返 5 个持仓）presenter 文字分析全 5 行、但数据卡片只渲染 rows[0] → 图文不一致。根因 = 多行结果被 intent='metric' 判成单值 metric → MetricCard 只显 rows[0]。修法 = `isMetric` 加 `&& rows.length === 1`（metric_card 仅单行；多行落 detail_table 显全行，与 presenter 叙事一致；单行复合 metric _MultiStatGrid 不受影响）。<br>**上版** v0.7.20 presenter 失败盲 + HTTP 虚拟表友好拒 · v0.7.19 数据新鲜度路由 · v0.7.18 令牌统计 · v0.7.17 metric date_column · v0.7.16 派生指标 · v0.7.15 窗口 frame · v0.7.14 CTE 再聚合 · v0.7.13 抽 multi_base · v0.7.12 多 base+维度 · v0.7.11 多 base 标量 · v0.7.10 分区 top-N · v0.7.0~.9 语义层基座。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
