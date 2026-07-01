@@ -71,7 +71,9 @@ def _resolve_keys_and_semantic(req: QueryRequest, user: dict, conv_id: int):
         req.question, message_repo.get_semantic_layer(),
         api_key, openrouter_api_key, embedding_api_key,
     )
-    history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10]}
+    history = [{"question": m["question"], "sql": m["sql_text"], "rows": (m.get("rows") or [])[:10],
+                # v0.7.24 A1：澄清轮 explanation=编号选项 + agent_kind 进 history（clarifier 渲染上轮选项 → 解析数字回复）
+                "explanation": m.get("explanation") or "", "agent_kind": m.get("agent_kind") or ""}
                for m in message_repo.get_messages(conv_id)[-3:]]
     return api_key, openrouter_api_key, model_key, semantic, history
 

@@ -23,7 +23,7 @@ BACKEND_ACK = {
     # admin.py 908 已于 v0.6.5.11 C2 拆 knot/api/admin/ 7 域（最大 stats 269 ≤300 auto-caught）→ ACK 移除
     # catalog.py 460 已于 v0.6.5.12 C1 拆 catalog_loaders（catalog 261 / loaders 213 ≤300 auto-caught）→ ACK 移除
     "knot/services/http_planner.py":       580,  # futures regex 下沉 catalog JIT v0.7.2 + v0.7.20 B（http_table_in_sql + failure_error_meta）+ v0.7.22 Layer A intent veto（_ANALYTICAL_INTENTS + early-return R-SL-162）565→579
-    "knot/api/query.py":                   485,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由 440→460 + v0.7.3 审计侧表 460→465 + v0.7.20 A presenter 失败 gate 465→478
+    "knot/api/query.py":                   490,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由 440→460 + v0.7.3 审计侧表 460→465 + v0.7.20 A presenter 失败 gate + v0.7.24 A1 history dict +explanation/agent_kind 485→487
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数

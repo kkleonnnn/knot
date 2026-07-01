@@ -52,6 +52,11 @@ def _render_clarifier_inputs(schema_text: str, history: list) -> tuple[str, str]
             sql_short = sql if len(sql) <= 220 else sql[:220] + "…"
             sample = json.dumps(rows[:2], ensure_ascii=False, default=str) if rows else "[]"
             lines.append(f"Q: {q}\n  SQL: {sql_short}\n  结果(前2行,共{len(rows)}行): {sample}")
+        elif h.get("agent_kind") == "clarifier" and (h.get("explanation") or "").strip():
+            # v0.7.24 A2：澄清轮（sql 空）带上轮编号选项 → clarifier 见自己上轮问的选项，
+            # 解析用户数字回复（靠既有 L25「已有澄清回复融入 refined_question」）。非 clarifier 的 sql-空轮走 else byte-equal。
+            opts = (h.get("explanation") or "").strip().replace("\n", " ")
+            lines.append(f"Q: {q}\n  （上轮澄清选项：{opts}）")
         else:
             lines.append(f"Q: {q}")
     return schema_slice, "\n".join(lines)
