@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.26 — vestigial dataclass 消歧清理（chore · models AgentResult + Metric）
+## [Unreleased] - v0.7.27 — 维度中文标签（catalog field_labels · D1）
+
+> 承 v0.7.23 metric 列中文 → 补**维度列**中文（价值自测 follow-on D1）。语义层结果表头 `market`/`sta_date` → 交易对/日期。守护者 Stage 3 **ACCEPT WITH REVISIONS**（1 承重 R-SL-189.1 + 1 minor R-SL-188）。方案 B（资深拍）：catalog +field_labels 键（镜像 relations/lexicon），**前端 0 改**（复用 v0.7.23 column_labels）。
+
+### Added
+
+- **catalog `field_labels` 载体（`{列名:中文}` JSON）**：`catalogs` 表 +field_labels 列（schema.sql + base.py 幂等 ALTER，镜像 date_column/unit；存量 → `""` → `{}`）+ `catalog_repo` `_COLS`/`_UPDATABLE`/`create_catalog`。**两路对称（R-SL-189）**：per-user `query_helper._parse_catalog_content` + 全局 `catalog_loaders._load_from_db` / `catalog.py` globals / `current_catalog`；解析镜像 lexicon（非 dict/坏 JSON → `{}` fail-open）。
+- **维度中文标签渲染（`_semantic_display_meta` + R-SL-188）**：+field_labels 参数 → 对 `lf.dimensions` 列 merge `field_labels[d]` 进 column_labels（**仅 `d not in column_labels` → metric.display 优先**；极端 dim名==metric名 不覆盖）→ payload → 前端 `{columnLabels[c]||c}` 自动生效。**前端仅 admin 编辑器改**（tab_system `_FIELDS` +「维度中文标签」+ Admin catalog state）；ResultBlock/MetricCard/TableContainer/Chat.jsx **0 改**（R-SL-192）。
+- admin：`GET/PUT /api/admin/catalog` + reset 白名单 +field_labels（PUT dict 校验）。
+
+### Fixed
+
+- **🔴 R-SL-189.1 承重（守护者 Stage 3 grounded 抓漏）**：`_load_from_db` 5→6-tuple 是 positional 脆弱点，须同步**全部 4 处解包/赋值点** —— return + `catalog.py:97` call unpack + **`catalog.py:107` except fallback +6th `{}`**（原 draft 只点 :97 漏 :107 → DB 失败路径 `db_field_labels` 未赋值 → 下游 `FIELD_LABELS = db_field_labels` NameError，latent）+ FIELD_LABELS 全局。**延伸至 test mocks**：`test_catalog_source_type_inference` 2 处 5-tuple mock → 6-tuple（全套件跑出，同 v0.7.26 path-string 教训 class）。强制 fallback 单测（`_load_from_db` 抛错 → FIELD_LABELS={} 不 NameError）。
+
+### Notes
+
+- R-SL-187~193（接 v0.7.26 后 committed 最大 186 → 无撞号）；空 field_labels → column_labels byte-equal v0.7.25（additive-only R-SL-187）。**0 新表/路由/AuditAction**（catalogs +1 列）；OOS-1 死线 sustained（0 tenant_id）；FIELD_LABELS DB-only（file 载体无 fallback）。
+- 验证（.venv 全跑）：**1001 passed**（3 失败全预存在 env — jwt/sql_planner-no-key/master-key，干净 CI 绿）；ruff check knot/ 0；import-linter 9 KEPT；check_file_sizes OK（query_steps 298→306 ACK 310）；eslint 0 / build ✓。
+- **content（kk）**：admin tab_system「维度中文标签」录常用维度（market/交易对、sta_date/日期、symbol/币种…）— 纯 DB，0 re-seed。
+- 版本插队：v0.7.26 = vestigial dataclass 清理（先 merge）；本 = v0.7.27（维度标签重编号）。
+
+## [Released] - v0.7.26 — vestigial dataclass 消歧清理（chore · models AgentResult + Metric）
 
 > v0.6→v0.7 整体审核 #23 spawn 的 follow-on。**简化协议**（资深 2026-07-02 ack：chore + 0 行为变更 + 0 新红线 + grounded 无争议 → 跳 Stage 2/3；镜像 v0.6.5.6 docs chore 先例）。**版本插队**：清理 ready 先 merge 取 v0.7.26；维度中文标签（Stage 1 草案审评中）重编号 → v0.7.27。**0 新 R-SL**（R-SL-187 留 v0.7.27）。
 

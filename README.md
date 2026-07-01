@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.26 · vestigial dataclass 消歧清理（chore）：删两个从未被消费的死 dataclass —— `models/agent.py` `AgentResult`（query 路径实用 `sql_planner.py` 自定义版 + v0.7.23/.25 呈现字段演进；models 版孤儿致「哪个是真的」双定义混淆）+ `models/metric.py` `Metric`（metric_repo 全程用 dict，生来即死 + stale 无 date_column/unit）。R-137 grounded 三查（0 构造器/0 引用/0 真消费者）+ git-stash baseline 复核归因（全套件跑出 path-string 引用漏网）；简化协议（0 行为变更 + 0 新红线）。<br>**上版** v0.7.25 metric unit + percentage · v0.7.24 clarifier 数字选项 · v0.7.23 表头中文 · v0.7.0~.22 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.27 · 维度中文标签（catalog `field_labels` · D1）：语义层结果表头的**维度列**（`market`/`sta_date`）从英文列名显示为中文（交易对/日期）—— 承 v0.7.23 metric 列中文，补维度列。方案 = catalog +`field_labels` JSON 键（`{列名:中文}`，镜像 `relations`/`lexicon`）→ `_semantic_display_meta` merge 进 `column_labels`（仅 `lf.dimensions` 列 + metric.display 优先）→ **前端 0 改**（`{columnLabels[c]||c}` 已覆盖全列）+ admin tab_system 编辑器加「维度中文标签」面板。守护者 Stage 3 承重修订：`_load_from_db` 5→6-tuple 须同步全部 4 处解包点（含 `catalog.py:107` except fallback，防 DB 失败 NameError）。空 field_labels → byte-equal v0.7.25。<br>**上版** v0.7.26 vestigial dataclass 清理 · v0.7.25 metric unit + percentage · v0.7.23/.24 表头中文/clarifier · v0.7.0~.22 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
