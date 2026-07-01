@@ -15,6 +15,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
     { num: '02', key: 'lexicon', title: '业务词典', source: 'lexicon', hint: 'JSON 对象：{业务词: [表全名优先级]}。问题命中词 → 把列表里的表加分入选。', mono: true },
     { num: '03', key: 'business_rules', title: '业务规则', source: 'business_rules', hint: '纯文本/Markdown，注入到 Clarifier、SQL Planner、Presenter 的 system prompt。', mono: false },
     { num: '04', key: 'relations', title: '表关系', source: 'relations', hint: 'JSON 数组：[[left_table, left_col, right_table, right_col, semantics?, cardinality?]]。第 6 元素 cardinality（n:1 / 1:1 / 1:n / n:n）= v0.7.2 语义层跨对象聚合基数 gate：仅 n:1/1:1 安全边可跨对象切维度（如按用户属性切订单指标），不填则跨对象查询回退 LLM。多表 JOIN ON 关联键来源，sql_planner 必读防笛卡尔积。', mono: true },
+    { num: '05', key: 'field_labels', title: '维度中文标签', source: 'field_labels', hint: 'JSON 对象：{列名: 中文}（v0.7.27）。语义层结果表头把英文维度列（如 market/sta_date）显示为中文（交易对/日期）。仅维度列生效；指标列走指标注册表 display。留空 = 维度列显原始英文列名。', mono: true },
   ];
 
   return (

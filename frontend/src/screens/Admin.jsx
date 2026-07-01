@@ -46,9 +46,9 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const pmFileRef = useRef(null);
   // v0.2.5: catalog tab; v0.5.44 加 relations 字段
   const [catalog, setCatalog] = useState({
-    tables: '', lexicon: '', business_rules: '', relations: '',
-    source: '', defaults: { tables: [], lexicon: {}, business_rules: '', relations: [], source: '' },
-    overrides: { tables: false, lexicon: false, business_rules: false, relations: false },
+    tables: '', lexicon: '', business_rules: '', relations: '', field_labels: '',  // v0.7.27 维度中文标签
+    source: '', defaults: { tables: [], lexicon: {}, business_rules: '', relations: [], field_labels: {}, source: '' },
+    overrides: { tables: false, lexicon: false, business_rules: false, relations: false, field_labels: false },
   });
   const [catalogSaving, setCatalogSaving] = useState({});
   // v0.6.2.5 段 4 (A1): 多 catalog 切换（list + per-user active）
@@ -96,9 +96,10 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
             lexicon: JSON.stringify(d.current.lexicon || {}, null, 2),
             business_rules: d.current.business_rules || '',
             relations: JSON.stringify(d.current.relations || [], null, 2),  // v0.5.44
+            field_labels: JSON.stringify(d.current.field_labels || {}, null, 2),  // v0.7.27 维度中文标签
             source: d.source || '',
-            defaults: d.defaults || { tables: [], lexicon: {}, business_rules: '', relations: [], source: '' },
-            overrides: d.db_overrides || { tables: false, lexicon: false, business_rules: false, relations: false },
+            defaults: d.defaults || { tables: [], lexicon: {}, business_rules: '', relations: [], field_labels: {}, source: '' },
+            overrides: d.db_overrides || { tables: false, lexicon: false, business_rules: false, relations: false, field_labels: false },
           });
         }
         const cl = await api.get('/api/admin/catalogs').catch(() => null);
@@ -269,6 +270,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         }
         if (field === 'tables' && !Array.isArray(value)) { toast('tables 必须是数组', true); return; }
         if (field === 'lexicon' && (typeof value !== 'object' || Array.isArray(value))) { toast('lexicon 必须是对象', true); return; }
+        if (field === 'field_labels' && (typeof value !== 'object' || Array.isArray(value))) { toast('维度标签必须是对象 {列名: 中文}', true); return; }
         if (field === 'relations') {
           if (!Array.isArray(value)) { toast('relations 必须是数组', true); return; }
           for (const r of value) {
