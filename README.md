@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.25 · metric 值单位 + percentage 渲染（D2 · 比率% · #1）：价值自测 #1 派生费率/占比指标（如合约费率 0.0486）在结果中显示为裸小数不直观。修法 = metric 注册表 +`unit` 字段（镜像 v0.7.17 date_column：schema 幂等 ALTER + repo _COLS/_UPDATABLE，非 vestigial dataclass）+ 语义路径 `column_formats` 承载（`_semantic_display_meta` 3-tuple → sql_planner.AgentResult → payload → 前端）+ 前端 `fmt.js`（fmtValue 非-percentage 完整 subsume 原 `_fmt` byte-equal / percentage ×100+%）→ MetricCard 大数字 + TableContainer cell + AdminMetricRegistry unit 下拉。⚠️ **R1 承重约定**：unit=percentage 假设值为 0-1 小数（0.0486→4.86%），admin hint + content 补录前置守防双缩放。<br>**上版** v0.7.24 clarifier 数字选项断片 · v0.7.23 表头中文 + 图表硬化 · v0.7.22 持仓路由 · v0.7.0~.21 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.26 · vestigial dataclass 消歧清理（chore）：删两个从未被消费的死 dataclass —— `models/agent.py` `AgentResult`（query 路径实用 `sql_planner.py` 自定义版 + v0.7.23/.25 呈现字段演进；models 版孤儿致「哪个是真的」双定义混淆）+ `models/metric.py` `Metric`（metric_repo 全程用 dict，生来即死 + stale 无 date_column/unit）。R-137 grounded 三查（0 构造器/0 引用/0 真消费者）+ git-stash baseline 复核归因（全套件跑出 path-string 引用漏网）；简化协议（0 行为变更 + 0 新红线）。<br>**上版** v0.7.25 metric unit + percentage · v0.7.24 clarifier 数字选项 · v0.7.23 表头中文 · v0.7.0~.22 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
