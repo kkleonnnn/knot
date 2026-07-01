@@ -8,7 +8,8 @@
    （clarifier/sql_planner/fix_sql/presenter）；v0.7.1 LogicForm 编译时才追加 semantic/logicform
    桶 + R-S8 cost_service 横跨语义+LLM 双路径归集。本守护防 v0.7.0 提前引桶（决策漂移）。
 
-2. **async-native（0 sync LLM）**：metric 子系统（metrics.py + metric_repo.py + metric.py）纯
+2. **async-native（0 sync LLM）**：metric 子系统（metrics.py + metric_repo.py；v0.7.26 删
+   vestigial models/metric.py dataclass）纯
    CRUD，0 引 sync LLM（generate_sql/fix_sql DEPRECATED v1.0）；v0.7.1 LogicForm 解析/编译须
    async-native（a* + R-26 首行 budget gate），严禁新 sync LLM 路径。本守护锁定 v0.7.0 无回退。
 
@@ -21,8 +22,7 @@ _REPO = Path(__file__).resolve().parents[2]
 _METRIC_FILES = (
     _REPO / "knot" / "api" / "admin" / "metrics.py",
     _REPO / "knot" / "repositories" / "metric_repo.py",
-    _REPO / "knot" / "models" / "metric.py",
-)
+)   # v0.7.26 消歧：models/metric.py（vestigial Metric dataclass）已删 — metric 子系统 = 端点 + repo（0 dataclass）
 # sync LLM 符号（v0.5.5 DEPRECATED；v1.0 移除目标）— metric 子系统严禁引用
 _SYNC_LLM_SYMBOLS = {"generate_sql", "fix_sql"}
 

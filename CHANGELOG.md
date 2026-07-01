@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.25 — metric 值单位 + percentage 渲染（D2 · 比率% · #1）
+## [Unreleased] - v0.7.26 — vestigial dataclass 消歧清理（chore · models AgentResult + Metric）
+
+> v0.6→v0.7 整体审核 #23 spawn 的 follow-on。**简化协议**（资深 2026-07-02 ack：chore + 0 行为变更 + 0 新红线 + grounded 无争议 → 跳 Stage 2/3；镜像 v0.6.5.6 docs chore 先例）。**版本插队**：清理 ready 先 merge 取 v0.7.26；维度中文标签（Stage 1 草案审评中）重编号 → v0.7.27。**0 新 R-SL**（R-SL-187 留 v0.7.27）。
+
+### Removed
+
+- **`knot/models/metric.py` `Metric` dataclass（整文件删）**：metric_repo 全程用 dict（schema.sql + base.py + `_COLS`/`_UPDATABLE`），此 dataclass **0 构造器 / 0 引用 / 从未 wire 进 `models/__init__.py`（生来即死）**，且 stale（v0.7.17 date_column + v0.7.25 unit 从没同步进它）。
+- **`knot/models/agent.py` `AgentResult` dataclass**：query 路径实用的是 `services/agents/sql_planner.py:42` 自定义 `AgentResult`（`agent_module=sql_planner` + v0.7.23/.25 演进出 column_labels/dimension_cols/column_formats 呈现字段）；models 版**仅 `__init__.py` re-export、0 真消费者**（v0.7.23 加字段误改本副本致 test_routing 报错 = 双定义混淆实例）。删类 + `__init__.py` 移除 import/`__all__` + 加消歧注释（勿重建）。保留 `AgentKind`/`VALID_AGENT_KINDS`/`ClarifierOutput`/`AgentStep`/`PresenterOutput`（在用）。
+
+### Fixed
+
+- `tests/services/test_metric_cost_async_carriers.py`：`_METRIC_FILES` 去 `models/metric.py`（**path-string 引用 `Path(...).exists()` — import-grep 未捕获、全套件跑出**；R-137 教训 = sweep 靠 import/构造器/`models.metric`，漏路径字符串引用；全跑兜住）。async-native 守护现覆盖 metrics.py 端点 + metric_repo.py（dataclass 纯数据 0 LLM，删之不失守护）。
+
+### Notes
+
+- R-137 grounded 归因：删前三查（构造器/引用/re-export）+ 读 sql_planner 确认自定义 + git-stash baseline 复核（baseline = 3 failed 1 passed；#2 metric.py-exists 唯一本刀 failure，其余 #1 jwt / #3 sql_planner no-key / #4 master-key = 预存在 env-dependent，本地有 JWT_SECRET/MASTER_KEY/api key，干净 CI 全绿）。
+- 全套件 993 passed（本刀修 #2 后）；import-linter 9 KEPT（models 仍纯叶子）；check_file_sizes backend 148→147；ruff 0；5 源点同步 0.7.25→0.7.26。**0 行为变更**（纯删死代码 + 消歧注释）。
+- **AgentStep（models 版）也无 `from...import` 消费者**（sql_planner 有自己的）— 出本刀 scope（只清 AgentResult + Metric），留后续评估。
+
+## [Released] - v0.7.25 — metric 值单位 + percentage 渲染（D2 · 比率% · #1）
 
 > 价值自测 #1：派生费率/占比指标（合约费率 `future_fee_rate` = fee÷volume ≈ 0.0486）在结果显示为裸小数不直观（应 4.86%）。资深拍 D2「比率% + 派生补录」。守护者 Stage 3 **R1 承重约定**：`unit=percentage` 假设**值为 0-1 小数**，admin hint + content 前置守防双缩放（4.86% vs 486%）。
 
