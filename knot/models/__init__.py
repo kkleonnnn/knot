@@ -13,7 +13,6 @@ Go 重写映射：本包 1:1 对应 Go 的 internal/domain/*.go。
 # ── 异常树（v0.3.2 R-7） ───────────────────────────────────────────────
 # ── 3-Agent 流转契约 ───────────────────────────────────────────────────
 from knot.models.agent import (
-    AgentResult,
     AgentStep,
     ClarifierOutput,
     PresenterOutput,
@@ -68,8 +67,8 @@ __all__ = [
     "Conversation", "Message",
     # data_source.py
     "DataSource",
-    # agent.py
-    "ClarifierOutput", "AgentStep", "AgentResult", "PresenterOutput",
+    # agent.py（v0.7.26 消歧：AgentResult 移除 — 真实定义在 services/agents/sql_planner.py）
+    "ClarifierOutput", "AgentStep", "PresenterOutput",
     # llm.py
     "ProviderKind", "LLMMessage", "LLMRequest", "LLMResponse", "ModelConfig",
     # catalog.py

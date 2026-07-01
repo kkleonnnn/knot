@@ -4,6 +4,11 @@
 这条流水线上每一站之间传递的"信封"。本模块不含逻辑，只锁结构。
 
 Go 重写映射：internal/domain/agent.go。每个 dataclass = 一个 struct。
+
+注（v0.7.26 消歧）：SQL Planner 的结果形状 `AgentResult` 定义在
+`services/agents/sql_planner.py`（query 路径实用 + v0.7.23/.25 呈现字段演进），
+**非本模块** —— 曾在此有 vestigial 副本从未被消费，致双定义混淆（v0.7.23 加字段
+误改本副本触发 test_routing 报错），已删。勿在此重建 AgentResult。
 """
 from __future__ import annotations
 
@@ -45,25 +50,6 @@ class AgentStep:
     action_input: str
     observation: str
     timestamp: float = 0.0
-
-
-@dataclass
-class AgentResult:
-    """SQL Planner 的最终输出 = 一次完整 ReAct 链的结果。
-
-    success=False 时 sql 为空 / error 描述失败原因；
-    success=True 时 rows 是真实查询结果，传给 Presenter 做洞察生成。
-    """
-    success: bool
-    sql: str
-    rows: list = field(default_factory=list)
-    explanation: str = ""
-    confidence: str = "medium"  # high | medium | low
-    error: str = ""
-    steps: list = field(default_factory=list)  # list[AgentStep]
-    total_cost_usd: float = 0.0
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
 
 
 @dataclass
