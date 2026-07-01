@@ -152,6 +152,11 @@ def init_db():
     if "date_column" not in metrics_cols_v0717:
         conn.execute("ALTER TABLE metrics ADD COLUMN date_column TEXT DEFAULT ''")
 
+    # v0.7.25 metrics.unit：值单位/格式（percentage=值×100+%，空=默认 toLocaleString）。幂等 ADD COLUMN；
+    #   存量 metric 得空串 = 默认渲染（不破存量）。R1：percentage 值须 0-1 小数（防 ×100 双缩放）。
+    if "unit" not in metrics_cols_v0717:
+        conn.execute("ALTER TABLE metrics ADD COLUMN unit TEXT DEFAULT ''")
+
     # catalogs 表 seed — 现有 app_settings 4-key catalog 内容搬为 catalog id=1（byte-equal copy）
     # 幂等：仅 catalogs 空时执行；app_settings 空（fresh install）→ 空内容行
     #   （与现状一致 — catalog_loader 内容为空时回退 file 默认；commit 3 reload 改读本表）

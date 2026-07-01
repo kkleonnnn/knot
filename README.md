@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.24 · clarifier 数字选项断片修复（Part A · 澄清选项进 history）：价值自测 #2 —— clarifier 弹编号选项澄清（①②③）后用户回纯数字「2」被当独立查询 →「'2' 不是有效查询」断片。根因 = 澄清问题落库在 `explanation` 但 history 构建丢它（query.py:74 只取 question/sql/rows）→ clarifier 看不到自己上轮问的选项。修法 = **Part A 纯数据流**（history dict +`explanation`+`agent_kind`；clarifier `_render_clarifier_inputs` 对澄清轮渲染「上轮澄清选项」）→ 靠既有 clarifier prompt L25「已有澄清回复融入」解析「2」→选项②。**0 clarifier.md 改 = 0 re-seed**；live 实证「2」正确映射②，Part B（数字专项指令）未需。<br>**上版** v0.7.23 表头中文 column_labels + 图表硬化 · v0.7.22 持仓路由 + clarifier 收敛 · v0.7.21 多行归一 · v0.7.0~.20 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.25 · metric 值单位 + percentage 渲染（D2 · 比率% · #1）：价值自测 #1 派生费率/占比指标（如合约费率 0.0486）在结果中显示为裸小数不直观。修法 = metric 注册表 +`unit` 字段（镜像 v0.7.17 date_column：schema 幂等 ALTER + repo _COLS/_UPDATABLE，非 vestigial dataclass）+ 语义路径 `column_formats` 承载（`_semantic_display_meta` 3-tuple → sql_planner.AgentResult → payload → 前端）+ 前端 `fmt.js`（fmtValue 非-percentage 完整 subsume 原 `_fmt` byte-equal / percentage ×100+%）→ MetricCard 大数字 + TableContainer cell + AdminMetricRegistry unit 下拉。⚠️ **R1 承重约定**：unit=percentage 假设值为 0-1 小数（0.0486→4.86%），admin hint + content 补录前置守防双缩放。<br>**上版** v0.7.24 clarifier 数字选项断片 · v0.7.23 表头中文 + 图表硬化 · v0.7.22 持仓路由 · v0.7.0~.21 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

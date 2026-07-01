@@ -3,6 +3,7 @@
 // v0.5.14 R-327 thead 删 uppercase + letter-spacing normal — 注：原版 ResultBlock 仍 uppercase（与 R-327 范围不同）
 // v0.5.13 R-302.5 业务 emoji 豁免 sustained
 import { I, iconBtn, LineChart, BarChart, PieChart } from '../../../Shared.jsx';
+import { fmtPercent } from './fmt.js';   // v0.7.25 D2：percentage 列 ×100+%（非-percentage 保 String byte-equal）
 
 const CHART_BTNS = [
   { id: 'line', label: '折线' },
@@ -13,7 +14,7 @@ const CHART_BTNS = [
 // v0.6.0.14 lint sweep: 删 chartable / isMetric / isRetention / chartType / isDateLike 未使用 props
 // 这些是 v0.6.0.2 拆分时 over-passed 的 props，TableContainer 内部不需要（父 ResultBlock 已用于
 // 决定 showChart）。保留 cols 等仍在使用的字段。
-export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLabels = {}, isDetail,
+export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLabels = {}, columnFormats = {}, isDetail,
                                   showChart, chartData, pieData, setChartType, activeType,
                                   msg, onDownload, exportMessageCsv }) {
   return (
@@ -57,7 +58,7 @@ export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLa
             <tbody>
               {rows.slice(0, 100).map((row, ri) => (
                 <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? `1px solid ${T.borderSoft}` : 'none' }}>
-                  {cols.map(c => <td key={c} style={{ padding: '8px 12px', color: T.text, whiteSpace: 'nowrap', fontFamily: typeof row[c] === 'number' ? T.mono : 'inherit' }}>{row[c] === null || row[c] === undefined ? <span style={{ color: T.muted }}>—</span> : String(row[c])}</td>)}
+                  {cols.map(c => <td key={c} style={{ padding: '8px 12px', color: T.text, whiteSpace: 'nowrap', fontFamily: typeof row[c] === 'number' ? T.mono : 'inherit' }}>{row[c] === null || row[c] === undefined ? <span style={{ color: T.muted }}>—</span> : (columnFormats[c] === 'percentage' && typeof row[c] === 'number' ? fmtPercent(row[c]) : String(row[c]))}</td>)}
                 </tr>
               ))}
             </tbody>
