@@ -125,17 +125,21 @@ def _semantic_enabled() -> bool:
     return os.getenv("KNOT_SEMANTIC_LAYER", "false").strip().lower() == "true"
 
 
-def _semantic_display_meta(lf, by_name: dict) -> tuple[dict, list]:
-    """v0.7.23 呈现：从 LogicForm 算前端呈现 meta（纯函数·可单测）。
+def _semantic_display_meta(lf, by_name: dict) -> tuple[dict, list, dict]:
+    """v0.7.23/.25 呈现：从 LogicForm 算前端呈现 meta（纯函数·可单测）。
 
     - column_labels: {metric.name → 中文 display}（缺 display → fallback name）= 表头中文 #5（R-SL-169）。
     - dimension_cols: list(lf.dimensions) = 图表 labelCols；前端 valueCols = 结果列 − dimension_cols
       = 全部度量（含 window/derived）。⚠️ 用 lf.dimensions **非 lf.metrics**：窗口列输出键 = `AS {as_name}`
       ∉ lf.metrics、派生列同理 → 「只画 lf.metrics」会排除窗口/移动平均/派生度量不画（守护者 Stage 3 R-SL-170）。
+    - column_formats: {metric.name → unit}（v0.7.25 · R-SL-181；**仅非空 unit 入** → 前端 percentage 列 ×100+%，
+      其余列无 key → fmtValue else 分支 byte-equal）。R1 承重：unit=percentage 假设值是 0-1 小数（÷派生费率）。
     锚点 ⑤：维度输出键 == lf.dimensions（compiler 单/多对象均 `<alias>.{d}` 无 AS 改键 — compiler.py:193/235 verified）。
     """
     column_labels = {n: (by_name[n].get("display") or n) for n in lf.metrics if n in by_name}
-    return column_labels, list(lf.dimensions)
+    column_formats = {n: (by_name[n].get("unit") or "") for n in lf.metrics
+                      if n in by_name and (by_name[n].get("unit") or "")}
+    return column_labels, list(lf.dimensions), column_formats
 
 
 async def run_semantic_compile_step(refined_question: str, engine, sql_planner_key: str,
@@ -193,14 +197,14 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     # v0.7.18 R-SL-147：AgentResult 携带 parse LLM cost+token（与 ReAct run_sql_planner_step 对称）。
     # 原置 0 = P1 bug：query.py 顶层 `clarifier + sql_result.token + presenter` 命中时漏 parse token
     # → message/user-usage token 偏低（cost 经 add_agent_cost 入桶仍对，token 走结果和故漏；top-level cost 仍取桶）。
-    column_labels, dimension_cols = _semantic_display_meta(lf, _by_name)  # v0.7.23 呈现 meta（表头中文 + 图表硬化）
+    column_labels, dimension_cols, column_formats = _semantic_display_meta(lf, _by_name)  # v0.7.23/.25 呈现 meta
     result = agent_module.AgentResult(
         success=not db_error, sql=sql, rows=rows or [], explanation="",
         confidence="high", error=db_error or "", steps=[],
         total_cost_usd=parse_res["cost_usd"],
         total_input_tokens=parse_res["input_tokens"],
         total_output_tokens=parse_res["output_tokens"],
-        column_labels=column_labels, dimension_cols=dimension_cols,
+        column_labels=column_labels, dimension_cols=dimension_cols, column_formats=column_formats,
     )
     return result, {"catalog_id": catalog_id, "logicform_json": lf_json, "compile_error_reason": ""}
 

@@ -28,9 +28,9 @@ def test_metrics_schema_no_tenant(tmp_db_path):
     )
     assert cols == {
         "id", "catalog_id", "name", "display", "aliases", "caliber", "base_object",
-        "filters", "dimensions", "date_column", "lineage", "freshness_lag_days", "enabled",
+        "filters", "dimensions", "date_column", "unit", "lineage", "freshness_lag_days", "enabled",
         "created_at", "updated_at",
-    }   # v0.7.17 +date_column（14→15）
+    }   # v0.7.17 +date_column（14→15）；v0.7.25 +unit（15→16）
 
 
 def test_create_rejects_tenant_id(tmp_db_path):
@@ -159,3 +159,21 @@ def test_date_column_defaults_empty(tmp_db_path):
     # 未声明 date_column → 空串（= regex fallback；不破存量）
     mid = metric_repo.create_metric(catalog_id=1, name="gmv", caliber="SUM(o.amt)")
     assert metric_repo.get_metric(mid)["date_column"] == ""
+
+
+# ─── unit v0.7.25：值单位/格式 CRUD 透传（percentage 渲染 D2）────────
+
+def test_unit_stored_and_updated(tmp_db_path):
+    # 显式 unit 照存（repo 不校验值语义 — R1 percentage「值 0-1 小数」约定在 admin/content 侧守）
+    mid = metric_repo.create_metric(catalog_id=1, name="future_fee_rate",
+                                    lineage='{"op":"divide","left":"future_fee","right":"future_amt"}',
+                                    unit="percentage")
+    assert metric_repo.get_metric(mid)["unit"] == "percentage"
+    metric_repo.update_metric(mid, unit="")
+    assert metric_repo.get_metric(mid)["unit"] == ""
+
+
+def test_unit_defaults_empty(tmp_db_path):
+    # 未声明 unit → 空串（= 默认渲染 toLocaleString；不破存量）
+    mid = metric_repo.create_metric(catalog_id=1, name="gmv", caliber="SUM(o.amt)")
+    assert metric_repo.get_metric(mid)["unit"] == ""
