@@ -12,7 +12,7 @@ import { api } from '../api.js';
 // op/left/right = UI-only 派生字段（提交时组装 lineage JSON；编辑时从 lineage 反解）
 const _EMPTY = {
   name: '', display: '', caliber: '', aliases: '',
-  base_object: '', dimensions: '', date_column: '', freshness_lag_days: 1, enabled: 1,
+  base_object: '', dimensions: '', date_column: '', unit: '', freshness_lag_days: 1, enabled: 1,
   op: '', left: '', right: '',
 };
 const _DERIVED_OPS = ['divide', 'multiply', 'add', 'subtract'];   // 与后端 _DERIVED_OPS / compile_helpers._OP_SQL 对齐
@@ -38,6 +38,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
     setDraft({
       name: m.name, display: m.display || '', caliber: m.caliber || '', aliases: m.aliases || '',
       base_object: m.base_object || '', dimensions: m.dimensions || '', date_column: m.date_column || '',
+      unit: m.unit || '',
       freshness_lag_days: m.freshness_lag_days ?? 1, enabled: m.enabled ?? 1,
       op, left, right,
     });
@@ -125,6 +126,13 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
                 <input style={{ ...inputStyleMono(T), width: 130 }} value={draft.date_column}
                        onChange={e => setDraft({ ...draft, date_column: e.target.value })} placeholder="sta_date"/>
               </div>
+            </FormRow>
+            <FormRow T={T} label="值格式 (unit)" hint="percentage = 显示 ×100 + %（费率/占比）；⚠️ 值须为 0-1 小数（如 0.0486 → 4.86%），严禁设在 caliber 已返百分数的指标上（双缩放）">
+              <select style={{ ...inputStyleMono(T), width: 220 }} value={draft.unit}
+                      onChange={e => setDraft({ ...draft, unit: e.target.value })}>
+                <option value="">默认（千分位数字）</option>
+                <option value="percentage">百分比（×100 + %）</option>
+              </select>
             </FormRow>
             <FormRow T={T} label="数据延迟 / 启用" last>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

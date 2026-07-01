@@ -149,6 +149,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
           intent: ev.intent || null,
           // v0.7.23 呈现：语义路径 metric 列中文表头 + 图表硬化（LLM/旧消息无 → fallback raw/typeof）
           column_labels: ev.column_labels || {}, dimension_cols: ev.dimension_cols || [],
+          column_formats: ev.column_formats || {},   // v0.7.25 D2：percentage 列格式（空 → fallback byte-equal）
           // v0.4.2 新增（向前展开）
           agent_costs: ev.agent_costs || null,
           recovery_attempt: ev.recovery_attempt || 0,

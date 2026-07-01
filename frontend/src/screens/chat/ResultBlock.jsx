@@ -83,6 +83,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
   // 保数值过滤 + 排维度 → 数值 ID-as-维度排除 / 窗口·派生数值度量保留画）；LLM/旧消息空 → fallback typeof（byte-equal）。
   const dimensionCols = (msg.dimension_cols && msg.dimension_cols.length) ? msg.dimension_cols : [];
   const columnLabels = msg.column_labels || {};
+  const columnFormats = msg.column_formats || {};   // v0.7.25 D2：{metric.name→unit}（percentage 列 ×100+%）
   const numericColsAll = cols.filter(isNumericCol);
   const numericCols = dimensionCols.length ? numericColsAll.filter(c => !dimensionCols.includes(c)) : numericColsAll;
   const labelCols = dimensionCols.length ? dimensionCols : cols.filter(c => !isNumericCol(c));
@@ -186,12 +187,12 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
       )}
 
       {rows && rows.length > 0 && isMetric && (
-        <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels}/>
+        <MetricCard T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels} columnFormats={columnFormats}/>
       )}
 
       {rows && rows.length > 0 && !isMetric && (
         <TableContainer
-          T={T} rows={rows} cols={cols} labelCols={labelCols} numericCols={numericCols} columnLabels={columnLabels}
+          T={T} rows={rows} cols={cols} labelCols={labelCols} numericCols={numericCols} columnLabels={columnLabels} columnFormats={columnFormats}
           chartable={chartable} isMetric={isMetric} isDetail={isDetail} isRetention={isRetention}
           showChart={showChart} chartData={chartData} pieData={pieData}
           chartType={chartType} setChartType={setChartType} activeType={activeType}

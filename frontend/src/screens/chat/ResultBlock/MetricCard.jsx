@@ -5,24 +5,19 @@
 //   R-PB-A5-1：单值路径（numericCols.length <= 1）byte-equal sustained — 下方 _SingleMetric 与
 //              v0.6.0.2 抽出版完全一致（仅包一层 dispatch，单值分支代码 0 改）
 
-// 数值格式化（单值 + 多值共用）
-function _fmt(value) {
-  return (value === null || value === undefined)
-    ? '—'
-    : (typeof value === 'number' ? value.toLocaleString() : String(value));
-}
+import { fmtValue } from './fmt.js';   // v0.7.25 D2：值格式化（非-percentage subsume 原 _fmt · percentage ×100+%）
 
-export function MetricCard({ T, rows, cols, numericCols, columnLabels = {} }) {
+export function MetricCard({ T, rows, cols, numericCols, columnLabels = {}, columnFormats = {} }) {
   if (!rows || rows.length === 0) return null;
   // v0.6.2.2 A5：复合 metric 多值网格 dispatch（R-PB-A5-1 单值路径不变）
   if (numericCols.length > 1) {
-    return <_MultiStatGrid T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels}/>;
+    return <_MultiStatGrid T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels} columnFormats={columnFormats}/>;
   }
-  return <_SingleMetric T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels}/>;
+  return <_SingleMetric T={T} rows={rows} cols={cols} numericCols={numericCols} columnLabels={columnLabels} columnFormats={columnFormats}/>;
 }
 
 // R-PB-A5-1：单值大数字卡片 — 与 v0.6.0.2 抽出版 byte-equal（_fmt 抽共用不改逻辑）
-function _SingleMetric({ T, rows, cols, numericCols, columnLabels = {} }) {
+function _SingleMetric({ T, rows, cols, numericCols, columnLabels = {}, columnFormats = {} }) {
   const r = rows[0];
   const valueCol = numericCols[0] || cols[0];
   const labelCol = cols.find(c => c !== valueCol);
@@ -35,7 +30,7 @@ function _SingleMetric({ T, rows, cols, numericCols, columnLabels = {} }) {
         </div>
       )}
       <div style={{ fontSize: 48, fontWeight: 600, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>
-        {_fmt(r[valueCol])}
+        {fmtValue(r[valueCol], columnFormats[valueCol])}
       </div>
       <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{columnLabels[valueCol] || valueCol}</div>
     </div>
@@ -45,7 +40,7 @@ function _SingleMetric({ T, rows, cols, numericCols, columnLabels = {} }) {
 // v0.6.2.2 A5：复合 metric N stat 网格（v0.5.18 R-461 4-stat grid 设计语言复用）
 // NRP-A5-1：auto-fit minmax(160px,1fr) 自适应 — 列数过多自然换行多行（>6 列不拥挤）
 // label 用 SQL 列名/别名（中文友好度依赖 F2/F3 sql_planner prompt 中文别名 AS）
-function _MultiStatGrid({ T, rows, cols, numericCols, columnLabels = {} }) {
+function _MultiStatGrid({ T, rows, cols, numericCols, columnLabels = {}, columnFormats = {} }) {
   const r = rows[0];
   const labelCol = cols.find(c => !numericCols.includes(c));  // 非数值列作行级 label（如有）
   return (
@@ -60,7 +55,7 @@ function _MultiStatGrid({ T, rows, cols, numericCols, columnLabels = {} }) {
         {numericCols.map(c => (
           <div key={c}>
             <div style={{ fontSize: 28, fontWeight: 600, color: T.text, fontFamily: T.mono, lineHeight: 1.15 }}>
-              {_fmt(r[c])}
+              {fmtValue(r[c], columnFormats[c])}
             </div>
             <div style={{ fontSize: 11.5, color: T.muted, marginTop: 4, letterSpacing: '0.04em',
                           textTransform: 'uppercase' }}>{columnLabels[c] || c}</div>
