@@ -29,6 +29,7 @@ BACKEND_ACK = {
     "knot/adapters/db/doris.py":           344,  # 暂冻结当前行数
     "knot/services/semantic/compiler.py":  310,  # v0.7.13 抽 multi_base/compile_helpers 394→275 曾移出 ACK；v0.7.14 outer 300 / v0.7.15 +窗口 frame gate 303（frame 主体 _frame_clause 在 compile_helpers leaf）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
+    "knot/services/query_steps.py":        310,  # SSE 主控编排 + 纯业务步骤；v0.7.27 _semantic_display_meta +field_labels 维度 merge + 3-tuple caller 298→306 → feature 增长 ACK（headroom 至 310）
 }
 
 # ── 前端 + 杂项：explicit allowlist（无包根 auto-discover；LOCKED 只 mandate backend）──

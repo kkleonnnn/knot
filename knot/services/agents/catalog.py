@@ -28,6 +28,7 @@ LEXICON: dict = {}
 TABLES: list = []
 BUSINESS_RULES: str = ""
 RELATIONS: list = []  # v0.4.1.1: 多表关联元数据，list[tuple(left_t, left_c, right_t, right_c, semantics)]
+FIELD_LABELS: dict = {}  # v0.7.27: 维度中文标签 {列名:中文}（DB-only；空 → _semantic_display_meta merge no-op byte-equal）
 _SOURCE: str = "empty"  # "db" | "real" | "example" | "empty"
 
 # ── v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离 ──────────────────────────
@@ -44,7 +45,7 @@ def current_catalog() -> dict:
     query 链路（query_helper 入口捕获 per-user active catalog → set_active_catalog_ctx）→ 读 ContextVar；
     非 query 路径（startup / admin reload / http_planner / conversations 脱敏）→ ContextVar 未 set →
     回退模块全局（D1 / R-PB-A1-15 — 与直读 LEXICON/TABLES/... 等价 byte-equal）。
-    返回 {lexicon, tables, business_rules, relations, catalog_id}（catalog_id 全局回退时 None）。
+    返回 {lexicon, tables, business_rules, relations, field_labels, catalog_id}（catalog_id 全局回退时 None）。
     """
     ctx = _active_catalog_ctx.get()
     if ctx is not None:
@@ -54,6 +55,7 @@ def current_catalog() -> dict:
         "tables": TABLES,
         "business_rules": BUSINESS_RULES,
         "relations": RELATIONS,
+        "field_labels": FIELD_LABELS,   # v0.7.27 维度中文标签（全局回退；per-user 走 _parse_catalog_content）
         "catalog_id": None,
     }
 
@@ -86,7 +88,7 @@ def reload(strict: bool = False) -> str:
       - strict=True（admin reload / pick_http_route 触发时）：推断异常 → MetadataError 上抛
       防 BI 全盘瘫痪：业务条件触发 fail-fast；startup 期降级为 warning。
     """
-    global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, _SOURCE
+    global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, FIELD_LABELS, _SOURCE
 
     from knot.models.errors import MetadataError
 
@@ -94,7 +96,7 @@ def reload(strict: bool = False) -> str:
     # v0.6.2.5 兜底熔断（Stage 2 修订 3）：catalogs id=1 缺失 + app_settings 无法读 → 真空期。
     # 沿用 ε2 strict 模式：strict=True（admin/query）→ fail-fast 上抛；strict=False（startup）→ 降级。
     try:
-        db_lex, db_tables, db_rules, db_relations, db_found = _load_from_db()
+        db_lex, db_tables, db_rules, db_relations, db_field_labels, db_found = _load_from_db()  # v0.7.27 6-tuple
     except MetadataError:
         if strict:
             raise
@@ -104,7 +106,7 @@ def reload(strict: bool = False) -> str:
         logging.getLogger("knot.catalog").warning(
             "catalog 双源暂不可达（DB 表未就绪/未配置）— startup 降级空覆盖，init_db / admin reload 后生效",
         )
-        db_lex, db_tables, db_rules, db_relations, db_found = {}, [], "", [], False
+        db_lex, db_tables, db_rules, db_relations, db_field_labels, db_found = {}, [], "", [], {}, False  # v0.7.27 6-tuple（R-SL-189.1 承重：+6th {} 防 db_field_labels NameError）
 
     # v0.6.1.4: TABLES — DB 主导 SQL 表，file 始终追加 HTTP 虚拟表
     base_tables = list(db_tables) if db_tables else list(f_tables)
@@ -144,6 +146,7 @@ def reload(strict: bool = False) -> str:
 
     BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
     RELATIONS = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
+    FIELD_LABELS = db_field_labels  # v0.7.27 维度中文标签 — DB-only（file 载体不提供 → 无 file fallback；空 → merge no-op byte-equal）
 
     _SOURCE = "db+file_http" if (db_found and any(t.get("source_type") == "http" for t in TABLES)) else ("db" if db_found else f_src)
     return _SOURCE
@@ -161,6 +164,7 @@ def get_defaults_from_files() -> dict:
         "tables": f_tables,
         "business_rules": f_rules,
         "relations": [list(r) for r in f_relations],  # tuple → list (JSON-friendly)
+        "field_labels": {},   # v0.7.27 DB-only（file 载体无 → "恢复默认" = 清空 field_labels）
         "source": f_src,
     }
 

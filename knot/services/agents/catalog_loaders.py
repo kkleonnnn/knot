@@ -61,7 +61,7 @@ def _load_from_db() -> tuple:
     返回 (lexicon, tables, business_rules, relations, found_any)。
     relations 4 键全走 DB 覆盖（v0.5.44；之前 v0.4.x R-S3 仅 3 字段）。
     """
-    raw_tables = raw_lex = rules = raw_rel = ""
+    raw_tables = raw_lex = rules = raw_rel = raw_field_labels = ""   # v0.7.27 +field_labels（DB-only；legacy 无）
     got = False
     try:
         from knot.repositories import catalog_repo
@@ -71,6 +71,7 @@ def _load_from_db() -> tuple:
             raw_lex = cat.get("lexicon") or ""
             rules = cat.get("business_rules") or ""
             raw_rel = cat.get("relations") or ""
+            raw_field_labels = cat.get("field_labels") or ""   # v0.7.27（app_settings legacy 路径无此键 → 留 ""）
             got = True
     except Exception:
         pass  # catalogs 表访问失败 → 落 app_settings legacy 兜底
@@ -112,8 +113,18 @@ def _load_from_db() -> tuple:
         except Exception:
             pass
 
-    found = bool(tables or lex or rules.strip() or relations)
-    return lex, tables, rules, relations, found
+    # v0.7.27 field_labels JSON 解析（{列名:中文} dict；镜像 lexicon — 非 dict/坏 JSON → {} fail-open）
+    field_labels: dict = {}
+    if raw_field_labels.strip():
+        try:
+            parsed_fl = json.loads(raw_field_labels)
+            if isinstance(parsed_fl, dict):
+                field_labels = parsed_fl
+        except Exception:
+            pass
+
+    found = bool(tables or lex or rules.strip() or relations)   # field_labels 不入 found（独立元数据，不构成"catalog 有内容"）
+    return lex, tables, rules, relations, field_labels, found
 
 
 def _infer_source_types_from_datasources(tables: list) -> list:

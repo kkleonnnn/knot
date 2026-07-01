@@ -157,6 +157,12 @@ def init_db():
     if "unit" not in metrics_cols_v0717:
         conn.execute("ALTER TABLE metrics ADD COLUMN unit TEXT DEFAULT ''")
 
+    # v0.7.27 catalogs.field_labels：维度中文标签 {列名:中文} JSON（镜像 relations；存量 catalog
+    #   ADD COLUMN 得空串 → 解析 {} → _semantic_display_meta merge no-op → byte-equal 不破存量）。幂等 ADD COLUMN。
+    catalogs_cols_v0727 = {row[1] for row in conn.execute("PRAGMA table_info(catalogs)").fetchall()}
+    if "field_labels" not in catalogs_cols_v0727:
+        conn.execute("ALTER TABLE catalogs ADD COLUMN field_labels TEXT DEFAULT ''")
+
     # catalogs 表 seed — 现有 app_settings 4-key catalog 内容搬为 catalog id=1（byte-equal copy）
     # 幂等：仅 catalogs 空时执行；app_settings 空（fresh install）→ 空内容行
     #   （与现状一致 — catalog_loader 内容为空时回退 file 默认；commit 3 reload 改读本表）

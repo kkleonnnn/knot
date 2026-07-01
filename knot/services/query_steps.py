@@ -125,10 +125,13 @@ def _semantic_enabled() -> bool:
     return os.getenv("KNOT_SEMANTIC_LAYER", "false").strip().lower() == "true"
 
 
-def _semantic_display_meta(lf, by_name: dict) -> tuple[dict, list, dict]:
-    """v0.7.23/.25 呈现：从 LogicForm 算前端呈现 meta（纯函数·可单测）。
+def _semantic_display_meta(lf, by_name: dict, field_labels: dict) -> tuple[dict, list, dict]:
+    """v0.7.23/.25/.27 呈现：从 LogicForm 算前端呈现 meta（纯函数·可单测）。
 
-    - column_labels: {metric.name → 中文 display}（缺 display → fallback name）= 表头中文 #5（R-SL-169）。
+    - column_labels: {metric.name → 中文 display}（缺 display → fallback name）= 表头中文 #5（R-SL-169）；
+      **v0.7.27 维度中文标签**：再对 `lf.dimensions` 列补 `field_labels[d]`（catalog {列名:中文}），
+      **仅 `d not in column_labels`**（metric.display 优先 R-SL-188；极端 dim名==metric名 不覆盖）；
+      field_labels 空/缺 → 不加 → byte-equal v0.7.25（R-SL-187 additive-only）。
     - dimension_cols: list(lf.dimensions) = 图表 labelCols；前端 valueCols = 结果列 − dimension_cols
       = 全部度量（含 window/derived）。⚠️ 用 lf.dimensions **非 lf.metrics**：窗口列输出键 = `AS {as_name}`
       ∉ lf.metrics、派生列同理 → 「只画 lf.metrics」会排除窗口/移动平均/派生度量不画（守护者 Stage 3 R-SL-170）。
@@ -137,6 +140,10 @@ def _semantic_display_meta(lf, by_name: dict) -> tuple[dict, list, dict]:
     锚点 ⑤：维度输出键 == lf.dimensions（compiler 单/多对象均 `<alias>.{d}` 无 AS 改键 — compiler.py:193/235 verified）。
     """
     column_labels = {n: (by_name[n].get("display") or n) for n in lf.metrics if n in by_name}
+    # v0.7.27 维度中文标签 merge（仅 dimensions 列 + 仅 d ∉ column_labels → metric.display 优先 R-SL-188）
+    for d in lf.dimensions:
+        if d not in column_labels and field_labels.get(d):
+            column_labels[d] = field_labels[d]
     column_formats = {n: (by_name[n].get("unit") or "") for n in lf.metrics
                       if n in by_name and (by_name[n].get("unit") or "")}
     return column_labels, list(lf.dimensions), column_formats
@@ -197,7 +204,8 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     # v0.7.18 R-SL-147：AgentResult 携带 parse LLM cost+token（与 ReAct run_sql_planner_step 对称）。
     # 原置 0 = P1 bug：query.py 顶层 `clarifier + sql_result.token + presenter` 命中时漏 parse token
     # → message/user-usage token 偏低（cost 经 add_agent_cost 入桶仍对，token 走结果和故漏；top-level cost 仍取桶）。
-    column_labels, dimension_cols, column_formats = _semantic_display_meta(lf, _by_name)  # v0.7.23/.25 呈现 meta
+    column_labels, dimension_cols, column_formats = _semantic_display_meta(  # v0.7.23/.25/.27 呈现 meta
+        lf, _by_name, catalog.get("field_labels", {}))  # v0.7.27 维度中文标签（current_catalog 两载体均含）
     result = agent_module.AgentResult(
         success=not db_error, sql=sql, rows=rows or [], explanation="",
         confidence="high", error=db_error or "", steps=[],

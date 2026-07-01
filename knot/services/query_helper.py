@@ -29,7 +29,8 @@ def _parse_catalog_content(row: dict) -> dict:
     raw_lex = row.get("lexicon") or ""
     rules = row.get("business_rules") or ""
     raw_rel = row.get("relations") or ""
-    tables, lex, relations = [], {}, []
+    raw_field_labels = row.get("field_labels") or ""   # v0.7.27 维度中文标签（per-user 载体，镜像 lexicon）
+    tables, lex, relations, field_labels = [], {}, [], {}
     if raw_tables.strip():
         try:
             t = json.loads(raw_tables)
@@ -51,9 +52,17 @@ def _parse_catalog_content(row: dict) -> dict:
                 relations = [tuple(r) for r in pr if isinstance(r, (list, tuple)) and len(r) >= 4]
         except Exception:
             pass
+    # v0.7.27 field_labels 解析（{列名:中文} dict；镜像 lexicon — 非 dict/坏 JSON → {} fail-open）
+    if raw_field_labels.strip():
+        try:
+            pfl = json.loads(raw_field_labels)
+            if isinstance(pfl, dict):
+                field_labels = pfl
+        except Exception:
+            pass
     return {
         "lexicon": lex, "tables": tables, "business_rules": rules,
-        "relations": relations, "catalog_id": row.get("id"),
+        "relations": relations, "field_labels": field_labels, "catalog_id": row.get("id"),
     }
 
 

@@ -100,7 +100,7 @@ def test_reload_strict_false_warns_on_metadata_error(caplog):
     """ε2：reload(strict=False) — startup 期降级为 warning + 不阻塞。"""
     # 模拟 _load_from_db 返非空 db_tables（触发推断路径）
     with patch.object(catalog_loader, "_load_from_db",
-                      return_value=({}, [{"db": "x", "table": "y"}], "", [], True)):
+                      return_value=({}, [{"db": "x", "table": "y"}], "", [], {}, True)):  # v0.7.27 6-tuple (+field_labels {})
         with patch("knot.repositories.data_source_repo.list_datasources",
                    side_effect=Exception("simulated")):
             # 不应抛 — 仅 log warning
@@ -113,7 +113,7 @@ def test_reload_strict_false_warns_on_metadata_error(caplog):
 def test_reload_strict_true_raises_on_metadata_error():
     """ε2：reload(strict=True) — admin/query 触发时 MetadataError 上抛。"""
     with patch.object(catalog_loader, "_load_from_db",
-                      return_value=({}, [{"db": "x", "table": "y"}], "", [], True)):
+                      return_value=({}, [{"db": "x", "table": "y"}], "", [], {}, True)):  # v0.7.27 6-tuple (+field_labels {})
         with patch("knot.repositories.data_source_repo.list_datasources",
                    side_effect=Exception("simulated")):
             with pytest.raises(MetadataError):
