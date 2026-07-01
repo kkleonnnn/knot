@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.24 — clarifier 数字选项断片修复（Part A · 澄清选项进 history · #2）
+## [Unreleased] - v0.7.25 — metric 值单位 + percentage 渲染（D2 · 比率% · #1）
+
+> 价值自测 #1：派生费率/占比指标（合约费率 `future_fee_rate` = fee÷volume ≈ 0.0486）在结果显示为裸小数不直观（应 4.86%）。资深拍 D2「比率% + 派生补录」。守护者 Stage 3 **R1 承重约定**：`unit=percentage` 假设**值为 0-1 小数**，admin hint + content 前置守防双缩放（4.86% vs 486%）。
+
+### Added
+
+- **metric `unit` 字段（后端 · R-SL-180/182）**：`metrics` 表 +`unit TEXT DEFAULT ''`（幂等 ALTER，镜像 v0.7.17 date_column 落地路径：`schema.sql` + `base.py` 幂等 ADD COLUMN + `metric_repo` `_COLS`/`_UPDATABLE`，**非 vestigial `Metric` dataclass** — R-137 第 5 次修正，repo 用 dict 无构造器）。存量 metric 得空串 = 默认渲染不破存量。OOS-1 死线 sustained（0 tenant_id）。
+- **语义路径 `column_formats` 承载（R-SL-181/183）**：`_semantic_display_meta` 扩 2→3-tuple 返 `column_formats = {metric.name→unit}`（**仅非空 unit 入** → 前端空/缺 fallback byte-equal）→ `sql_planner.AgentResult` +`column_formats`（default_factory dict；LLM/sync/fix 既有构造 byte-equal）→ `query.py` payload → `Chat.jsx` onFinal → ResultBlock。
+- **前端 percentage 渲染（`fmt.js` · R-SL-184/185）**：新 `chat/ResultBlock/fmt.js` — `fmtValue(v,unit)` **非-percentage 完整 subsume 原 MetricCard `_fmt` byte-equal**（null→'—' / number→toLocaleString / else→String），percentage(number)→`fmtPercent`（×100 + %，maxFractionDigits 4）。MetricCard 大数字 + TableContainer cell（**仅 percentage 列变，非-percentage 保 `String(row[c])` byte-equal**）+ ResultBlock 读 `msg.column_formats` 传两子组件。
+- **AdminMetricRegistry unit 下拉（R-SL-186）**：值格式 FormRow（默认 / 百分比）+ **R1 承重 hint**「值须为 0-1 小数（0.0486→4.86%），严禁设在 caliber 已返百分数的指标上（双缩放）」；`_EMPTY` + handleEdit 反解 + payload 自动透传（rest 展开）。
+
+### Notes
+
+- **R-SL-180~186**（接 179 无撞号）；**0 新 schema 表/路由/AuditAction**（仅 metrics +1 列；admin 46 / AuditAction 51 sustained）；Contract 9 守。check_file_sizes AdminMetricRegistry 200→215。
+- eslint 0 / build ✓ / C1 27 tests passed（.venv 实跑：display_meta 3-tuple 7 + metric_repo unit 20）；守护者 Stage 3 ACCEPT + C1 APPROVED。
+- **content 补录（kk · 分离）**：4 存量费率 metric（net_deposit_rate/withdraw_rate/future_fee_rate/spot_fee_rate 均 divide 派生小数 ✓）set unit=percentage；⚠️ 客单价/arpu 是金额**非** percentage。**vestigial dataclass 清理**（`metric.py` + `models.agent.AgentResult`）→ follow-on。
+- **纯代码部署 · 无 re-seed**（0 clarifier.md/prompt 改）；`unit` 列幂等 ALTER 首次启动自动加。
+
+## [Released] - v0.7.24 — clarifier 数字选项断片修复（Part A · 澄清选项进 history · #2）
 
 > 价值自测 #2：clarifier 弹编号选项澄清（①②③）→ 用户回纯数字「2」→ 当独立查询 →「'2' 不是有效查询」断片。守护者预评「纯 prompt」经 grounded 修正为「数据流为主」（grep 无前置硬编闸门 — 拒识 LLM 生成 → clarifier 层是对的修处）；资深拍 ① 先做 Part A（数据流），不够再 Part B（prompt）。**live 实证 Part A 够（「2」→选项②），Part B 未需。**
 
