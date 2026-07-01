@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.23 · 语义层呈现：表头中文（column_labels）+ numericCols 图表硬化（presentation）：价值自测 #5「语义层表头没翻译」（`user_position_pnl`/`market` 英文）+ 数值型 ID 列（user_id/持仓ID）被画无意义图。修法 = **column_labels**（语义路径 `sql_planner.AgentResult` 带 `{metric.name→metric.display}` → payload → 前端表头 `{labels[c]||c}`；**0 改 compiler SQL alias** — metric.name 是 HAVING/window/qualify 引用锚）+ **图表硬化**（`dimension_cols`=lf.dimensions → 前端 labelCols=维度 / valueCols=数值−维度，含窗口/派生度量、排数值 ID-as-维度）。LLM/旧消息无 → fallback raw/typeof。#1 比率% + 维度中文标签拆 follow-on。<br>**上版** v0.7.22 持仓路由 intent veto + clarifier 收敛 · v0.7.21 多行归一 detail_table · v0.7.20 presenter 失败盲 + HTTP 友好拒 · v0.7.19 数据新鲜度 · v0.7.18 令牌统计 · v0.7.0~.17 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.24 · clarifier 数字选项断片修复（Part A · 澄清选项进 history）：价值自测 #2 —— clarifier 弹编号选项澄清（①②③）后用户回纯数字「2」被当独立查询 →「'2' 不是有效查询」断片。根因 = 澄清问题落库在 `explanation` 但 history 构建丢它（query.py:74 只取 question/sql/rows）→ clarifier 看不到自己上轮问的选项。修法 = **Part A 纯数据流**（history dict +`explanation`+`agent_kind`；clarifier `_render_clarifier_inputs` 对澄清轮渲染「上轮澄清选项」）→ 靠既有 clarifier prompt L25「已有澄清回复融入」解析「2」→选项②。**0 clarifier.md 改 = 0 re-seed**；live 实证「2」正确映射②，Part B（数字专项指令）未需。<br>**上版** v0.7.23 表头中文 column_labels + 图表硬化 · v0.7.22 持仓路由 + clarifier 收敛 · v0.7.21 多行归一 · v0.7.0~.20 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

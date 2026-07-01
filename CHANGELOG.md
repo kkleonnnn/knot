@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.23 — 语义层呈现：表头中文（column_labels）+ numericCols 图表硬化（presentation）
+## [Unreleased] - v0.7.24 — clarifier 数字选项断片修复（Part A · 澄清选项进 history · #2）
+
+> 价值自测 #2：clarifier 弹编号选项澄清（①②③）→ 用户回纯数字「2」→ 当独立查询 →「'2' 不是有效查询」断片。守护者预评「纯 prompt」经 grounded 修正为「数据流为主」（grep 无前置硬编闸门 — 拒识 LLM 生成 → clarifier 层是对的修处）；资深拍 ① 先做 Part A（数据流），不够再 Part B（prompt）。**live 实证 Part A 够（「2」→选项②），Part B 未需。**
+
+### Fixed
+
+- **根因（数据流丢选项）**：澄清问题落库 `query.py:209`（`explanation` 字段 + `agent_kind="clarifier"`），但 history 构建 `query.py:74` 只取 `{question, sql, rows}` 丢 explanation + `clarifier.py` `_render_clarifier_inputs` sql-空轮只渲 `Q: {q}` → clarifier 看不到自己上轮问的编号选项 → 无法把用户「2」连到选项。
+- **Part A（纯代码数据流 · R-SL-175/176）**：① `query.py:74` history dict +`explanation`+`agent_kind`（additive；其它消费者忽略）② `clarifier.py` `_render_clarifier_inputs`：`agent_kind=="clarifier"` 且 explanation 非空的 sql-空轮 → 渲染「（上轮澄清选项：{explanation}）」（**插 elif，if-sql + else `Q: {q}` byte-equal** — 非 clarifier sql-空轮/普通轮不误渲）。→ clarifier 见上轮选项 + 靠既有 **L25「如对话历史中已有澄清回复，直接视为 is_clear=true 并融入 refined_question」** 解析「2」→选项②。
+- **live 实证**：「本月各交易对的持仓盈亏」→ 弹①②③ → 回「2」→ refined「本月各交易对的**历史平仓记录**盈亏」→ SQL（选项②）。
+
+### Notes
+
+- **0 clarifier.md → 0 re-seed（R-SL-177）**：靠既有 L25（本地+线上 prompt 都有，Explore 备份确认）→ clarifier.md git diff 0 → 部署纯代码 + server 重启、**无 re-seed**（对比 v0.7.22 收敛 gotcha 的关键收益）。
+- **Part B（clarifier.md 数字选项专项指令）conditional defer — 未触发**：守护者 Stage 3 校准 L25 松匹配 → Part A 独力中置信，但 **live 实证够 → Part B 未加**（省 re-seed）。若未来其它澄清场景数字回复不稳 → 再评。
+- 4 单测（clarifier 轮渲选项含②文本 / 普通轮 exact-== byte-equal / 非 clarifier sql-空轮不误渲 gate 精度 / 缺 agent_kind byte-equal）；R-SL-175~179（接 174 无撞号）；check_file_sizes query.py 485→490。守护者 C1 APPROVED + Stage 3 ACCEPT。
+
+## [Released] - v0.7.23 — 语义层呈现：表头中文（column_labels）+ numericCols 图表硬化（presentation）
 
 > 价值自测 #5「语义层表头没翻译」（`user_position_pnl`/`market` 英文）+ #190 numericCols（数值型 ID 列 user_id/持仓ID 被画无意义图）。守护者 flag 2（v0.7.22 预定）：表头中文**绝不动 compiler SQL alias**（metric.name 是 HAVING/window/qualify 引用锚）→ payload `column_labels` map + 前端渲染。资深拍 ① 收窄 #5 + numericCols，#1 比率% 拆单独刀。
 
