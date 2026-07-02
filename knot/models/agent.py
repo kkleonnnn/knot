@@ -5,10 +5,10 @@
 
 Go 重写映射：internal/domain/agent.go。每个 dataclass = 一个 struct。
 
-注（v0.7.26 消歧）：SQL Planner 的结果形状 `AgentResult` 定义在
-`services/agents/sql_planner.py`（query 路径实用 + v0.7.23/.25 呈现字段演进），
+注（v0.7.26/.28 消歧）：SQL Planner 的结果形状 `AgentResult` + ReAct 单步 `AgentStep`
+定义在 `services/agents/sql_planner.py`（query 路径实用 + v0.7.23/.25 呈现字段演进），
 **非本模块** —— 曾在此有 vestigial 副本从未被消费，致双定义混淆（v0.7.23 加字段
-误改本副本触发 test_routing 报错），已删。勿在此重建 AgentResult。
+误改 AgentResult 副本触发 test_routing 报错），已删（AgentResult v0.7.26 / AgentStep v0.7.28）。勿在此重建。
 """
 from __future__ import annotations
 
@@ -36,20 +36,6 @@ class ClarifierOutput:
     refined_question: str
     analysis_approach: str = ""  # 一句话的分析思路提示，给下游 sql_planner 参考
     intent: str | None = None
-
-
-@dataclass
-class AgentStep:
-    """SQL Planner ReAct 推理链的单步快照（Think → Act → Observe）。
-
-    用于流式 SSE 把"Agent 思考过程"推送到前端 thinking panel。
-    """
-    step_num: int
-    thought: str
-    action: str  # execute_sql | describe_table | list_tables | search_schema | final_answer
-    action_input: str
-    observation: str
-    timestamp: float = 0.0
 
 
 @dataclass
