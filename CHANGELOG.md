@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.27 — 维度中文标签（catalog field_labels · D1）
+## [Unreleased] - v0.7.28 — AgentStep vestigial 清理（chore · 承 v0.7.26 双清收官）
+
+> 非阻塞 follow-on 池首项（资深 2026-07-02 拍「AgentStep 死代码清理 · 先清尾」）。**简化协议**（chore + 0 行为变更 + 0 新红线；镜像 v0.7.26 AgentResult 清理同类同文件先例）。**0 新 R-SL**。
+
+### Removed
+
+- **`knot/models/agent.py` `AgentStep` dataclass**：v0.7.26 删同文件 `AgentResult` 时出 scope 遗留的同款孤儿。query SSE thinking 实用 `services/agents/sql_planner.py:32` 自定义 `AgentStep`（`_run_tool` 构造）；models 版**0 真消费者**（仅 `__init__.py` re-export + 类定义本身；内部 0 自引用 — 引用它的 AgentResult 已 v0.7.26 删）。删类 + `__init__.py` 移除 import/`__all__`（29→28）+ 扩消歧注释。保留 `AgentKind`/`VALID_AGENT_KINDS`/`ClarifierOutput`/`PresenterOutput`（在用）。
+
+### Notes
+
+- R-137 **彻底 sweep**（import/构造器/**path-string/test mock** — 内化 v0.7.26 path-string + v0.7.27 test-mock 教训）：AgentStep 0 遗漏引用（无 mock/path 引用，比 v0.7.26/.27 更干净）。
+- 验证（.venv 全跑）：**1001 passed**（3 失败全预存在 env — jwt/sql_planner-no-key/master-key，干净 CI 绿）；ruff check knot/ 0；import-linter 9 KEPT（models 仍纯叶子）；check_file_sizes OK；5 源点同步 0.7.27→0.7.28。**0 行为变更**。
+- **✅ AgentResult(v0.7.26) + AgentStep(v0.7.28) vestigial 双清收官** —— models/agent.py 现仅留在用符号（AgentKind/VALID_AGENT_KINDS/ClarifierOutput/PresenterOutput）。
+
+## [Released] - v0.7.27 — 维度中文标签（catalog field_labels · D1）
 
 > 承 v0.7.23 metric 列中文 → 补**维度列**中文（价值自测 follow-on D1）。语义层结果表头 `market`/`sta_date` → 交易对/日期。守护者 Stage 3 **ACCEPT WITH REVISIONS**（1 承重 R-SL-189.1 + 1 minor R-SL-188）。方案 B（资深拍）：catalog +field_labels 键（镜像 relations/lexicon），**前端 0 改**（复用 v0.7.23 column_labels）。
 

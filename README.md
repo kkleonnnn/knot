@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.27 · 维度中文标签（catalog `field_labels` · D1）：语义层结果表头的**维度列**（`market`/`sta_date`）从英文列名显示为中文（交易对/日期）—— 承 v0.7.23 metric 列中文，补维度列。方案 = catalog +`field_labels` JSON 键（`{列名:中文}`，镜像 `relations`/`lexicon`）→ `_semantic_display_meta` merge 进 `column_labels`（仅 `lf.dimensions` 列 + metric.display 优先）→ **前端 0 改**（`{columnLabels[c]||c}` 已覆盖全列）+ admin tab_system 编辑器加「维度中文标签」面板。守护者 Stage 3 承重修订：`_load_from_db` 5→6-tuple 须同步全部 4 处解包点（含 `catalog.py:107` except fallback，防 DB 失败 NameError）。空 field_labels → byte-equal v0.7.25。<br>**上版** v0.7.26 vestigial dataclass 清理 · v0.7.25 metric unit + percentage · v0.7.23/.24 表头中文/clarifier · v0.7.0~.22 语义层基座 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.28 · AgentStep vestigial 清理（chore）：承 v0.7.26（删 `AgentResult` 死副本）清尾 —— 删 `models/agent.py` 同款孤儿 `AgentStep`（query SSE thinking 实用 `sql_planner.py` 自定义版；models 版 0 消费者致双定义混淆）。R-137 彻底 sweep（含 path-string + test mock，内化 v0.7.26/.27 教训）确认 0 引用。**AgentResult + AgentStep vestigial 双清收官**（models/agent.py 现仅留在用符号）。简化协议（0 行为变更 + 0 新红线）。<br>**上版** v0.7.27 维度中文标签 field_labels · v0.7.26 vestigial dataclass 清理 · v0.7.25 metric unit + percentage · v0.7.0~.24 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
