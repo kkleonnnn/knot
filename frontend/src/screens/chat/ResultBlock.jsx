@@ -85,7 +85,14 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
   const columnLabels = msg.column_labels || {};
   const columnFormats = msg.column_formats || {};   // v0.7.25 D2：{metric.name→unit}（percentage 列 ×100+%）
   const numericColsAll = cols.filter(isNumericCol);
-  const numericCols = dimensionCols.length ? numericColsAll.filter(c => !dimensionCols.includes(c)) : numericColsAll;
+  // v0.7.30 D3：LLM/旧消息路径（dimension_cols 空）无 lf.dimensions 权威 → 数值 ID 列（user_id/持仓ID/*编号）
+  // 会被当 metric 画无意义图（#190）。名字启发式排除 ID-like 数值列（best-effort，仅 LLM fallback；语义路径
+  // dimension_cols 权威不走此）。boundary（^/_/CJK 前 + id$ 或 编号$）防误伤 paid/void/bid 等真度量。
+  // 无 ID-like 列时 filter 0 剔除 → byte-equal 旧行为（非 ID 结果无回归）。
+  const isIdLikeCol = (col) => /(^|_|[一-龥])id$|编号$/i.test(String(col));
+  const numericCols = dimensionCols.length
+    ? numericColsAll.filter(c => !dimensionCols.includes(c))
+    : numericColsAll.filter(c => !isIdLikeCol(c));   // D3：LLM 路径排除 ID-like 数值列
   const labelCols = dimensionCols.length ? dimensionCols : cols.filter(c => !isNumericCol(c));
   const chartable = labelCols.length >= 1 && numericCols.length >= 1 && rows && rows.length >= 2;
 
