@@ -104,3 +104,30 @@ def test_parse_catalog_content_field_labels_per_user_carrier():
     assert query_helper._parse_catalog_content(
         {"id": 1, "field_labels": '["a","b"]'})["field_labels"] == {}      # 非 dict → {}
     assert query_helper._parse_catalog_content({"id": 1})["field_labels"] == {}  # 缺失 → {}
+
+
+def test_reload_file_http_overrides_db_shadow(monkeypatch):
+    """v0.7.29 b merge 权威：file HTTP 表【覆盖】同名 DB 手灌影子（部署代码层 > admin DB；防 problem 1
+    静默落 SQL）；non-collision file http 仍追加；正常 SQL 表保留。"""
+    from knot.services.agents import catalog
+    db_tables = [
+        {"db": "shop", "table": "orders"},                    # 正常 SQL 表（无 http 同名）
+        {"db": "futures_admin", "table": "pos"},              # 🔴 手灌影子（缺 source_type=http）
+    ]
+    file_tables = [
+        {"db": "futures_admin", "table": "pos", "source_type": "http"},   # 权威 file http（同名 → 覆盖影子）
+        {"db": "futures_admin", "table": "orders_rt", "source_type": "http"},  # non-collision → 追加
+    ]
+    monkeypatch.setattr(catalog, "_load_from_db", lambda: ({}, db_tables, "", [], {}, True))
+    monkeypatch.setattr(catalog, "_load_from_files", lambda: ({}, file_tables, "", [], "file"))
+    monkeypatch.setattr(catalog, "_infer_source_types_from_datasources", lambda t: t)  # 隔离推断熔断
+    catalog.reload(strict=False)
+    pos = [t for t in catalog.TABLES if (t["db"], t["table"]) == ("futures_admin", "pos")]
+    assert len(pos) == 1 and pos[0].get("source_type") == "http", (
+        "file http 权威覆盖影子：同名去重 + source_type=http 生效（防 pick_http_route 漏）"
+    )
+    assert any((t["db"], t["table"]) == ("shop", "orders") for t in catalog.TABLES), "正常 SQL 表保留"
+    assert any((t["db"], t["table"]) == ("futures_admin", "orders_rt") for t in catalog.TABLES), (
+        "non-collision file http 仍追加（旧行为保持）"
+    )
+    # 注：monkeypatch teardown 复原 loader；TABLES 留此态无害（后续 reload 自愈，同 fallback 测试）
