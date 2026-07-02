@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.28 · AgentStep vestigial 清理（chore）：承 v0.7.26（删 `AgentResult` 死副本）清尾 —— 删 `models/agent.py` 同款孤儿 `AgentStep`（query SSE thinking 实用 `sql_planner.py` 自定义版；models 版 0 消费者致双定义混淆）。R-137 彻底 sweep（含 path-string + test mock，内化 v0.7.26/.27 教训）确认 0 引用。**AgentResult + AgentStep vestigial 双清收官**（models/agent.py 现仅留在用符号）。简化协议（0 行为变更 + 0 新红线）。<br>**上版** v0.7.27 维度中文标签 field_labels · v0.7.26 vestigial dataclass 清理 · v0.7.25 metric unit + percentage · v0.7.0~.24 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.29 · file HTTP 表 merge 权威（robustness）：catalog `reload()` 合并 file（部署代码层）+ DB（admin 编辑）表目录时，**HTTP 虚拟表以 file 为权威** —— 修旧逻辑「file http 仅在名不在 DB 时追加」（admin 手灌同名条目进 DB → 缺 source_type → `pick_http_route` 漏 → 静默落 SQL = problem 1 bug 类）为「file http 覆盖同名 DB 影子」。no-collision 路径 byte-equal。简化协议（小 defensive 修）；type-aware 日期列 defer（YAGNI）。<br>**上版** v0.7.28 AgentStep 清理 · v0.7.27 维度中文标签 · v0.7.26 vestigial dataclass 清理 · v0.7.0~.25 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

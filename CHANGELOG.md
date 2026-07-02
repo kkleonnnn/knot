@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.28 — AgentStep vestigial 清理（chore · 承 v0.7.26 双清收官）
+## [Unreleased] - v0.7.29 — file HTTP 表 merge 权威（robustness · b merge）
+
+> 非阻塞 follow-on 池「小批 robustness」→ **b merge only**（资深 2026-07-02 拍 type-aware 日期列 defer YAGNI）。**简化协议**（小 defensive 逻辑修 + no-collision byte-equal）。**0 新 R-SL**。
+
+### Fixed
+
+- **file HTTP 表 merge 权威（`catalog.py` reload）**：catalog 合并 file（`_local`/`_template_catalog.py` 部署代码层）+ DB（admin 编辑）表目录时，**HTTP 虚拟表以 file 为权威**（架构铁律 L80-82：HTTP 表不应被 admin DB 编辑覆盖）。旧逻辑 `for t in http_from_file: if full not in existing_names: append` → admin 手灌同名条目进 DB catalog.tables（「01 表目录」编辑器只有 {db,table,topics,summary}，**无 source_type** 字段）→ 该影子 `is_http_table()=False` → `pick_http_route` 漏 → **静默落 SQL**（problem 1 生产 bug 类 e38de5e76703）→ DB 影子遮蔽权威 file http。**修**：先剔除 base_tables 中与 file http **同名**的影子条目，再追加全部 file http（`http_names` set 过滤 + extend）。
+
+### Notes
+
+- **no-collision 路径 byte-equal**：DB SQL 表不与 file http 同名 → 过滤 0 剔除 + 追加同旧（正常路径不变）。`db_tables` 空（file-only）路径不进本块 → 不变；`_infer_source_types_from_datasources` 对已带 source_type=http 的 file 表幂等。
+- test `test_reload_file_http_overrides_db_shadow`（collision 覆盖 source_type=http + non-collision 追加 + 正常 SQL 表保留）。
+- 验证（.venv 全跑）：**1002 passed**（3 失败全预存在 env — jwt/sql_planner-no-key/master-key，干净 CI 绿）；ruff check knot/ 0；import-linter 9 KEPT；check_file_sizes OK；5 源点同步 0.7.28→0.7.29。0 新表/路由/AuditAction。
+- **type-aware 日期列 defer（YAGNI）**：grounded catalog 无列类型元数据 → type-aware 做全需列类型（非小）；且仅显式 `date_column` 可达 + 无 metric 用 epoch date col + 非回归（R2 前也错）→ 资深拍 defer，待真出现 epoch 日期列再做。
+
+## [Released] - v0.7.28 — AgentStep vestigial 清理（chore · 承 v0.7.26 双清收官）
 
 > 非阻塞 follow-on 池首项（资深 2026-07-02 拍「AgentStep 死代码清理 · 先清尾」）。**简化协议**（chore + 0 行为变更 + 0 新红线；镜像 v0.7.26 AgentResult 清理同类同文件先例）。**0 新 R-SL**。
 
