@@ -45,6 +45,7 @@ async def get_catalog(admin=Depends(require_admin)):
             "lexicon": catalog_loader.LEXICON,
             "business_rules": catalog_loader.BUSINESS_RULES,
             "relations": [list(r) for r in catalog_loader.RELATIONS],
+            "field_labels": catalog_loader.FIELD_LABELS,   # v0.7.27 维度中文标签 {列名:中文}
         },
         "defaults": catalog_loader.get_defaults_from_files(),
         "db_overrides": {
@@ -52,6 +53,7 @@ async def get_catalog(admin=Depends(require_admin)):
             "lexicon": _has_override("lexicon"),
             "business_rules": _has_override("business_rules"),
             "relations": _has_override("relations"),
+            "field_labels": _has_override("field_labels"),
         },
     }
 
@@ -104,6 +106,17 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
             updates["relations"] = json.dumps(v, ensure_ascii=False)
         out["saved"].append("relations")
 
+    # v0.7.27 field_labels 字段（JSON dict {列名:中文}；镜像 lexicon — 空值 → 清 DB 覆盖）
+    if "field_labels" in payload:
+        v = payload["field_labels"]
+        if v in (None, "", [], {}):
+            updates["field_labels"] = ""
+        else:
+            if not isinstance(v, dict):
+                raise HTTPException(status_code=400, detail="field_labels 必须是对象（{列名: 中文}）")
+            updates["field_labels"] = json.dumps(v, ensure_ascii=False)
+        out["saved"].append("field_labels")
+
     if updates:
         catalog_repo.update_catalog(1, **updates)
 
@@ -119,8 +132,8 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
 async def reset_catalog(payload: dict = Body(default={}), request: Request = None, admin=Depends(require_admin)):
     """清空 DB 覆盖，回退到文件默认。
     payload.fields 可指定 ["tables", "lexicon", "business_rules"] 子集；缺省则全清。"""
-    fields = payload.get("fields") or ["tables", "lexicon", "business_rules", "relations"]
-    valid = {"tables", "lexicon", "business_rules", "relations"}  # v0.5.44 — relations 加入
+    fields = payload.get("fields") or ["tables", "lexicon", "business_rules", "relations", "field_labels"]
+    valid = {"tables", "lexicon", "business_rules", "relations", "field_labels"}  # v0.5.44 relations / v0.7.27 field_labels
     cleared = [f for f in fields if f in valid]
     # v0.6.2.5：清 catalogs 表默认行 id=1 字段（替代旧 app_settings 4-key）
     if cleared:

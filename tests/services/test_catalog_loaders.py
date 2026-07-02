@@ -73,3 +73,34 @@ def test_reload_function_repopulates_module_attr_live():
     assert cc["lexicon"] is catalog.LEXICON
     assert cc["tables"] is catalog.TABLES
     assert cc["relations"] is catalog.RELATIONS
+    assert cc["field_labels"] is catalog.FIELD_LABELS   # v0.7.27 两载体对称（全局回退路径 R-SL-189）
+
+
+def test_reload_fallback_field_labels_no_nameerror(monkeypatch):
+    """🔴 守护者 Stage 3 承重（R-SL-189.1）：`_load_from_db` 抛错 → reload except fallback :107
+    须 +6th `{}` → `FIELD_LABELS == {}` 不 NameError（5→6-tuple 若漏 :107 解包点，DB 失败路径
+    `db_field_labels` 未赋值 → 下游 `FIELD_LABELS = db_field_labels` NameError；latent 仅 DB-fail 触发）。"""
+    from knot.models.errors import MetadataError
+    from knot.services.agents import catalog
+
+    def _boom():
+        raise MetadataError("simulated DB unavailable（模拟真空期熔断）")
+    monkeypatch.setattr(catalog, "_load_from_db", _boom)
+    src = catalog.reload(strict=False)   # strict=False 降级不 raise；关键：不 NameError
+    assert isinstance(src, str)
+    assert catalog.FIELD_LABELS == {}    # :107 fallback +6th {} 生效（承重）
+    assert catalog.current_catalog()["field_labels"] == {}
+    # 注：monkeypatch teardown 自动复原 _load_from_db；FIELD_LABELS 留 {} = 默认态无害（后续 reload 自愈）
+
+
+def test_parse_catalog_content_field_labels_per_user_carrier():
+    """v0.7.27 两载体对称（R-SL-189）：per-user `_parse_catalog_content` 解析 field_labels
+    （dict / 坏 JSON / 非 dict / 缺失 → fail-open {}）—— 与全局 `_load_from_db` 载体对称。"""
+    from knot.services import query_helper
+    assert query_helper._parse_catalog_content(
+        {"id": 1, "field_labels": '{"market":"交易对"}'})["field_labels"] == {"market": "交易对"}
+    assert query_helper._parse_catalog_content(
+        {"id": 1, "field_labels": "not json"})["field_labels"] == {}       # 坏 JSON → {}
+    assert query_helper._parse_catalog_content(
+        {"id": 1, "field_labels": '["a","b"]'})["field_labels"] == {}      # 非 dict → {}
+    assert query_helper._parse_catalog_content({"id": 1})["field_labels"] == {}  # 缺失 → {}

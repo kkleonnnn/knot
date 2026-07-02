@@ -14,10 +14,10 @@ from knot.models.errors import MetadataError
 from knot.repositories.base import get_conn
 
 # catalogs 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1 死线）
-_COLS = "id, name, description, tables, lexicon, business_rules, relations, created_at, updated_at"
+_COLS = "id, name, description, tables, lexicon, business_rules, relations, field_labels, created_at, updated_at"
 
-# update 仅允许 6 个内容/元字段（不允许改 id / created_at / 注入 tenant_id）
-_UPDATABLE = ("name", "description", "tables", "lexicon", "business_rules", "relations")
+# update 仅允许 7 个内容/元字段（v0.7.27 +field_labels；不允许改 id / created_at / 注入 tenant_id）
+_UPDATABLE = ("name", "description", "tables", "lexicon", "business_rules", "relations", "field_labels")
 
 
 def list_catalogs() -> list[dict]:
@@ -47,14 +47,15 @@ def create_catalog(
     lexicon: str = "",
     business_rules: str = "",
     relations: str = "",
+    field_labels: str = "",
 ) -> int:
     """新建 catalog；返回新 id。"""
     conn = get_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO catalogs (name, description, tables, lexicon, business_rules, relations) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (name, description, tables, lexicon, business_rules, relations),
+            "INSERT INTO catalogs (name, description, tables, lexicon, business_rules, relations, field_labels) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, description, tables, lexicon, business_rules, relations, field_labels),
         )
         conn.commit()
         return int(cur.lastrowid)

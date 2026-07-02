@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS catalogs (
     lexicon        TEXT    DEFAULT '',   -- JSON dict（对应 catalog.lexicon）
     business_rules TEXT    DEFAULT '',   -- text（对应 catalog.business_rules）
     relations      TEXT    DEFAULT '',   -- JSON list（对应 catalog.relations）
+    field_labels   TEXT    DEFAULT '',   -- JSON dict（v0.7.27；{列名:中文} 维度中文标签 → column_labels merge）
     created_at     TEXT    DEFAULT (datetime('now','localtime')),
     updated_at     TEXT    DEFAULT (datetime('now','localtime'))
 );

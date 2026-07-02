@@ -22,10 +22,10 @@ def test_A1_1_catalogs_schema_no_tenant(tmp_db_path):
     conn.close()
     assert "tenant_id" not in cols, "OOS-1 死线：catalogs 严禁 tenant_id"
     assert "project_id" not in cols, "OOS-1 死线：catalogs 严禁 project_id"
-    # 9 列契约
+    # 10 列契约（v0.7.27 +field_labels）
     assert cols == {
         "id", "name", "description", "tables", "lexicon",
-        "business_rules", "relations", "created_at", "updated_at",
+        "business_rules", "relations", "field_labels", "created_at", "updated_at",
     }
 
 
@@ -98,6 +98,16 @@ def test_update_catalog(tmp_db_path):
     catalog_repo.update_catalog(cid, name="X2", business_rules="new rule")
     cat = catalog_repo.get_catalog(cid)
     assert cat["name"] == "X2" and cat["business_rules"] == "new rule"
+
+
+def test_field_labels_crud(tmp_db_path):
+    # v0.7.27：field_labels 在 _COLS（get 可读）+ _UPDATABLE（update 可写）+ create 透传
+    cid = catalog_repo.create_catalog("FL", field_labels='{"market":"交易对"}')
+    assert catalog_repo.get_catalog(cid)["field_labels"] == '{"market":"交易对"}'
+    catalog_repo.update_catalog(cid, field_labels='{"market":"交易对","sta_date":"日期"}')
+    assert catalog_repo.get_catalog(cid)["field_labels"] == '{"market":"交易对","sta_date":"日期"}'
+    catalog_repo.update_catalog(cid, field_labels="")   # 空 → 清覆盖
+    assert catalog_repo.get_catalog(cid)["field_labels"] == ""
 
 
 def test_update_catalog_ignores_non_whitelisted_fields(tmp_db_path):
