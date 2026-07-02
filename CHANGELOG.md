@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.29 — file HTTP 表 merge 权威（robustness · b merge）
+## [Unreleased] - v0.7.30 — LLM 路径 numericCols ID-like 列启发式（D3 · 前端 display）
+
+> 非阻塞 follow-on 池「D3」（资深 2026-07-02 拍）。**简化协议**（display-only 前端修 + non-ID/语义路径 byte-equal + 前端零测试栈同 v0.7.25 fmt.js）。**0 新 R-SL**。
+
+### Fixed
+
+- **LLM 路径数值 ID 列误画图（`ResultBlock.jsx`）**：v0.7.23 图表硬化用 `dimension_cols=lf.dimensions`（语义路径权威）排 ID/维度列，但 **LLM 路径 + 旧消息** `msg.dimension_cols` 空 → `numericCols = numericColsAll`（含 `user_id`/`持仓ID` 数值 ID 列）→ ID 列被当 metric 画无意义图（#190）+ 进 MetricCard stat 网格。**修**：`isIdLikeCol` 名字启发式（`/(^|_|[一-龥])id$|编号$/i`）+ LLM fallback 分支 `numericColsAll.filter(c => !isIdLikeCol(c))`。boundary 精准（`^`/`_`/CJK 前 + `id$`/`编号$`）—— node regex 实测排除 user_id/order_id/id/持仓ID/账户ID/USER_ID/*编号，保留 paid/void/bid/grid/rapid/gmv/dau/amount/count/pnl/fee/spot_amt。
+
+### Notes
+
+- **仅 LLM fallback**（`dimensionCols` 空）；语义路径 `dimension_cols` 权威分支 byte-equal v0.7.23；non-ID LLM 结果 filter 0 剔除 = byte-equal（无回归）。`labelCols` 不动 + detail_table 用全列 `cols` → **表格全列不受影响，仅图表 + MetricCard stat 排 ID 列**（[user_id,gmv]→表格 only；[city,user_id,gmv]→gmv by city）。
+- 启发式**诚实**：best-effort 名字匹配（非权威），语义路径 lf.dimensions 仍是权威解；极端度量名恰 `_id`/`编号` 结尾会误排 → display-only 低危 + boundary 已收窄。
+- 验证：regex node 实测 21 例全对；eslint 0；build ✓；check_file_sizes OK（ResultBlock 305→312）；5 源点 0.7.29→0.7.30。**0 后端改 / 0 新表/路由/AuditAction**。
+
+## [Released] - v0.7.29 — file HTTP 表 merge 权威（robustness · b merge）
 
 > 非阻塞 follow-on 池「小批 robustness」→ **b merge only**（资深 2026-07-02 拍 type-aware 日期列 defer YAGNI）。**简化协议**（小 defensive 逻辑修 + no-collision byte-equal）。**0 新 R-SL**。
 

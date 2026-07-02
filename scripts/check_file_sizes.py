@@ -40,7 +40,7 @@ EXPLICIT_LIMITS = {
     # chat/ 子模块
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
-    "frontend/src/screens/chat/ResultBlock.jsx":   305,  # v0.6.0.17 拆分后编排层（460 旧值已废）；v0.7.23 图表硬化 dimension_cols/columnLabels 295→305（文件 300 留 headroom）
+    "frontend/src/screens/chat/ResultBlock.jsx":   312,  # v0.6.0.17 拆分后编排层（460 旧值已废）；v0.7.23 图表硬化 295→305；v0.7.30 D3 LLM ID-like 列启发式 305→312
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  240,  # v0.6.1.4 220→240 (HTTP path Trace 分支)
