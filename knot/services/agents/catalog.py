@@ -110,16 +110,19 @@ def reload(strict: bool = False) -> str:
 
     # v0.6.1.4: TABLES — DB 主导 SQL 表，file 始终追加 HTTP 虚拟表
     base_tables = list(db_tables) if db_tables else list(f_tables)
-    if db_tables:  # DB 已主导 SQL 表时，单独 merge file 中 HTTP 表
+    if db_tables:  # DB 主导 SQL 表；file HTTP 表始终【权威覆盖】同名 DB 条目（v0.7.29 b merge 权威）
+        # HTTP 表 = 部署代码层配置（file _local/_template_catalog，L80-82 架构铁律）> admin 手灌 DB 影子。
+        # 旧逻辑 `if full not in existing_names` 让手灌 DB 同名条目（常缺 source_type=http →
+        #   is_http_table False → pick_http_route 漏 = problem 1 静默落 SQL bug 类）**遮蔽**权威 file http。
+        # 修：先剔除 base_tables 中与 file http 同名的影子条目，再追加 file http（权威）。
+        # no-collision 路径 byte-equal（DB SQL 表不与 file http 同名 → 过滤 0 剔除 + 追加同旧）。
         http_from_file = [
             t for t in (f_tables or [])
             if t.get("source_type") == "http"
         ]
-        existing_names = {f"{t.get('db')}.{t.get('table')}" for t in base_tables}
-        for t in http_from_file:
-            full = f"{t.get('db')}.{t.get('table')}"
-            if full not in existing_names:
-                base_tables.append(t)
+        http_names = {f"{t.get('db')}.{t.get('table')}" for t in http_from_file}
+        base_tables = [t for t in base_tables if f"{t.get('db')}.{t.get('table')}" not in http_names]
+        base_tables.extend(http_from_file)
 
     # v0.6.2.1 R-PB-C1-1 + ε2：source_type 推断兜底 + fail-fast 熔断
     # strict=True（admin reload / pick_http_route 触发）→ MetadataError 上抛
