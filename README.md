@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.31 · 语义验证修复刀（Q5 outer 套娃 + Q28 this_week + Q24 移动平均安全守护）：v0.7.30 parser 命中率验证（39 题 grounded 三率）暴露的 **2 误判**（Q5「多少人」outer 套娃标量 count 恒返 1 应 9 · Q24 移动平均在逐笔 DATETIME 上算成 7-笔非 7-日）+ **1 漏判**（Q28 本周 `this_week` 枚举缺失）修复。Q5 无维度 outer 跳 wrap 返标量（校验先行）；Q24 frame 非日粒度列安全回退 LLM（正确日粒度 MA → v0.7.32）；Q28 additive `this_week` 枚举。守护者 Stage 3 纠正草案 Q18「限自身 base」设计错（会砍 v0.7.2 跨对象维度）→ Q18（future_deal 暂无 market）/Q13（agent 累计无日期）归**数据现实 0 代码**。完整 Loop Protocol v3 三阶段 · **0 新表/路由/AuditAction**。<br>**上版** v0.7.30 numericCols ID-like 启发式 · v0.7.29 file HTTP merge · v0.7.0~.28 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.32 · order_by 字段 alias-based 校验（编译器 enforcement 门）：v0.7.31 live 复测发现 —— order_by 幻觉字段（如「合约交易量最高5交易对」的 `total_volume`，∉ metrics∪维度）被 `_order_limit` 裸拼进 SQL → 命中·确定性编译但 Doris `Unknown column` **执行报错**。修：校验 order_by field ∈ `metrics∪dimensions∪window-as_name`（as_name 缺省回退 func 名，镜像 `_window_col`；仿 `_outer_expr` R-SL-120 先例，补编译器唯一缺的 order_by enforcement 门），幻觉字段 → raise **安全回退**（「命中→报错」变「安全回退」）。守护者 Stage 3 **ACCEPT 无承重修订** · byte-equal 零风险 · 轻量 v3。同类 gap（having/window-order/outer-window-arg）OOS-认→统一硬化 follow-on。Q24 正确日粒度 MA 暂缓（安全 guard 兜底）。**0 新表/路由/AuditAction · 0 parser prompt 改**。<br>**上版** v0.7.31 语义验证修复刀（Q5/Q24/Q28）· v0.7.30 numericCols ID-like · v0.7.0~.29 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

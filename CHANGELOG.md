@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.31 — 语义验证修复刀（Q5 outer 套娃 + Q28 this_week + Q24 移动平均安全守护）
+## [Unreleased] - v0.7.32 — order_by 字段 alias-based 校验（编译器 enforcement 门）
+
+> v0.7.31 live 复测新发现修复（[plan](docs/plans/v0.7.32-order-by-validation.md)）。轻量 Loop Protocol v3（辅助 AI Stage-2 等效 + 守护者 Stage 3 **ACCEPT · 0 承重修订**）。小·清晰·**零 byte-equal 风险**。已偿还 R-SL-205~209。
+
+### Fixed
+
+- **order_by 幻觉字段「命中→执行报错」→ 安全回退（`compile_helpers.py` `_order_limit`）**：parser 幻觉 order_by 字段（如「合约交易量最高5交易对」的 `total_volume`，∉ metrics∪dimensions）被 `_order_limit` 裸拼进 SQL → Doris `Unknown column` 执行报错（命中带徽标但报错）。修：校验 order_by field ∈ `metrics ∪ dimensions ∪ window-as_name`（as_name 缺省回退 func 名，镜像 `_window_col`），∉ → `raise CompileError` 安全回退 LLM。**仿 `_outer_expr` R-SL-120 先例 —— 补编译器唯一缺的 order_by alias-based enforcement 门**。R-SL-205/206。
+
+### Notes
+
+- **byte-equal 零风险**（R-SL-207）：全测试仅 1 处顶层 order_by（`test_outer_sum_topn_keeps_limit` field=gmv∈metrics → 过校验）；其余 order_by 全是 `window[].order_by`（`_window_col` 路径，非 `_order_limit`）。blank/缺 field 保留 skip 不 raise。
+- **Q24 正确日粒度 MA 暂缓**（R-SL-209）：v0.7.31 安全 guard 已杜绝 silent-wrong = 完整度非 bug；parser-steer 覆盖不全 + 与 freshness 冲突（Agent B grounding 不推荐），compiler-collapse 待 MA 查询变常见再评估。
+- **同类 enforcement gap OOS-认**（守护者 note）：having / window[].order_by / partition_by / _outer_expr-window-arg 同缺强制校验 → 未来「编译器 alias-based enforcement 统一门」follow-on，非本刀。
+- fix 在 `_order_limit`（compile_helpers **leaf** · 纯 lf 计算 · 0 catalog/sibling import）；Contract 9 KEPT；签名不变；multi_base 2 调用点 `lf.window==[]` 自然降级。**0 parser prompt 改**（prompt 已声明 order_by=name或维度）。
+- 验证：semantic 173（+6 新守护）全绿；check_file_sizes OK；5 源点 0.7.31→0.7.32。**0 新 schema/路由/AuditAction**。
+
+## [Released] - v0.7.31 — 语义验证修复刀（Q5 outer 套娃 + Q28 this_week + Q24 移动平均安全守护）
 
 > v0.7.30 parser 命中率验证暴露 2 误判 + 1 漏判修复（[results](docs/plans/v0.7.30-semantic-validation-results.md) · [plan](docs/plans/v0.7.31-semantic-validation-fixes.md)）。完整 Loop Protocol v3 三阶段（守护者 Stage 3 ACCEPT WITH REVISIONS：纠草案 Q18 R-SL-201「限自身 base」设计错 —— 会砍 v0.7.2 跨对象维度 + 自矛盾 R-SL-202）。kk 拍板 Q24 仅安全 guard（正确日粒度 MA → v0.7.32）+ Q18/Q13 = 0 代码（数据现实）。**0 新 schema/路由/AuditAction**。已偿还 R-SL-194~204。
 
