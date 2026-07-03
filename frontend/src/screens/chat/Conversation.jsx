@@ -2,6 +2,7 @@
 // v0.5.31 #37 avatar → KnotMark；#40 thinking panel 永显（demo grid 一直保留右栏）
 import { KnotMark } from '../../Shared.jsx';
 import { ResultBlock } from './ResultBlock.jsx';
+import { ResultBlockErrorBoundary } from '../../ErrorBoundary.jsx';
 import { ThinkingCard, AgentThinkingPanel } from './ThinkingCard.jsx';
 import { Composer } from './Composer.jsx';
 
@@ -30,9 +31,11 @@ export function ChatConversation({ T, user, messages, scrollRef, loading, questi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {msg.loading
                     ? <ThinkingCard T={T} agentEvents={agentEvents}/>
-                    : <ResultBlock T={T} msg={msg} user={user} onCopy={onCopy} onDownload={onDownload}
-                                   onFollowup={(q) => setQuestion(q)}
-                                   onPin={onPin} onRetry={onRetry} onFeedback={onFeedback}/>}
+                    : <ResultBlockErrorBoundary T={T} key={msg.id || i}>
+                        <ResultBlock T={T} msg={msg} user={user} onCopy={onCopy} onDownload={onDownload}
+                                     onFollowup={(q) => setQuestion(q)}
+                                     onPin={onPin} onRetry={onRetry} onFeedback={onFeedback}/>
+                      </ResultBlockErrorBoundary>}
                 </div>
               </div>
             </div>

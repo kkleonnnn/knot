@@ -62,34 +62,32 @@ async function _post(payload) {
   } catch { /* 上报失败 silent — 防 reporter 自己抛错套娃 */ }
 }
 
+// v0.7.33 (B1.1): 公共上报入口 —— 复用 _computeHash/_shouldReport/_post 节流去重 pipeline（M-B1 契约）；
+// window handlers + ErrorBoundary.componentDidCatch 共用。hash 输入由 caller 决定（保各路径上报 byte-equal）。
+export function reportError(message, stack) {
+  const hash = _computeHash(message, stack);
+  if (!_shouldReport(hash)) return;
+  _post({
+    message: (message || 'unknown').slice(0, 2000),
+    stack: (stack || '').slice(0, 10000),
+    url: location.href.slice(0, 500),
+    error_hash: hash,
+  });
+}
+
 export function installErrorReporter() {
   if (window.__knotErrorReporterInstalled) return;
   window.__knotErrorReporterInstalled = true;
 
+  // byte-equal：hash 输入 = raw message/stack（reportError 内 slice for post，与旧一致）
   window.addEventListener('error', (event) => {
-    const message = event.message || String(event.error?.message || 'unknown');
-    const stack = event.error?.stack || '';
-    const hash = _computeHash(message, stack);
-    if (!_shouldReport(hash)) return;
-    _post({
-      message: message.slice(0, 2000),
-      stack: stack.slice(0, 10000),
-      url: location.href.slice(0, 500),
-      error_hash: hash,
-    });
+    reportError(event.message || String(event.error?.message || 'unknown'), event.error?.stack || '');
   });
 
+  // byte-equal：rejection 旧路径 hash 输入 = sliced message/stack → 传 sliced（double-slice no-op）
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
-    const message = (reason?.message || String(reason || 'unhandledrejection')).slice(0, 2000);
-    const stack = (reason?.stack || '').slice(0, 10000);
-    const hash = _computeHash(message, stack);
-    if (!_shouldReport(hash)) return;
-    _post({
-      message,
-      stack,
-      url: location.href.slice(0, 500),
-      error_hash: hash,
-    });
+    reportError((reason?.message || String(reason || 'unhandledrejection')).slice(0, 2000),
+                (reason?.stack || '').slice(0, 10000));
   });
 }

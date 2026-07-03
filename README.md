@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.32 · order_by 字段 alias-based 校验（编译器 enforcement 门）：v0.7.31 live 复测发现 —— order_by 幻觉字段（如「合约交易量最高5交易对」的 `total_volume`，∉ metrics∪维度）被 `_order_limit` 裸拼进 SQL → 命中·确定性编译但 Doris `Unknown column` **执行报错**。修：校验 order_by field ∈ `metrics∪dimensions∪window-as_name`（as_name 缺省回退 func 名，镜像 `_window_col`；仿 `_outer_expr` R-SL-120 先例，补编译器唯一缺的 order_by enforcement 门），幻觉字段 → raise **安全回退**（「命中→报错」变「安全回退」）。守护者 Stage 3 **ACCEPT 无承重修订** · byte-equal 零风险 · 轻量 v3。同类 gap（having/window-order/outer-window-arg）OOS-认→统一硬化 follow-on。Q24 正确日粒度 MA 暂缓（安全 guard 兜底）。**0 新表/路由/AuditAction · 0 parser prompt 改**。<br>**上版** v0.7.31 语义验证修复刀（Q5/Q24/Q28）· v0.7.30 numericCols ID-like · v0.7.0~.29 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.33 · React ErrorBoundary 白屏兜底（B1.1 · v0.7 收尾）：render 崩溃曾使**整屏白屏**（React 无 boundary → 卸载整棵树；历史多次 v0.6.5.2）。加 **AppErrorBoundary**（`main.jsx` 包 `<App/>` → 全屏 KNOT 降级屏可刷新）+ **ResultBlockErrorBoundary**（`Conversation.jsx` 仅包 `<ResultBlock/>` → 单 block 崩溃 inline 降级卡，siblings+composer 存活）；componentDidCatch 复用 `error_reporter` 节流上报（M-B1 契约）。**守护者 R1 铁律**：App 级 fallback 纯 inline（buildTheme+raw button/svg，不用可崩组件——React 不 catch fallback 自身的错）。纯前端 additive · byte-equal 现有屏 · **0 后端**。<br>**上版** v0.7.32 order_by 字段校验 · v0.7.31 语义验证修复刀（Q5/Q24/Q28）· v0.7.0~.30 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
