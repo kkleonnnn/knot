@@ -11,7 +11,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# v0.7.34 (B1.3): KNOT_SKIP_DOTENV=1 截断 .env 回读（测试隔离用 —— 防 load_dotenv(override=False)
+# 对 delenv 后缺失的 key 从本地 .env 补设，defeats fail-fast 守护测试）；生产默认不设 → 正常加载。
+if not os.getenv("KNOT_SKIP_DOTENV"):
+    load_dotenv()
 
 # ── Model catalogue ────────────────────────────────────────────────────
 # v0.6.5.4 资深拍板 OpenRouter-only：删 6 直连 provider 通道（admin 误选直连模型但只配

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.33 · React ErrorBoundary 白屏兜底（B1.1 · v0.7 收尾）：render 崩溃曾使**整屏白屏**（React 无 boundary → 卸载整棵树；历史多次 v0.6.5.2）。加 **AppErrorBoundary**（`main.jsx` 包 `<App/>` → 全屏 KNOT 降级屏可刷新）+ **ResultBlockErrorBoundary**（`Conversation.jsx` 仅包 `<ResultBlock/>` → 单 block 崩溃 inline 降级卡，siblings+composer 存活）；componentDidCatch 复用 `error_reporter` 节流上报（M-B1 契约）。**守护者 R1 铁律**：App 级 fallback 纯 inline（buildTheme+raw button/svg，不用可崩组件——React 不 catch fallback 自身的错）。纯前端 additive · byte-equal 现有屏 · **0 后端**。<br>**上版** v0.7.32 order_by 字段校验 · v0.7.31 语义验证修复刀（Q5/Q24/Q28）· v0.7.0~.30 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.34 · env 测试隔离（B1.3 · v0.7 收尾）：本地 `.env`（JWT_SECRET/KNOT_MASTER_KEY）+ DB（真 OR key）曾使 3 个 fail-fast/no-key 守护测试**本地假失败**（`load_dotenv(override=False)` 对 delenv 后**缺失**的 key 从 .env 补回；DB OR key 试 live LLM 烧 token）。修：加 `KNOT_SKIP_DOTENV` flag（`settings.py`+`deps.py` 截断 .env 回读，**生产默认不设 → 正常加载**）+ R45 subprocess 指向空 tmp DB + no-key 测试 mock `get_app_setting`。**本地全套件首次全绿（1022 passed / 0 failed）** + 不再烧 live token（16.8s→1.6s）。纯 tests + 2 production-safe config 行 · **0 生产行为变更**。<br>**上版** v0.7.33 ErrorBoundary 白屏兜底 · v0.7.32 order_by 校验 · v0.7.31 语义验证修复刀 · v0.7.0~.30 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 验证。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

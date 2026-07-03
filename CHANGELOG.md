@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.33 — React ErrorBoundary 白屏兜底（B1.1 · v0.7 收尾）
+## [Unreleased] - v0.7.34 (B1.3) — env 测试隔离（本地 fail-fast/no-key 守护测试 hermetic）
+
+> v0.7 收尾 backlog B1.3（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 3 个守护测试本地假失败（.env/DB 泄入）。tests + 2 production-safe config 行（**0 生产行为变更**）。简化协议。R-B1.3-1~4。
+
+### Fixed
+
+- **3 个 fail-fast/no-key 守护测试本地隔离（hermetic）**：
+  - ① `test_jwt_fail_when_missing` + ② `test_R45_startup_missing_key...`（subprocess）—— `load_dotenv(override=False)` 对 delenv 后**缺失**的 JWT_SECRET/KNOT_MASTER_KEY 从本地 .env **补回**（override=False 只跳已存在的，不跳缺失的）→ defeats fail-fast。修：`KNOT_SKIP_DOTENV` flag（`settings.py` + `deps.py` `_resolve_jwt_secret` 截断 .env 回读；**生产默认不设 → 正常加载**）；R45 subprocess 加 `KNOT_SKIP_DOTENV=1` + `SQLITE_DB_PATH`=空 tmp DB（避本地 knot.db 加密数据源行无 key 解密的 Traceback 混入 stderr）。
+  - ③ `test_arun_sql_agent_no_api_key` —— arun OR key 链 `arg → get_app_setting("openrouter_api_key")【读 DB】→ PROVIDER_API_KEYS`；本地 DB 有真 OR key → 试 live LLM（烧 token + 断言失败）。修：mock `settings_repo.get_app_setting`→"" 隔离 DB key。
+
+### Notes
+
+- **本地全套件首次全绿**：1022 passed / 113 skipped / **0 failed**（此前 3 恒定 env failure —— CI 干净 env 本就过，纯本地 .env/DB 泄入）；no-key 测试不再打 live LLM（16.8s→1.6s，停止烧 token）。
+- **0 生产行为变更**：`KNOT_SKIP_DOTENV` 默认不设 → `load_dotenv()` 照常；仅测试/subprocess 显式设。2 config 行纯 additive gating。
+- R-B1.3-1~4；5 源点 0.7.33→0.7.34；**0 新 schema/路由/AuditAction · 0 后端逻辑变更**（仅 dotenv-load gating）。
+
+## [Released] - v0.7.33 — React ErrorBoundary 白屏兜底（B1.1 · v0.7 收尾）
 
 > v0.7 收尾 backlog B1.1（[plan](docs/plans/v0.7.33-b1.1-error-boundary.md)）—— 🔴 confirmed 真 bug：render 崩溃 → 整屏白屏。纯前端 additive 韧性 · byte-equal 现有屏 · 0 后端。轻量 v3（守护者 Stage 3 **ACCEPT** + R1 承重建议纳入）。R-B1.1-1~7。
 

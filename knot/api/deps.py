@@ -37,11 +37,12 @@ def _resolve_jwt_secret() -> str:
     模块 import 时 lazy — 读 env 但不 fail，让测试 conftest 有机会 setenv。
     v0.6.0.8 patch：调用前显式 load_dotenv() 兜底（.env 中 JWT_SECRET 会被识别）。
     """
-    try:
-        from dotenv import load_dotenv as _ld
-        _ld()
-    except ImportError:
-        pass
+    if not os.getenv("KNOT_SKIP_DOTENV"):   # v0.7.34 (B1.3): 测试隔离截断 .env 回读（生产默认不设 → 正常兜底）
+        try:
+            from dotenv import load_dotenv as _ld
+            _ld()
+        except ImportError:
+            pass
     val = os.getenv("JWT_SECRET", "").strip()
     if not val or val in _BLOCKED_DEFAULTS or len(val) < _MIN_LEN:
         bar = "━" * 60

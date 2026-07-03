@@ -52,9 +52,14 @@ def test_R45_startup_missing_key_prints_friendly_error_and_exits_1(tmp_path):
 
     env = os.environ.copy()
     env.pop("KNOT_MASTER_KEY", None)
+    # v0.7.34 B1.3：KNOT_SKIP_DOTENV=1 截断 settings.py load_dotenv() 从本地 .env 补回 KNOT_MASTER_KEY。
+    # （cwd=tmp_path 不够 —— load_dotenv() 无参走 find_dotenv 从模块位置向上找到 worktree .env，非 cwd。）
+    env["KNOT_SKIP_DOTENV"] = "1"
+    # 指向空 tmp DB —— 否则启动读本地 knot.db 的加密数据源行、无 master key 解密 → decrypt Traceback
+    # 混入 stderr（本地环境特有；CI fresh DB 无数据源）→ 破 "Traceback not in stderr" 断言。
+    env["SQLITE_DB_PATH"] = str(tmp_path / "boot_test.db")
 
-    # cwd=tmp_path 隔离 .env 自动发现（worktree 父目录有 .env 含 KNOT_MASTER_KEY）；
-    # 同时通过 PYTHONPATH 注入 worktree 让 knot 模块仍可 import
+    # 通过 PYTHONPATH 注入 worktree 让 knot 模块仍可 import
     from pathlib import Path
     worktree_root = Path(__file__).resolve().parent.parent
     env["PYTHONPATH"] = str(worktree_root) + os.pathsep + env.get("PYTHONPATH", "")

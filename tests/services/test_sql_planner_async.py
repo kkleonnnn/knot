@@ -92,6 +92,11 @@ async def test_arun_sql_agent_non_BIAgent_exception_becomes_final_error(monkeypa
 @pytest.mark.asyncio
 async def test_arun_sql_agent_no_api_key_returns_error_result(monkeypatch):
     """无 API Key 立即返 AgentResult(success=False, error=...) 而非崩溃。"""
+    # v0.7.34 B1.3：mock settings_repo.get_app_setting→"" 隔离本地 DB 的真 OR key（arun_sql_agent
+    # OR 链 = openrouter_api_key arg → get_app_setting("openrouter_api_key")【读 DB】→ PROVIDER_API_KEYS；
+    # 本地 DB 有真 key → 试 live LLM 烧 token + 断言失败）
+    monkeypatch.setattr("knot.repositories.settings_repo.get_app_setting", lambda key, default="": "")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     result = await sql_planner.arun_sql_agent(
         question="Q", schema_text="schema", engine=None,
         model_key="anthropic/claude-haiku-4.5",  # v0.6.5.4 OR-only（无 key → OR 分支返"未设置 OpenRouter API Key"含"未设置"/"API Key"）
