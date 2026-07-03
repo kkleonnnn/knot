@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.30 · LLM 路径 numericCols ID-like 列启发式（D3 · 前端 display）：语义层结果图表中，LLM 路径（非语义 / 旧消息）的**数值型 ID 列**（`user_id`/`持仓ID`/`*编号`）曾被当 metric 画无意义图（#190）。v0.7.23 语义路径用 `lf.dimensions` 权威排除，LLM 路径无此 → 加**名字启发式** `isIdLikeCol`（boundary 精准：`^`/`_`/CJK 前 + `id$`/`编号$`）仅在 LLM fallback 排除 ID 列出图表 + MetricCard stat；语义路径 + non-ID 结果 byte-equal；表格全列不受影响。简化协议（display-only）。<br>**上版** v0.7.29 file HTTP merge 权威 · v0.7.28 AgentStep 清理 · v0.7.27 维度中文标签 · v0.7.0~.26 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.31 · 语义验证修复刀（Q5 outer 套娃 + Q28 this_week + Q24 移动平均安全守护）：v0.7.30 parser 命中率验证（39 题 grounded 三率）暴露的 **2 误判**（Q5「多少人」outer 套娃标量 count 恒返 1 应 9 · Q24 移动平均在逐笔 DATETIME 上算成 7-笔非 7-日）+ **1 漏判**（Q28 本周 `this_week` 枚举缺失）修复。Q5 无维度 outer 跳 wrap 返标量（校验先行）；Q24 frame 非日粒度列安全回退 LLM（正确日粒度 MA → v0.7.32）；Q28 additive `this_week` 枚举。守护者 Stage 3 纠正草案 Q18「限自身 base」设计错（会砍 v0.7.2 跨对象维度）→ Q18（future_deal 暂无 market）/Q13（agent 累计无日期）归**数据现实 0 代码**。完整 Loop Protocol v3 三阶段 · **0 新表/路由/AuditAction**。<br>**上版** v0.7.30 numericCols ID-like 启发式 · v0.7.29 file HTTP merge · v0.7.0~.28 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 命中率验证。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

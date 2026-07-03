@@ -323,3 +323,23 @@ def test_v0719_freshness_lag_drives_to_latest():
     ads = resolve_time_context(today_override=date(2026, 6, 29), data_freshness_lag_days=1)
     assert dwd.this_month_to_latest == ("2026-06-01", "2026-06-29")   # dwd 含今天
     assert ads.this_month_to_latest == ("2026-06-01", "2026-06-28")   # ads 到昨天
+
+
+# ─── v0.7.31 Q28: this_week 枚举 ──────────────────────────────────────────
+
+def test_this_week_range_includes_today_lag0():
+    """v0.7.31 Q28：this_week = 本 ISO 周一 → 最新（本周→dwd lag=0 → latest=today，含今天）。"""
+    from datetime import timedelta
+    t = date(2026, 7, 2)
+    ctx = resolve_time_context(today_override=t, data_freshness_lag_days=0)
+    mon = t - timedelta(days=t.weekday())          # ISO 周一（与 time_resolver 同法）
+    assert ctx.this_week == (mon.isoformat(), t.isoformat())
+
+
+def test_this_week_uses_latest_with_lag():
+    """v0.7.31 Q28：lag>0 时 this_week 末端 = latest（与 this_month_to_latest 一致的 to_latest 语义）。"""
+    from datetime import timedelta
+    t = date(2026, 7, 2)
+    ctx = resolve_time_context(today_override=t, data_freshness_lag_days=1)
+    mon = t - timedelta(days=t.weekday())
+    assert ctx.this_week == (mon.isoformat(), (t - timedelta(days=1)).isoformat())
