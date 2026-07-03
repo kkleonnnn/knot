@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.36 · 文档准确性 + 治理清理（B4 · v0.7 收尾）：doc-accuracy chore —— README 数字漂移偿还（113 routes / 9 contracts / 15 OR-only models，旧标 86/7/14+6 全 stale）+ DEPLOY.md 头版本 + phase-b 死链改指整体审核 LOCKED 文档；删 3 个 v0.3 拆分残留 FIXME 注释 + react-window dead dep（0 引用）；追踪 2 个游离 plan 文档。**Git-ops**（无代码）：关 4 个 stale PR（#22/#52/#130/#186）+ 删 develop + 62 已合并分支（91→7 remote）。CLAUDE.md 瘦身独立 v0.7.37。<br>**上版** v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.34 env 测试隔离 · v0.7.33 ErrorBoundary 白屏兜底 · v0.7.0~.32 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.37 · CLAUDE.md 瘦身（B4.1 · v0.7 收尾）：项目指令文件 677→473 行（-30%）—— 把 v0.3~v0.7.24 逐 PATCH 历史 roadmap 表 + Loop Protocol v3 施行回顾表（与 CHANGELOG 重复的治理留痕）移至新 `GOVERNANCE-ARCHIVE.md`（移动非删除；15 条 live 规则 + 4 层架构依赖图 + v0.7 不变量/前置/交付序全保留，marker-asserted 切片 + 对抗核验 0 丢规则）。docs-only · 0 代码逻辑（唯一代码改 = version 串 + dep-graph note「6→9 条 contract」精度）。<br>**上版** v0.7.36 文档准确性 + 治理清理（B4）· v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.34 env 测试隔离 · v0.7.0~.33 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

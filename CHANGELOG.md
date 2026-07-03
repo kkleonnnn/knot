@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.36 (B4) — 文档准确性偿还 + 治理清理（doc-accuracy chore + git-ops）
+## [Unreleased] - v0.7.37 (B4.1) — CLAUDE.md 瘦身（历史 roadmap 归档 GOVERNANCE-ARCHIVE.md）
+
+> v0.7 收尾 backlog B4.1（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 项目指令文件 677→473 行（-30%）。**简化协议**（docs-only；唯一代码改动 = version 串 + dep-graph note 精度）。kk 拍板独立 PATCH（项目指令文件每 session 载入，谨慎）。
+
+### Changed（docs 结构）
+
+- **CLAUDE.md 瘦身 677→473 行**：把与 CHANGELOG 重复的**历史 per-PATCH 追溯**移至新 `GOVERNANCE-ARCHIVE.md`（209 行搬运 · **移动非删除**）：Loop Protocol v3 施行回顾表（v0.5.0~v0.5.16）· v0.3.x Contract 升级 FIXME 表 + 4-PATCH gantt/辅助计划 · v0.4.x/v0.5.x/v0.6.x 业务迭代逐 PATCH 路线图 · v0.7.0~v0.7.24 已交付增量交付序 rows。
+- **CLAUDE.md 保留全部 live-spec**：协作规则 · Loop Protocol v3 全规则 + EX 条款（R-LP-v3-EX-1/2/2.1/3 · R-PB-GOV-1 · R-PA-PB-V1）· § Visual Replication Protocol · 四源点版本同步 · 关键路径 / 导入 / DB / 加密 · 版本管理(含教训) · 已知技术债 · **4 层架构依赖图**（从 `###` 提升为 `##` live 架构参考）· v0.7 不变量带入清单 + v0.6.x 收官前置 + 增量交付序 heading + 未交付/前瞻 bullet · v0.2.0 Go 技术栈。
+- **顺手精度偿还**：dep-graph note `import-linter 6 条 contract`→`9 条`（v0.6.5.12 C8 + v0.7.13 C9）。
+
+### Added
+
+- **`GOVERNANCE-ARCHIVE.md`** [NEW 227 行]：历史治理留痕（头部指明 live 规则见 CLAUDE.md / 用户视角见 CHANGELOG.md）。
+
+### Notes
+
+- **安全保证**：marker-asserted 切片脚本（11 边界断言 + 移动非删除）+ **行级会计核验**（原非空行 514 全 ∈ 新 CLAUDE.md ∪ archive，仅 2 行「蒸发」= 故意转换：6→9 条 + `###`→`##` 提升）+ **对抗核验 agent**（独立读 git-HEAD vs 新 CLAUDE.md vs archive，确认 15 live 规则 0 丢 / 0 misplace-to-archive）。
+- 5 源点 0.7.36→0.7.37；**0 新 schema/路由/AuditAction · 0 业务逻辑变更**（CLAUDE.md 不在 check_file_sizes/R-PA-8 范围；无测试读其内容）。
+
+## [Released] - v0.7.36 (B4) — 文档准确性偿还 + 治理清理（doc-accuracy chore + git-ops）
 
 > v0.7 收尾 backlog B4（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— grounded 5 维审计（branches/PR/依赖/CLAUDE.md/文档/死码）后的 concrete 清理。**简化协议**（docs + chore；唯一代码改动 = 3 FIXME 注释 + react-window dead dep + version 串）。kk 拍板：CLAUDE.md 瘦身独立 v0.7.37 · 分支仅安全清 · PR #130 关。
 
