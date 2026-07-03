@@ -161,3 +161,24 @@ def test_desensitize_messages_for_non_admin_skips_missing_fields():
     ]
     # 不抛异常即可
     desensitize_messages_for_non_admin(messages, lexicon)
+
+
+def test_desensitize_messages_extends_to_error_and_insight():
+    """v0.7.35（B1.2 R-B1.2-12 / ⑧）：字段集从 explanation+db_error 扩至含 error/insight。
+
+    保 reload ≈ 硬化后 live SSE 一致（scrub_query_payload 单一真相源）。
+    """
+    lexicon = {"用户": ["app.users"]}
+    messages = [{"error": "Table app.users missing", "insight": "app.users 上涨"}]
+    desensitize_messages_for_non_admin(messages, lexicon)
+    assert "app.users" not in messages[0]["error"] and "用户" in messages[0]["error"]
+    assert "app.users" not in messages[0]["insight"] and "用户" in messages[0]["insight"]
+
+
+def test_desensitize_messages_pops_sql_via_scrub():
+    """v0.7.35：batch 入口经 scrub_query_payload → 也 pop sql/sql_text（幂等；防遗漏泄漏面）。"""
+    lexicon = {"用户": ["app.users"]}
+    messages = [{"sql": "SELECT * FROM app.users", "explanation": "查 app.users"}]
+    desensitize_messages_for_non_admin(messages, lexicon)
+    assert "sql" not in messages[0], "batch 脱敏应 pop sql"
+    assert "用户" in messages[0]["explanation"]

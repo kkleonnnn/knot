@@ -144,7 +144,7 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
     # v0.4.3 R-22 一致性：非流式路径也必须返 budget_status / budget_meta
     budget_status_ns, budget_meta_ns = budget_service.check_user_monthly_budget(user["id"])
 
-    return {
+    resp = {
         "id": mid, "question": req.question, "sql": sql,
         "explanation": explanation, "confidence": confidence,
         "rows": rows[:cfg.MAX_RESULT_ROWS], "error": error,
@@ -157,6 +157,15 @@ async def query(conv_id: int, req: QueryRequest, user=Depends(get_current_user))
         # v0.4.4 R-33：错误字段在成功路径全 None（保流式 vs 非流式字段集 diff = ∅）
         "error_kind": None, "user_message": None, "is_retryable": None, "intent": None,
     }
+    # v0.7.35（B1.2 · R-B1.2-8）：同步 /query 端点与 SSE 同脱敏 —— use_agent=true 曾返 raw agent_steps
+    # （thought/action/observation 含库表名）+ raw sql/error 给非 admin（0 gate）= 绕过整个 SSE 脱敏的旁路
+    # （对抗 review 抓）。修：suppress agent_steps（对齐 SSE sql_step suppress）+ scrub（pop sql + desensitize error）。
+    # capture_active_catalog 已在 L93 set → current_catalog() 取 per-user lexicon（R-B1.2-11）。
+    if user.get("role") != "admin":
+        from knot.services.desensitize import non_admin_alias_map, scrub_query_payload
+        resp["agent_steps"] = []
+        scrub_query_payload(resp, non_admin_alias_map())
+    return resp
 
 
 @router.post("/api/conversations/{conv_id}/query-stream")
@@ -179,6 +188,13 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
         # 业务计算 delegate query_steps（R-S8 单一一致性入口分桶；v0.4.4 R-24 真异步）
         agent_buckets = cost_service.empty_buckets()
 
+        # v0.7.35（B1.2 SSE 脱敏）：非 admin 实时流不泄真实表名/SQL。is_admin + alias_map 须在 try: 前
+        # 初始化（R-B1.2-13 — 否则 alias_map 构造抛错时 except-handler 的 emit() 引用未绑定 → NameError
+        # 静默杀流破 fail-open）。alias_map 默认 {}（fail-open R-脱敏-2）；try: 内 capture 后按 per-user
+        # active catalog lexicon 重算（R-B1.2-11）。emit() 闭包读二者（call-time 取最新 alias_map 值）。
+        is_admin = user.get("role") == "admin"
+        alias_map: dict = {}
+
         def _default(obj):
             import datetime
             from decimal import Decimal
@@ -191,12 +207,22 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             return str(obj)
 
         def emit(event: dict) -> str:
+            # v0.7.35（B1.2）：非 admin 事件经 scrub_query_payload 原地脱敏（pop sql 顶层+嵌套 output +
+            # desensitize _LEAK_TEXT_FIELDS + details walk）。sql_step 由 call-site suppress（不到此）。
+            if not is_admin:
+                from knot.services.desensitize import scrub_query_payload
+                scrub_query_payload(event, alias_map)
             return f"data: {json.dumps(event, ensure_ascii=False, default=_default)}\n\n"
 
         try:
             # v0.6.2.6 隔离三层①：generate() 内重捕获 per-user active catalog（保 ContextVar 落在
             # generator 执行上下文 — handler L167 已为 schema_filter set；本处保 clarifier/sql_planner 链）
             expected_cat = query_helper.capture_active_catalog(user)
+            # v0.7.35（B1.2 R-B1.2-11）：capture 后按 per-user active catalog lexicon 重算 alias_map
+            # （非全局 catalog_loader.LEXICON — 非默认 catalog 用户 alias_map 才完整；helper 收口 fail-open）。
+            if not is_admin:
+                from knot.services.desensitize import non_admin_alias_map
+                alias_map = non_admin_alias_map()
             yield emit({"type": "agent_start", "agent": "clarifier", "label": "理解问题"})
             await asyncio.sleep(0)  # R-26-SSE：让 event loop 推送给前端
             clarifier_result = await query_steps.run_clarifier_step(
@@ -385,10 +411,13 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                     api_key, semantic, openrouter_api_key, agent_buckets,
                 )
 
-                for s in sql_result.steps:
-                    yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
-                                "action": s.action, "observation": s.observation})
-                    await asyncio.sleep(0)  # R-26-SSE 每步让步
+                # v0.7.35（B1.2 · kk LOCKED「suppress 不发」）：sql_step 的 thought/action/observation
+                # 是 ReAct 原始 trace（含裸 SQL / 库表名），无 _LEAK_TEXT_FIELDS 结构可脱敏 → 非 admin 整体 suppress。
+                if is_admin:
+                    for s in sql_result.steps:
+                        yield emit({"type": "sql_step", "step": s.step_num, "thought": s.thought,
+                                    "action": s.action, "observation": s.observation})
+                        await asyncio.sleep(0)  # R-26-SSE 每步让步
 
                 logger.info(f"sql_planner done steps={len(sql_result.steps)} ok={sql_result.success} "
                             f"sql={sql_result.sql[:120]!r}")
