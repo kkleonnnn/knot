@@ -14,6 +14,7 @@ import pytest
 
 def test_jwt_fail_when_missing(monkeypatch):
     """未设 JWT_SECRET → sys.exit(1)。"""
+    monkeypatch.setenv("KNOT_SKIP_DOTENV", "1")  # v0.7.34 B1.3：截断 .env 回读（否则 _ld() 从本地 .env 补回 JWT_SECRET，defeats delenv）
     monkeypatch.delenv("JWT_SECRET", raising=False)
     from knot.api.deps import _resolve_jwt_secret
     with pytest.raises(SystemExit) as excinfo:
