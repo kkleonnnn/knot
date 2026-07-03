@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.34 · env 测试隔离（B1.3 · v0.7 收尾）：本地 `.env`（JWT_SECRET/KNOT_MASTER_KEY）+ DB（真 OR key）曾使 3 个 fail-fast/no-key 守护测试**本地假失败**（`load_dotenv(override=False)` 对 delenv 后**缺失**的 key 从 .env 补回；DB OR key 试 live LLM 烧 token）。修：加 `KNOT_SKIP_DOTENV` flag（`settings.py`+`deps.py` 截断 .env 回读，**生产默认不设 → 正常加载**）+ R45 subprocess 指向空 tmp DB + no-key 测试 mock `get_app_setting`。**本地全套件首次全绿（1022 passed / 0 failed）** + 不再烧 live token（16.8s→1.6s）。纯 tests + 2 production-safe config 行 · **0 生产行为变更**。<br>**上版** v0.7.33 ErrorBoundary 白屏兜底 · v0.7.32 order_by 校验 · v0.7.31 语义验证修复刀 · v0.7.0~.30 语义层基座 + 编译七刀 + 价值自测 5 问闭环 + parser 验证。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.35 · SSE/同步查询实时脱敏（B1.2 · v0.7 收尾）：非 admin 用户实时查询流不再泄露真实库表名/SQL。原仅历史回放（get_messages）脱敏；本刀经对抗 review 扩至**实时 SSE 流 + 同步 /query 端点**（review 抓到 use_agent=true 同步端点旁路 + clarifier 字段漏脱敏）。新增 `scrub_query_payload` 单一真相源（SSE emit / 同步 /query / get_messages 三路共用）：pop sql（顶层+嵌套 output）+ desensitize 泄漏文本字段（含 clarifier question/approach）+ details walk；sql_step（ReAct trace）对非 admin 整体 suppress；lexicon 源改 per-user active catalog；get_messages 扩 error/insight 保 live≈reload 一致。admin 路径 byte-equal 0 改动（R-脱敏-3）。<br>**上版** v0.7.34 env 测试隔离（本地全套件首次全绿）· v0.7.33 ErrorBoundary 白屏兜底 · v0.7.32 order_by 校验 · v0.7.0~.31 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

@@ -47,10 +47,16 @@ async def get_messages(conv_id: int, user=Depends(get_current_user)):
         for m in msgs:
             m.pop("sql_text", None)
             m.pop("sql", None)
-        # v0.6.0.19 — 脱敏链 3/3：explanation + db_error 文本中的业务表全名 → 业务别名
-        # （reverse catalog.lexicon → {table_full_name: business_alias}）
+        # v0.6.0.19 脱敏链 3/3 + v0.7.35（B1.2 R-B1.2-11/12）：文本中业务表全名 → 业务别名。
+        #   - 字段集扩至 explanation/db_error/error/insight（desensitize_messages_for_non_admin 经
+        #     scrub_query_payload 单一真相源 — 保 reload ≈ 硬化后 live SSE 一致，否则 reload 反 under-scrub）
+        #   - lexicon 源改 per-user active catalog（current_catalog；非全局 LEXICON — 非默认 catalog 用户
+        #     alias_map 才完整）；get_messages 原不 capture → 此处 set per-user active catalog ContextVar
+        #     （请求作用域，FastAPI 每请求独立 Task + copy_context 天然不泄漏 R-PB-A1-22）
         # 延迟 import 避免启动期循环（services → api 单向依赖；本调用是 api 内层）
+        from knot.services import query_helper
         from knot.services.agents import catalog as catalog_loader
         from knot.services.desensitize import desensitize_messages_for_non_admin
-        desensitize_messages_for_non_admin(msgs, catalog_loader.LEXICON)
+        query_helper.capture_active_catalog(user)
+        desensitize_messages_for_non_admin(msgs, catalog_loader.current_catalog().get("lexicon"))
     return msgs

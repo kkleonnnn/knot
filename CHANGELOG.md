@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.34 (B1.3) — env 测试隔离（本地 fail-fast/no-key 守护测试 hermetic）
+## [Unreleased] - v0.7.35 (B1.2) — SSE/同步查询实时脱敏（非 admin live 流不泄库表名/SQL）
+
+> v0.7 收尾 backlog B1.2（[plan](docs/plans/v0.7.35-b1.2-sse-desensitize.md)）—— 原仅历史回放（get_messages）脱敏；扩至**实时 SSE 流 + 同步 /query 端点**。**对抗 review（Stage-2/3-等效，3 维度 REVISE）抓到 SSE-only 设计漏的真问题** → kk 拍板 scope 扩大。R-B1.2-1~14。轻量 v3 + 对抗 review。
+
+### Added / Security
+
+- **`scrub_query_payload(payload, alias_map)` 单一真相源（`services/desensitize.py`）**：SSE emit / 同步 /query / get_messages 三路共用。pop `sql`/`sql_text`（顶层 + 嵌套 `output.sql` — agent_done 两星标最高泄漏点）+ desensitize `_LEAK_TEXT_FIELDS`（explanation/db_error/error/insight/user_message + clarifier question/clarification_question/approach/refined_question — clarifier.md 靠 prompt 纪律，代码兜底）+ `details` 多态 walk（error_translator `{"raw":...}` / err.meta）。fail-open（空 alias_map 仍 pop sql；R-脱敏-2）。
+- **SSE `query-stream` 非 admin 脱敏（`api/query.py`）**：`emit()` choke-point 对非 admin 事件 `scrub_query_payload`；`sql_step`（ReAct thought/action/observation 原始 trace）对非 admin **整体 suppress**（kk LOCKED「不发」）；`is_admin`+`alias_map` 在 `try:` 前初始化（R-B1.2-13 — 防 except-handler emit NameError 杀流破 fail-open）。
+- **⭐ 同步 `/query` 端点旁路封堵（R-B1.2-8）**：`use_agent=true` 曾返 raw `agent_steps`（含库表名）+ raw sql/error 给非 admin，0 gate = 绕过整个 SSE 脱敏（**对抗 review B+C 共识抓出**）。修：非 admin suppress `agent_steps` + `scrub_query_payload`（pop sql + desensitize error/explanation）。
+
+### Changed
+
+- **lexicon 源 → per-user active catalog（R-B1.2-11）**：SSE/同步/get_messages 用 `current_catalog()["lexicon"]`（非全局 `catalog_loader.LEXICON`）—— 非默认 catalog 用户 alias_map 才完整。`get_messages` 原不 capture → 加 `capture_active_catalog(user)`（请求作用域 ContextVar，task 隔离不泄漏）。
+- **`get_messages` 脱敏字段扩至 error/insight（R-B1.2-12 / ⑧）**：`desensitize_messages_for_non_admin` 经 `scrub_query_payload` 单一真相源 —— 保 reload ≈ 硬化后 live SSE 一致（否则 reload 反 under-scrub）。admin 路径 byte-equal 0 改动（R-脱敏-3）。
+
+### Notes
+
+- **对抗 review 价值实证**：SSE-only 初版设计漏了①同步端点大旁路 + ②clarifier 字段泄漏 + ③嵌套 output.sql pop —— 多 agent bypass-hunt 抓出（单线设计会漏）。ranked findings 全吸收。
+- **已知限制文档**（本刀不碰）：⑦ desensitize_text DB-前缀不匹配（`db.table` vs 裸 `table` regex 漏 — pre-existing 契约限制，follow-on）· ⑨ error_translator details 多态（今 meta 无表名 harmless）· ⑩ fail-open live 是实时暴露（比 reload 更糟，非 parity）· ⑪ HTTP route URL 模板泄漏内部 admin API URL（非表名，follow-up）。
+- 测试：`test_scrub_query_payload.py`（9 · 真实 SSE 事件形状 + R-B1.2-14「db.table」CJK 括号边界）+ `test_query_live_desensitize.py`（2 · 同步旁路非 admin scrub + admin byte-equal）+ `test_desensitize.py`（+2 · error/insight 扩 + pop sql）。5 源点 0.7.34→0.7.35；**0 新 schema/路由/AuditAction**（纯脱敏面扩展）；7 contracts KEPT。
+
+## [Released] - v0.7.34 (B1.3) — env 测试隔离（本地 fail-fast/no-key 守护测试 hermetic）
 
 > v0.7 收尾 backlog B1.3（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 3 个守护测试本地假失败（.env/DB 泄入）。tests + 2 production-safe config 行（**0 生产行为变更**）。简化协议。R-B1.3-1~4。
 
