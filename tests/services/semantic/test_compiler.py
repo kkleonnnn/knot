@@ -678,6 +678,47 @@ def test_this_week_time_window_compiles():
     assert "o.date BETWEEN '2026-06-15' AND '2026-06-21'" in sql
 
 
+# ─── v0.7.32 order_by 字段 alias-based 校验（R-SL-205/206/207）─────────────
+
+def test_order_by_unknown_field_raises():
+    """⭐ R-SL-205 Q19：order_by 幻觉字段（total_volume ∉ metrics∪维度）→ CompileError 安全回退（曾命中→执行报错）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], order_by=[{"field": "total_volume", "dir": "desc"}], limit=5)
+    with pytest.raises(CompileError):
+        _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_order_by_metric_field_ok():
+    """R-SL-207：order_by field = metric name → 正常编译 byte-equal。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], order_by=[{"field": "gmv", "dir": "desc"}], limit=5)
+    assert "ORDER BY gmv DESC" in _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_order_by_dimension_field_ok():
+    """R-SL-207：order_by field = dimension → 正常编译（此前无顶层维度排序测试）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], order_by=[{"field": "city", "dir": "asc"}])
+    assert "ORDER BY city ASC" in _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_order_by_window_as_name_ok():
+    """R-SL-206：order_by field = window as_name → 不 raise（两层 _finalize 路径）。"""
+    w = {"func": "rank", "partition_by": ["city"], "order_by": [{"field": "gmv", "dir": "desc"}], "as_name": "rk"}
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], window=[w], order_by=[{"field": "rk", "dir": "asc"}])
+    assert "ORDER BY rk ASC" in _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_order_by_window_as_name_fallback_to_func_ok():
+    """⭐ R-SL-206 最 tricky：window 省略 as_name（回退 func 名 rank）→ order_by field=rank 不 raise（镜像 _window_col）。"""
+    w = {"func": "rank", "partition_by": ["city"], "order_by": [{"field": "gmv", "dir": "desc"}]}  # 无 as_name
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], window=[w], order_by=[{"field": "rank", "dir": "desc"}])
+    assert "ORDER BY rank DESC" in _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+def test_order_by_empty_field_still_skipped():
+    """R-SL-207：blank/缺 field 的 order_by 条目 → 静默 skip（不 raise，无 ORDER BY）。"""
+    lf = LogicForm(metrics=["gmv"], dimensions=["city"], order_by=[{"dir": "desc"}])
+    assert "ORDER BY" not in _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
 # ─── v0.7.16 派生指标模型（占比/人均 = metric÷metric · 标量+单层）R-SL-132~139 ──
 # 派生 fixtures：arpu = gmv÷dau（gmv@orders + dau@users 跨 base 标量；派生 base_object 空 + lineage object）
 _GMV_D = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",

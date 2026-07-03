@@ -120,8 +120,19 @@ def _order_limit(lf) -> str:
     """
     out = ""
     if lf.order_by:
-        obs = [f"{o.get('field', '')} {'DESC' if str(o.get('dir', 'asc')).lower() == 'desc' else 'ASC'}"
-               for o in lf.order_by if o.get("field")]
+        # v0.7.32 R-SL-205/206：order_by field 须 alias-based —— ∈ metrics∪dimensions∪window-as_name
+        # （as_name 缺省回退 func 名，镜像 _window_col）。幻觉字段（Q19 `total_volume`）→ raise 安全回退
+        # （仿 _outer_expr R-SL-120，补编译器唯一缺的 order_by enforcement 门）；blank/缺 field 仍 skip 不 raise。
+        valid = set(lf.metrics) | set(lf.dimensions)
+        valid |= {(w.get("as_name") or w.get("func")) for w in lf.window if w.get("as_name") or w.get("func")}
+        obs = []
+        for o in lf.order_by:
+            f = o.get("field", "")
+            if not f:
+                continue
+            if f not in valid:
+                raise CompileError(f"order_by 字段 {f!r} ∉ metrics∪维度∪窗口列（alias-based）{sorted(valid)} → 回退")
+            obs.append(f"{f} {'DESC' if str(o.get('dir', 'asc')).lower() == 'desc' else 'ASC'}")
         if obs:
             out += " ORDER BY " + ", ".join(obs)
     if lf.limit and lf.limit < 0:   # 负哨兵 → 无 LIMIT（outer-aggregate inner 聚合全部）
