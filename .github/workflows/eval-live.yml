@@ -40,6 +40,7 @@ jobs:
       - name: Run eval (live LLM)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          # 模型可在 secret/var 覆盖；默认便宜快的 gemini flash
-          EVAL_MODEL: ${{ vars.EVAL_MODEL || 'google/gemini-2.0-flash-001' }}
+          # 模型可在 secret/var 覆盖；默认便宜快的 OR haiku（v0.7.36 B4.4：旧 google/gemini-2.0-flash-001 已下线 404，
+          # 对齐 tests/eval/*.py v0.6.5.4 OR-only 默认 anthropic/claude-haiku-4.5）
+          EVAL_MODEL: ${{ vars.EVAL_MODEL || 'anthropic/claude-haiku-4.5' }}
         run: pytest tests/eval -v --tb=short
