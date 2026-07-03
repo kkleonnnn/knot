@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.30 — LLM 路径 numericCols ID-like 列启发式（D3 · 前端 display）
+## [Unreleased] - v0.7.31 — 语义验证修复刀（Q5 outer 套娃 + Q28 this_week + Q24 移动平均安全守护）
+
+> v0.7.30 parser 命中率验证暴露 2 误判 + 1 漏判修复（[results](docs/plans/v0.7.30-semantic-validation-results.md) · [plan](docs/plans/v0.7.31-semantic-validation-fixes.md)）。完整 Loop Protocol v3 三阶段（守护者 Stage 3 ACCEPT WITH REVISIONS：纠草案 Q18 R-SL-201「限自身 base」设计错 —— 会砍 v0.7.2 跨对象维度 + 自矛盾 R-SL-202）。kk 拍板 Q24 仅安全 guard（正确日粒度 MA → v0.7.32）+ Q18/Q13 = 0 代码（数据现实）。**0 新 schema/路由/AuditAction**。已偿还 R-SL-194~204。
+
+### Fixed
+
+- **⭐ Q5 outer 套娃标量 count（`compiler.py`）**：`compile_logicform` 对 `lf.outer` 无条件套 `WITH r AS (inner) SELECT COUNT(*) FROM r` —— `dimensions==[]`（标量 metric 如 user_reg）时 inner 已 1 行标量 → `COUNT(*)=1` 恒错（「这个月注册了多少人」返 1 应 9 · **带徽标 silent-wrong 最危险**）。修：`_outer_expr` 校验先行（未知 func/arg 越界仍 raise）+ `dimensions==[]` → 返 inner 跳 wrap；分组 outer（Q25）byte-equal。R-SL-194/195。
+- **⭐ Q24 移动平均日粒度安全守护（`compile_helpers.py`）**：frame（ROWS BETWEEN）order 列为逐笔 DATETIME（`sta_time`）时 `N PRECEDING`=N 笔交易非 N 天 → silent-wrong（「充值7日移动平均」算成 7-笔）。修：`_frame_order_grain` 复用 v0.7.17/.19 列名启发式（0 新正则），frame order 列非日粒度 → raise 安全回退 LLM。**正确日粒度 MA（内层 GROUP BY DATE 折叠，触 v0.7.1 byte-equal 铁律）→ v0.7.32 专刀**。非 frame 窗口 byte-equal。R-SL-196。
+- **Q28 `this_week` 时间枚举（`time_resolver.py`+`compile_helpers.py`+`parser.py`）**：「本周注册」parser 出 `time="this_week"` 但枚举缺失 → compiler raise「未知 time 枚举」漏判回退。修：additive 加 `this_week`（ISO 周一→最新，含今天 → dwd；复用既算 `this_week_mon`）+ parser「本周→this_week」映射（L48/50 本周→dwd 路由早已在）。11 既有枚举 byte-equal。R-SL-199/200。
+
+### Notes
+
+- **Q18 = 数据现实（0 代码 · reclassify ⚪）**：`dwd_user_future_deal` 物理无 market 列 → 合约交易量无法按交易对拆。草案 R-SL-201「限自身 base」设计错（不实现）；现有 `_resolve_dim_owner` 已正确（1-owner 跨对象保留 + joingraph 校验；market 2-owner 安全回退）。kk 日后加 market 到数据即自动 by 交易对。R-SL-201/202。
+- **Q13 = 数据现实（0 代码）**：`ads_agent_stat` 累计快照无日期列 → 混合粒度查询回退合理；per-metric 时间适用性 defer v0.8。R-SL-203。
+- 验证：semantic 158 + time_resolver 34 + 11 新守护测试全绿（.venv 本地实跑）；全套件仅 3 预存在 env failure（jwt/master-key/sql_planner-no-key 本地 .env 残留，CI 干净）。Contract 9 KEPT（新 helper 入 compile_helpers leaf）；5 源点 0.7.30→0.7.31。R-SL-204。
+
+## [Released] - v0.7.30 — LLM 路径 numericCols ID-like 列启发式（D3 · 前端 display）
 
 > 非阻塞 follow-on 池「D3」（资深 2026-07-02 拍）。**简化协议**（display-only 前端修 + non-ID/语义路径 byte-equal + 前端零测试栈同 v0.7.25 fmt.js）。**0 新 R-SL**。
 

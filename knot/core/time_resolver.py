@@ -59,6 +59,7 @@ class TimeContext:
     this_month_to_latest: tuple[str, str]         # 本月到最新数据
     last_week: tuple[str, str]                    # 上周（ISO 周一首）
     last_7_days_to_latest: tuple[str, str]        # 最近 7 天到最新数据
+    this_week: tuple[str, str]                    # v0.7.31 本周（ISO 周一首 → 最新，含今天 → dwd；Q28）
 
     # 同比基准（vs 去年同期）
     same_period_last_year: tuple[str, str]        # 去年对应"今年到最新"段
@@ -243,6 +244,7 @@ def resolve_time_context(
         "this_month_to_latest": (_iso(this_month_start), _iso(latest)),
         "last_week": (_iso(last_week_mon), _iso(last_week_sun)),
         "last_7_days_to_latest": (_iso(l7_start), _iso(latest)),
+        "this_week": (_iso(this_week_mon), _iso(latest)),             # v0.7.31 本周（ISO 周一→最新，含今天 → dwd；latest 随源 lag）
         "same_period_last_year": (_iso(sply_start), _iso(sply_end)),
         "today": (_iso(t), _iso(t)),                                  # v0.7.19 日粒度（lag 无关）
         "yesterday": (_iso(t - timedelta(days=1)), _iso(t - timedelta(days=1))),

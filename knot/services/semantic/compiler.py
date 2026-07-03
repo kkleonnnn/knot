@@ -304,5 +304,8 @@ def compile_logicform(lf, catalog: dict, time_ctx) -> str:
         inner_lf = replace(lf, limit=-1)
     inner = _build_sql(inner_lf, metrics_by_name, tables, time_ctx, relations)   # 复用全部现有覆盖作 CTE body
     if lf.outer:
-        return _guard(f"WITH r AS ({inner}) SELECT {_outer_expr(lf)} FROM r")    # CTE 外层聚合（R-SL-119）
+        outer_expr = _outer_expr(lf)             # R-SL-194 校验先行（未知 func / arg 越界 → raise；无维度不豁免校验）
+        if not lf.dimensions:                    # ⭐ R-SL-194/195 Q5：无维度 inner 已标量（1 行）→ outer 聚合 no-op（COUNT(*)=1 恒错）→ 返 inner（分组 outer 保留 wrap）
+            return inner
+        return _guard(f"WITH r AS ({inner}) SELECT {outer_expr} FROM r")         # CTE 外层聚合（R-SL-119）
     return inner   # outer 空 → 无 wrap，存量 byte-equal

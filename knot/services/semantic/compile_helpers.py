@@ -16,6 +16,7 @@ from datetime import date, timedelta
 # TimeContext tuple 字段（time_resolver；lf.time 枚举 key）
 _TIME_KEYS = {
     "this_year", "this_year_to_latest", "this_month", "this_month_to_latest",
+    "this_week",                     # v0.7.31 本周（ISO 周一→最新，含今天 → dwd；Q28 修）
     "last_week", "last_7_days_to_latest", "same_period_last_year",
     "today", "yesterday",            # v0.7.19 日粒度（含今天那天的单日窗口）
     "last_month", "last_year",       # v0.7.19 完整过去（→ ads 汇总）
@@ -139,13 +140,36 @@ def _frame_bound(v, side: str) -> str:
     return "CURRENT ROW" if v == 0 else f"{v} {side}"
 
 
+def _frame_order_grain(field: str) -> str:
+    """frame（ROWS BETWEEN）order_by 列日期粒度分类（v0.7.31 Q24 R-SL-196）——**复用 v0.7.17/.19 既有列名启发式
+    （0 新正则）**：`date`（已日粒度：`_DATE_COL_EXACT_RE` 命中或 `_date` 后缀）| `datetime`（`_time`/`_at`/`_ts`
+    后缀或含 time = 逐笔粒度）| `unknown`（两者都不认识）。列名可能带 `alias.` 前缀 → 与 `_date_range_clause`
+    一致取最后一段。"""
+    col = field.rsplit(".", 1)[-1].strip().lower()
+    if _DATE_COL_EXACT_RE.match(col) or col.endswith("_date"):
+        return "date"
+    if col.endswith(_DATETIME_COL_SUFFIXES) or "time" in col:
+        return "datetime"
+    return "unknown"
+
+
 def _frame_clause(w: dict, takes_arg: bool, has_order_by: bool) -> str:
     """窗口 frame `ROWS BETWEEN <start> AND <end>`（v0.7.15 R-SL-127 gate）：
-    仅 sum/avg 聚合窗口（ranking/lag/lead → raise）+ 需 ORDER BY（无 → raise）；边界经 `_frame_bound` 注入安全。"""
+    仅 sum/avg 聚合窗口（ranking/lag/lead → raise）+ 需 ORDER BY（无 → raise）；边界经 `_frame_bound` 注入安全。
+
+    v0.7.31 Q24 安全守护（R-SL-196）：frame 语义 = 按 order_by 出现顺序数 N **行**——order 列若非日粒度
+    （逐笔 DATETIME 如 `sta_time` / 未知列），`N PRECEDING` = N 笔交易而非 N 天 → **silent-wrong 移动平均**
+    （Q24：`充值的7日移动平均` 在 dwd `sta_time` 上算成 7-笔非 7-日）。保守：非 `date` 粒度 → raise 回退 LLM
+    （不出带徽标错数）。真正日粒度 MA 编译（内层 GROUP BY DATE 折叠，触 v0.7.1 byte-equal 铁律）留 v0.7.32 专刀。
+    已日粒度列（date/dt/ds/sta_date…）照常编译 → 存量 byte-equal（test_window_frame_moving_average 用 `date`）。"""
     if not takes_arg or str(w.get("func")) in ("lag", "lead"):
         raise CompileError(f"frame 仅 sum/avg 聚合窗口支持（func={w.get('func')!r}）→ 回退")
     if not has_order_by:
         raise CompileError("frame（ROWS BETWEEN）需 ORDER BY → 回退")
+    for o in (w.get("order_by") or []):          # R-SL-196：frame order 列须日粒度（否则 N 行 ≠ N 天 = silent-wrong）
+        of = str(o.get("field", ""))
+        if of and _frame_order_grain(of) != "date":
+            raise CompileError(f"frame（移动平均）order 列 {of!r} 非日粒度（逐笔 DATETIME/未知）→ 回退（Q24 安全守护；日粒度 MA 待 v0.7.32）")
     f = w["frame"]
     return f"ROWS BETWEEN {_frame_bound(f.get('preceding'), 'PRECEDING')} AND {_frame_bound(f.get('following'), 'FOLLOWING')}"
 

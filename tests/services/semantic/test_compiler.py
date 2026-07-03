@@ -17,6 +17,7 @@ def _time_ctx():
     return SimpleNamespace(
         this_month_to_latest=("2026-06-01", "2026-06-21"),
         this_month=("2026-06-01", "2026-06-30"),
+        this_week=("2026-06-15", "2026-06-21"),          # v0.7.31 Q28
     )
 
 
@@ -24,6 +25,8 @@ _GMV = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orde
         "filters": '["o.status=\'paid\'"]', "dimensions": '["date","city"]'}
 _DAU = {"name": "dau", "caliber": "COUNT(DISTINCT o.user_id)", "base_object": "shop.orders",
         "filters": '[]', "dimensions": '["date","city"]'}
+_GMV_DT = {"name": "gmv", "caliber": "SUM(o.pay_amount)", "base_object": "shop.orders",
+           "filters": '[]', "dimensions": '["sta_time"]'}   # v0.7.31 datetime 维度（Q24 frame 守护测试）
 _TABLES = [{"db": "shop", "table": "orders", "source_type": "db"}]
 
 
@@ -530,6 +533,34 @@ def test_outer_passes_safety_gates(monkeypatch):
     assert _is_safe_sql(sql)[0] is True
 
 
+# ─── v0.7.31 Q5：outer 套娃标量 count 修（R-SL-194/195）─────────────────
+
+def test_outer_dimensionless_count_returns_inner_scalar(monkeypatch):
+    """⭐ R-SL-194 Q5：无维度标量 metric + outer count → **不套 CTE**（inner 已标量 1 行，COUNT(*)=1 恒错）→ 返 inner。"""
+    sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=[], outer={"func": "count"}))
+    assert "WITH r" not in sql                       # 无 outer-wrap
+    assert "SUM(o.pay_amount) AS gmv" in sql          # 返回内层标量本身
+    assert "COUNT(*) AS result" not in sql
+
+
+def test_outer_dimensionless_still_validates_func(monkeypatch):
+    """R-SL-194：无维度不豁免 outer 校验 —— 未知 func 仍 raise（`_outer_expr` 校验先行）。"""
+    with pytest.raises(CompileError):
+        _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=[], outer={"func": "median"}))
+
+
+def test_outer_dimensionless_sum_arg_returns_inner(monkeypatch):
+    """R-SL-195：无维度 + 非-count outer（sum arg=gmv 合法）→ 校验过 + 返 inner（标量 sum 恒等 no-op）。"""
+    sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=[], outer={"func": "sum", "arg": "gmv"}))
+    assert "WITH r" not in sql and "SUM(o.pay_amount) AS gmv" in sql
+
+
+def test_outer_grouped_still_wraps(monkeypatch):
+    """R-SL-194 回归：有维度 outer count（Q25 本月盈利交易对有几个）仍套 CTE（分组行计数正确）。"""
+    sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"], outer={"func": "count"}))
+    assert sql.startswith("WITH r AS (") and sql.endswith("SELECT COUNT(*) AS result FROM r")
+
+
 def test_canonical_outer_omitted_when_empty():
     """R-SL-118：outer 空 → canonical 省略键（存量 byte-equal）；非空 → outer 末位（qualify 后）。"""
     assert '"outer"' not in LogicForm(metrics=["gmv"]).to_canonical_json()
@@ -601,6 +632,50 @@ def test_canonical_frame_recursive_sort():
     w2 = LogicForm(metrics=["g"], window=[{"func": "avg", "frame": {"following": 0, "preceding": 6}}]).to_canonical_json()
     assert w1 == w2                                              # 不同键序 → 等 canonical
     assert '"frame":{"following":0,"preceding":6}' in w1         # frame 内递归排（f<p）
+
+
+# ─── v0.7.31 Q24：frame 移动平均日粒度安全守护（R-SL-196）─────────────────
+
+def test_frame_order_grain_classification():
+    """R-SL-196：`_frame_order_grain` 复用 v0.7.17/.19 既有启发式（0 新正则）分类日期粒度。"""
+    from knot.services.semantic.compile_helpers import _frame_order_grain
+    assert _frame_order_grain("date") == "date" and _frame_order_grain("sta_date") == "date"
+    assert _frame_order_grain("dt") == "date"                     # exact regex
+    assert _frame_order_grain("sta_time") == "datetime"           # _time 后缀
+    assert _frame_order_grain("created_at") == "datetime" and _frame_order_grain("event_ts") == "datetime"
+    assert _frame_order_grain("o.sta_time") == "datetime"         # alias 前缀剥离
+    assert _frame_order_grain("city") == "unknown" and _frame_order_grain("foo") == "unknown"
+
+
+def test_window_frame_datetime_order_raises_safe_guard():
+    """⭐ R-SL-196 Q24：frame + 逐笔 DATETIME order 列（sta_time）→ raise 安全回退（7-笔≠7-日 silent-wrong）。"""
+    w = {"func": "avg", "arg": "gmv", "as_name": "ma", "frame": {"preceding": 6, "following": 0},
+         "order_by": [{"field": "sta_time", "dir": "asc"}]}
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["sta_time"], window=[w]), {"gmv": _GMV_DT}, _TABLES, _time_ctx())
+
+
+def test_window_frame_unknown_order_col_raises():
+    """R-SL-196：frame order 列两套日期启发式都不认识（city）→ raise（保守，不确定就回退）。"""
+    w = {"func": "avg", "arg": "gmv", "as_name": "ma", "frame": {"preceding": 6, "following": 0},
+         "order_by": [{"field": "city", "dir": "asc"}]}
+    with pytest.raises(CompileError):
+        _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], window=[w]), {"gmv": _GMV}, _TABLES, _time_ctx())
+
+
+# ─── v0.7.31 Q28：this_week 时间枚举（R-SL-199/200）───────────────────────
+
+def test_this_week_enum_registered():
+    """R-SL-199 Q28：this_week ∈ parser _TIME_ENUMS ∩ compiler _TIME_KEYS（三处一致）。"""
+    from knot.services.semantic.compile_helpers import _TIME_KEYS
+    from knot.services.semantic.parser import _TIME_ENUMS
+    assert "this_week" in _TIME_ENUMS and "this_week" in _TIME_KEYS
+
+
+def test_this_week_time_window_compiles():
+    """R-SL-200 Q28：this_week 编译 → 时间窗注入（本周 Mon→最新）；旧 raise「未知 time 枚举」消失。"""
+    sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], time="this_week"), {"gmv": _GMV}, _TABLES, _time_ctx())
+    assert "o.date BETWEEN '2026-06-15' AND '2026-06-21'" in sql
 
 
 # ─── v0.7.16 派生指标模型（占比/人均 = metric÷metric · 标量+单层）R-SL-132~139 ──

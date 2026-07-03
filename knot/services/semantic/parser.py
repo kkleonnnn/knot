@@ -16,6 +16,7 @@ from knot.services.semantic.logicform import LogicForm
 _TIME_ENUMS = (
     "today", "yesterday",   # v0.7.19 日粒度：今天→today（走 dwd 明细）/ 昨天→yesterday（走 ads 日报）
     "this_year", "this_year_to_latest", "this_month", "this_month_to_latest",
+    "this_week",            # v0.7.31 本周（ISO 周一→最新，含今天 → dwd；Q28 修）
     "last_week", "last_month", "last_year",   # v0.7.19 完整过去（上周/上月/去年 → ads）
     "last_7_days_to_latest", "same_period_last_year",
 )
@@ -28,7 +29,7 @@ _LOGICFORM_SYS = """你是 KNOT 语义层的 LogicForm 抽取器。给定用户�
 
 时间枚举（time 字段只能取以下之一，或留空 ""）：
 {time_block}
-时间词→枚举（**只映射相对词**）：今天→`today`，昨天→`yesterday`，本月(迄今,含今天)→`this_month_to_latest`，今年迄今→`this_year_to_latest`，近7天→`last_7_days_to_latest`，上周→`last_week`，上月→`last_month`，去年→`last_year`，自然月→`this_month`。「今天/本月/今年迄今」含今天→选 dwd；「昨天/上周/上月/去年」完整过去→选 ads（配合下方库表时效路由）。
+时间词→枚举（**只映射相对词**）：今天→`today`，昨天→`yesterday`，本月(迄今,含今天)→`this_month_to_latest`，本周(迄今,含今天)→`this_week`，今年迄今→`this_year_to_latest`，近7天→`last_7_days_to_latest`，上周→`last_week`，上月→`last_month`，去年→`last_year`，自然月→`this_month`。「今天/本月/本周/今年迄今」含今天→选 dwd；「昨天/上周/上月/去年」完整过去→选 ads（配合下方库表时效路由）。
 ⚠️ **绝对具体年份/月份/日期**（如 `2025年`、`2024年3月`、`2023-05-01` 这种**写死的非相对词**）**没有对应相对枚举** → **输出 `{{"metrics": []}}` 回退 LLM**（LLM 会按具体日期写 SQL）。**严禁**把绝对年份硬塞 `this_year`/`last_year`（相对枚举锚当前年 → 把 2025 算成今年 2026 = 错年）。
 
 业务/库表路由规则（决定该选哪张表的 metric —— 尤其**数据时效**；为空则忽略）：
