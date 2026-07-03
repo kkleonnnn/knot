@@ -2,12 +2,12 @@
 
 覆盖：
 - R-26-Senior：_acall_llm 在 budget block 时抛 BudgetExceededError，**不调** adapter
-- R-30：BIAgentError 在 ReAct 循环中透传到调用方
+- R-30：KnotError 在 ReAct 循环中透传到调用方
 - LLMNetworkError 不透传 → 转 final_error 由 AgentResult 汇报（v0.3.x sync 兼容）
 """
 import pytest
 
-from knot.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
+from knot.models.errors import KnotError, BudgetExceededError, LLMNetworkError
 from knot.repositories import budget_repo
 from knot.services.agents import sql_planner
 
@@ -57,7 +57,7 @@ async def test_R30_arun_sql_agent_propagates_budget_exceeded(tmp_db_path, monkey
 
 @pytest.mark.asyncio
 async def test_R30_arun_sql_agent_propagates_llm_network_error(monkeypatch):
-    """R-30：LLMNetworkError 是 BIAgentError 子类，应透传给 api 层
+    """R-30：LLMNetworkError 是 KnotError 子类，应透传给 api 层
     （error_translator 翻译为「AI 服务暂时无法响应」+ is_retryable=True）。
     取代 v0.3.x sync 把 raw network error 塞进 final_error 的兜底模式。"""
     async def _fail(*args, **kwargs):
@@ -74,7 +74,7 @@ async def test_R30_arun_sql_agent_propagates_llm_network_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_arun_sql_agent_non_BIAgent_exception_becomes_final_error(monkeypatch):
-    """非 BIAgentError（罕见的内部 bug 如 ValueError / KeyError）→ 转 final_error
+    """非 KnotError（罕见的内部 bug 如 ValueError / KeyError）→ 转 final_error
     避免 ReAct 循环 1 步崩溃就 5xx 整个请求；保留 v0.3.x 兜底兼容。"""
     async def _broken(*args, **kwargs):
         raise ValueError("internal parser bug")

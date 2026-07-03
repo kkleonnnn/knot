@@ -10,7 +10,7 @@
 import contextvars
 
 from knot.models.audit import AuditAction
-from knot.models.errors import BIAgentError, CatalogContextException
+from knot.models.errors import KnotError, CatalogContextException
 from knot.services.agents import catalog as catalog_loader
 
 
@@ -71,8 +71,8 @@ def test_auditaction_has_context_violation():
 
 
 def test_catalog_context_exception_in_errors_tree():
-    """CatalogContextException 是 BIAgentError 子类 + attempted/expected meta（R-PB-A1-16/23）。"""
-    assert issubclass(CatalogContextException, BIAgentError)
+    """CatalogContextException 是 KnotError 子类 + attempted/expected meta（R-PB-A1-16/23）。"""
+    assert issubclass(CatalogContextException, KnotError)
     exc = CatalogContextException(attempted_catalog_id=3, expected_catalog_id=1)
     assert exc.attempted_catalog_id == 3
     assert exc.expected_catalog_id == 1

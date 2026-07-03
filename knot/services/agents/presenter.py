@@ -94,7 +94,7 @@ async def arun_presenter(
 ) -> dict:
     """v0.4.4 R-24：run_presenter 的 async 版本。"""
     # R-106 方案 1：延迟 import 主文件 helpers
-    from knot.models.errors import BIAgentError
+    from knot.models.errors import KnotError
     from knot.services.agents.orchestrator import (
         _allm,
         _business_rules,
@@ -130,7 +130,7 @@ async def arun_presenter(
             agent_kind="presenter",
         )
         result = _parse_json(text)
-    except BIAgentError:
+    except KnotError:
         raise  # R-30：领域异常透传
     except Exception:
         pass

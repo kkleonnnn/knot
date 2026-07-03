@@ -19,7 +19,7 @@ from knot.api._rate_limit import enforce_query_rate_limit
 from knot.api.deps import get_current_user
 from knot.api.schemas import QueryRequest
 from knot.core.logging_setup import logger
-from knot.models.errors import BIAgentError
+from knot.models.errors import KnotError
 from knot.repositories import conversation_repo, message_repo, settings_repo, upload_repo, user_repo
 from knot.services import (
     budget_service,
@@ -401,7 +401,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             else:
                 # ─── SQL 路径（原有 LLM ReAct 回退）─────────────────────────
                 # v0.6.2.6 隔离三层②：SQL 生成/执行前 assert ContextVar catalog_id == 入口捕获（防 async race 漂移
-                # / ContextVar 未传播）；漂移 → 第③层 context_violation audit + raise（上面 except BIAgentError 捕获）
+                # / ContextVar 未传播）；漂移 → 第③层 context_violation audit + raise（上面 except KnotError 捕获）
                 query_helper.assert_catalog_context(expected_cat, user)
                 yield emit({"type": "agent_start", "agent": "sql_planner", "label": "生成 SQL"})
                 await asyncio.sleep(0)
@@ -504,8 +504,8 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 "is_retryable": False if fail_kind else None,
             })
             await asyncio.sleep(0)
-        except BIAgentError as e:
-            logger.warning(f"query-stream BIAgentError: {type(e).__name__}: {str(e)[:200]}")
+        except KnotError as e:
+            logger.warning(f"query-stream KnotError: {type(e).__name__}: {str(e)[:200]}")
             yield emit({"type": "error", **error_translator.to_response(e)})
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")

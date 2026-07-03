@@ -119,10 +119,10 @@ def test_delete_older_than(tmp_db_path):
 # ─── R-65 AuditWriteError 在 models/errors.py（不在 services） ─────
 
 def test_R65_audit_write_error_in_models_errors():
-    """R-65：AuditWriteError 必须扩展自 models.errors.BIAgentError；
+    """R-65：AuditWriteError 必须扩展自 models.errors.KnotError；
     不在 services/audit_service 重定义（避免 v0.4.4 services/errors.py 重复造轮子）。"""
-    from knot.models.errors import AuditWriteError, BIAgentError
-    assert issubclass(AuditWriteError, BIAgentError)
+    from knot.models.errors import AuditWriteError, KnotError
+    assert issubclass(AuditWriteError, KnotError)
 
 
 # ─── R-55 AuditAction Literal 锁死 ────────────────────────────────────

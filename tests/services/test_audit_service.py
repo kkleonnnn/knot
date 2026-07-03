@@ -169,7 +169,7 @@ def test_R65_audit_service_does_not_redefine_exceptions():
     """R-65 grep 守护：audit_service 模块不得定义新的 Exception 子类。"""
     import inspect
     src = inspect.getsource(audit_service)
-    # 不允许 `class XxxError(Exception)` 或 `class XxxError(BIAgentError)`
+    # 不允许 `class XxxError(Exception)` 或 `class XxxError(KnotError)`
     assert "class " not in src or "Error" not in src.split("class ", 1)[-1].split(":", 1)[0], \
         "R-65：audit_service 不得重定义 Exception 子类（必须复用 models/errors.py）"
 

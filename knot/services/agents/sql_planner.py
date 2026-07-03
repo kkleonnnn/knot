@@ -224,10 +224,10 @@ async def arun_sql_agent(
     ReAct 循环每步用 _acall_llm（含 R-26-Senior budget 守护 + R-30 错误标准化）。
     R-32：每步 agent_kind='sql_planner'；fix_sql 是独立路径（query.py 的非流式回路用），
     arun_sql_agent 内部不调 fix_sql。
-    R-30：BIAgentError（如 BudgetExceededError）必须透传给 query.py 上层；
+    R-30：KnotError（如 BudgetExceededError）必须透传给 query.py 上层；
     其他异常包成 final_error 由 AgentResult.success=False 报回。
     """
-    from knot.models.errors import BIAgentError  # R-30 透传守护
+    from knot.models.errors import KnotError  # R-30 透传守护
 
     def _err(msg):
         return AgentResult(
@@ -284,7 +284,7 @@ async def arun_sql_agent(
     for step_num in range(1, max_steps + 1):
         try:
             raw_text, it, ot = await _acall_llm(model_key, key, model_cfg, system_prompt, messages)
-        except BIAgentError:
+        except KnotError:
             # R-30：领域异常（含 LLMNetworkError / BudgetExceededError 等）透传给
             # api/query.py，由 error_translator 翻译为友好提示
             raise
