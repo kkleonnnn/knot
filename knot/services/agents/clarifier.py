@@ -131,7 +131,7 @@ async def arun_clarifier(
 ) -> dict:
     """v0.4.4 R-24：async 版；走 _allm（R-26-Senior + R-30）+ R-32 agent_kind='clarifier'。"""
     # R-106 方案 1：延迟 import
-    from knot.models.errors import BIAgentError
+    from knot.models.errors import KnotError
     from knot.services.agents.orchestrator import (
         _allm,
         _business_rules,
@@ -162,7 +162,7 @@ async def arun_clarifier(
             agent_kind="clarifier",
         )
         result = _parse_json(text)
-    except BIAgentError:
+    except KnotError:
         # R-30：领域异常透传（BudgetExceededError / LLMAuthError 等不可吞）
         raise
     except Exception:

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.37 · CLAUDE.md 瘦身（B4.1 · v0.7 收尾）：项目指令文件 677→473 行（-30%）—— 把 v0.3~v0.7.24 逐 PATCH 历史 roadmap 表 + Loop Protocol v3 施行回顾表（与 CHANGELOG 重复的治理留痕）移至新 `GOVERNANCE-ARCHIVE.md`（移动非删除；15 条 live 规则 + 4 层架构依赖图 + v0.7 不变量/前置/交付序全保留，marker-asserted 切片 + 对抗核验 0 丢规则）。docs-only · 0 代码逻辑（唯一代码改 = version 串 + dep-graph note「6→9 条 contract」精度）。<br>**上版** v0.7.36 文档准确性 + 治理清理（B4）· v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.34 env 测试隔离 · v0.7.0~.33 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.38 · 错误基类改名 + 孤儿 dataclass 标注（B3 · v0.7 收尾）：机械 rename `BIAgentError → KnotError`（16 文件 62 处 · 清品牌残留 R-79 漏抓的 camelCase · 0 行为变更，无用户可见串）+ `knot.models.__all__` 补全 14 error 全导出（原漏 7）+ 12 个孤儿 dataclass 在 `models/__init__.py` 标 `[BLUEPRINT-ONLY]`（grounded 确认 0 外部实例化 = Go 重写契约锚点，非死码）。B3.3（orchestrator 解环）经 grounded 判定**无真实环 → 关闭不做**；B3.2 cost-drift 单独 bugfix 后续。<br>**上版** v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理清理（B4）· v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.0~.34 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

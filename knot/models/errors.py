@@ -11,12 +11,12 @@ Go 重写映射：
 from __future__ import annotations
 
 
-class BIAgentError(Exception):
+class KnotError(Exception):
     """所有领域异常的基类。"""
 
 
 # ── adapters / LLM ────────────────────────────────────────────────────
-class ProviderNotImplementedError(BIAgentError):
+class ProviderNotImplementedError(KnotError):
     """未知的 LLM provider（不在已支持清单中）。
 
     抛出时机：adapters/llm/factory.get_adapter("typo-name") 等。
@@ -32,15 +32,15 @@ class ProviderNotImplementedError(BIAgentError):
         super().__init__(msg)
 
 
-class LLMAuthError(BIAgentError):
+class LLMAuthError(KnotError):
     """LLM API Key 鉴权失败（401/403）。预留给 adapters 抛出。"""
 
 
-class LLMRateLimitError(BIAgentError):
+class LLMRateLimitError(KnotError):
     """LLM 调用频率超限（429）。"""
 
 
-class LLMNetworkError(BIAgentError):
+class LLMNetworkError(KnotError):
     """v0.4.4：LLM 调用网络错误（timeout / DNS / 5xx）。
 
     与 LLMAuthError / LLMRateLimitError 区分；is_retryable=True（前端可显示重试按钮）。
@@ -52,7 +52,7 @@ class LLMNetworkError(BIAgentError):
 
 
 # ── adapters / DB ─────────────────────────────────────────────────────
-class BusinessDBError(BIAgentError):
+class BusinessDBError(KnotError):
     """业务库基类异常。"""
 
 
@@ -64,11 +64,11 @@ class CrossGroupSQLError(BusinessDBError):
     """跨连接组 SQL（多源场景下不允许跨组 join）。"""
 
 
-class DataSourceUnavailableError(BIAgentError):
+class DataSourceUnavailableError(KnotError):
     """v0.4.4：admin 未配数据源 / 连接失败。"""
 
 
-class MetadataError(BIAgentError):
+class MetadataError(KnotError):
     """v0.6.2.1 R-PB-C1-1 + ε2：catalog 推断兜底 fail-fast 熔断。
 
     DataSource 表查询失败 / 表为空 → 抛出此异常防止 catalog 误推断
@@ -76,7 +76,7 @@ class MetadataError(BIAgentError):
     """
 
 
-class CatalogContextException(BIAgentError):
+class CatalogContextException(KnotError):
     """v0.6.2.6 段 4 (A1 并发半) R-PB-A1-16：Connection Context 隔离第②层 assert 失败。
 
     SQL 执行前断言「当前请求 ContextVar 的 active catalog_id == 入口捕获的 catalog_id」失败
@@ -94,7 +94,7 @@ class CatalogContextException(BIAgentError):
 
 
 # ── services / 资源限制 ───────────────────────────────────────────────
-class BudgetExceededError(BIAgentError):
+class BudgetExceededError(KnotError):
     """v0.4.4：预算硬阈值阻断（block）。R-26-Senior：在 LLM 调用前抛。
 
     meta 含 {budget_type, agent_kind, threshold, estimated} 等元信息，
@@ -106,11 +106,11 @@ class BudgetExceededError(BIAgentError):
         super().__init__(f"Budget exceeded: {self.meta}")
 
 
-class ConfigMissingError(BIAgentError):
+class ConfigMissingError(KnotError):
     """v0.4.4：API Key 未配 / 模型未启用 / admin 配置缺失。"""
 
 
-class AuditWriteError(BIAgentError):
+class AuditWriteError(KnotError):
     """v0.4.6 R-65：审计写入失败（INSERT 异常）。
 
     audit_service 内部 catch + logger.error 不上抛（R-47 fail-soft）；

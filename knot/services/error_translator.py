@@ -1,4 +1,4 @@
-"""error_translator — v0.4.4 BIAgentError → API 响应 dict 映射。
+"""error_translator — v0.4.4 KnotError → API 响应 dict 映射。
 
 R-25 守护：每个 ErrorKind 显式标 is_retryable，前端按此渲染重试按钮：
 - llm_failed (LLMNetwork/RateLimit) → True
@@ -15,13 +15,13 @@ R-30 守护：service 层职责（不放 models 层；models 仅定义形状）�
 from __future__ import annotations
 
 from knot.models.errors import (
-    BIAgentError,
     BudgetExceededError,
     BusinessDBError,
     CatalogContextException,
     ConfigMissingError,
     CrossGroupSQLError,
     DataSourceUnavailableError,
+    KnotError,
     LLMAuthError,
     LLMNetworkError,
     LLMRateLimitError,
@@ -59,7 +59,7 @@ _TRANSLATIONS: list = [
 ]
 
 
-def to_response(err: BIAgentError) -> dict:
+def to_response(err: KnotError) -> dict:
     """统一 API 错误响应 shape（含 R-25 is_retryable）。
 
     返回结构：
@@ -79,7 +79,7 @@ def to_response(err: BIAgentError) -> dict:
                 "is_retryable": is_retryable,
                 "details": details,
             }
-    # 兜底（含 BIAgentError 基类直接抛 + 未注册子类）
+    # 兜底（含 KnotError 基类直接抛 + 未注册子类）
     return {
         "error_kind": "internal",
         "user_message": "服务出错，请稍后再试",
@@ -89,7 +89,7 @@ def to_response(err: BIAgentError) -> dict:
 
 
 def to_response_unknown(err: Exception) -> dict:
-    """非 BIAgentError 兜底（未捕获的 Exception）。"""
+    """非 KnotError 兜底（未捕获的 Exception）。"""
     return {
         "error_kind": "internal",
         "user_message": "服务出错，请稍后再试",

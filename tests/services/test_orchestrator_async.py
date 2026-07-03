@@ -3,12 +3,12 @@
 覆盖：
 - arun_clarifier 走 _allm（agent_kind='clarifier'）
 - arun_presenter 走 _allm（agent_kind='presenter'）
-- BIAgentError（R-30）必须透传给上层；非领域异常被吞
+- KnotError（R-30）必须透传给上层；非领域异常被吞
 - intent 兜底逻辑（v0.4.0）保留
 """
 import pytest
 
-from knot.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
+from knot.models.errors import KnotError, BudgetExceededError, LLMNetworkError
 from knot.services.agents import orchestrator
 
 
@@ -90,7 +90,7 @@ async def test_arun_clarifier_swallows_non_BIAgent_exception(monkeypatch):
     """非领域异常（解析失败 / ValueError 等）静默 → 返默认结果（intent=detail 兜底）。
     与 sync run_clarifier 同模式。"""
     async def _broken(*args, **kwargs):
-        raise ValueError("not a BIAgentError")
+        raise ValueError("not a KnotError")
 
     monkeypatch.setattr(orchestrator, "_allm", _broken)
 

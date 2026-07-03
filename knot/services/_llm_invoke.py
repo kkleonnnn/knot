@@ -24,8 +24,8 @@ from knot.config import (
     SQL_TEMPERATURE,
 )
 from knot.models.errors import (
-    BIAgentError,
     BudgetExceededError,
+    KnotError,
     LLMAuthError,
     LLMNetworkError,
     LLMRateLimitError,
@@ -139,7 +139,7 @@ async def _ainvoke_via_adapter(system_prompt: str, user_message: str,
     R-32：agent_kind 默认 'sql_planner'，afix_sql 必须显式传 'fix_sql'，
     使分桶 cost 累加到 fix_sql_cost 桶（query.py 流程不变）。
     R-30：原 SDK 异常已由 adapter 包装为 LLMAuthError / LLMRateLimitError /
-    LLMNetworkError；本函数捕获 BIAgentError 转 _error_result（保留 sync API 兼容）。
+    LLMNetworkError；本函数捕获 KnotError 转 _error_result（保留 sync API 兼容）。
     """
     # R-26-Senior：budget block 在 LLM 请求前；延迟 import 避开 v0.3.x 启动期循环依赖
     from knot.services import budget_service
@@ -164,7 +164,7 @@ async def _ainvoke_via_adapter(system_prompt: str, user_message: str,
         resp = await adapter.acomplete(req)
     except (LLMAuthError, LLMRateLimitError, LLMNetworkError):
         raise  # adapter 已分类；上层 api/query.py 用 error_translator 翻译
-    except BIAgentError:
+    except KnotError:
         raise
     except Exception as e:
         # 非领域异常兜底（理论不应发生，因为 adapter 应已包装）

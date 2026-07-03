@@ -135,13 +135,13 @@ async def _allm(model_key: str, key: str, cfg: dict, system: str, messages: list
     - R-26-Senior：调用前先做 budget per_call 守护（与 llm_client._ainvoke_via_adapter 同模式）
     - R-32：agent_kind 由调用方传（arun_clarifier='clarifier' / arun_presenter='presenter'）
     - R-30：原 SDK 异常已由 adapter 包装为 LLMAuthError / LLMRateLimitError / LLMNetworkError；
-      上游 catch BIAgentError 用 error_translator 翻译。
+      上游 catch KnotError 用 error_translator 翻译。
     返回 (text, input_tokens, output_tokens, cost_usd)。
     """
     from knot.adapters.llm import LLMRequest, get_async_adapter
     from knot.models.errors import (
-        BIAgentError,
         BudgetExceededError,
+        KnotError,
         LLMNetworkError,
     )
     from knot.services import budget_service
@@ -169,7 +169,7 @@ async def _allm(model_key: str, key: str, cfg: dict, system: str, messages: list
     try:
         adapter = get_async_adapter(provider)
         resp = await adapter.acomplete(req)
-    except BIAgentError:
+    except KnotError:
         raise
     except Exception as e:
         raise LLMNetworkError(str(e)[:200]) from e

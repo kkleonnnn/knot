@@ -2,11 +2,11 @@
 
 源行号区间（v0.5.1 final 状态）：
 - L306-335 `_call_llm`（sync — Anthropic / OpenAI 兼容路径，非 R-26 budget gate）
-- L338-376 `_acall_llm`（async — 含 v0.4.4 R-26-Senior budget gate + R-30 BIAgentError 透传）
+- L338-376 `_acall_llm`（async — 含 v0.4.4 R-26-Senior budget gate + R-30 KnotError 透传）
 
 R-106 单向依赖：本模块依赖 stdlib + knot.config + knot.adapters.llm + knot.models.errors
 + knot.services.budget_service；严禁反向 import sql_planner.py / 其他兄弟子模块。
-R-99 不破坏 R-26 senior budget gate + R-30 BIAgentError 透传契约。
+R-99 不破坏 R-26 senior budget gate + R-30 KnotError 透传契约。
 """
 from knot.config import MAX_TOKENS_PER_QUERY, PROVIDER_BASE_URLS
 
@@ -49,10 +49,10 @@ async def _acall_llm(model_key, api_key, model_cfg, system_prompt, messages) -> 
 
     - 走 adapters/llm/factory.get_async_adapter (R-31)
     - R-26-Senior：调用前 budget 守护（agent_kind='sql_planner'）
-    - R-30：原 SDK 异常已由 adapter 包装为 BIAgentError 子类 → 透传给 ReAct 循环 catch
+    - R-30：原 SDK 异常已由 adapter 包装为 KnotError 子类 → 透传给 ReAct 循环 catch
     """
     from knot.adapters.llm import LLMRequest, get_async_adapter
-    from knot.models.errors import BIAgentError, BudgetExceededError, LLMNetworkError
+    from knot.models.errors import BudgetExceededError, KnotError, LLMNetworkError
     from knot.services import budget_service
 
     # R-26-Senior：每步 LLM 调用前 budget 守护（防 ReAct 循环烧钱）
@@ -78,7 +78,7 @@ async def _acall_llm(model_key, api_key, model_cfg, system_prompt, messages) -> 
     try:
         adapter = get_async_adapter(provider)
         resp = await adapter.acomplete(req)
-    except BIAgentError:
+    except KnotError:
         raise
     except Exception as e:
         raise LLMNetworkError(str(e)[:200]) from e

@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.37 (B4.1) — CLAUDE.md 瘦身（历史 roadmap 归档 GOVERNANCE-ARCHIVE.md）
+## [Unreleased] - v0.7.38 (B3) — 错误基类 BIAgentError→KnotError + 孤儿 dataclass 标注
+
+> v0.7 收尾 backlog B3（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 代码美学/消歧。**grounded 审计后 3/4 backlog 声明 stale/错**：B3.1「13 孤儿」实 12 · B3.2「6 复制分支→helper」夸大(发散大,只省~10行) · B3.3「真实环」**假**(无 import 环,延迟-import 是 monkeypatch 便利) · B3.4「16 文件」VERIFIED。本刀 = B3.4 + B3.1。**简化协议**（机械 rename + docs 标注 · 0 行为变更）。kk 拍板：KnotError · B3.1 并入 · B3.2 单独后续 · B3.3 关闭。
+
+### Changed（机械 rename · 0 行为变更）
+
+- **`BIAgentError` → `KnotError`**（16 文件 62 处：errors.py 基类 + 13 子类继承 + 8 except + import + 类型标注 + 5 测试 + 1 测试函数名）。纯符号 rename，**0 用户可见串**（仅内部日志/docstring）；异常继承链 identical；R-79 品牌守护漏抓 camelCase `BIAgentError`（regex 只抓带连字符 `BI-Agent`/`bi-agent`）→ 本刀清此残留。CHANGELOG/GOVERNANCE-ARCHIVE 历史提及保留不改（不篡改历史）。
+- **`knot.models.__all__` 补全**：原仅导出 7 error，补 7（AuditWriteError/BudgetExceededError/CatalogContextException/ConfigMissingError/DataSourceUnavailableError/LLMNetworkError/MetadataError）→ 14 error 全导出（v0.3.2 R-1 显式契约完整性）。
+
+### Docs（B3.1 · [BLUEPRINT-ONLY] 标注）
+
+- **12 个孤儿 dataclass 在 `models/__init__.py` 标 `[BLUEPRINT-ONLY]`**（AuthClaim/Message/ClarifierOutput/PresenterOutput/LLMMessage/CatalogTable/FewShotExample/PromptTemplate/KnowledgeDoc/DocChunk/AppSetting/FileUpload）—— grounded 确认 0 外部实例化（repo 返 dict / api 用 Pydantic），保留作 **Go 重写契约锚点** + 字段文档（非死码，承 v0.7.26/.28 vestigial 清理精神：真死码删、蓝图锚点显式标）。docstring 加 pattern 说明「一眼分清 活契约 vs 蓝图」。backlog「13 孤儿」订正为 12（Metric/AgentResult/AgentStep 已于 v0.7.26/.28 删）。
+
+### Notes
+
+- **B3.3 关闭**（不做）：grounded 判定 orchestrator **无真实 import 环** —— orchestrator 顶层 import clarifier/presenter，后者仅函数体延迟 import orchestrator helpers（调用时 orchestrator 已加载），延迟-import 是 monkeypatch 测试便利非破环；抽 _shared.py = 过度工程。延迟-import 注释经核**均准确**（backlog「更正不成立注释」不成立）。
+- **B3.2 defer**：query_stream helper 抽取夸大（分支发散大只省 ~10 行 + 碰 v0.7.35 热区）→ 不做；但审计挖出真 latent bug（L282/316 错误路径漏 cost 分桶 → clarifier 成本未记）→ 单独 bugfix PATCH（=行为变更，错误路径开始记 clarifier 成本）。
+- 5 源点 0.7.37→0.7.38；**0 新 schema/路由/AuditAction · 0 业务逻辑变更**。gates：full suite + check_file_sizes + import-linter 9 contracts + ruff。
+
+## [Released] - v0.7.37 (B4.1) — CLAUDE.md 瘦身（历史 roadmap 归档 GOVERNANCE-ARCHIVE.md）
 
 > v0.7 收尾 backlog B4.1（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 项目指令文件 677→473 行（-30%）。**简化协议**（docs-only；唯一代码改动 = version 串 + dep-graph note 精度）。kk 拍板独立 PATCH（项目指令文件每 session 载入，谨慎）。
 

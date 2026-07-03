@@ -3,11 +3,11 @@
 覆盖：
 - 每个具体异常类映射到对应 kind + 正确 is_retryable
 - BudgetExceededError.meta 透传 details
-- 兜底 BIAgentError 子类 + 未注册类 → internal
-- 非 BIAgentError 异常走 to_response_unknown
+- 兜底 KnotError 子类 + 未注册类 → internal
+- 非 KnotError 异常走 to_response_unknown
 """
 from knot.models.errors import (
-    BIAgentError,
+    KnotError,
     BudgetExceededError,
     BusinessDBError,
     ConfigMissingError,
@@ -99,8 +99,8 @@ def test_R25_config_missing_is_not_retryable():
 
 
 def test_unknown_BIAgent_subclass_falls_back_to_internal():
-    """未注册的 BIAgentError 子类走兜底（kind=internal, is_retryable=True）。"""
-    class _CustomBIError(BIAgentError):
+    """未注册的 KnotError 子类走兜底（kind=internal, is_retryable=True）。"""
+    class _CustomBIError(KnotError):
         pass
     r = error_translator.to_response(_CustomBIError("xx"))
     assert r["error_kind"] == "internal"
@@ -108,8 +108,8 @@ def test_unknown_BIAgent_subclass_falls_back_to_internal():
     assert "raw" in r["details"]
 
 
-def test_to_response_unknown_handles_non_BIAgentError():
-    """非 BIAgentError 异常（如 RuntimeError / ValueError）走 to_response_unknown。"""
+def test_to_response_unknown_handles_non_KnotError():
+    """非 KnotError 异常（如 RuntimeError / ValueError）走 to_response_unknown。"""
     r = error_translator.to_response_unknown(ValueError("xxx"))
     assert r["error_kind"] == "internal"
     assert r["is_retryable"] is True
