@@ -9,10 +9,10 @@
   - knot/         : KNOT 核心数据分析业务（产品命名空间，Go 重写时单独划走）
   - auth_service  : 用户认证 + 密码哈希
   - catalog       : 业务目录加载（fallback chain：DB → real → example）
-  - few_shots_service : few-shot 示例装配（# FIXME-v0.3.1.next）
+  - few_shots     : few-shot 示例装配（v0.5.2 拆出）
   - prompt_service: 3-Agent system prompt 装配
   - rag_service   : 文档 RAG（embedding / cosine 检索）
   - rag_retriever : BM25 retriever（schema 过滤打分用）
   - schema_filter : Schema 精准过滤（BM25 + 业务词典 + 主题加分）
-  - llm_client    : 多 provider LLM 路由（# FIXME-v0.3.2: 拆到 adapters/llm/）
+  - llm_client    : 多 provider LLM 路由（v0.3.2 已由 adapters/llm/ 协议驱动）
 """

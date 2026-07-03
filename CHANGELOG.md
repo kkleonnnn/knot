@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.35 (B1.2) — SSE/同步查询实时脱敏（非 admin live 流不泄库表名/SQL）
+## [Unreleased] - v0.7.36 (B4) — 文档准确性偿还 + 治理清理（doc-accuracy chore + git-ops）
+
+> v0.7 收尾 backlog B4（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— grounded 5 维审计（branches/PR/依赖/CLAUDE.md/文档/死码）后的 concrete 清理。**简化协议**（docs + chore；唯一代码改动 = 3 FIXME 注释 + react-window dead dep + version 串）。kk 拍板：CLAUDE.md 瘦身独立 v0.7.37 · 分支仅安全清 · PR #130 关。
+
+### Changed / Fixed（docs 准确性）
+
+- **README 数字漂移偿还**（grounded 核实）：`86 routes`→`113 routes（smoke 下限 80）`（2 处）· `7 import-linter contracts`→`9`（v0.6.5.12 Contract 8 + v0.7.13 Contract 9）· `14 OR entries + 6 direct keys`→`15 OpenRouter models`（v0.6.5.4 OR-only）· L63 死链 `docs/plans/phase-b-proposal-draft.md`（不存在）→ 改指整体审核 LOCKED 文档。
+- **DEPLOY.md 头版本** `v0.6.5.7`→`v0.7.36`（滞后整个 v0.7.x 系列 → 补齐 + 注明 v0.6.5.x→v0.7.x 无强制迁移）。
+- **追踪 2 个游离 plan 文档**：`event-rule-action-layer-prestudy-2026-06-23.md`（Stage 0 预研）+ `v0.7.17-value-selftest-runbook.md`（价值自测手册，v0.7.19 依据）—— git add 入库。
+
+### Removed（死码/死依赖）
+
+- **3 个 stale FIXME 注释**（v0.3 拆分残留，v0.5.2 早已完成）：`services/__init__.py`（few_shots + llm_client 拆分）· `agents/__init__.py`（clarifier/presenter 拆分）—— 改为完成态描述。
+- **`react-window` dead dep**（frontend/package.json；grep `frontend/src/` 0 引用）—— 删 + `npm install` 同步 package-lock.json（lockfile diff 仅 react-window，无版本 churn）。
+
+### Governance（git-ops · 无代码 · 不含 PATCH diff）
+
+- **关 4 个 stale PR**：#22（远古 main→develop 倒灌 stray）· #186（superseded by #187）· #52（v0.5.26 abandoned）· #130（v0.6.2.2 治理记录已在 CLAUDE.md §R-LP-v3-EX-1）。open PR 4→0。
+- **删分支**：`develop`（184 commits behind 死快照）+ 62 已合并分支（PR=MERGED；squash-merge 使 `git --merged` 假阴性，用 gh 按 PR state 判定）。remote 分支 91→7（main + 6 保留 abandoned：claude/elastic-gauss · docs/v0.7.1~.3-stage1 · plans/v0.4.5~4.6）。
+
+### Notes
+
+- **defer**（本刀不碰，记录在 backlog）：CLAUDE.md 瘦身（677 行 · ~225 行历史 roadmap 归档 GOVERNANCE-ARCHIVE.md → 独立 v0.7.37）· 后端 lockfile（Codex#186 依赖锁）· sync LLM 链删除（v0.5.5 deprecated，仍被非流式路径用，需 test-port + 分阶段）· http_planner regex 下沉 catalog。
+- 5 源点 0.7.35→0.7.36；**0 新 schema/路由/AuditAction · 0 业务逻辑变更**（仅注释 + dead dep + docs + version）。
+
+## [Released] - v0.7.35 (B1.2) — SSE/同步查询实时脱敏（非 admin live 流不泄库表名/SQL）
 
 > v0.7 收尾 backlog B1.2（[plan](docs/plans/v0.7.35-b1.2-sse-desensitize.md)）—— 原仅历史回放（get_messages）脱敏；扩至**实时 SSE 流 + 同步 /query 端点**。**对抗 review（Stage-2/3-等效，3 维度 REVISE）抓到 SSE-only 设计漏的真问题** → kk 拍板 scope 扩大。R-B1.2-1~14。轻量 v3 + 对抗 review。
 

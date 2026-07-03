@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.35 · SSE/同步查询实时脱敏（B1.2 · v0.7 收尾）：非 admin 用户实时查询流不再泄露真实库表名/SQL。原仅历史回放（get_messages）脱敏；本刀经对抗 review 扩至**实时 SSE 流 + 同步 /query 端点**（review 抓到 use_agent=true 同步端点旁路 + clarifier 字段漏脱敏）。新增 `scrub_query_payload` 单一真相源（SSE emit / 同步 /query / get_messages 三路共用）：pop sql（顶层+嵌套 output）+ desensitize 泄漏文本字段（含 clarifier question/approach）+ details walk；sql_step（ReAct trace）对非 admin 整体 suppress；lexicon 源改 per-user active catalog；get_messages 扩 error/insight 保 live≈reload 一致。admin 路径 byte-equal 0 改动（R-脱敏-3）。<br>**上版** v0.7.34 env 测试隔离（本地全套件首次全绿）· v0.7.33 ErrorBoundary 白屏兜底 · v0.7.32 order_by 校验 · v0.7.0~.31 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.36 · 文档准确性 + 治理清理（B4 · v0.7 收尾）：doc-accuracy chore —— README 数字漂移偿还（113 routes / 9 contracts / 15 OR-only models，旧标 86/7/14+6 全 stale）+ DEPLOY.md 头版本 + phase-b 死链改指整体审核 LOCKED 文档；删 3 个 v0.3 拆分残留 FIXME 注释 + react-window dead dep（0 引用）；追踪 2 个游离 plan 文档。**Git-ops**（无代码）：关 4 个 stale PR（#22/#52/#130/#186）+ 删 develop + 62 已合并分支（91→7 remote）。CLAUDE.md 瘦身独立 v0.7.37。<br>**上版** v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.34 env 测试隔离 · v0.7.33 ErrorBoundary 白屏兜底 · v0.7.0~.32 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
@@ -60,7 +60,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 - **knot v0.7.x+ = 进入 "Data Agent" 分界线**（5 层语义建模 + LogicForm 中间层）— Phase B 路线
 - **1.0 团队公测**前完成 v0.7.x 核心能力
 
-> 详 Phase B 提案：`docs/plans/phase-b-proposal-draft.md`（worktree 本地草案，待 Day 28+ 三方会议拍板）
+> 详 v0.6→v0.7 整体审核 LOCKED 结论：[`docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md`](docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md)（定向 v0.7 = 5 层语义层 + LogicForm；Phase B 已于 v0.6.2.0~v0.6.3.2 完成）
 
 ## 4-Step 流式管线（v0.5.39 起 Trace 加入）
 
@@ -192,16 +192,16 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 ## 技术栈（v0.6.4.1）
 
-- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；86 routes；7 import-linter contracts KEPT
+- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；113 routes（smoke 下限 80）；9 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
-- **LLM**：OpenRouter 统一路由（Claude 4.x / GPT-4o / Gemini / DeepSeek V3+R1 / Qwen / GLM / MiniMax — 14 OR entries + 6 direct keys；max_context 字段 v0.6.0.6 起 OR live API 实测）；3-agent 异步并行
+- **LLM**：OpenRouter 统一路由（Claude 4.x / GPT-4o / Gemini / DeepSeek V3+R1 / Qwen / GLM / MiniMax — 15 OpenRouter models，v0.6.5.4 起 OR-only；max_context 字段 v0.6.0.6 起 OR live API 实测）；3-agent 异步并行
 - **业务库**：Apache Doris / MySQL（多源按 `host:port:user` 分组合并）
 - **RAG**：BM25 + embedding cosine + RELATIONS 元数据注入 prompt
 - **SQL 安全**：sqlglot AST 校验 + DB grants 探测 + **6 层笛卡尔积防御**（v0.5.44 + v0.6.0.1 R-PA-9 收官）
 - **加密**：Fernet 字段级（API key / DB 密码）+ KNOT_MASTER_KEY env fail-fast（v0.4.5+）+ **JWT_SECRET fail-fast**（v0.6.0.13 MUST-1）
 - **审计**：INSERT-only audit_log + 9 类 mutation 自动记录 + PII 三层防御 + 90 天 retention + **auto-purge 7 天阈值**（v0.6.0.5 F-C）
 - **反馈观测**：用户回答 👍/👎 + 评论（F-A）/ 前端 JS 错误自动上报（F-B PII 三层防御 + 1h hash dedupe）
-- **测试**：pytest + yaml 驱动的 eval 集（111 cases / 7 contracts / **86 routes smoke**）
+- **测试**：pytest + yaml 驱动的 eval 集（111 example cases / 9 contracts / **routes smoke ≥80**）
 
 ## 项目结构
 
