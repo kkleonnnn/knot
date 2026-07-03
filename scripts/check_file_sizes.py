@@ -87,6 +87,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/decor/NarrativeMotif.jsx":       120,
     "frontend/src/Shell.jsx":                      222,  # v0.7.7 C5 +指标监控 nav 行（admin 屏 nav 合理增长）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
+    "frontend/src/ErrorBoundary.jsx":              120,  # v0.7.33 B1.1 App+ResultBlock error boundary
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）
     "tests/scripts/test_dockerfile_copy.py":       100,  # G-6 R-PA-7 字面单元测试
 }

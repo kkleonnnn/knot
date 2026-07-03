@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.32 — order_by 字段 alias-based 校验（编译器 enforcement 门）
+## [Unreleased] - v0.7.33 — React ErrorBoundary 白屏兜底（B1.1 · v0.7 收尾）
+
+> v0.7 收尾 backlog B1.1（[plan](docs/plans/v0.7.33-b1.1-error-boundary.md)）—— 🔴 confirmed 真 bug：render 崩溃 → 整屏白屏。纯前端 additive 韧性 · byte-equal 现有屏 · 0 后端。轻量 v3（守护者 Stage 3 **ACCEPT** + R1 承重建议纳入）。R-B1.1-1~7。
+
+### Fixed
+
+- **render 崩溃白屏 → 降级可恢复（`frontend/src/ErrorBoundary.jsx` [NEW]）**：React 无 ErrorBoundary 时 render 崩溃卸载整棵树 = 白屏（历史多次 v0.6.5.2）。加 **AppErrorBoundary**（`main.jsx` 包 `<App/>` → 全屏 KNOT 降级屏 + 刷新钮）+ **ResultBlockErrorBoundary**（`Conversation.jsx` 仅包 `<ResultBlock/>`〔不含 ThinkingCard/问题气泡/头像〕→ 单 block 崩溃 inline 降级卡，siblings + composer 存活，`key={msg.id||i}` 隔离）。两 boundary `componentDidCatch` → `error_reporter.reportError`。
+- **⚠️ 守护者 R1 韧性铁律**：App 级 fallback 是最顶层无上级 boundary，React **不 catch fallback 自身抛的错** → fallback **纯 inline bulletproof**（`buildTheme` 纯 POJO + `TOKENS_V2.err` const + raw `<button>`/`<svg>` 三角，**不用 primitives.Btn / 不碰可崩组件**）；ResultBlock 级 fallback 宽松（App 兜底）。
+
+### Notes
+
+- `error_reporter.js` 加 `export reportError`（复用 `_computeHash/_shouldReport/_post` 节流去重 pipeline，**不破 M-B1 契约**）；window error/rejection handlers 重构共用 → **上报行为 byte-equal**（hash 输入按 caller 保旧约定）。
+- **additive 透明**（R-B1.1-1）：无崩溃时 boundary 0 行为变更；18 屏 render byte-equal；git diff 仅 main.jsx wrap + Conversation wrap + 新文件 + error_reporter additive。
+- **0 碰 Shared 契约**：fallback 用 raw inline `<svg>` 三角（不碰 frozen I dict）；buildTheme/TOKENS_V2 只读。**0 后端 Python · 0 新 npm 依赖**。App fallback 自读 `cb_theme`（镜像 useTheme 默认：缺失/畸形→dark）。
+- OOS：B1.2 SSE 脱敏（→v0.7.34）· B1.3 env 测试隔离（→顺带）。
+- 验证：eslint 0 · build ✓ · check_file_sizes OK（ErrorBoundary.jsx 102≤120）· 5 源点 0.7.32→0.7.33。**前端无测试栈（B5 待建）→ 崩溃降级靠 kk 手测**（注入崩溃看全屏/inline 降级 + 双主题 + 上报）。
+
+## [Released] - v0.7.32 — order_by 字段 alias-based 校验（编译器 enforcement 门）
 
 > v0.7.31 live 复测新发现修复（[plan](docs/plans/v0.7.32-order-by-validation.md)）。轻量 Loop Protocol v3（辅助 AI Stage-2 等效 + 守护者 Stage 3 **ACCEPT · 0 承重修订**）。小·清晰·**零 byte-equal 风险**。已偿还 R-SL-205~209。
 
