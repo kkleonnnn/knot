@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.44 · echarts 按需拆包（B5.2 · v0.7 收尾完整度 · B5 批收官）：Shared.jsx 原 `import * as echarts`（全量 ~1.12MB）→ `echarts/core` tree-shake（Line/Bar/Pie + Grid/Tooltip/Legend + SVGRenderer 精确 `.use()`）+ vite manualChunks 切 echarts 独立 vendor chunk。bundle 1.56MB→~1.0MB（app 450KB + echarts 553KB 分离），gzip 486→~307KB（**~37% 减**），Login 首屏同步受益。图表 byte-equal（before/after 视觉复验 4 call site 像素一致 + 对抗自检 `.use()` COMPLETE）。<br>**上版** v0.7.43 前端测试栈 vitest（B5.1）· v0.7.42 Doris read_timeout（B2.2）· v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径索引（B2.1）· v0.7.0~.39 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B2/B3/B4 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.45 · presenter 散文日期以 SQL 时间窗为准（v0.7 语义复跑 follow-up · cosmetic）：presenter 原自行从"今天"推算叙述日期(易算错周一/月初/近N天边界) → 加 prompt 指令**以 SQL WHERE 时间条件为权威口径**(编译器/agent 注入窗;无时间窗则不编造)。数字始终对(来自权威 SQL)，仅**降低散文日期漂移**。⚠️ 纯改文件默认，runtime 走 `prompt_templates` DB 覆盖 → 须 re-seed presenter prompt(admin UI 首选)才生效。<br>**上版** v0.7.44 echarts 拆包(B5.2)· v0.7.43 前端测试栈(B5.1)· v0.7.42 Doris read_timeout(B2.2)· v0.7.41 迁移可观测(B2.3)· v0.7.0~.40 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
