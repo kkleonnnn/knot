@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.40 (B2.1) — 热路径 owner 查询单行化 + messages 索引（v0.7 收尾数据层）
+## [Unreleased] - v0.7.41 (B2.3) — 迁移可观测（print → logger）+ 版本化半 DROP
+
+> v0.7 收尾 backlog B2.3（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层第二刀。**行为无变更**（仅日志载体）。守护者 R5.1 采纳（失败分支 `logger.exception` 带 traceback）。
+
+### Changed
+
+- **`_migrate_uploads_db_once` print → logger**（`knot/repositories/base.py`）：成功路径 `print(...moved/skipped)` → `logger.info`；失败路径（原静默吞异常仅 `print`）→ **`logger.exception`**（loguru，带 traceback —— 吞掉的 migration 异常可观测价值全在栈）。迁移逻辑 0 改；fail-soft 契约不变（错误路径不 raise，启动不崩）。`from knot.core.logging_setup import logger`（repositories→core 横切工具，import-linter Contract 3 允许）。
+
+### Notes
+
+- **迁移版本化半 DROP**（backlog B2.3 第 1 子项 `PRAGMA user_version` / `schema_migrations`）：grounded 审计判定**最不划算 + 引入 footgun** —— 现幂等 ALTER（10 处 `PRAGMA table_info` 列存在性校验 + 12 `ADD COLUMN`）correct-by-construction、仅启动期跑、tiny meta-DB 上近乎免费；改版本化须正确 stamp 既有生产库起始版本，误 stamp → 重跑 `ADD COLUMN` duplicate → `init_db()` 无 try/except 裸调**崩启动**；且要 stamp 就得先探列 bootstrap = 净负简化；叠加 feat/go-rewrite 将重定义 schema = 丢弃投资。→ 推迟到 Go 重写评估。
+- **`_migrate_uploads_db_once` stale-check 更正**：草案预检 grep「无 live 定义」= 错；函数 **live**（def base.py:240 / call:214），v0.2.4 one-shot（`uploads.db` 缺失早退 no-op，几乎必已在所有 live 库跑过）。
+- 回归守护 `tests/repositories/test_migration_observability.py`（错误路径 → logger.exception + fail-soft 不 raise；成功路径 → logger.info moved=1）—— 原错误路径**完全无测试**（仅 print 静默）。
+- 5 源点 0.7.40→0.7.41；base.py 274→276（+import +注释，<300 default cap）；**0 新 schema/路由/AuditAction**；full suite 1041 passed（+2 守护）；9 contracts / check_file_sizes / ruff 全绿。
+
+## [Released] - v0.7.40 (B2.1) — 热路径 owner 查询单行化 + messages 索引（v0.7 收尾数据层）
 
 > v0.7 收尾 backlog B2.1（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层规模化偿还第一刀。**完整 v3**（grounded fan-out 审计 3 项 + adversarial verify + 守护者 Stage 3 ACCEPT WITH REVISIONS）。行为无变更。
 
