@@ -76,6 +76,12 @@ MAX_TABLES_IN_SCHEMA  = 40
 MAX_TOKENS_PER_QUERY  = 1024
 SQL_TEMPERATURE       = 0
 MAX_RETRY_COUNT       = 2
+# v0.7.42 B2.2 — Doris socket 读超时（秒）。⚠️ per-socket-read 截止，非累计查询墙钟上限：
+# 稳定流式返回行的长查询仍可总时长超此值（真墙钟需服务端 query_timeout，被 _is_safe_sql
+# exp.Set 拦 → 不能经 execute_query 下发）。此值兜「完全 stall 的连接」，非 long-but-progressing
+# 扫描。影响所有 create_engine 出的 engine 含 schema introspection → 须够宽不误杀慢
+# information_schema 加载（默认 60s；运维可 env 调）。
+DORIS_READ_TIMEOUT    = int(os.getenv("KNOT_DORIS_READ_TIMEOUT", "60"))
 
 # ── SQLite path (absolute) ─────────────────────────────────────────────
 _project_root = Path(__file__).parent.parent.parent
