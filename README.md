@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.40 · 热路径 owner 查询 + messages 索引（B2.1 · v0.7 收尾数据层）：`_check_conv_owner` 每次查询曾 load 用户全部 conversation + Python `any()` 扫 → 改单行 PK 查询（复用既有 `get_conversation_owner`；404 语义 byte-equal）；messages 表原零索引 → 加 `idx_messages_conv(conversation_id, created_at)` 匹配 `get_messages` 热路径（EXPLAIN 证 full SCAN → INDEX SEARCH）。规模化偿还，行为无变更。<br>**上版** v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError + 蓝图标注（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.35 SSE 实时脱敏（B1.2）· v0.7.0~.34 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.41 · 迁移可观测（B2.3 · v0.7 收尾数据层）：`_migrate_uploads_db_once` 的成功/失败原仅 `print`（错误路径静默吞异常）→ 改结构化 `logger`（成功 `logger.info` 计数 / 失败 `logger.exception` 带 traceback，可观测价值全在栈）。迁移逻辑 0 改，行为无变更；backlog 的「迁移版本化」半（PRAGMA user_version）经审计判定引入 stamp-既有库 footgun + Go 重写将重定义 schema = 丢弃投资 → **DROP 推迟**。<br>**上版** v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.0~.35 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
