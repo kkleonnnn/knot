@@ -1,12 +1,17 @@
 """v0.6.5.2 — 前端 2FA API 契约源码守护（防 C1/C2/F3 false-green 回归）.
 
 ⚠️ 方法说明（执行者向守护者明示的 plan §4-test6 偏离）：
-前端当前零 JS 测试框架；node_modules 是符号链接到主仓 → 引入 vitest 会改主仓 node_modules
-+ 需新增 CI 接线，对安全 hotfix 属显著 scope 扩张。守护者 Stage 3 条件明确允许
-「前端调用形状断言 *或* e2e」—— 本测试取「调用形状断言」：用源码断言守护契约形状
+本测试（v0.6.5.2 hotfix 期）取「调用形状断言」：用源码断言守护契约形状
 （同 test_totp_2fa.py::test_R_PB_B1_12_service_layer_uses_valid_window 的 grep-source 范式）。
-关键价值：既有后端 TestClient verify 测试用 body 已绿，*无法* 捕获前端发 header 的 C1 bug。
-完整 vitest 行为套件（normalizeDetail 5 例 + 渲染不崩）留独立 chore PATCH（见 plan §6）。
+当时前端零 JS 测试框架，引入 vitest 对安全 hotfix 属显著 scope 扩张。守护者 Stage 3 条件明确允许
+「前端调用形状断言 *或* e2e」。关键价值：既有后端 TestClient verify 测试用 body 已绿，
+*无法* 捕获前端发 header 的 C1 bug。
+
+📌 v0.7.43（B5.1）更新：早期「node_modules 符号链接到主仓」顾虑已消失（现为真实独立目录）；
+vitest 已引入并接入 CI（frontend-lint job + npm run test）。挂账的「完整 vitest 行为套件」已落地：
+`frontend/src/api.test.js` 覆盖 normalizeDetail **6** 分支（旧述「5 例」少计 {message} + catch 兜底）。
+本源码-grep 守护**仍保留**：它守 api.js verify/reset 的 **header 形状**（C1 bug 维度），
+vitest 的 normalizeDetail 行为测试**未覆盖该维度** → 二者互补，非替代。渲染测试留 phase 2。
 """
 from pathlib import Path
 

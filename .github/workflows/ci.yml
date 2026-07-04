@@ -66,6 +66,9 @@ jobs:
       - name: Frontend lint (eslint — 0 errors / 0 warnings)
         working-directory: frontend
         run: npm run lint -- --max-warnings=0
+      - name: Frontend test (vitest — 纯逻辑回归网 · v0.7.43 B5.1)
+        working-directory: frontend
+        run: npm run test
 
   # v0.6.0.9 F3 CI 精简：boot smoke 矩阵 4→1 variants
   # 历史背景：

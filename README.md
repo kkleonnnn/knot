@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.42 · Doris socket 读超时（B2.2 · v0.7 收尾数据层收官）：Doris engine 原仅 `connect_timeout=3`（TCP 连接），无 statement 超时 → 加 `read_timeout`（默认 60s，`KNOT_DORIS_READ_TIMEOUT` env 覆盖）。⚠️ 诚实边界 = **per-socket-read 截止非累计墙钟上限**（兜完全 stall 的连接，非 long-but-progressing 扫描；真墙钟需服务端 query_timeout，被 `_is_safe_sql` 拦）。对抗验证 SAFE（真 DBAPI connect 拦截证 read_timeout 达 pymysql / SQLite 隔离 / pool_pre_ping 净增强）。B2 数据层批（B2.1+B2.3+B2.2）收官。<br>**上版** v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError（B3）· v0.7.0~.37 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B3/B4 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.43 · 前端测试栈引入（B5.1 · v0.7 收尾完整度）：前端原零 JS 测试框架 → 引入 vitest（唯一新 devDep）+ 3 纯逻辑回归网（`intent_helpers` intent→layout / `api.normalizeDetail` 6 分支 / `fmt.js` 守 v0.7.25 percentage 双缩放 footgun）+ CI frontend-lint job 接 `npm run test`。纯 additive 零 src 改；测试文件显式 `import from 'vitest'`（无 jsdom/无 eslint globals 改动）。sse_handler/ResultBlock 渲染测试留 phase 2。<br>**上版** v0.7.42 Doris socket 读超时（B2.2）· v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.0~.39 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B2/B3/B4 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
