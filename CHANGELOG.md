@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.38 (B3) — 错误基类 BIAgentError→KnotError + 孤儿 dataclass 标注
+## [Unreleased] - v0.7.39 (B3.2) — 错误路径 cost 记账修复（clarifier 成本欠计 bugfix）
+
+> v0.7 收尾 backlog B3.2（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— B3 审计挖出的 latent bug。**轻量 v3**（行为变更 bugfix + adversarial verify Stage-2/3 等效 + 回归守护测试）。
+
+### Fixed
+
+- **query_stream 两个错误早退分支漏记 clarifier 成本**（`knot/api/query.py`）：① 跨源 JOIN 守护（`CrossSourceJoinNotSupported`）② HTTP 路由失败（`if not http_result["success"]`）—— 两者曾 `save_message(cost_usd=0, input_tokens=0, output_tokens=0)` 且无 `**cost_service.to_save_message_kwargs` + 无 `user_repo.update_user_usage` → clarifier 已发生的 LLM 成本被**完全丢弃**（message 记 0 + 用户用量/预算欠计 + 分桶丢失）。修为镜像澄清早退（L237）的正确模式：`aggregate_agent_costs(agent_buckets)` + 分桶 kwargs + `update_user_usage`。
+- **行为变更**：错误路径起如实记录 clarifier 成本（= 修欠计，非新增计费；LLM 调用本已发生）。桶内仅 clarifier（pick_http_route 纯路由 / run_http_step 无 agent_buckets 参数 → 无 token 不对称）；两分支 `return` 早退 → 与 SQL-final save 互斥无双计。
+
+### Notes
+
+- **adversarial verify 5 轴 ACCEPT**（Stage-2/3 等效）：① 无双计（两分支 return + 与澄清分支互斥）② 桶仅 clarifier（run_http_step 无 buckets 参数）③ L237 byte-consistent ④ 无 cost 双记录（cost_usd 顶层 vs 分桶列独立，R-S8 守）⑤ 无 KeyError（clarifier_result 无条件填数值默认）。`agent_kind="sql_planner"` 保留（错误属 SQL/路由域，非 clarifier 域）。
+- 回归守护 `tests/api/test_query_error_path_cost.py`（注入 clarifier 桶成本 + 触发跨源守护 → 断言 message.cost_usd > 0 + clarifier_cost 分桶落库；修前 = 0 会 fail）。
+- 5 源点 0.7.38→0.7.39；query.py ACK 517→537（2 分支 aggregate+kwargs+update）；**0 新 schema/路由/AuditAction**；full suite 1036 passed（+1 守护）。
+
+## [Released] - v0.7.38 (B3) — 错误基类 BIAgentError→KnotError + 孤儿 dataclass 标注
 
 > v0.7 收尾 backlog B3（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— 代码美学/消歧。**grounded 审计后 3/4 backlog 声明 stale/错**：B3.1「13 孤儿」实 12 · B3.2「6 复制分支→helper」夸大(发散大,只省~10行) · B3.3「真实环」**假**(无 import 环,延迟-import 是 monkeypatch 便利) · B3.4「16 文件」VERIFIED。本刀 = B3.4 + B3.1。**简化协议**（机械 rename + docs 标注 · 0 行为变更）。kk 拍板：KnotError · B3.1 并入 · B3.2 单独后续 · B3.3 关闭。
 
