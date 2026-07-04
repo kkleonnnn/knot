@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from knot.config import SQLITE_DB_PATH
+from knot.core.logging_setup import logger
 
 
 def get_conn() -> sqlite3.Connection:
@@ -265,10 +266,11 @@ def _migrate_uploads_db_once(conn):
         except OSError:
             pass
         if moved or skipped:
-            print(f"[migration] uploads.db merged into main DB: moved={moved}, skipped={skipped}")
+            logger.info(f"[migration] uploads.db merged into main DB: moved={moved}, skipped={skipped}")
     except Exception as e:
         try:
             conn.execute("DETACH DATABASE up")
         except Exception:
             pass
-        print(f"[migration] uploads.db merge skipped due to error: {e}")
+        # v0.7.41 B2.3：logger.exception 带 traceback（吞掉的 migration 异常可观测价值全在栈）
+        logger.exception(f"[migration] uploads.db merge skipped due to error: {e}")
