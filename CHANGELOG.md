@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.42 (B2.2) — Doris socket 读超时（read_timeout）· B2 数据层批收官
+## [Unreleased] - v0.7.43 (B5.1) — 前端测试栈引入（vitest + 3 纯逻辑回归网）
+
+> v0.7 收尾 backlog B5.1（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.43-44-b5-frontend.md)）—— B5 前端完整度第一刀。**纯 additive infra，0 行 src 改，零行为变更**。守护者 Stage 3 ACCEPT。
+
+### Added
+
+- **前端 vitest 测试栈**（`frontend/package.json` + `frontend/vite.config.js`）：devDep +`vitest@^4.1.9`（peer `vite ^6||^7||^8` 覆盖 8.0.10，install-time 无 ERESOLVE）+ scripts `test`/`test:watch`；vite.config `test` 块（`environment: 'node'`，纯逻辑无需 jsdom）。
+- **3 纯逻辑回归网**（`frontend/src/**/*.test.js`，22 测）：① `intent_helpers.test.js`（INTENT_TO_HINT 7 类 + `inferIntentFromShape` 形态分支 + `resolveEffectiveHint` 三级优先链）② `api.test.js`（`normalizeDetail` **6** return 分支 — 兑现 `test_frontend_2fa_contract` 挂账，旧述「5 例」少计 {message}+catch 兜底）③ `fmt.test.js`（`fmtValue` 非-percentage byte-equal subsume 原 _fmt + `fmtPercent` ×100 —— 守 v0.7.25 R1 `unit=percentage` 双缩放 footgun：0.5→50% / 0.0486→4.86% 非 486%）。
+- **CI 接线**（`.github/workflows/ci.yml`）：`frontend-lint` job 追加 `npm run test` 步骤（复用已装依赖，无新 job）。
+
+### Notes
+
+- **R5 解法优于守护者建议**：测试文件用显式 `import { describe, it, expect } from 'vitest'`（vitest 默认 non-global 模式）→ describe/it/expect 成模块绑定，**不触 eslint `no-undef`**（CI 跑 `--max-warnings=0`）→ 无需改 eslint config、无需 vite `globals:true`。config surface 最小。
+- **phase 2 推迟**（DEFER）：`sse_handler.runQueryStream`（R-118 纯但需 mock fetch+ReadableStream 分帧）+ `ResultBlock` layoutHint 归一化（内嵌组件体，需抽纯函数[破 byte-equal 需评审]或引 jsdom+@testing-library）→ 后续评估是否值得引 jsdom。
+- **R2 挂账闭环**：`tests/test_frontend_2fa_contract.py` docstring 更新（早期「node_modules 符号链接主仓」顾虑已 stale = 现真实目录；「完整 vitest 套件留 chore PATCH」已由本刀落地；5→6 例订正）；该源码-grep 守护**仍保留**（守 header 形状维度，vitest normalizeDetail 未覆盖 → 互补非替代）。
+- **import-隔离红线**：3 测试文件顶部 0 import（不 transitively 引 Shared.jsx 的 top-level echarts → node 环境不炸）；grounded 核实。
+- 5 源点 0.7.42→0.7.43；backend full suite 1044 passed（不受影响）+ frontend vitest 22 passed + eslint `--max-warnings=0` 绿；**0 后端改 / 0 schema/路由**。
+
+## [Released] - v0.7.42 (B2.2) — Doris socket 读超时（read_timeout）· B2 数据层批收官
 
 > v0.7 收尾 backlog B2.2（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层第三刀（收官）。**唯一真行为变更**（socket 超时新增）→ 完整 v3 + adversarial verify（Stage-2/3 等效 SAFE）。**offload 推迟**（backlog 自标 P5-overstated；单分析师 + 速率限制下 event-loop blocking 罕见 → 待多用户内测负载再做，方案存 plan §0.3）。
 
