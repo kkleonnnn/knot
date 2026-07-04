@@ -6,6 +6,12 @@ export default defineConfig({
   build: {
     outDir: '../knot/static',
     emptyOutDir: true,
+    // v0.7.44 B5.2 — echarts 切独立 vendor chunk（与 app 代码分离 → app 重发不重下 echarts）
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => (id.includes('node_modules/echarts') ? 'echarts' : undefined),
+      },
+    },
   },
   server: {
     port: 5173,

@@ -4,7 +4,13 @@
 // 必须共存以维持单一 import 入口。fast refresh 暖代价 = 单文件改动整文件 reload，可接受。
 /* eslint-disable react-refresh/only-export-components */
 import { useRef, useEffect } from 'react';
-import * as echarts from 'echarts';
+// v0.7.44 B5.2 — echarts/core 按需（tree-shake 掉未用 chart/component/Canvas renderer）。
+// .use() 列表对抗自检 COMPLETE：Line/Bar/Pie + Grid(cartesian 轴)/Tooltip(自动 use axisPointer)/Legend + SVGRenderer。
+import * as echarts from 'echarts/core';
+import { LineChart as _LineChart, BarChart as _BarChart, PieChart as _PieChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
+import { SVGRenderer } from 'echarts/renderers';
+echarts.use([_LineChart, _BarChart, _PieChart, GridComponent, TooltipComponent, LegendComponent, SVGRenderer]);
 
 export const I = {
   plus:    (p={}) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...p}><path d="M12 5v14M5 12h14"/></svg>,
