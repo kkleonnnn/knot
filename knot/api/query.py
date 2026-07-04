@@ -279,14 +279,24 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             except http_planner.CrossSourceJoinNotSupported as e:
                 # R-PB2-4: 跨源 JOIN 硬 raise → 友好错误
                 logger.info(f"cross-source guard triggered: {e}")
+                # v0.7.39 B3.2：错误路径也记 clarifier 已发生成本（原 cost_usd=0 漏记 →
+                # 用户用量/预算欠计 + 分桶丢失）；镜像 L237 澄清早退（aggregate + kwargs + update_user_usage）。
+                total_cost_cs, _tok_cs = cost_service.aggregate_agent_costs(agent_buckets)
                 err_mid = message_repo.save_message(
                     conv_id=conv_id, question=req.question, sql="",
                     explanation=str(e), confidence="low", rows=[],
                     db_error="cross_source_unsupported",
-                    cost_usd=0, input_tokens=0, output_tokens=0,
+                    cost_usd=total_cost_cs,
+                    input_tokens=clarifier_result["input_tokens"],
+                    output_tokens=clarifier_result["output_tokens"],
                     retry_count=0, intent=clarifier_result.get("intent"),
                     agent_kind="sql_planner",
                     latency_ms=int((time.time() - t0) * 1000),
+                    **cost_service.to_save_message_kwargs(agent_buckets),
+                )
+                user_repo.update_user_usage(
+                    user["id"], clarifier_result["input_tokens"],
+                    clarifier_result["output_tokens"], total_cost_cs, 0,
                 )
                 yield emit({
                     "type": "final", "message_id": err_mid,
@@ -313,14 +323,24 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
 
                 if not http_result["success"]:
                     # HTTP 失败 → ErrorBanner
+                    # v0.7.39 B3.2：错误路径也记 clarifier 已发生成本（run_http_step 不入 agent_buckets →
+                    # 桶内仅 clarifier；原 cost_usd=0 漏记）；镜像 L237 澄清早退。
+                    total_cost_hf, _tok_hf = cost_service.aggregate_agent_costs(agent_buckets)
                     err_mid = message_repo.save_message(
                         conv_id=conv_id, question=req.question, sql="",
                         explanation=http_result["error"], confidence="low", rows=[],
                         db_error=http_result["error"],
-                        cost_usd=0, input_tokens=0, output_tokens=0,
+                        cost_usd=total_cost_hf,
+                        input_tokens=clarifier_result["input_tokens"],
+                        output_tokens=clarifier_result["output_tokens"],
                         retry_count=0, intent=clarifier_result.get("intent"),
                         agent_kind="sql_planner",
                         latency_ms=int((time.time() - t0) * 1000),
+                        **cost_service.to_save_message_kwargs(agent_buckets),
+                    )
+                    user_repo.update_user_usage(
+                        user["id"], clarifier_result["input_tokens"],
+                        clarifier_result["output_tokens"], total_cost_hf, 0,
                     )
                     # v0.6.1.4: 优先用 http_result.user_message（如 missing_required_param 友好文案），
                     # 否则 fallback "数据源不可达" 通用文案；missing_required_param 非 retryable（让用户补参）

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.38 · 错误基类改名 + 孤儿 dataclass 标注（B3 · v0.7 收尾）：机械 rename `BIAgentError → KnotError`（16 文件 62 处 · 清品牌残留 R-79 漏抓的 camelCase · 0 行为变更，无用户可见串）+ `knot.models.__all__` 补全 14 error 全导出（原漏 7）+ 12 个孤儿 dataclass 在 `models/__init__.py` 标 `[BLUEPRINT-ONLY]`（grounded 确认 0 外部实例化 = Go 重写契约锚点，非死码）。B3.3（orchestrator 解环）经 grounded 判定**无真实环 → 关闭不做**；B3.2 cost-drift 单独 bugfix 后续。<br>**上版** v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理清理（B4）· v0.7.35 SSE/同步查询实时脱敏（B1.2）· v0.7.0~.34 语义层基座 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.39 · 错误路径 cost 记账修复（B3.2 bugfix · v0.7 收尾）：query_stream 两个错误早退分支（跨源 JOIN 守护 / HTTP 失败）曾 `save_message(cost_usd=0)` 且无 `update_user_usage` → clarifier 已发生的 LLM 成本被丢弃（message 记 0 + 用户用量/预算欠计）。修为镜像澄清早退（aggregate + 分桶 kwargs + update_user_usage）；错误路径起如实记 clarifier 成本（行为变更 = 修欠计）。adversarial verify 5 轴 ACCEPT（无双计 / 桶仅 clarifier / R-S8 守 / 无 KeyError）+ 回归守护测试。<br>**上版** v0.7.38 BIAgentError→KnotError + 蓝图标注（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.35 SSE 实时脱敏（B1.2）· v0.7.0~.34 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
