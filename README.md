@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.43 · 前端测试栈引入（B5.1 · v0.7 收尾完整度）：前端原零 JS 测试框架 → 引入 vitest（唯一新 devDep）+ 3 纯逻辑回归网（`intent_helpers` intent→layout / `api.normalizeDetail` 6 分支 / `fmt.js` 守 v0.7.25 percentage 双缩放 footgun）+ CI frontend-lint job 接 `npm run test`。纯 additive 零 src 改；测试文件显式 `import from 'vitest'`（无 jsdom/无 eslint globals 改动）。sse_handler/ResultBlock 渲染测试留 phase 2。<br>**上版** v0.7.42 Doris socket 读超时（B2.2）· v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.0~.39 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B2/B3/B4 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.44 · echarts 按需拆包（B5.2 · v0.7 收尾完整度 · B5 批收官）：Shared.jsx 原 `import * as echarts`（全量 ~1.12MB）→ `echarts/core` tree-shake（Line/Bar/Pie + Grid/Tooltip/Legend + SVGRenderer 精确 `.use()`）+ vite manualChunks 切 echarts 独立 vendor chunk。bundle 1.56MB→~1.0MB（app 450KB + echarts 553KB 分离），gzip 486→~307KB（**~37% 减**），Login 首屏同步受益。图表 byte-equal（before/after 视觉复验 4 call site 像素一致 + 对抗自检 `.use()` COMPLETE）。<br>**上版** v0.7.43 前端测试栈 vitest（B5.1）· v0.7.42 Doris read_timeout（B2.2）· v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径索引（B2.1）· v0.7.0~.39 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B2/B3/B4 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.43 (B5.1) — 前端测试栈引入（vitest + 3 纯逻辑回归网）
+## [Unreleased] - v0.7.44 (B5.2) — echarts 按需拆包（tree-shake + manualChunks）· B5 批收官
+
+> v0.7 收尾 backlog B5.2（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.43-44-b5-frontend.md)）—— B5 前端完整度收官刀。**图表 byte-equal 敏感** → 完整 v3 + 视觉复验硬门（before/after 4 call site 像素一致）。守护者 Stage 3 ACCEPT（Foundation swap ack + 视觉门）。
+
+### Changed
+
+- **echarts 全量 import → `echarts/core` tree-shake**（`frontend/src/Shared.jsx:7`）：`import * as echarts from 'echarts'`（拉全部 chart/component/两 renderer ~1.12MB）→ `echarts/core` + `echarts.use([LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, SVGRenderer])`。`.use()` 列表**对抗自检 COMPLETE**：7 setOption key 全映射（cartesian 轴由 Grid 提供；`tooltip.axisPointer` 由 TooltipComponent 自动 `use(installAxisPointer)`；SVG 非 Canvas — 匹配现有 `renderer:'svg'`）。`echarts.init`/`.setOption`/`.dispose` 及 3 图表组件体全不改。
+- **vite manualChunks echarts vendor chunk**（`frontend/vite.config.js`）：`build.rollupOptions.output.manualChunks` 把 `node_modules/echarts` 切独立 chunk → app 重发不重下 echarts（缓存稳定）。
+
+### Notes
+
+- **bundle 实测**：单 1.56MB（gzip 486KB）→ app `index` 450KB（gzip 121）+ `echarts` 553KB（gzip 186）分离 = 总 ~1.0MB / gzip ~307KB（**~560KB raw / ~180KB gzip 减，~37%**）。Login 首屏下载更小的 echarts 同步受益。
+- **视觉复验硬门 PASSED**（守护者 R4）：throwaway harness 渲染 4 图表（Line single/multi + Bar + Pie），tree-shake 前后 preview_screenshot **像素一致**；`npm run build` 0 "component not found"；covers 真实 2 消费者路径（Chat `TableContainer` + admin `AdminRecovery`）。
+- **Foundation swap**（守护者 ack）：改冻结 Shared.jsx 仅 echarts import 实现细节，export/props/buildTheme 26 key/I 54 icon 全不动 → 非契约变更。**re-baseline** `tests/foundation/shared_foundation_base.jsx`（R-PB-SH-12 强制 baseline byte-equal live；additive-only 守护过 = 无 named-decl 改动）。
+- **不"顺手修"** 预存在 `width` prop no-op（消费者传 width 但组件不 destructure；out-of-scope）。
+- 5 源点 0.7.43→0.7.44；backend full suite 1044 passed + frontend vitest 22 passed + eslint `--max-warnings=0` 绿 + 9 contracts + check_file_sizes；**0 后端改 / 0 schema/路由**。**B5 批收官**（B5.1 测试栈 + B5.2 拆包）→ v0.7 收尾 B1-B5 全清。
+
+## [Released] - v0.7.43 (B5.1) — 前端测试栈引入（vitest + 3 纯逻辑回归网）
 
 > v0.7 收尾 backlog B5.1（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.43-44-b5-frontend.md)）—— B5 前端完整度第一刀。**纯 additive infra，0 行 src 改，零行为变更**。守护者 Stage 3 ACCEPT。
 
