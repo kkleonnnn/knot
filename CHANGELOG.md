@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.44 (B5.2) — echarts 按需拆包（tree-shake + manualChunks）· B5 批收官
+## [Unreleased] - v0.7.45 — presenter 散文日期以 SQL 时间窗为准（v0.7 语义复跑 follow-up · cosmetic）
+
+> v0.7 语义层复跑(B6 retest)暴露 follow-up #2。**轻量 v3 · prompt-only · cosmetic**(数字始终对,仅散文日期范围)。守护者 Stage 3 ACCEPT(致命前提"presenter LLM 输入含 SQL"grounded 确认)。plan `docs/plans/v0.7.45-presenter-date-window.md`。
+
+### Changed
+
+- **presenter 散文日期以 SQL WHERE 时间窗为准**（`knot/prompts/presenter.md` 幻觉禁令段 +1 bullet）：presenter(LLM)原从 `{date_block}`(今天)+问题自行推算叙述日期 → 易算错周一/月初/近N天边界(如 Q28「本周」散文 06-30~07-04 vs 权威 SQL 06-29~07-05)。加指令：**叙述具体日期/时间范围以 SQL WHERE 时间条件为权威口径**(编译器/agent 注入窗);SQL 无时间条件(HTTP 实时/元数据查询)→ 不编造时间范围。覆盖语义+ReAct+HTTP+meta 全 presenter 调用(前提:三函数 user_msg 均含 `SQL：{sql}` → LLM 看得见窗)。
+
+### Notes
+
+- ⚠️ **本 PATCH runtime INERT — 须 re-seed 才生效**：presenter prompt runtime 走 `prompt_templates` DB 覆盖(文件仅默认回退)。本刀**只改文件默认**;线上/本地须 **re-seed presenter prompt** 才生效 —— **admin UI 覆盖(带审计留痕)= 首选** > 直更 DB 行 > 清 DB 行回落文件。**勿误读为"已修"**(同 clarifier deploy gotcha,v0.7.22 教训)。
+- **框架诚实**：prompt steering = 软引导非确定性(承 v0.7.19 教训 LLM 中介 ≠ 确定性修复)→ 本刀**降低**散文日期漂移,非"修复日期错误"。数字始终来自权威 SQL,影响面仅散文口径。
+- **#1 follow-up CLOSED(非 bug)**：v0.7 复跑观察到的 this_month/近N天 上界 per-metric 差(user_reg `<07-05` vs future/position/funding `<07-06`)= grounded 证实为 **`_TZ=Asia/Shanghai` 测试中途跨零点**(London 17:00=上海 00:00,07-04→07-05),各 `today` 下窗正确+确定性,**非 bug 无需修**。
+- test_F2(presenter.md meta-query 段存在)仍绿;full suite 1044 passed;5 源点 0.7.44→0.7.45 + frontend rebuild;**0 代码 / 0 schema/路由/AuditAction**。
+
+## [Released] - v0.7.44 (B5.2) — echarts 按需拆包（tree-shake + manualChunks）· B5 批收官
 
 > v0.7 收尾 backlog B5.2（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.43-44-b5-frontend.md)）—— B5 前端完整度收官刀。**图表 byte-equal 敏感** → 完整 v3 + 视觉复验硬门（before/after 4 call site 像素一致）。守护者 Stage 3 ACCEPT（Foundation swap ack + 视觉门）。
 
