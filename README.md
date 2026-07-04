@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.41 · 迁移可观测（B2.3 · v0.7 收尾数据层）：`_migrate_uploads_db_once` 的成功/失败原仅 `print`（错误路径静默吞异常）→ 改结构化 `logger`（成功 `logger.info` 计数 / 失败 `logger.exception` 带 traceback，可观测价值全在栈）。迁移逻辑 0 改，行为无变更；backlog 的「迁移版本化」半（PRAGMA user_version）经审计判定引入 stamp-既有库 footgun + Go 重写将重定义 schema = 丢弃投资 → **DROP 推迟**。<br>**上版** v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.0~.35 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.42 · Doris socket 读超时（B2.2 · v0.7 收尾数据层收官）：Doris engine 原仅 `connect_timeout=3`（TCP 连接），无 statement 超时 → 加 `read_timeout`（默认 60s，`KNOT_DORIS_READ_TIMEOUT` env 覆盖）。⚠️ 诚实边界 = **per-socket-read 截止非累计墙钟上限**（兜完全 stall 的连接，非 long-but-progressing 扫描；真墙钟需服务端 query_timeout，被 `_is_safe_sql` 拦）。对抗验证 SAFE（真 DBAPI connect 拦截证 read_timeout 达 pymysql / SQLite 隔离 / pool_pre_ping 净增强）。B2 数据层批（B2.1+B2.3+B2.2）收官。<br>**上版** v0.7.41 迁移可观测（B2.3）· v0.7.40 热路径 owner 查询 + messages 索引（B2.1）· v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError（B3）· v0.7.0~.37 语义层 + 编译七刀 + 价值自测 5 问闭环 + B1/B3/B4 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

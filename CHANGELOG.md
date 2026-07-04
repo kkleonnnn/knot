@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.41 (B2.3) — 迁移可观测（print → logger）+ 版本化半 DROP
+## [Unreleased] - v0.7.42 (B2.2) — Doris socket 读超时（read_timeout）· B2 数据层批收官
+
+> v0.7 收尾 backlog B2.2（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层第三刀（收官）。**唯一真行为变更**（socket 超时新增）→ 完整 v3 + adversarial verify（Stage-2/3 等效 SAFE）。**offload 推迟**（backlog 自标 P5-overstated；单分析师 + 速率限制下 event-loop blocking 罕见 → 待多用户内测负载再做，方案存 plan §0.3）。
+
+### Added
+
+- **Doris engine `read_timeout` socket 读超时守护**（`knot/adapters/db/doris.py` + `knot/config/settings.py`）：原 `connect_args` 仅 `connect_timeout=3`（TCP 连接超时），无任何 statement/read 超时（`LIMIT 500` 只 bound 行数非墙钟）→ 加 `read_timeout=DORIS_READ_TIMEOUT`（默认 **60s**，`KNOT_DORIS_READ_TIMEOUT` env 覆盖，守护者 R5.2）。影响所有 `create_engine` 出的 Doris engine（test_connection 探针 / datasources / engine_cache）；SQLite 走独立 `create_sqlite_engine` 不受影响。
+
+### Notes
+
+- ⚠️ **诚实边界（防过度宣称）**：`read_timeout` = PyMySQL per-socket-recv 截止（`sock.settimeout`），**非累计查询墙钟上限** —— 稳定流式返回行的长查询仍可总时长超此值。此值兜「完全 stall 的连接」，**非 long-but-progressing 扫描**。真墙钟上限需服务端 `query_timeout`（session var），被 `_is_safe_sql` 拦 `exp.Set` → 不能经 `execute_query` 下发。默认 60s 够宽不误杀慢 `information_schema` schema introspection。
+- **adversarial verify SAFE**（Stage-2/3 等效，6 轴全 REFUTE 破坏尝试）：① 真 DBAPI `connect()` 拦截证 `read_timeout=60` 达 pymysql（非 unexpected kwarg）② blast radius 6 caller 均适用 + 60s 对 40 表 introspection 宽裕（per-recv 非 cumulative）③ SQLite 隔离（`create_sqlite_engine` 独立，read_timeout 不泄漏）④ `pool_pre_ping` stale ping → code 2013 → `is_disconnect=True` 透明重连（**净增强**）⑤ env-override 测试隔离安全（`sys.modules` 取真模块绕单例遮蔽 + finally reload 复原）⑥ 无既有测试断言旧 connect_args。
+- 回归守护 `tests/adapters/test_doris_engine_timeout.py`（wiring + 既有 connect_args/pool byte-equal + env 覆盖 3 测）。
+- 5 源点 0.7.41→0.7.42；doris.py 344→345 ACK（+1 import）；**0 新 schema/路由/AuditAction**；full suite 1044 passed（+3 守护）；9 contracts / check_file_sizes / ruff 全绿。
+
+## [Released] - v0.7.41 (B2.3) — 迁移可观测（print → logger）+ 版本化半 DROP
 
 > v0.7 收尾 backlog B2.3（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层第二刀。**行为无变更**（仅日志载体）。守护者 R5.1 采纳（失败分支 `logger.exception` 带 traceback）。
 
