@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.39 · 错误路径 cost 记账修复（B3.2 bugfix · v0.7 收尾）：query_stream 两个错误早退分支（跨源 JOIN 守护 / HTTP 失败）曾 `save_message(cost_usd=0)` 且无 `update_user_usage` → clarifier 已发生的 LLM 成本被丢弃（message 记 0 + 用户用量/预算欠计）。修为镜像澄清早退（aggregate + 分桶 kwargs + update_user_usage）；错误路径起如实记 clarifier 成本（行为变更 = 修欠计）。adversarial verify 5 轴 ACCEPT（无双计 / 桶仅 clarifier / R-S8 守 / 无 KeyError）+ 回归守护测试。<br>**上版** v0.7.38 BIAgentError→KnotError + 蓝图标注（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.35 SSE 实时脱敏（B1.2）· v0.7.0~.34 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.40 · 热路径 owner 查询 + messages 索引（B2.1 · v0.7 收尾数据层）：`_check_conv_owner` 每次查询曾 load 用户全部 conversation + Python `any()` 扫 → 改单行 PK 查询（复用既有 `get_conversation_owner`；404 语义 byte-equal）；messages 表原零索引 → 加 `idx_messages_conv(conversation_id, created_at)` 匹配 `get_messages` 热路径（EXPLAIN 证 full SCAN → INDEX SEARCH）。规模化偿还，行为无变更。<br>**上版** v0.7.39 错误路径 cost 记账修复（B3.2）· v0.7.38 BIAgentError→KnotError + 蓝图标注（B3）· v0.7.37 CLAUDE.md 瘦身（B4.1）· v0.7.36 文档准确性 + 治理（B4）· v0.7.35 SSE 实时脱敏（B1.2）· v0.7.0~.34 语义层 + 编译七刀 + 价值自测 5 问闭环。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
