@@ -14,6 +14,7 @@ from knot.config.settings import (  # noqa: F401
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_MODEL,
+    DORIS_READ_TIMEOUT,
     FEW_SHOT_MAX_EXAMPLES,
     MAX_RESULT_ROWS,
     MAX_RETRY_COUNT,

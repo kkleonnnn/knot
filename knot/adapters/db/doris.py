@@ -8,6 +8,7 @@ import sqlalchemy
 from sqlalchemy import text
 
 from knot.config import (
+    DORIS_READ_TIMEOUT,
     MAX_RESULT_ROWS,
     MAX_TABLES_IN_SCHEMA,
 )
@@ -24,7 +25,7 @@ def create_engine(host, port, user, password, database):
     url = build_connection_url(host, port, user, password, primary_db)
     return sqlalchemy.create_engine(
         url,
-        connect_args={"ssl_disabled": True, "connect_timeout": 3},
+        connect_args={"ssl_disabled": True, "connect_timeout": 3, "read_timeout": DORIS_READ_TIMEOUT},
         pool_recycle=3600,
         pool_pre_ping=True,
     )
