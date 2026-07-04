@@ -79,8 +79,8 @@ def _resolve_keys_and_semantic(req: QueryRequest, user: dict, conv_id: int):
 
 
 def _check_conv_owner(conv_id: int, user_id: int) -> None:
-    convs = conversation_repo.list_conversations(user_id)
-    if not any(c["id"] == conv_id for c in convs):
+    # v0.7.40 B2.1：单行 PK 查询替代全量 load+scan；owner None(不存在)/他人 id 均 != user_id → 404 byte-equal
+    if conversation_repo.get_conversation_owner(conv_id) != user_id:
         raise HTTPException(status_code=404)
 
 

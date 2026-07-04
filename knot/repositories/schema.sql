@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS messages (
     recovery_attempt   INTEGER DEFAULT 0,                  -- R-14：含 fan-out reject + fix_sql retry 计数
     created_at      TEXT    DEFAULT (datetime('now','localtime'))
 );
+-- v0.7.40 B2.1：热路径 get_messages 的 WHERE conversation_id=? ORDER BY created_at 复合索引（messages 原零索引）
+CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS semantic_layer (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

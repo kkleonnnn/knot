@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.39 (B3.2) — 错误路径 cost 记账修复（clarifier 成本欠计 bugfix）
+## [Unreleased] - v0.7.40 (B2.1) — 热路径 owner 查询单行化 + messages 索引（v0.7 收尾数据层）
+
+> v0.7 收尾 backlog B2.1（[backlog](docs/plans/v0.7-closeout-backlog.md) · [plan](docs/plans/v0.7.40-42-b2-data-layer.md)）—— B2 数据层规模化偿还第一刀。**完整 v3**（grounded fan-out 审计 3 项 + adversarial verify + 守护者 Stage 3 ACCEPT WITH REVISIONS）。行为无变更。
+
+### Changed
+
+- **`_check_conv_owner` 单行 PK 查询**（`knot/api/query.py`，两热路径 `/query` + `/query-stream` 每查必调）：原 `list_conversations(user_id)` load 用户**全部** conversation 再 Python `any()` 扫 → 改复用既有 `conversation_repo.get_conversation_owner(conv_id)`（`SELECT user_id FROM conversations WHERE id=?` 单行 PK 查询）。**404 语义 byte-equal**：不存在 conv → owner `None`（`!= user_id`）；他人 conv → owner 他人 id（`!= user_id`）；自己 conv → 放行。
+- **messages 表加复合索引**（`knot/repositories/schema.sql`）：`CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at)` —— messages 表原**零索引**；索引列精确匹配 `get_messages` 的 `WHERE conversation_id=? ORDER BY created_at`。`EXPLAIN QUERY PLAN` 证：full `SCAN` → `SEARCH ... USING INDEX idx_messages_conv`。幂等迁移经既有 `executescript(_SCHEMA_SQL)` 自动应用到既有库（沿用 `idx_sqa_*`/`idx_audit_*` 模式），零迁移脚本。
+
+### Notes
+
+- **grounded 审计修正 backlog 2 处 stale**：① `idx_conversations_user(user_id)`（backlog 第 3 子项）**DROP** —— `_check` 改 PK 查询后对 owner 校验零价值，且对 `list_conversations` 的 `ORDER BY updated_at DESC` 是错形状（正确应 `(user_id, updated_at DESC)`），单租户规模 YAGNI。② 守护者 R1：`test_rename_smoke.py:9` docstring「routes count = 77 不变」= 与其 L152 `assert >= 80` 自相矛盾的预存在 doc 债 → 顺手改「下限 >=80 守护（实际 flatten=113）」（0 风险 doc-accuracy 偿还）。
+- 回归守护 `tests/api/test_conv_owner_check.py`（own→放行 / foreign→404 / nonexistent→404 三分支）。
+- 5 源点 0.7.39→0.7.40；query.py 净 0 行（+索引查询 -全量扫，注释单行）保 537 ACK；**0 新 schema 表/路由/AuditAction**（仅 +1 索引）；full suite 1039 passed（+3 守护）；9 contracts / check_file_sizes / ruff 全绿。
+
+## [Released] - v0.7.39 (B3.2) — 错误路径 cost 记账修复（clarifier 成本欠计 bugfix）
 
 > v0.7 收尾 backlog B3.2（[backlog](docs/plans/v0.7-closeout-backlog.md)）—— B3 审计挖出的 latent bug。**轻量 v3**（行为变更 bugfix + adversarial verify Stage-2/3 等效 + 回归守护测试）。
 
