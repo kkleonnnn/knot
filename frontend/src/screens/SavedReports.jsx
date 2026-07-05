@@ -107,7 +107,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
 
   return (
     <AppShell T={T} user={user} active="saved-reports" sidebarContent={sidebarContent}
-              topbarTitle={active ? active.title : '收藏查询'} hideSidebarNewChat
+              topbarTitle={active ? active.title : '收藏查询'}
               onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}>
       {loading
