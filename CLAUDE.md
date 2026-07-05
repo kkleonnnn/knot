@@ -189,7 +189,7 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 **内容**：Phase B 及之后所有 PATCH（含 v0.6.2.0 TOTP enroll / v0.7.x 5 层语义等）
 涉及 UI 改动时，必须严守 v0.5.x 锁定的视觉设计语言：
 - OKLCH 单色系统（buildTheme 25 设计 token；+dark 透传 = 26 runtime keys — v0.6.2.3 口径锁定）
-- I icon library（54 names — v0.6.0.3 +thumbsUp/Down；v0.6.4.0 UI v2 +16）
+- I icon library（37 names — v0.6.4.0 +16=54 后 v0.7.48 死码清扫 −17）
 - brandSoft 8% inset + borderLeft 3px 25% 设计语言铁律
 - HarmonyOS Sans SC / PingFang SC / JetBrains Mono 字体
 - 18 屏 byte-equal 守护（除当前 PATCH 目标屏外 git diff 0 行）
@@ -224,7 +224,7 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 - **色彩**：OKLCH 单一色空间 — brand 195° / success 145° / warn 85° / error 27° / chart 8 色 hue 45° 均匀分布
 - **字体**：HarmonyOS Sans SC / PingFang SC / Inter（sans）+ JetBrains Mono / Geist Mono（mono）
-- **图标**：I 54 names viewBox 24×24 stroke 1.6（v0.6.0.3 +thumbsUp/Down；v0.6.4.0 UI v2 +16；Logo 用 KnotMark viewBox 100×100，语义不同）
+- **图标**：I 37 names viewBox 24×24 stroke 1.6（v0.6.4.0 +16=54 后 v0.7.48 死码清扫 −17；Logo 用 KnotMark viewBox 100×100，语义不同）
 - **OKLCH fallback**：R-165 fallback（:root fallback vars + `@supports not`）原在 `frontend/src/App.css`，但该文件从未被 import → **未进产物**（v0.7.47 死码清扫删 App.css；index.css 仅 3 行 reset，视觉靠各屏 inline fontFamily 撑）。真正折进 index.css 履行 R-165 留 v0.8 前端硬化
 
 ### 视觉模型（v0.5.7 验证；v0.6.4.1.1 立约强化）
