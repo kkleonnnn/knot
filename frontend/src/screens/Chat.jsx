@@ -315,8 +315,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
           时显示 ChatEmpty hero（避免空白主区域）。!loading 守护防 sendQuery 间隙
           ——React 18 批 setState 同步发，setLoading(true) 已 batch 进同一 render，不闪 */}
       {!activeConvId || (messages.length === 0 && !loading)
-        ? <ChatEmpty T={T} user={user} onSend={(q) => setQuestion(q)} onNewChat={newChat}
-                     hasConv={!!activeConvId} question={question} setQuestion={setQuestion}
+        ? <ChatEmpty T={T} user={user} question={question} setQuestion={setQuestion}
                      loading={loading} onSubmit={sendQuery} onKeyDown={handleKeyDown}
                                           activeUpload={activeUpload} setActiveUpload={setActiveUpload} onUpload={handleUpload}/>
         : <ChatConversation T={T} user={user} messages={messages} scrollRef={scrollRef} loading={loading}

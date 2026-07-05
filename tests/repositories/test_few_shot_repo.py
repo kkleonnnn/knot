@@ -43,7 +43,7 @@ def test_bulk_insert_skips_empty_rows(tmp_db_path):
         {"question": "", "sql": "skip-no-q"},
         {"question": "Q2", "sql": "S2", "type": "rank"},
     ])
-    # bulk_insert_few_shots 返回 len(items) 不是 inserted；只验证 DB 数据
+    assert n == 2  # v0.7.47：返回过滤后真实插入数（原 bug 返回 len(items)=3）
     rows = few_shot_repo.list_few_shots()
     assert len(rows) == 2
     assert {r["question"] for r in rows} == {"Q1", "Q2"}

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.46 · UX bugfix 批（整体审核 §3.1 即修）：修 🔴 P0 反馈条 Modal 崩溃（点 👎 漏传 `T` → 整条结果被 ErrorBoundary 吞）+ admin/知识库/前端错误屏**加载失败不再伪装"暂无数据"**（bare-catch 补 toast + TabKnowledge 接 loading 态）+ Chat CSV 导出补 UTF-8 BOM（中文列名 Excel 不乱码）+ 结果表格 >100 行显示"前 100 行 · 共 N 行"截断提示。守护者 Stage 3 ACCEPT WITH REVISIONS（R1/R4 bare-catch→`catch (e)` · §7 App.jsx 侧栏静默 DEFER v0.8）。<br>**上版** v0.7.45 presenter 散文日期以 SQL 时间窗为准(cosmetic)· v0.7.44 echarts 拆包(B5.2)· v0.7.43 前端测试栈(B5.1)· v0.7.0~.42 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.47 · 死码清扫 chore（整体审核 §3.2-5 · grounded 8 路核实）：后端删 `query_helper.release`+`reset_active_catalog_ctx`（撤回方案残骸）· user_repo 4 死方法 · 修 `bulk_insert_few_shots` 返回值 bug；前端删 primitives.Tag · 4 幽灵 props · App.css 死文件 · Login 陈旧 build 字面；CLAUDE.md 4 处漂移订正（notification/icon 54/Admin count/R-165 陈述）。核实修正原审计 3 处误判（R-PB-A1-22 非未兑现承诺 · KnotWordmark/get_failure_count 保留）。17 死 icon → 单独 foundation PATCH；models 标注/knowledge audit → 推迟。<br>**上版** v0.7.46 UX bugfix 批（P0 反馈条崩溃 + 故障伪装空态 + CSV/截断）· v0.7.45 presenter 散文日期(cosmetic)· v0.7.0~.44 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

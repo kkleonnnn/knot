@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.46 — UX bugfix 批（整体审核 §3.1 即修 · P0 反馈条崩溃 + 故障伪装空态 + CSV/截断）
+## [Unreleased] - v0.7.47 — 死码清扫 chore（整体审核 §3.2-5 · grounded 8 路核实 · Tier A）
+
+> v0.7→v0.8 整体审核 §3.2-5 死码清扫。执行者 8 路并行 grounded 核实 workflow（逐候选 import+调用+路径字符串+动态引用全 repo 找 caller）→ **修正原审计 3 处误判**（R-PB-A1-22 非未兑现承诺——中间件方案 v0.6.2.6 已撤回，非拖延；KnotWordmark export body LIVE + 治理红线锚定，保留；audit_service.get_failure_count 是 R-64 prometheus 预留，保留）。kk scope LOCKED = Tier A（17 死 icon → 单独 foundation PATCH；R-165 fold + models [BLUEPRINT-ONLY] 标注 + knowledge audit → 推迟）。plan [`docs/plans/v0.7.47-deadcode-chore.md`](docs/plans/v0.7.47-deadcode-chore.md)。
+
+### Removed
+
+- **后端死码**:`query_helper.release` + `agents/catalog.reset_active_catalog_ctx`（"commit 4 中间件出口 reset"方案已于 v0.6.2.6 判定不可行撤回、改 asyncio task 隔离 → 残骸;0 生产调用)· `user_repo` 4 死方法（get_user_monthly_usage / get_monthly_cost / get_user_agent_model_config / set_user_agent_model_config — 仅 tests,per-user agent-model 从未接线;app 级 settings_repo 版是 LIVE 未动）。
+- **前端死码**:`primitives.jsx` Tag（0 使用;Btn 保留)· 4 处幽灵 props（Chat→ChatEmpty onSend/onNewChat/hasConv · SavedReports→AppShell hideSidebarNewChat · Admin→AppShell onNewChat · AdminErrors→AppShell convs/setConvs/dbOk/sourceCount — 接收方签名均不含)· `frontend/src/App.css`（死文件 0 importer,含 R-165 fallback 但从未 ship — 详 Fixed)· Login footer 陈旧 `build 202606181000` 硬编字面。
+
+### Fixed
+
+- **`bulk_insert_few_shots` 返回值 bug**（few_shot_repo.py）:过滤缺 question/sql 行后仍 `return len(items)`（过滤前总数）→ 改物化 params list `return len(params)`（真实插入数）。API 路径原靠预过滤数字恰好对,但 repo 本身错、任何其他 caller 得虚高。
+- **文档漂移订正**（CLAUDE.md 4 处）:notification"接口预留"→ webhook.py 已 v0.7.7 落地 + monitors 生产调用 · I 库 38→54 names · Admin"14+11"→"22 handlers+23 state+3 ref" · R-165 fallback 陈述如实（原在 App.css、从未 ship;删 App.css;真修折进 index.css 留 v0.8）。
+
+## [0.7.46] - UX bugfix 批（整体审核 §3.1 即修 · P0 反馈条崩溃 + 故障伪装空态 + CSV/截断）
 
 > v0.7→v0.8 整体审核([`docs/plans/v0.7-to-v0.8-overall-review-executor-2026-07-04.md`](docs/plans/v0.7-to-v0.8-overall-review-executor-2026-07-04.md)) §3.1 即修清单落地。执行者 grounded 6 项到真实代码行 → 守护者 Stage 3 **ACCEPT WITH REVISIONS**（7 并行 grounded 核实：6 项 bug 全 CONFIRMED；R1/R4 bare-catch 修法必改 `catch (e)` + item3 订正 2 处空态 + §7 App.jsx 侧栏静默采纳 DEFER）。plan [`docs/plans/v0.7.46-ux-bugfix-batch.md`](docs/plans/v0.7.46-ux-bugfix-batch.md)。⚠️ P0 无 jsdom 自动回归（B5.1 vitest 是 node-env 纯逻辑）→ **merge 前须人验**：点 👎 → 评论 Modal 正常开 → 整条结果卡不被 ErrorBoundary 替换。
 

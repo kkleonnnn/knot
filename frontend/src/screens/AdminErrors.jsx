@@ -39,8 +39,7 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
   return (
     <AppShell T={T} user={user} active="admin-errors" onToggleTheme={onToggleTheme}
               onNavigate={onNavigate} onLogout={onLogout}
-              topbarTitle="前端错误"
-              convs={convs} setConvs={setConvs} dbOk={dbOk} sourceCount={sourceCount}>
+              topbarTitle="前端错误">
       <div className="cb-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
         {/* KPI 行 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>

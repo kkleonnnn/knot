@@ -37,7 +37,7 @@ def test_set_active_catalog_ctx_overrides_globals():
         assert cur["business_rules"] == "rule B"
         assert cur is content
     finally:
-        catalog_loader.reset_active_catalog_ctx(token)
+        catalog_loader._active_catalog_ctx.reset(token)  # 公开 reset 包装 v0.7.47 删；直接走私有 ctx
     # reset 后回退全局（不泄漏 — R-PB-A1-22）
     assert catalog_loader.current_catalog()["catalog_id"] is None
 

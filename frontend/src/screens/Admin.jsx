@@ -366,7 +366,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                 )
                 : null
               }
-              onToggleTheme={onToggleTheme} onNewChat={() => {}} onNavigate={onNavigate} onLogout={onLogout}>
+              onToggleTheme={onToggleTheme} onNavigate={onNavigate} onLogout={onLogout}>
       <div className="cb-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
 
         {(tab === 'users' || tab === 'sources') && (

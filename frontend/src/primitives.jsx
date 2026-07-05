@@ -47,26 +47,3 @@ export function Btn({ T, variant = 'default', size = 'md', type = 'button', disa
     </button>
   );
 }
-
-// === Tag 5-tone ===
-// h20 / padding 0 8 / fs11 / radius 4 / mono / letterSpacing 0.02em / lowercase
-export function Tag({ T, tone = 'neutral', children }) {
-  const tones = {
-    neutral: { bg: T.chipBg,     fg: T.muted,   border: T.border },
-    brand:   { bg: T.accentSoft, fg: T.accent,  border: TOKENS_V2.brand[200] },
-    ok:      { bg: `color-mix(in oklch, ${T.success} 12%, transparent)`,    fg: T.success,    border: `color-mix(in oklch, ${T.success} 30%, transparent)` },
-    warn:    { bg: `color-mix(in oklch, ${T.warn} 12%, transparent)`,       fg: T.warn,       border: `color-mix(in oklch, ${T.warn} 30%, transparent)` },
-    err:     { bg: `color-mix(in oklch, ${TOKENS_V2.err} 12%, transparent)`, fg: TOKENS_V2.err, border: `color-mix(in oklch, ${TOKENS_V2.err} 30%, transparent)` },
-  };
-  const v = tones[tone] || tones.neutral;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', height: 20, padding: '0 8px',
-      fontSize: 11, fontWeight: 500, color: v.fg, background: v.bg,
-      border: `1px solid ${v.border}`, borderRadius: 4,
-      fontFamily: T.mono, letterSpacing: '0.02em', textTransform: 'lowercase',
-    }}>
-      {children}
-    </span>
-  );
-}

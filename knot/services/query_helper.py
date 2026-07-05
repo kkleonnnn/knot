@@ -6,7 +6,8 @@ _business_rules / get_relations 经 current_catalog() 读 per-user active catalo
 
 R-PB-A1-19 query.py Extract Method：捕获逻辑剥离至此（query.py 仅 2 行调用，保 SSE 样板 byte-equal）。
 **0 yield**（R-109 / Stage 2 Q3 — ContextVar 不提前失效/泄漏）。
-reset：commit 2 仅 capture（set）；task 隔离防跨请求泄漏；正式 reset + 出口不泄漏断言由 commit 4 中间件统一（R-PB-A1-22）。
+reset：capture 仅 set；靠 asyncio task 隔离（copy_context per-request）防跨请求泄漏 —— 中间件出口 reset
+方案（R-PB-A1-22）已于 v0.6.2.6 判定技术不可行并撤回，故本模块不再有 release / reset（v0.7.47 死码清扫删）。
 """
 from __future__ import annotations
 
@@ -76,7 +77,7 @@ def capture_active_catalog(user: dict):
     try:
         from knot.repositories import catalog_repo
         content = _parse_catalog_content(catalog_repo.get_active_catalog(user["id"]))
-        catalog_loader.set_active_catalog_ctx(content)  # Token 弃 — reset 由 commit 4 中间件
+        catalog_loader.set_active_catalog_ctx(content)  # Token 弃 — 中间件 reset 已撤回，靠 asyncio task 隔离
         return content["catalog_id"]
     except Exception:
         logger.warning("per-user active catalog 捕获失败 — query 降级回退全局 catalog", exc_info=False)
@@ -105,13 +106,3 @@ def assert_catalog_context(expected_catalog_id, user: dict) -> None:
             catalog_id=expected_catalog_id,
         )
         raise CatalogContextException(attempted_catalog_id=current, expected_catalog_id=expected_catalog_id)
-
-
-def release(token) -> None:
-    """请求出口 reset ContextVar（与 capture 的 Token 配对；token None 跳过）。
-
-    commit 2 query 入口仅 capture（set）+ task 隔离防跨请求泄漏；正式 reset + 出口不泄漏断言
-    由 commit 4 中间件统一（R-PB-A1-22）。本 release 供 commit 4 / sync finally 显式配对。
-    """
-    if token is not None:
-        catalog_loader.reset_active_catalog_ctx(token)
