@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.45 · presenter 散文日期以 SQL 时间窗为准（v0.7 语义复跑 follow-up · cosmetic）：presenter 原自行从"今天"推算叙述日期(易算错周一/月初/近N天边界) → 加 prompt 指令**以 SQL WHERE 时间条件为权威口径**(编译器/agent 注入窗;无时间窗则不编造)。数字始终对(来自权威 SQL)，仅**降低散文日期漂移**。⚠️ 纯改文件默认，runtime 走 `prompt_templates` DB 覆盖 → 须 re-seed presenter prompt(admin UI 首选)才生效。<br>**上版** v0.7.44 echarts 拆包(B5.2)· v0.7.43 前端测试栈(B5.1)· v0.7.42 Doris read_timeout(B2.2)· v0.7.41 迁移可观测(B2.3)· v0.7.0~.40 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.7.46 · UX bugfix 批（整体审核 §3.1 即修）：修 🔴 P0 反馈条 Modal 崩溃（点 👎 漏传 `T` → 整条结果被 ErrorBoundary 吞）+ admin/知识库/前端错误屏**加载失败不再伪装"暂无数据"**（bare-catch 补 toast + TabKnowledge 接 loading 态）+ Chat CSV 导出补 UTF-8 BOM（中文列名 Excel 不乱码）+ 结果表格 >100 行显示"前 100 行 · 共 N 行"截断提示。守护者 Stage 3 ACCEPT WITH REVISIONS（R1/R4 bare-catch→`catch (e)` · §7 App.jsx 侧栏静默 DEFER v0.8）。<br>**上版** v0.7.45 presenter 散文日期以 SQL 时间窗为准(cosmetic)· v0.7.44 echarts 拆包(B5.2)· v0.7.43 前端测试栈(B5.1)· v0.7.0~.42 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

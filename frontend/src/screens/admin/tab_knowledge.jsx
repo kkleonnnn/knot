@@ -23,7 +23,7 @@ function _relativeTime(iso) {
   return '上月';
 }
 
-export function TabKnowledge({ T, tab, knowledgeDocs, onDeleteKbDoc, onUploadKb,
+export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, onUploadKb,
                               fewShots, onEditFewShot, onDeleteFewShot,
                               prompts, setPrompts, promptsSaving, onSavePrompt }) {
   const dragRef = useRef(null);
@@ -97,7 +97,7 @@ export function TabKnowledge({ T, tab, knowledgeDocs, onDeleteKbDoc, onUploadKb,
           {/* v0.5.35 doc list — demo knowledge.jsx L98-141 重设计（4-col → 8-col 字段对齐） */}
           {knowledgeDocs.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: T.muted, background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, fontSize: 13 }}>
-              暂无文档 · 上方拖拽或点击右上角「上传文档」添加
+              {loading ? '加载中…' : '暂无文档 · 上方拖拽或点击右上角「上传文档」添加'}
             </div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -180,7 +180,7 @@ export function TabKnowledge({ T, tab, knowledgeDocs, onDeleteKbDoc, onUploadKb,
           {/* v0.5.36 example cards — demo L103-145 byte-equal（flask icon + question + id/upd + tags + hits + actions + SQL block）*/}
           {fewShots.length === 0 ? (
             <div style={{ padding: '40px 24px', textAlign: 'center', color: T.muted, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>
-              暂无示例 · 点击右上角「新建」或上传 xlsx
+              {loading ? '加载中…' : '暂无示例 · 点击右上角「新建」或上传 xlsx'}
             </div>
           ) : (
             fewShots.map(f => (

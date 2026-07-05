@@ -2,7 +2,7 @@
 // 视觉沿用 AdminAudit/Recovery 模式：Inset 8% brandSoft + thead mono uppercase + KpiCard
 import { useState, useEffect } from 'react';
 // v0.6.0.14 lint sweep: 删 I import — 未使用
-import { Spinner } from '../utils.jsx';
+import { Spinner, toast } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
@@ -31,7 +31,7 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
     setLoading(true);
     api.get(`/api/admin/frontend-errors?limit=${size}&offset=${(page - 1) * size}`)
       .then(d => { setItems(d.items || []); setTotal(d.total || 0); setTopHashes(d.top_hashes || []); })
-      .catch(() => { /* 前端错误列表加载失败 fail-soft */ })
+      .catch((e) => { toast('加载失败: ' + (e?.message || e), true); })
       .finally(() => setLoading(false));
   }, [page]);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
