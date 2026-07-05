@@ -51,18 +51,19 @@ def delete_few_shot(fid: int):
 
 
 def bulk_insert_few_shots(items: list) -> int:
-    """items: list of {question, sql, type?, is_active?}; returns inserted count."""
+    """items: list of {question, sql, type?, is_active?}; returns inserted count（过滤缺 question/sql 后的真实行数）。"""
     if not items:
         return 0
+    params = [
+        (it.get("question", ""), it.get("sql", ""),
+         it.get("type", "") or "", 1 if it.get("is_active", 1) else 0)
+        for it in items if it.get("question") and it.get("sql")
+    ]
     conn = get_conn()
     conn.executemany(
         "INSERT INTO few_shots (question, sql, type, is_active) VALUES (?,?,?,?)",
-        [
-            (it.get("question", ""), it.get("sql", ""),
-             it.get("type", "") or "", 1 if it.get("is_active", 1) else 0)
-            for it in items if it.get("question") and it.get("sql")
-        ],
+        params,
     )
     conn.commit()
     conn.close()
-    return len(items)
+    return len(params)

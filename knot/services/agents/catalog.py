@@ -61,17 +61,14 @@ def current_catalog() -> dict:
 
 
 def set_active_catalog_ctx(catalog_content: dict) -> contextvars.Token:
-    """query 入口设当前请求 active catalog 内容（请求作用域）；返回 Token 供出口 reset。
+    """query 入口设当前请求 active catalog 内容（请求作用域）；返回 Token。
 
     catalog_content 形态须与 current_catalog 一致：{lexicon, tables, business_rules, relations, catalog_id}
     （已解析 — lexicon dict / tables list / relations list）。
+    生产靠 asyncio task 隔离（copy_context per-request）不显式 reset —— 中间件 reset 方案（R-PB-A1-22）
+    已于 v0.6.2.6 撤回；返回的 Token 仅测试用（v0.7.47 死码清扫删公开 reset 包装）。
     """
     return _active_catalog_ctx.set(catalog_content)
-
-
-def reset_active_catalog_ctx(token: contextvars.Token) -> None:
-    """请求出口 reset ContextVar（R-PB-A1-22 — 不泄漏到下一请求；与 set 的 Token 配对）。"""
-    _active_catalog_ctx.reset(token)
 
 
 def reload(strict: bool = False) -> str:

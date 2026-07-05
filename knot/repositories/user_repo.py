@@ -6,7 +6,6 @@ core CryptoConfigError → models ConfigMissingError 边界翻译。
 """
 from __future__ import annotations
 
-import json
 import sqlite3
 
 from knot.core.crypto import decrypt, encrypt
@@ -102,45 +101,6 @@ def update_user_usage(user_id: int, input_tokens: int, output_tokens: int,
         "WHERE id=?",
         (input_tokens + output_tokens, cost_usd, query_time_ms, user_id),
     )
-    conn.commit()
-    conn.close()
-
-
-def get_user_monthly_usage(user_id: int) -> dict:
-    conn = get_conn()
-    row = conn.execute(
-        "SELECT monthly_tokens, monthly_cost_usd, avg_response_ms, query_count FROM users WHERE id=?",
-        (user_id,)
-    ).fetchone()
-    conn.close()
-    return dict(row) if row else {}
-
-
-def get_monthly_cost() -> float:
-    conn = get_conn()
-    row = conn.execute("SELECT SUM(monthly_cost_usd) AS total FROM users").fetchone()
-    conn.close()
-    return row["total"] or 0.0
-
-
-# Per-user agent model config（JSON 字段，存在 users.agent_model_config 列）
-
-def get_user_agent_model_config(user_id: int) -> dict:
-    conn = get_conn()
-    row = conn.execute("SELECT agent_model_config FROM users WHERE id=?", (user_id,)).fetchone()
-    conn.close()
-    if row and row["agent_model_config"]:
-        try:
-            return json.loads(row["agent_model_config"])
-        except Exception:
-            pass
-    return {}
-
-
-def set_user_agent_model_config(user_id: int, config: dict):
-    v = json.dumps(config, ensure_ascii=False)
-    conn = get_conn()
-    conn.execute("UPDATE users SET agent_model_config=? WHERE id=?", (v, user_id))
     conn.commit()
     conn.close()
 
