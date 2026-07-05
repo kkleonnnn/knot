@@ -42,7 +42,7 @@ export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLa
       )}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rows.length} 行 · {cols.length} 列</span>
+          <span style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{rows.length > 100 ? `前 100 行 · 共 ${rows.length} 行` : `${rows.length} 行`} · {cols.length} 列</span>
           {isDetail && msg.id
             ? <button onClick={() => exportMessageCsv(msg.id)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="导出 CSV"><I.dl/></button>
             : <button onClick={() => onDownload(rows, msg.question)} style={{ ...iconBtn(T), gap: 4, fontSize: 11 }} title="下载 CSV"><I.dl/></button>}

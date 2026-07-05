@@ -208,7 +208,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
     a.download = `knot-${Date.now()}.csv`;
     a.click();
   };
