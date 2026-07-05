@@ -106,7 +106,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         if (cl) { setCatalogs(cl.catalogs || []); setActiveCatalogId(cl.active_catalog_id || 1); }
       }
       // v0.6.0.14 lint sweep: 删 /api/admin/stats 调用 — 返回数据无消费者
-    } catch { /* tab fetch 失败保持当前数据视图，由 toast 上层处理 */ }
+    } catch (e) { toast('加载失败: ' + (e?.message || e), true); }
     finally { setTabLoading(false); }
   };
 
@@ -390,7 +390,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         )}
 
         {(tab === 'knowledge' || tab === 'fewshots' || tab === 'prompts') && (
-          <TabKnowledge T={T} tab={tab}
+          <TabKnowledge T={T} tab={tab} loading={tabLoading}
                         knowledgeDocs={knowledgeDocs} onDeleteKbDoc={deleteKbDoc} onUploadKb={handleKbUpload}
                         fewShots={fewShots}
                         onEditFewShot={(f) => setModal({ type: 'fewshot', data: f })}
