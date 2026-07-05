@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.47 — 死码清扫 chore（整体审核 §3.2-5 · grounded 8 路核实 · Tier A）
+## [Unreleased] - v0.7.48 — Foundation 死 icon 清扫（sanctioned re-baseline 仪式 · v0.7.47 Tier B1）
+
+> v0.7.47 §2 Tier B1 推迟项（kk 2026-07-05 LOCKED 单独 foundation PATCH）落地。删 Shared.jsx `I` dict 17 个 grounded 0-使用 icon（8 路核实 workflow `w00xz6ugi` 确认 + 本轮复核 0 引用除 foundation guard），走 sanctioned Foundation re-baseline 仪式（R-PB-SH-1/2 additive-only + R-PB-SH-12 baseline mirror + R-PB-SH-4 count 契约的既定演进流程）。plan [`docs/plans/v0.7.48-foundation-icon-cleanup.md`](docs/plans/v0.7.48-foundation-icon-cleanup.md)。**0 screen 改动**（保留功能走 SAVED_SVG/RB_SVG/INFO_PATH 路径字面，UX 0 变化）。
+
+### Removed
+
+- **Shared.jsx `I` dict 17 死 icon（54→37）**:原 38 中 8（history/key/plug/chart/more/collapse/sparkle/robot）+ v0.6.4.0 UI v2 +16 中 9（attach/edit/chat/node/bookmark/bookmarkFill/medal/info/pin）。全 grounded 0 使用；bookmark/info/edit 等功能等价物走 SAVED_SVG.bookmark / RB_SVG.bookmark / InsightCard INFO_PATH / pencil 路径字面（非 I.* export）→ 删 export UX 0 变化。`export const I` 名 + 37 存活 icon 逐个 byte-equal。
+
+### Changed
+
+- **I.medal 撤回 v0.5.19 迁移承诺**（grounded 修正）:docs/plans/v0.5.19 承诺把 AdminRecovery top-user header inline svg 迁移到 I.medal;grounded 现状 = 该 inline svg 是**奖杯 trophy**（R-478 Q2 VRP 例外，path `M8.21 13.89...` 奖杯底座）≠ `I.medal` **奖牌 medallion**（圆牌+绶带）→ 履约=视觉回归违 R-PA-PB-V1;承诺前提不成立故撤回（非 R-LP-v3-EX-3 拖延），删 I.medal + AdminRecovery trophy 不动。
+- **foundation guard re-baseline**:`tests/foundation/shared_foundation_base.jsx` re-baseline byte-equal live（R-PB-SH-12）;`test_R_PB_SH_4_icon_dict_54_names` → `_37_names`（assert 54→37）;CLAUDE.md icon count 54→37（2 处）。
+
+## [0.7.47] - 死码清扫 chore（整体审核 §3.2-5 · grounded 8 路核实 · Tier A）
 
 > v0.7→v0.8 整体审核 §3.2-5 死码清扫。执行者 8 路并行 grounded 核实 workflow（逐候选 import+调用+路径字符串+动态引用全 repo 找 caller）→ **修正原审计 3 处误判**（R-PB-A1-22 非未兑现承诺——中间件方案 v0.6.2.6 已撤回，非拖延；KnotWordmark export body LIVE + 治理红线锚定，保留；audit_service.get_failure_count 是 R-64 prometheus 预留，保留）。kk scope LOCKED = Tier A（17 死 icon → 单独 foundation PATCH；R-165 fold + models [BLUEPRINT-ONLY] 标注 + knowledge audit → 推迟）。plan [`docs/plans/v0.7.47-deadcode-chore.md`](docs/plans/v0.7.47-deadcode-chore.md)。
 
