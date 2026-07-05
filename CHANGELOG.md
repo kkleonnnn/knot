@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.45 — presenter 散文日期以 SQL 时间窗为准（v0.7 语义复跑 follow-up · cosmetic）
+## [Unreleased] - v0.7.46 — UX bugfix 批（整体审核 §3.1 即修 · P0 反馈条崩溃 + 故障伪装空态 + CSV/截断）
+
+> v0.7→v0.8 整体审核([`docs/plans/v0.7-to-v0.8-overall-review-executor-2026-07-04.md`](docs/plans/v0.7-to-v0.8-overall-review-executor-2026-07-04.md)) §3.1 即修清单落地。执行者 grounded 6 项到真实代码行 → 守护者 Stage 3 **ACCEPT WITH REVISIONS**（7 并行 grounded 核实：6 项 bug 全 CONFIRMED；R1/R4 bare-catch 修法必改 `catch (e)` + item3 订正 2 处空态 + §7 App.jsx 侧栏静默采纳 DEFER）。plan [`docs/plans/v0.7.46-ux-bugfix-batch.md`](docs/plans/v0.7.46-ux-bugfix-batch.md)。⚠️ P0 无 jsdom 自动回归（B5.1 vitest 是 node-env 纯逻辑）→ **merge 前须人验**：点 👎 → 评论 Modal 正常开 → 整条结果卡不被 ErrorBoundary 替换。
+
+### Fixed
+
+- **🔴 P0 反馈条 Modal 崩溃**（`frontend/src/screens/chat/ResultBlock/FeedbackBar.jsx`）：`<Modal onClose>` 漏传 `T`，而 `utils.jsx` Modal 无条件解引用 `T.content` → 点 👎 打开评论弹窗即 `TypeError` → `ResultBlockErrorBoundary` 把整条查询结果替换为"渲染出错"卡片，负反馈通道完全不可用。修：调用点补 `T={T}`（不改 utils.jsx，守其 byte-equal）。
+- **admin 加载失败伪装"暂无数据"**（`Admin.jsx` loadAll + `AdminErrors.jsx`）：bare `catch {}` / `.catch(() => {})` 空吞 → 后端不可达时 tab 显示"暂无用户/数据源/错误记录"，把故障伪装成空态。修：`catch (e) { toast('加载失败: '+..., true) }`（AdminErrors 补 import toast）。
+- **知识库三 tab 加载期显示"暂无"**（`admin/tab_knowledge.jsx` + `Admin.jsx` dispatch）：TabKnowledge 未接收 `loading`（对照 TabAccess 已接）→ 加载中直接渲染"暂无文档/示例"。修：dispatch 传 `loading={tabLoading}` + 签名接收 + 2 处空态（knowledge/fewshots；prompts 段无"暂无"空态）mirror `tab_access` `{loading ? '加载中…' : '暂无…'}`。
+- **Chat CSV 导出中文列名 Excel 乱码**（`Chat.jsx`）：无 UTF-8 BOM（对照 `AdminAudit.jsx` 有）。修：`new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })`。
+- **结果表格静默截断**（`chat/ResultBlock/TableContainer.jsx`）：显示全量"N 行"但 `slice(0,100)` 只渲染前 100 行无提示。修：`>100` 时显示"前 100 行 · 共 N 行"。
+
+### Deferred（§7 守护者裁定 DEFER v0.8）
+
+- **App.jsx 会话侧栏加载失败静默空白**：`onErr` 仅处理 enroll 403，其余错误静默 → 侧栏永久空白。DEFER 理由：触 App.jsx byte-equal 铁律 + `onErr` 三处 prefetch 共享（Option B 只修 conversations = asymmetric 半修）+ 登录期 transient 抖动弹 toast 需 debounce 设计 → 并入 v0.8 前端硬化 holistic prefetch-error pass（届时 App.jsx 本为 T Context/Admin 拆分要动）。
+
+## [0.7.45] - presenter 散文日期以 SQL 时间窗为准（v0.7 语义复跑 follow-up · cosmetic）
 
 > v0.7 语义层复跑(B6 retest)暴露 follow-up #2。**轻量 v3 · prompt-only · cosmetic**(数字始终对,仅散文日期范围)。守护者 Stage 3 ACCEPT(致命前提"presenter LLM 输入含 SQL"grounded 确认)。plan `docs/plans/v0.7.45-presenter-date-window.md`。
 
