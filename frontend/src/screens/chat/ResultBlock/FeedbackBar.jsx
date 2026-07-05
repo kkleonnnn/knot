@@ -42,7 +42,7 @@ export function FeedbackBar({ T, mid, initialScore, onFeedback, suppress }) {
         </button>
       </div>
       {modalOpen && (
-        <Modal onClose={() => setModalOpen(false)}>
+        <Modal T={T} onClose={() => setModalOpen(false)}>
           <ModalHeader T={T} title="可以改进的地方？" onClose={() => setModalOpen(false)}/>
           <div style={{ padding: '4px 24px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <textarea
