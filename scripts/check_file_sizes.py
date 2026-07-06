@@ -23,7 +23,7 @@ BACKEND_ACK = {
     # admin.py 908 已于 v0.6.5.11 C2 拆 knot/api/admin/ 7 域（最大 stats 269 ≤300 auto-caught）→ ACK 移除
     # catalog.py 460 已于 v0.6.5.12 C1 拆 catalog_loaders（catalog 261 / loaders 213 ≤300 auto-caught）→ ACK 移除
     "knot/services/http_planner.py":       580,  # futures regex 下沉 catalog JIT v0.7.2 + v0.7.20 B（http_table_in_sql + failure_error_meta）+ v0.7.22 Layer A intent veto（_ANALYTICAL_INTENTS + early-return R-SL-162）565→579
-    "knot/api/query.py":                   539,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由 460 + v0.7.3 审计侧表 465 + v0.7.20/.24/.35/.39 →537；v0.8.2 B6.4 +raw_question 传参 537→538→539（headroom 1）
+    "knot/api/query.py":                   541,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.x →537；v0.8.2 B6.4 +raw_question →539；v0.8.3 B6.5-Q36 +presenter 喂 params 注释 539→540→541（headroom 1）
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           366,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366（headroom 2）

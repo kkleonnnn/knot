@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.2 — B6.4🔴 跨期对比「必堵」：curated 标记集确定性拒识（语义激活门）
+## [Unreleased] - v0.8.3 — B6.5/6.6🟡 叙述层收尾：presenter/clarifier ground 到 SQL/params（语义激活门最后一块）
+
+> v0.7 遗留激活门 B6.5🟡 + B6.6🟡（`v0.7-closeout-backlog.md` L67/68）——叙述层「说了 SQL 没做的事」= 数字对、散文误导。**🟡 收尾（非硬 blocker）**：gate（误判≈0+命中≥90%）已由 B6.1（安全）+ B6.4（误判）承重；B6.5/6.6 数字对不动误判率。**narrative-only**（+ 1 处 HTTP 编排 + 1 行脱敏口径统一）。走完整 v3 + 守护者 Stage 3 = ACCEPT WITH REVISIONS (minor)。plan [`docs/plans/v0.8.3-b6.5-6.6-narrative-grounding.md`](docs/plans/v0.8.3-b6.5-6.6-narrative-grounding.md)（§9 整合记录）。
+>
+> **两独立叙述面**（grounded 订正 backlog「同 explanation」）：显示 `explanation` = `clarifier.analysis_approach or presenter.explanation`（几乎总 clarifier 胜）= **B6.6**；独立 `insight` = presenter = **B6.5**。
+>
+> **B6.5（presenter.md 外科 3 ban，勿一刀切保 Q27/30 单指标直陈 + Q29 空集诚实）**：Q31 SQL 无 WHERE 不声称任何过滤/时间圈定 · Q13 跨指标比率须时间口径可比（MTD vs 累计快照不比）· Q36 entity 标识符从 **SQL/params** 读非裸答案（修 ban 3「值来自结果」反致的 entity 幻觉）。**Q36 编排**：`query.py:363` HTTP caller 喂 presenter 的 sql 串并入 `http_result["params"]`（镜像 message-save :377；否则 presenter 见不到 user_id=12345 编造「该用户 ID:1」）；`run_presenter_step` 签名 + SQL caller `:456` 0 改（fork-1A）。**脱敏口径统一**（守护者 §B）：`desensitize.py:145` +`out.pop("params")` —— HTTP 内部形态 sql+params 均不发非 admin（原只 pop sql 漏 params；params 非机密但对齐口径）。
+>
+> **B6.6（clarifier.md）**：`:12` relative-word 铁律扩到 `analysis_approach`（原 exempt）—— 不写具体绝对日期/日期窗、用相对词；clarifier SQL 前跑读不到权威编译窗，自算日期必漂移（Q3 06-28~07-04 vs compiler 06-29~07-05）→ 具体窗交下游 SQL WHERE。
+>
+> **⚠️ 部署（唯一真操作风险）**：clarifier.md/presenter.md 是 DB-seeded，live = **2026-05-25 定制 fork** → 改 .md 幂等 seed 不覆盖 = runtime INERT（同 v0.7.45 教训）→ **须 admin-UI（审计）把新规则重applied 到 fork，否则线上 0 效果**。
+>
+> **⚠️ B6.4 同比 semantic-overclaim 残余**：B6.6 相对词只闭 clarifier date-drift 半；同比 semantic-overclaim 半（analysis_approach 声称 SQL 未做的对比）与之正交 → 接受为残余（🟡 + B6.4 已声明非激活失败），真闭合 = promotion-seam 对账（defer）。`KNOT_SEMANTIC_LAYER` 仍 off。
+>
+> **⭐ 激活门四项全 addressed**（B6.1 ✅ + B6.2 ✅ + B6.4 ✅ + B6.5/6.6 ✅）→ 待 kk 填 gitignored 真 OHX corpus（v0.7.44 已知-good 9 LF + 多样对比句式）+ 跑 eval-live Layer 2 → 命中≥90%+误判=0（记 novel 残余）→ 决定开 flag。
+
+## [Released] - v0.8.2 — B6.4🔴 跨期对比「必堵」：curated 标记集确定性拒识（语义激活门）
 
 > v0.7 遗留激活门 B6.4🔴「同比/环比 OOS 静默丢 + narrative overclaim = 命中但误导」（最危险类，v0.7.45 自由提问暴露：「本周平台总盈亏，同比上周」→ 静默丢同比只算本周 + HIT 徽标）。**有运行时路由改动**（符合条件的跨期对比查询：静默命中错答 → 确定性拒识回退 LLM）。走完整 v3 + 守护者 Stage 3 = ACCEPT WITH REVISIONS (major-revise)（B-1 placement / B-2「硬误判=0」重构 / B-3 guard 输入 + §C regex 精修）。plan [`docs/plans/v0.8.2-b6.4-period-comparison-guard.md`](docs/plans/v0.8.2-b6.4-period-comparison-guard.md)（§9 整合记录）。
 >
