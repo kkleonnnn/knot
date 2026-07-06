@@ -7,6 +7,10 @@ name: Eval (Live LLM)
 # v0.4.2 R-Stage3-C 升级：cases 110+ 后单次跑 cost ≈ $5-6。为避免主线 PR 频繁
 # 触发烧 token，PR 触发改为 **label opt-in**：默认不跑；需要时 reviewer 加
 # `run-eval` label 触发。定时和手动入口不变。
+#
+# v0.8.1 B6.2：`pytest tests/eval` 自动纳入语义层 parser 命中率门禁
+# tests/eval/test_semantic_accuracy.py（@_REQUIRES_KEY live parse → 命中率 ≥90% + 误判=0）。
+# 真准确率门 = kk 在 gitignored semantic_cases.yaml（真 OHX）跑；此 CI 跑假域 .example = harness 自检。
 
 on:
   schedule:
