@@ -26,8 +26,8 @@ BACKEND_ACK = {
     "knot/api/query.py":                   537,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.1 语义路由 440→460 + v0.7.3 审计侧表 460→465 + v0.7.20 A presenter 失败 gate + v0.7.24 A1 history dict +explanation/agent_kind 485→487 + v0.7.35 B1.2 SSE emit-scrub + sql_step suppress + 同步端点旁路脱敏 490→517 + v0.7.39 B3.2 错误路径 cost 记账修（2 分支 aggregate+kwargs+update_user_usage 镜像 L237）517→537
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
-    "knot/adapters/db/doris.py":           345,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT import（read_timeout connect_arg）344→345
-    "knot/services/semantic/compiler.py":  315,  # v0.7.13 抽 multi_base/compile_helpers 394→275 曾移出 ACK；v0.7.14 outer 300 / v0.7.15 +窗口 frame gate 303 / v0.7.31 Q5 outer 无维度 guard 308→311（frame 守护主体 _frame_clause 在 compile_helpers leaf）→ feature 增长再 ACK
+    "knot/adapters/db/doris.py":           366,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366（headroom 2）
+    "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
     "knot/services/query_steps.py":        310,  # SSE 主控编排 + 纯业务步骤；v0.7.27 _semantic_display_meta +field_labels 维度 merge + 3-tuple caller 298→306 → feature 增长 ACK（headroom 至 310）
 }
