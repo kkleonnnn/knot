@@ -175,4 +175,4 @@ KNOT 项目方**不提供**：
 
 ---
 
-> **联系方式**：kk@100xex.com（主题前缀 `[KNOT PRIVACY]`）
+> **联系方式**：通过仓库 [GitHub 私密通报渠道](https://github.com/kkleonnnn/knot/security/advisories/new)（说明中注明 `[KNOT PRIVACY]`）联系维护者。

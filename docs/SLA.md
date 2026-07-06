@@ -137,4 +137,4 @@ KNOT 是**自部署工具**——project owner 不持有用户数据。这意味
 
 ---
 
-> **联系方式**：kk@100xex.com（主题前缀 `[KNOT SLE]`）
+> **联系方式**：通过 [GitHub Issues](https://github.com/kkleonnnn/knot/issues)（标题前缀 `[KNOT SLE]`）联系维护者。
