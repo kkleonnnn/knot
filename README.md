@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.7.48 · Foundation 死 icon 清扫（sanctioned re-baseline 仪式）：删 Shared.jsx `I` dict 17 个 grounded 0-使用 icon（54→37；history/key/plug/chart/more/collapse/sparkle/robot + attach/edit/chat/node/bookmark/bookmarkFill/medal/info/pin），re-baseline foundation snapshot + R-PB-SH-4 常量 54→37 + CLAUDE.md 同步。**I.medal 撤回 v0.5.19 承诺**（AdminRecovery header 是奖杯 trophy ≠ I.medal 奖牌，履约=视觉回归违 VRP）。保留功能等价物走 SAVED_SVG/RB_SVG/INFO_PATH 路径字面，UX 0 变化；0 screen 改动。<br>**上版** v0.7.47 死码清扫 chore（后端/前端死码 + 审计 3 误判修正）· v0.7.46 UX bugfix 批 · v0.7.0~.45 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.0 · B6.1 语义层片段级注入校验（安全承重 · v0.8 MINOR 开篇）：编译器 7 类 LLM 片段（having/qualify/lf.filters/window partition·arg·order·**as_name**）splice 前经新 leaf `fragment_guard`（G0 注释 prescan · G1 standalone parse · G2 拒子查询/UNION · G3 拒未识别函数 · G4 typed 危险 denylist · G5 别名+限定符拒 · G6 别名类拒函数）校验，`FragmentUnsafe`→`CompileError`→回退 LLM（fail-closed）；AND-join 优先级 seam 括每片段闭合；auto-LIMIT substring→AST 修（防片段内 LIMIT token 绕过全量返回）。`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.2/6.4/6.5/6.6）。走完整 v3 三阶段 + 守护者 7 路 grounded 终审 + 执行者 5 路 POC 复核。<br>**上版** v0.7.48 Foundation 死 icon 清扫 · v0.7.47 死码清扫 · v0.7.46 UX bugfix · v0.7.0~.45 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
