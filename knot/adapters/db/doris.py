@@ -297,7 +297,11 @@ def get_schema_structured(engine, databases: list = None) -> list:
 def _is_safe_sql(sql: str) -> tuple:
     """v0.2.2: 用 sqlglot AST 解析做只读校验，比正则黑名单稳。
     通过条件：单条语句、根节点是 Select / With / Union / Show / Describe，且 AST 内不出现任何写/DDL 节点。
-    解析失败 → 退回最严策略，拒绝执行。"""
+    解析失败 → 退回最严策略，拒绝执行。
+
+    ⚠️ **仅保证只读（DQL-only），不防跨表读取 / 片段注入**（v0.8.0 B6.1 订正）：只读子查询、UNION、
+    session 函数、跨库限定列均 by-design 放行（只读闸门不保证 bounded-cost / scope）。语义层片段级注入
+    校验见 `knot/services/semantic/fragment_guard.py`（compile_logicform choke point）。"""
     cleaned = sql.strip().rstrip(";").strip()
     if not cleaned:
         return False, "SQL 为空"

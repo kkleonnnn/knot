@@ -104,7 +104,8 @@ def _resolve_dim_owner(dim: str, base: str, obj_dims: dict[str, set]) -> str:
 
 def _having_clause(lf) -> str:
     """HAVING 片段（v0.7.8；GROUP BY 后 / ORDER BY 前）。**强制 alias-based** 引 metric alias（R-SL-80 —
-    多对象 raw o. 不重写会断）；原始表达式镜像 filters，注入由 execute_query 顶 _is_safe_sql DQL-only 收口。"""
+    多对象 raw o. 不重写会断）。**v0.8.0 B6.1**：having 片段由 `_guard_fragments`（compile_logicform choke
+    point）做片段级注入校验（G0-G6）；`_is_safe_sql` 仅全句 DQL-only 兜底、**不防片段内子查询/跨表读**。"""
     return (" HAVING " + " AND ".join(str(h) for h in lf.having)) if lf.having else ""
 
 
@@ -286,6 +287,41 @@ def _outer_expr(lf) -> str:
     return f"{func.upper()}({arg}) AS result"
 
 
+def _guard_fragments(lf) -> None:
+    """B6.1 片段级注入校验（v0.8.0 · 安全承重）：splice **前**校验全部 7 类 LLM 片段。
+
+    `compile_logicform` 是所有 LogicForm→SQL 的唯一 choke point（query 管道 / admin logicform /
+    monitor_eval —— 后者 metrics-only LF 无片段 → guard no-op）。fragment_guard 抛 `FragmentUnsafe`
+    → 此处翻译成 `CompileError` → 各调用点既有 `except CompileError` 回退 LLM（R-SL-14 fail-closed）。
+    别名类可见集 = metrics ∪ dimensions ∪ window as_names；window 内层 = metrics ∪ dimensions（Finding 11 内层作用域）。
+    admin 信任面（metric.caliber / metric.filters）不在 lf → 天然免验（require_admin gated）。
+    """
+    from knot.services.semantic import fragment_guard as fg
+
+    win_as = {(w.get("as_name") or w.get("func")) for w in lf.window if (w.get("as_name") or w.get("func"))}
+    alias_set = set(lf.metrics) | set(lf.dimensions) | win_as
+    inner_set = set(lf.metrics) | set(lf.dimensions)
+    try:
+        for w in lf.window:                                  # 先验 window（as_name 严格标识符 → alias_set 可信）
+            if w.get("as_name"):
+                fg.assert_as_name(w["as_name"])
+            for p in (w.get("partition_by") or []):
+                fg.assert_predicate(p, alias_based=True, aliases=inner_set)
+            if w.get("arg"):
+                fg.assert_predicate(w["arg"], alias_based=True, aliases=inner_set)
+            for o in (w.get("order_by") or []):
+                if o.get("field"):
+                    fg.assert_alias_ref(o["field"], inner_set)
+        for h in lf.having:
+            fg.assert_predicate(h, alias_based=True, aliases=alias_set)
+        for q in lf.qualify:
+            fg.assert_predicate(q, alias_based=True, aliases=alias_set)
+        for f in lf.filters:                                 # 仅 lf.filters（LLM 物理 WHERE）；metric.filters 不在 lf
+            fg.assert_predicate(f, alias_based=False)
+    except fg.FragmentUnsafe as e:
+        raise CompileError(f"B6.1 片段注入校验拒绝 → 回退：{e}")
+
+
 def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     """主入口：从 active catalog 解析 metric（R-SL-21 catalog 隔离）→ 确定性编译 SQL。
 
@@ -295,6 +331,7 @@ def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     """
     from knot.repositories import metric_repo  # 延迟 import（避 import-time 环 + 测试可 patch）
 
+    _guard_fragments(lf)                          # v0.8.0 B6.1：splice 前片段级注入校验（choke point，FragmentUnsafe→CompileError）
     catalog_id = catalog.get("catalog_id") or 1
     metrics_by_name = {m["name"]: m for m in metric_repo.list_metrics(catalog_id)}
     tables = catalog.get("tables") or []
