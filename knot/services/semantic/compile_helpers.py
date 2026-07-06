@@ -201,7 +201,7 @@ def _scalar_subquery(m: dict, tables: list[dict], time_ctx=None, lf_time: str = 
         where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
     sub = f"SELECT {m['caliber']} FROM {physical} o"
     if where:
-        sub += " WHERE " + " AND ".join(where)
+        sub += " WHERE " + " AND ".join(f"({c})" for c in where)   # v0.8.0 B6.1 括每片段
     return f"({sub})"
 
 

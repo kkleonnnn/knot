@@ -200,7 +200,7 @@ def test_cross_object_dim_no_owner_fallback():
 def test_multi_base_scalar_aggregation():
     """R-SL-98/99/100：多 base 标量 → 标量子查询入 SELECT（0 JOIN，保序，按构造 1 行）。"""
     sql = _build_sql(LogicForm(metrics=["gmv", "uc"]), {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx())
-    assert sql == ("SELECT (SELECT SUM(o.pay_amount) FROM shop.orders o WHERE o.status='paid') AS gmv, "
+    assert sql == ("SELECT (SELECT SUM(o.pay_amount) FROM shop.orders o WHERE (o.status='paid')) AS gmv, "
                    "(SELECT COUNT(o.id) FROM shop.users o) AS uc LIMIT 1000")
     assert " JOIN " not in sql                           # 0 JOIN（标量子查询入 SELECT 而非 JOIN）
 
@@ -239,8 +239,8 @@ def test_multi_base_scalar_with_time_per_base():
     uc_dated = dict(_UC); uc_dated["dimensions"] = '["date","region"]'    # users 带 date
     sql = _build_sql(LogicForm(metrics=["gmv", "uc"], time="this_month_to_latest"),
                      {"gmv": _GMV, "uc": uc_dated}, _TABLES2, _time_ctx())
-    assert "FROM shop.orders o WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
-    assert "FROM shop.users o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+    assert "FROM shop.orders o WHERE (o.status='paid') AND (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
+    assert "FROM shop.users o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
 
 
 def test_multi_base_scalar_passes_safety_gates():
@@ -279,7 +279,7 @@ def test_multi_base_dimensional_per_metric_filters():
             "filters": "[]", "dimensions": '["city"]'}
     sql = _build_sql(LogicForm(metrics=["paid_gmv", "all_gmv", "dau"], dimensions=["city"]),
                      {"paid_gmv": paid, "all_gmv": allg, "dau": _DAU_C}, _TABLES2, _time_ctx())
-    assert "SUM(o.pay_amount) AS paid_gmv FROM shop.orders o WHERE o.status='paid' GROUP BY o.city" in sql  # paid 有 filter
+    assert "SUM(o.pay_amount) AS paid_gmv FROM shop.orders o WHERE (o.status='paid') GROUP BY o.city" in sql  # paid 有 filter
     assert "SUM(o.pay_amount) AS all_gmv FROM shop.orders o GROUP BY o.city" in sql      # all_gmv 无 WHERE（未被 paid 污染）
 
 
@@ -298,8 +298,8 @@ def test_multi_base_dimensional_time_per_metric_base():
     gmv_d = dict(_GMV_C); dau_d = dict(_DAU_C); dau_d["dimensions"] = '["date","city"]'
     sql = _build_sql(LogicForm(metrics=["gmv", "dau"], dimensions=["date"], time="this_month_to_latest"),
                      {"gmv": gmv_d, "dau": dau_d}, _TABLES2, _time_ctx())
-    assert "SELECT DISTINCT o.date FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
-    assert "FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21' GROUP BY o.date) t0" in sql
+    assert "SELECT DISTINCT o.date FROM shop.orders o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
+    assert "FROM shop.orders o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21') GROUP BY o.date) t0" in sql
 
 
 # ─── v0.7.8 HAVING（聚合后过滤）R-SL-78~81 ────────────────────────────
@@ -316,14 +316,14 @@ def test_having_single_object():
     """单对象 HAVING：GROUP BY 后 / LIMIT 前，引 metric alias。"""
     sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["city"], having=["gmv > 10000"]),
                      {"gmv": _GMV}, _TABLES, _time_ctx())
-    assert "GROUP BY o.city HAVING gmv > 10000 LIMIT" in sql
+    assert "GROUP BY o.city HAVING (gmv > 10000) LIMIT" in sql
 
 
 def test_having_multi_object_alias_based():
     """⭐ R-SL-80：多对象 HAVING 用 **alias**（gmv）编对 —— caliber 重写 t0 但 HAVING 引 SELECT alias（非 raw o.）。"""
     sql = _build_sql(LogicForm(metrics=["gmv"], dimensions=["region"], having=["gmv > 10000"]),
                      {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
-    assert "HAVING gmv > 10000" in sql                    # alias-based（非 raw o.pay_amount）
+    assert "HAVING (gmv > 10000)" in sql                    # alias-based（非 raw o.pay_amount）
     assert "SUM(t0.pay_amount) AS gmv" in sql             # caliber 重写 t0 + alias gmv（HAVING 引此 alias）
     assert sql.index("GROUP BY") < sql.index("HAVING") < sql.index("LIMIT")   # 子句序：GROUP BY → HAVING → LIMIT
 
@@ -416,7 +416,7 @@ def test_qualify_partition_topn_single_object():
     sql = _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx())
     assert sql.startswith(
         "SELECT * FROM (SELECT sub.*, ROW_NUMBER() OVER (PARTITION BY city ORDER BY gmv DESC) AS rk FROM (")
-    assert ") sub) win WHERE rk <= 3 LIMIT 20" in sql   # 第三层 WHERE + 最外层 LIMIT（非内层）
+    assert ") sub) win WHERE (rk <= 3) LIMIT 20" in sql   # 第三层 WHERE + 最外层 LIMIT（非内层）
     assert sql.count("LIMIT") == 1                       # R-SL-92 _order_limit 只在最外层一次
 
 
@@ -428,7 +428,7 @@ def test_qualify_partition_topn_multi_object_alias_based():
     sql = _build_sql(lf, {"gmv": _GMV, "uc": _UC}, _TABLES2, _time_ctx(), _REL_N1)
     assert "SUM(t0.pay_amount) AS gmv" in sql            # 内层 caliber 重写 t0
     assert "RANK() OVER (PARTITION BY region ORDER BY gmv DESC) AS rk" in sql  # 窗口 OVER 引 alias gmv（非 t0.）
-    assert ") win WHERE rk <= 5 LIMIT" in sql            # 第三层 qualify 引窗口 as_name rk（alias-based）
+    assert ") win WHERE (rk <= 5) LIMIT" in sql            # 第三层 qualify 引窗口 as_name rk（alias-based）
     assert sql.startswith("SELECT * FROM (")             # 三层包裹
 
 
@@ -491,7 +491,7 @@ def test_outer_count_groups_no_limit(monkeypatch):
     sql = _compile_outer(monkeypatch, LogicForm(metrics=["gmv"], dimensions=["city"],
                                                 having=["gmv > 10000"], outer={"func": "count"}))
     assert sql.startswith("WITH r AS (") and sql.endswith("SELECT COUNT(*) AS result FROM r")
-    assert "HAVING gmv > 10000" in sql        # 复用 v0.7.8 HAVING 作 body
+    assert "HAVING (gmv > 10000)" in sql        # 复用 v0.7.8 HAVING 作 body
     assert "LIMIT" not in sql                 # ⭐ inner 无 LIMIT（修复：count groups 不被 cap）
 
 
@@ -784,8 +784,8 @@ def test_derived_non_scalar_fallback():
 def test_derived_time_per_dep_injection():
     """⭐ R-SL-138（守护者修订 1）：本月 arpu → time **per-dep 注入**两子查询（gmv@orders.date + dau@users.date 各自窗）。"""
     sql = _build_sql(LogicForm(metrics=["arpu"], time="this_month_to_latest"), _DERIVED_MBN, _TABLES2, _time_ctx())
-    assert "FROM shop.orders o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
-    assert "FROM shop.users o WHERE o.date BETWEEN '2026-06-01' AND '2026-06-21'" in sql
+    assert "FROM shop.orders o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
+    assert "FROM shop.users o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
 
 
 def test_derived_passes_safety_gates():
@@ -849,7 +849,7 @@ def test_metric_no_date_column_byte_equal_existing():
     lf = LogicForm(metrics=["gmv"], dimensions=["city"], time="this_month_to_latest", limit=10)
     assert _build_sql(lf, {"gmv": _GMV}, _TABLES, _time_ctx()) == (
         "SELECT o.city, SUM(o.pay_amount) AS gmv FROM shop.orders o "   # 单对象 SELECT = 维度 + caliber
-        "WHERE o.status='paid' AND o.date BETWEEN '2026-06-01' AND '2026-06-21' "
+        "WHERE (o.status='paid') AND (o.date BETWEEN '2026-06-01' AND '2026-06-21') "
         "GROUP BY o.city LIMIT 10")
 
 

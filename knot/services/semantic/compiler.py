@@ -106,7 +106,7 @@ def _having_clause(lf) -> str:
     """HAVING 片段（v0.7.8；GROUP BY 后 / ORDER BY 前）。**强制 alias-based** 引 metric alias（R-SL-80 —
     多对象 raw o. 不重写会断）。**v0.8.0 B6.1**：having 片段由 `_guard_fragments`（compile_logicform choke
     point）做片段级注入校验（G0-G6）；`_is_safe_sql` 仅全句 DQL-only 兜底、**不防片段内子查询/跨表读**。"""
-    return (" HAVING " + " AND ".join(str(h) for h in lf.having)) if lf.having else ""
+    return (" HAVING " + " AND ".join(f"({h})" for h in lf.having)) if lf.having else ""   # v0.8.0 B6.1 括每片段
 
 
 # v0.7.9 窗口函数白名单（func key → 真实 SQL 函数, 是否带参）；R-SL-85 防注入 + 真实函数名（dense_rank→DENSE_RANK）
@@ -152,7 +152,7 @@ def _finalize(inner_core: str, lf) -> str:
     win = f"SELECT sub.*, {cols} FROM ({inner}) sub"                     # 窗口两层（不调 _order_limit）
     if not lf.qualify:
         return _guard(win + _order_limit(lf))                            # 两层 v0.7.9 byte-equal
-    qual = " AND ".join(str(q) for q in lf.qualify)                      # 三层：QUALIFY 语义 → 外层 WHERE
+    qual = " AND ".join(f"({q})" for q in lf.qualify)                    # 三层：QUALIFY 语义 → 外层 WHERE（v0.8.0 B6.1 括每片段）
     return _guard(f"SELECT * FROM ({win}) win WHERE {qual}" + _order_limit(lf))
 
 
@@ -214,7 +214,7 @@ def _build_single_object_sql(lf, base_object, metrics_by_name, tables, time_ctx)
         where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
     sql = f"SELECT {', '.join(select_parts)} FROM {physical} o"
     if where:
-        sql += " WHERE " + " AND ".join(where)
+        sql += " WHERE " + " AND ".join(f"({c})" for c in where)   # v0.8.0 B6.1：括每片段闭 AND-join 优先级 seam
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"o.{d}" for d in lf.dimensions)
     return _finalize(sql, lf)
@@ -264,7 +264,7 @@ def _build_multi_object_sql(lf, base, owners, metrics_by_name, obj_dims, tables,
         where.append(_date_range_clause(f"{ba}.{date_col}", start, end))   # v0.7.19 半开区间
     sql = f"SELECT {', '.join(select_parts)} FROM {from_sql}"
     if where:
-        sql += " WHERE " + " AND ".join(where)
+        sql += " WHERE " + " AND ".join(f"({c})" for c in where)   # v0.8.0 B6.1：括每片段闭 AND-join 优先级 seam
     if lf.dimensions:
         sql += " GROUP BY " + ", ".join(f"{aliases[owners[d]]}.{d}" for d in lf.dimensions)
     return _finalize(sql, lf)
