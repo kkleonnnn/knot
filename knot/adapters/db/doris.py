@@ -157,8 +157,7 @@ def execute_query(engine, sql: str, max_rows: int = MAX_RESULT_ROWS) -> tuple:
     if not ok:
         return [], f"安全检查未通过: {reason}"
 
-    sql_upper = sql.upper().strip()
-    if "LIMIT" not in sql_upper:
+    if not _has_top_level_limit(sql):        # v0.8.0 B6.1 §1.9：AST 判顶层 LIMIT（非 substring — 防片段内 LIMIT token 绕过）
         sql = sql.rstrip(";").strip() + f" LIMIT {max_rows}"
 
     try:
@@ -292,6 +291,22 @@ def get_schema_structured(engine, databases: list = None) -> list:
             return tables_info
     except Exception:
         return []
+
+
+def _has_top_level_limit(sql: str) -> bool:
+    """v0.8.0 B6.1 §1.9：顶层是否已有 LIMIT（**AST 判断**，非 substring）。
+
+    旧 `"LIMIT" in sql.upper()` substring 判断被 filter 片段内 LIMIT token（字符串字面 / 注释 / 内层
+    子查询 LIMIT）绕过 → 跳过外层 cap → 全量返回（POC 4 例证）。sqlglot 顶层 `exp.Select`/`exp.Union`
+    的 LIMIT 均挂 `tree.args["limit"]`（POC 验 union/CTE/subquery/plain 全对）；内层子查询/CTE body 的
+    LIMIT 不算顶层 → 正确补 cap。execute_query 先经 `_is_safe_sql` 拒不可解析 SQL，故 except 分支实际不可达。
+    """
+    try:
+        import sqlglot
+        tree = sqlglot.parse_one(sql, dialect="mysql")
+    except Exception:
+        return False   # 不可解析 → 视为无 limit（强制 append cap，保守安全）
+    return tree is not None and tree.args.get("limit") is not None
 
 
 def _is_safe_sql(sql: str) -> tuple:
