@@ -190,7 +190,7 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 加载优先级：DB（A）> `_local_catalog.py`（B）> `_template_catalog.py`（仓库默认）。
 
-## 技术栈（v0.6.4.1）
+## 技术栈
 
 - **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；113 routes（smoke 下限 80）；9 import-linter contracts KEPT
 - **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
@@ -231,20 +231,20 @@ KNOT 每个 PATCH 都按 **三阶段评审 + 4 级角色 + MINOR 滚动整体审
 
 **MINOR 滚动整体审核**（v3 新增仪式）：每跨 MINOR 时由资深架构师明确 announce「整体审核」，执行者 + 守护者 + 所有存活的远古守护者独立提供意见，产出代码结构评估 / 奥卡姆剃刀清单 / 重命名重构提案 / 下一 MINOR 预期范围 4 份固定模板。
 
-完整协议条款详见 [CLAUDE.md](./CLAUDE.md)「迭代循环协议」段落（含 v3 协议施行历史；v0.5.0~v0.5.44 期间共 **25+ 次完整施行**，自 v0.5.22 起授权"自审简化协议"用于视觉冲刺 + bug fix 类小 PATCH）。
+完整协议条款详见 [CLAUDE.md](./CLAUDE.md)「迭代循环协议」段落（含 v3 协议施行历史 + 例外治理条款 R-LP-v3-EX-1/2/3）。v3 自 v0.5.0 起每个 MINOR 逐 PATCH 施行，跨 v0.5 / v0.6 / v0.7 / v0.8 持续至今；业务模型重构级 PATCH（如 v0.7 语义层）一律走完整三阶段。
 
 ## 版本记录
 
 见 [CHANGELOG.md](./CHANGELOG.md)。
 
-格式 `vMAJOR.MINOR.PATCH.YYYYMMDDHHmm`：MAJOR 0=内测 / 1=团队公测；MINOR=阶段大节点；PATCH=每轮迭代 +1。
+格式 `vMAJOR.MINOR.PATCH`（+ 可选 build 号 `.N`，如 `v0.8.3`）：MAJOR 0=内测 / 1=团队公测；MINOR=阶段大节点；PATCH=每轮迭代 +1。v0.7.0 起 MINOR 边界打纯 3 位里程碑 tag（如 `v0.7.0`），PATCH 靠 squash-merge commit + CHANGELOG 追踪。
 
 ## License & Contributing
 
 KNOT 采用 **Apache License 2.0**（v0.6.0.15 起 — 含明确专利授权 + 商标条款；详 [LICENSE](LICENSE) + [NOTICE](NOTICE)）。
 
 - **贡献指南**：[CONTRIBUTING.md](CONTRIBUTING.md) — Loop Protocol v3 治理下的外部贡献者路径
-- **安全报告**：[SECURITY.md](SECURITY.md) — **请勿提交公开 issue**（漏洞走 GitHub Security Advisory 或 kk@100xex.com）
+- **安全报告**：[SECURITY.md](SECURITY.md) — **请勿提交公开 issue**（漏洞走 [GitHub Security Advisory](https://github.com/kkleonnnn/knot/security/advisories/new) 私密通报）
 - **Service Level Expectations**：[docs/SLA.md](docs/SLA.md) — 生命周期 / 备份 / 性能 / OSS 治理（v0.6.0.25）
 - **Privacy & Data Processing**：[docs/PRIVACY.md](docs/PRIVACY.md) — GDPR-lite 数据透明性（v0.6.0.25）
 - **Issues**：https://github.com/kkleonnnn/knot/issues

@@ -2,7 +2,7 @@
 
 感谢你对 KNOT 感兴趣！本文档说明如何参与开发。
 
-> **重要前提**：KNOT 当前处于 v0.6.0 内测期，使用 **Loop Protocol v3** 治理（详见 [CLAUDE.md](CLAUDE.md)）。
+> **重要前提**：KNOT 当前处于 v0.8.x 内测期（MAJOR=0），使用 **Loop Protocol v3** 治理（详见 [CLAUDE.md](CLAUDE.md)）。
 > 这意味着每个 PATCH 都有方案 / 评审 / 红线 / 验收 4 阶段。对外部贡献者来说，**先发 issue 讨论方向**远比直接提 PR 更高效。
 
 ## 快速开始
@@ -110,7 +110,7 @@ KNOT 内部所有 PATCH 走 4 阶段：
 - 尊重协作者；对人对事保持专业
 - 不容忍骚扰 / 歧视 / 人身攻击
 - 技术分歧通过 issue / PR 讨论，不在私信攻击
-- 严重违规请联系 kk@100xex.com
+- 严重违规请按 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 的举报流程私密联系维护者
 
 > 完整行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)（Contributor Covenant 2.1）。
 
@@ -121,6 +121,6 @@ KNOT 内部所有 PATCH 走 4 阶段：
 
 ## 联系
 
-- Issue：https://github.com/kkleonnnn/knot/issues
-- Email：kk@100xex.com
-- Security：见 [SECURITY.md](SECURITY.md)
+- 一般问题 / 功能讨论：[GitHub Issues](https://github.com/kkleonnnn/knot/issues)
+- 安全漏洞：见 [SECURITY.md](SECURITY.md)（GitHub Security Advisory 私密通报）
+- 行为准则举报：见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

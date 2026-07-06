@@ -2,7 +2,7 @@
 
 ## 项目状态
 
-**KNOT 当前处于 v0.6.0 内测期**（R-PA-5 4 周窗口 2026-05-15 → 2026-06-12）。
+**KNOT 当前处于 v0.8.x 内测期**（MAJOR=0）。
 本项目尚未公开发布稳定版本（MAJOR=0），生产部署需自行评估风险。
 
 ## 相关文档
@@ -21,7 +21,7 @@
 | 审计日志 | INSERT-only + 9 类 mutation + PII 三层防御 + 自动 purge 7 天阈值 |
 | 数据脱敏 | audit 日志 redacted；非 admin sql_text strip + 业务表名 → 业务别名（v0.6.0.17~19 脱敏链 3 部曲完成）|
 | Rate limit | login 10/min/IP + change_pwd 5/min/IP + query 30/min/user（v0.6.0.23~24）|
-| 2FA | 暂未支持（v0.6.2.0 计划 TOTP；启动闸门 R-PA-8 自验已完成 v0.6.0.22）|
+| 2FA | TOTP 支持（v0.6.2.0 起）：enroll 流程 + token_version 吊销 + v0.6.5.0 起默认强制（含 admin）|
 | CORS | env 配置 `KNOT_CORS_ORIGINS`（v0.6.0.15 起；未设兜底 `*` + warning）|
 
 ## 已知限制（公开声明）
@@ -36,10 +36,7 @@
 
 如果你发现安全漏洞，**请勿提交公开 issue**。
 
-请通过以下方式联系：
-
-- **Email**：kk@100xex.com（主题前缀 `[KNOT SECURITY]`）
-- **GitHub Security Advisory**：https://github.com/kkleonnnn/knot/security/advisories/new
+请通过 **[GitHub Security Advisory 私密通报](https://github.com/kkleonnnn/knot/security/advisories/new)** 提交（仓库已开启 private vulnerability reporting，报告仅维护者可见、不公开）。
 
 报告时请尽量包含：
 
