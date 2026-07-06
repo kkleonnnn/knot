@@ -143,6 +143,7 @@ def scrub_query_payload(payload: dict, alias_map: dict[str, str]) -> dict:
     out = payload.get("output")
     if isinstance(out, dict):
         out.pop("sql", None)
+        out.pop("params", None)   # B6.4-Q36 v0.8.3：HTTP 内部形态（sql+params）均不发非 admin（统一 sql pop 口径）
         for k in _LEAK_TEXT_FIELDS:
             if out.get(k):
                 out[k] = desensitize_text(out[k], alias_map)

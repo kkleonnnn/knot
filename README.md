@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.2 · B6.4🔴 跨期对比「必堵」（语义激活门）：同比/环比标量查询过去**静默丢对比只算本期 + 命中徽标 = 命中但误导**（最危险类）。修：`run_semantic_compile_step` compile 前插**确定性 guard**——原始 question 含跨期对比标记（同比/环比/vs上期/较上月/YoY/MoM，FP 负向 + metric 名扣除）**且** LF 无 lag/lead 窗 → 拒识回退 LLM（engine=llm 无徽标）；**保留 date-series 环比-lag**。⚠️ curated regex **非穷尽** → 仅关 curated 集内误判，**novel 措辞残余（真闭合待根治 LogicForm 周期对比字段 · defer）** —— 非「硬误判=0」。散文 overclaim 半（clarifier）归 B6.5。`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.5/6.6 + kk 跑真 OHX eval）。走完整 v3 + 守护者 Stage 3 (major-revise)。<br>**上版** v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀 + B1-B5。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.3 · B6.5/6.6🟡 叙述层收尾（语义激活门**最后一块**）：叙述「说了 SQL 没做的事」= 数字对散文误导。**B6.5**（presenter.md 外科 3 ban）：Q31 无 WHERE 不声称过滤 · Q13 跨指标比率须时间口径可比 · Q36 entity 从 SQL/params 读非裸答案；配 query.py 喂 params 给 presenter（HTTP 路径）+ output.params 脱敏口径统一。**B6.6**（clarifier.md）：analysis_approach 扩相对词、不写具体日期（闭 clarifier 日期漂移 Q3/Q28）。勿一刀切（保单指标直陈/空集诚实）。**narrative-only 数字不变**；`KNOT_SEMANTIC_LAYER` 仍 off。⚠️ prompt = DB-seeded fork → 须 admin-UI 重applied 生效。走完整 v3 + 守护者 Stage 3 (minor)。**⭐ B6.1~B6.6 激活门四项全 addressed** → 待 kk 填真 OHX corpus + 跑 eval-live 拿三率 → 开 flag。<br>**上版** v0.8.2 B6.4 同比必堵 · v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
