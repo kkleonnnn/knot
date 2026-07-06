@@ -54,11 +54,17 @@ def test_parser_hit_rate_and_zero_misjudge(monkeypatch):
     monkeypatch.setattr(mr, "list_metrics", lambda cid=None: metrics)
     cat, tc = catalog_arg(_CATALOG), eval_time_ctx()
 
+    # B6.4 v0.8.2：harness 须模型**生产语义决策**（parse → guard → compile），非仅 parse+compile
+    # —— 否则跨期对比 guard（在 run_semantic_compile_step）被绕过，同比 fallback case 会误判为 misjudge。
+    from knot.services.query_steps import _period_comparison_unrepresented
+
     labels, detail = [], []
     for case in _CASES:
         lf = asyncio.run(_parse_one(case["question"], metrics))
         compile_ok = False
-        if lf is not None:
+        if lf is not None and _period_comparison_unrepresented(case["question"], lf, metrics):
+            compile_ok = False                          # B6.4 guard 拒识 → refuse（= 生产 engine=llm 回退）
+        elif lf is not None:
             try:
                 compiler.compile_logicform(lf, cat, tc)
                 compile_ok = True

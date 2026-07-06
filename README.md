@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.1 · B6.2 parser NL→LogicForm 命中率评测集 + ≥90% 门禁（语义激活门 · 评测基建）：把 kk 手工 runbook 三率（命中/误判/漏判）固化成可复演 eval，对标 v0.4.0 intent ≥90% 门禁。两层——**Layer 1**（key-free 主 CI）corpus 良构 + 每 hit case 期望 LogicForm 确定性编译覆盖 + classify scorer；**Layer 2**（live LLM opt-in `@_REQUIRES_KEY`）live parse → canonical 匹配 → `assert 命中率 ≥ 0.9 AND 误判数 == 0`。假域 `.example` = harness 自检；真准确率门 = kk 在 gitignored `semantic_cases.yaml`（真 OHX）跑 = 激活 checkpoint。**零运行时行为改动**（纯 eval 基建）；`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.4/6.5/6.6 全清）。走完整 v3 三阶段 + 守护者 Stage 3 (minor)。<br>**上版** v0.8.0 B6.1 片段注入校验 · v0.7.48 Foundation icon · v0.7.46/.47 UX/死码 · v0.7.0~.45 语义层 + 编译七刀 + B1-B5。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.2 · B6.4🔴 跨期对比「必堵」（语义激活门）：同比/环比标量查询过去**静默丢对比只算本期 + 命中徽标 = 命中但误导**（最危险类）。修：`run_semantic_compile_step` compile 前插**确定性 guard**——原始 question 含跨期对比标记（同比/环比/vs上期/较上月/YoY/MoM，FP 负向 + metric 名扣除）**且** LF 无 lag/lead 窗 → 拒识回退 LLM（engine=llm 无徽标）；**保留 date-series 环比-lag**。⚠️ curated regex **非穷尽** → 仅关 curated 集内误判，**novel 措辞残余（真闭合待根治 LogicForm 周期对比字段 · defer）** —— 非「硬误判=0」。散文 overclaim 半（clarifier）归 B6.5。`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.5/6.6 + kk 跑真 OHX eval）。走完整 v3 + 守护者 Stage 3 (major-revise)。<br>**上版** v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀 + B1-B5。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

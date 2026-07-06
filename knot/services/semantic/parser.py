@@ -31,6 +31,7 @@ _LOGICFORM_SYS = """你是 KNOT 语义层的 LogicForm 抽取器。给定用户�
 {time_block}
 时间词→枚举（**只映射相对词**）：今天→`today`，昨天→`yesterday`，本月(迄今,含今天)→`this_month_to_latest`，本周(迄今,含今天)→`this_week`，今年迄今→`this_year_to_latest`，近7天→`last_7_days_to_latest`，上周→`last_week`，上月→`last_month`，去年→`last_year`，自然月→`this_month`。「今天/本月/本周/今年迄今」含今天→选 dwd；「昨天/上周/上月/去年」完整过去→选 ads（配合下方库表时效路由）。
 ⚠️ **绝对具体年份/月份/日期**（如 `2025年`、`2024年3月`、`2023-05-01` 这种**写死的非相对词**）**没有对应相对枚举** → **输出 `{{"metrics": []}}` 回退 LLM**（LLM 会按具体日期写 SQL）。**严禁**把绝对年份硬塞 `this_year`/`last_year`（相对枚举锚当前年 → 把 2025 算成今年 2026 = 错年）。
+⚠️ **跨期对比语义**（同比 / 环比 / 「vs 上期」/「较上月」/「和上周比」/ YoY / MoM）—— **标量指标当前无当前-vs-prior 表达能力**（time 是单窗，装不下两期）→ **输出 `{{"metrics": []}}` 回退 LLM**；**严禁**只算本期而丢弃对比（= 命中但误导）。**例外**：**按日明细序列的环比**（有 date 维、逐日 lag）可用下方 window lag（那是明细列非标量两期对比）。
 
 业务/库表路由规则（决定该选哪张表的 metric —— 尤其**数据时效**；为空则忽略）：
 {business_rules_block}
@@ -53,7 +54,7 @@ _LOGICFORM_SYS = """你是 KNOT 语义层的 LogicForm 抽取器。给定用户�
 - metrics 可引用**不同对象**的指标；**多对象 + 维度时，维度须是所有引用对象都有的「共同维度」**（如 city 同时是 orders/users 的维度 → 「各城市 GMV 和 DAU」可编；**非共同维度 → 输出 {{"metrics": []}}（回退）**）。无维度的多对象（标量，如「本月 GMV 和 DAU」）照常。单对象维度可跨对象照常。
 - dimensions **可跨对象** —— 用任一已定义指标的可用维度（含相关对象的维度，如按用户属性切订单指标）；系统自动沿 n:1/1:1 安全关系 JOIN，无安全路径/歧义则安全回退。
 - **having = 聚合后过滤**（如「GMV 超 1 万的城市」→ dimensions=["city"] + having=["gmv > 10000"]）：⚠️ **必须用 metric name 作 alias**（如 `gmv > 10000`），**严禁**写原始口径或带表前缀（如 `SUM(o.pay_amount) > 10000` / `o.col` —— 跨对象会编译失败）。无聚合后过滤需求 → 留空 []。
-- **window = 窗口函数（排名/同环比/累计）**（如「各地区 GMV 排名」→ dimensions=["region"] + window=[{{"func":"row_number","partition_by":["region"],"order_by":[{{"field":"gmv","dir":"desc"}}],"as_name":"rank"}}]；「GMV 环比」→ window=[{{"func":"lag","arg":"gmv","order_by":[{{"field":"date","dir":"asc"}}],"as_name":"prev_gmv"}}]）：⚠️ func 只能取白名单 `row_number|rank|dense_rank|lag|lead|sum|avg`；partition_by/order_by/arg **必须用 metric name 或维度**（alias-based，**严禁原始口径/带表前缀**）。无窗口需求 → 留空 []。
+- **window = 窗口函数（排名/同环比/累计）**（如「各地区 GMV 排名」→ dimensions=["region"] + window=[{{"func":"row_number","partition_by":["region"],"order_by":[{{"field":"gmv","dir":"desc"}}],"as_name":"rank"}}]；**按日明细**「GMV 每日环比」→ window=[{{"func":"lag","arg":"gmv","order_by":[{{"field":"date","dir":"asc"}}],"as_name":"prev_gmv"}}]（**仅 date-series 明细环比用 lag；标量「本月 vs 上月」类跨期对比走上方 `{{"metrics":[]}}` 回退**））：⚠️ func 只能取白名单 `row_number|rank|dense_rank|lag|lead|sum|avg`；partition_by/order_by/arg **必须用 metric name 或维度**（alias-based，**严禁原始口径/带表前缀**）。无窗口需求 → 留空 []。
 - **window.frame = 自定义滑动 frame（移动平均/滑动窗口，仅 sum/avg）**（如「GMV 7 日移动平均」→ window=[{{"func":"avg","arg":"gmv","order_by":[{{"field":"date","dir":"asc"}}],"frame":{{"preceding":6,"following":0}},"as_name":"ma7"}}]）：`preceding`/`following` 取**非负整数**（0=当前行）或 `"unbounded"`；**ranking/lag/lead 不支持 frame**；frame 需 order_by。无滑动需求 → 省略 frame。
 - **qualify = 分区 top-N**（窗口结果过滤，如「各地区 GMV 前 3」→ dimensions=["region"] + window=[{{...,"as_name":"rk"}}] + qualify=["rk <= 3"]）：⚠️ 必须引 window 的 `as_name`（alias-based），**严禁** raw o.col/裸 caliber；**无 window 的 qualify 无意义**（编译回退）。无分区 top-N 需求 → 留空 []。
 - **outer = 结果再聚合**（对编译结果再聚合一层，如「GMV 超 1 万的**城市数**」→ dimensions=["city"]+having=["gmv > 10000"]+outer={{"func":"count"}}；「top-5 城市 GMV **合计**」→ window+qualify+limit=5+outer={{"func":"sum","arg":"gmv"}}）：func 白名单 `count|sum|avg|min|max`；count 无需 arg；其他 func 的 arg **必须引 metric name 或维度**（alias-based，严禁 raw 口径/表前缀）。无再聚合需求 → 留空 {{}}。

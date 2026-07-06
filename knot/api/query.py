@@ -408,6 +408,7 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             sql_result, semantic_audit = await query_steps.run_semantic_compile_step(
                 clarifier_result["refined_question"], engine, sql_planner_key,
                 api_key, openrouter_api_key, agent_buckets, expected_cat, user,
+                raw_question=req.question,   # B6.4 v0.8.2：guard 跑原始 NL（非 clarifier 改写；守护者 B-3）
             )
             engine_used = "semantic" if sql_result is not None else "llm"  # F2 路由可观测（R-SL-35）
             if sql_result is not None:
