@@ -127,3 +127,14 @@ cases:
     question: 成交额和天气有关系吗
     tags: [oos, cross_domain]
     expect: {mode: fallback}
+
+  # B6.4（v0.8.2）跨期对比「必堵」：标量同比/环比无当前-vs-prior 表达 → 确定性拒识回退（guard 保证 correct_fallback）
+  - id: fallback_yoy_scalar
+    question: 本月成交额同比上月
+    tags: [oos, period_comparison, b6.4]
+    expect: {mode: fallback}
+
+  - id: fallback_wow_scalar
+    question: 本周和上周的成交额对比
+    tags: [oos, period_comparison, b6.4]
+    expect: {mode: fallback}
