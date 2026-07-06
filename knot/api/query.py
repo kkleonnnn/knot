@@ -360,7 +360,9 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 yield emit({"type": "agent_start", "agent": "presenter", "label": "整理洞察"})
                 await asyncio.sleep(0)
                 presenter_result = await query_steps.run_presenter_step(
-                    req.question, f"GET {http_spec.get('url_template', '')}", http_rows,
+                    # B6.4-Q36 v0.8.3：喂 presenter 的 sql 串并入 resolved params（镜像 message-save :377）——
+                    # 否则 presenter 见不到 user_id=12345 会从裸答案编造「该用户 ID:1」（entity 幻觉）。
+                    req.question, f"GET {http_spec.get('url_template', '')} params={http_result['params']}", http_rows,
                     query_steps.select_agent_key("presenter", user_agent_cfg, model_key, api_key, openrouter_api_key),
                     api_key, openrouter_api_key, agent_buckets,
                 )

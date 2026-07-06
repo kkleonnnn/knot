@@ -35,6 +35,18 @@ def test_pop_sql_top_and_nested():
     assert done["output"]["steps"] == 3  # 非泄漏字段保留
 
 
+def test_pop_output_params_http_b64_q36():
+    """B6.4-Q36 v0.8.3：HTTP agent_done 嵌套 output.params（如 user_id）与 output.sql 一同 pop
+    —— 统一「HTTP 内部形态不发非 admin」口径（原只 pop sql 漏 params）。"""
+    done = {"type": "agent_done", "agent": "sql_planner",
+            "output": {"sql": "GET .../positions params={'user_id': 12345}",
+                       "params": {"user_id": 12345}, "steps": 1}}
+    scrub_query_payload(done, _AMAP)
+    assert "sql" not in done["output"], "output.sql 应 pop"
+    assert "params" not in done["output"], "output.params 应 pop（B6.4-Q36 口径统一）"
+    assert done["output"]["steps"] == 1  # 非泄漏字段保留
+
+
 def test_desensitize_leak_fields_top():
     """final 顶层 explanation/error/insight/user_message 表名 → 业务别名。"""
     ev = {
