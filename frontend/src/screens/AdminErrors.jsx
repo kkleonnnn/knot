@@ -17,7 +17,7 @@ function _relTime(iso) {
   return `${Math.floor(sec / 86400)} 天前`;
 }
 
-export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout, convs, setConvs, dbOk, sourceCount }) {
+export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [items, setItems] = useState([]);
   const [topHashes, setTopHashes] = useState([]);
   const [total, setTotal] = useState(0);
