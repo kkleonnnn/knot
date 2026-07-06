@@ -100,11 +100,12 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:semantic-compile-acyclic]
-name = compile_helpers/multi_base 不得 import compiler（v0.7.13 抽 module — 守无环分层 + 防 multi_base→compiler 循环复发）
+name = compile_helpers/multi_base/fragment_guard 不得 import compiler（v0.7.13 抽 module + v0.8.0 B6.1 fragment_guard leaf — 守无环分层 + 防 multi_base→compiler 循环复发）
 type = forbidden
 source_modules =
     knot.services.semantic.compile_helpers
     knot.services.semantic.multi_base
+    knot.services.semantic.fragment_guard
 forbidden_modules =
     knot.services.semantic.compiler
 allow_indirect_imports = True

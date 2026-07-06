@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.7.48 — Foundation 死 icon 清扫（sanctioned re-baseline 仪式 · v0.7.47 Tier B1）
+## [Unreleased] - v0.8.0 — B6.1 语义层片段级注入校验（安全承重 · v0.8 MINOR 开篇 · 语义激活门）
+
+> v0.7 遗留语义激活门 B6.1（唯一「安全必修」）落地 = v0.8 MINOR 开篇。走完整 Loop Protocol v3 三阶段：执行者 Stage 1 草案（含一轮对抗核验重塑设计）→ 守护者（v0.7 Agent 角色滚动）7 路 grounded workflow 终审 = ACCEPT WITH REVISIONS（推翻执行者 v1 的 G0/G1 rationale + 抓 critical 漏检 window `as_name`）→ 执行者整合 + 5 路 sqlglot POC 复核（逐条 CONFIRM）→ 守护者 diff 级 second pass APPROVED → 6-commit 落码。plan [`docs/plans/v0.8.0-b6.1-fragment-injection-validation.md`](docs/plans/v0.8.0-b6.1-fragment-injection-validation.md)（§9 = 逐 finding→verdict→解 可追溯表）。
+>
+> **问题**：编译器把 **7 类 LLM 产出片段**（having/qualify/lf.filters/window partition_by·arg·内层 order_by·**as_name**）逐字拼进 SQL、0 片段级校验；唯一兜底全句 `_is_safe_sql` by-design 放行**只读**子查询/session 函数/注释截断/跨库限定列（只读闸门不保证 bounded-cost/scope）。POC 铁证：恶意 `as_name='rn, (SELECT MAX(bal) FROM otherdb.wallets)'` → `_is_safe_sql` 放行跨库 exfil。
+>
+> **解**（新纯 leaf `knot/services/semantic/fragment_guard.py`，抛 `FragmentUnsafe`，0 semantic-sibling import，Contract 9 CI 守无环）：`compile_logicform` choke point splice 前校验 —— **G0** 注释 token prescan（sqlglot 不剥注释、roundtrip `/* */` → 须 parse 前扫）· **G1** standalone parse（不包裹，避 self-FP）· **G2** 拒 Subquery/Select/Union · **G3** 拒 `exp.Anonymous`（留 benign 白名单含 `UNIX_TIMESTAMP` — 否则误杀合法过滤）覆盖 SLEEP/BENCHMARK/LOAD_FILE/USER/CONNECTION_ID · **G4** typed 危险 denylist（CURRENT_USER/VERSION/DATABASE/SESSION_USER/GROUP_CONCAT）· **G5** 别名类（having/qualify/window）拒任何限定符 + 列 ∈ 可见别名集（堵 `otherdb.users.x` 跨库）· **G6** 别名类拒函数调用（比较/逻辑/算术是 Binary 非 Func → 放行）。lf.filters（物理 WHERE）仅 G0-G4（无 catalog 列源 + parser 0 func 约束 → 列/func 白名单必误杀）。fail-closed = `CompileError` → 回退 LLM ReAct（相对 flag-off baseline 0 能力损失）。
+>
+> **附带安全承重**：① AND-join 优先级 seam（`1=1 OR ..` 旁路信任 metric filter）→ WHERE/HAVING/qualify 全 4 splice 点括每片段（对合法片段语义恒等 = 受控 byte-equal 再基线 11 断言）· ② auto-LIMIT `"LIMIT" in sql` substring 判断被 filter 片段内 LIMIT token（字面/注释/内层子查询）绕过 → 全量返回 → 改 `_has_top_level_limit` AST（`tree.args["limit"]`，POC union/CTE/subquery 全对）。
+>
+> **不变量**：`KNOT_SEMANTIC_LAYER` **仍 off**（本 PATCH 不开 flag；激活待 B6.2 eval 门禁 + B6.4 同比 + B6.5/6.6 叙述层）· OOS-1 强化（G5 拒跨库/跨 catalog 列）· crypto contract（fragment_guard 0 core.crypto）· sqlglot pin `>=30,<31`· 纯后端 0 前端逻辑改动（仅 version.js 版本串 + static 重建）。admin caliber/metric filters 信任面 scope 外（require_admin gated；残余风险明文记录）。
+
+## [Released] - v0.7.48 — Foundation 死 icon 清扫（sanctioned re-baseline 仪式 · v0.7.47 Tier B1）
 
 > v0.7.47 §2 Tier B1 推迟项（kk 2026-07-05 LOCKED 单独 foundation PATCH）落地。删 Shared.jsx `I` dict 17 个 grounded 0-使用 icon（8 路核实 workflow `w00xz6ugi` 确认 + 本轮复核 0 引用除 foundation guard），走 sanctioned Foundation re-baseline 仪式（R-PB-SH-1/2 additive-only + R-PB-SH-12 baseline mirror + R-PB-SH-4 count 契约的既定演进流程）。plan [`docs/plans/v0.7.48-foundation-icon-cleanup.md`](docs/plans/v0.7.48-foundation-icon-cleanup.md)。**0 screen 改动**（保留功能走 SAVED_SVG/RB_SVG/INFO_PATH 路径字面，UX 0 变化）。
 

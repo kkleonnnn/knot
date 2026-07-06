@@ -71,7 +71,7 @@ def _build_dimensional_sql(lf, metrics_by_name, tables, time_ctx) -> str:
             start, end = getattr(time_ctx, lf.time)
             where.append(_date_range_clause(f"o.{date_col}", start, end))   # v0.7.19 半开区间（datetime 列全天）
         dim_cols = ", ".join(f"o.{d}" for d in lf.dimensions)
-        w = (" WHERE " + " AND ".join(where)) if where else ""
+        w = (" WHERE " + " AND ".join(f"({c})" for c in where)) if where else ""   # v0.8.0 B6.1 括每片段
         union_branches.append(f"SELECT DISTINCT {dim_cols} FROM {physical} o{w}")
         agg = f"SELECT {dim_cols}, {m['caliber']} AS {name} FROM {physical} o{w} GROUP BY {dim_cols}"
         a = f"t{i}"
