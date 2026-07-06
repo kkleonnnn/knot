@@ -1,0 +1,129 @@
+# KNOT 语义层 eval 用例模板（B6.2 · v0.8.1）—— 仓库内提交版本，**假域（e-commerce），不含真实业务数据**。
+#
+# 【部署】cp tests/eval/semantic_cases.example.yaml tests/eval/semantic_cases.yaml，再按真实业务
+#   （OHX metric / 表 / 期望 LogicForm）扩展；semantic_cases.yaml 已 .gitignore，_load 优先读之、缺失回退本 example。
+#
+# 【用途】把 kk 手工 runbook 三率（命中/误判/漏判）固化成可复演 eval（对标 v0.4.0 intent 门禁）：
+#   - Layer 1（key-free 主 CI，tests/services/semantic/test_semantic_eval_corpus.py）：
+#       corpus 良构 + 每 hit case 期望 LogicForm 确定性编译覆盖（0 LLM/DB）+ classify scorer 逻辑。
+#   - Layer 2（live LLM opt-in，tests/eval/test_semantic_accuracy.py，@_REQUIRES_KEY）：
+#       live parse → canonical 匹配 → 三率 → assert 命中率 ≥ 0.9 AND 误判数 == 0。
+#
+# 【canonical 匹配语义（守护者 §D-4 承重）】LogicForm.to_canonical_json() 对 metrics/dimensions/filters
+#   **保序不归一**（仅 order_by 归一 dict-key）→ 匹配检的是「parser 是否复现期望确定性 LF」，**非语义等价**。
+#   filters 自由文本假阴风险最高 → filter-heavy hit case 用 expect.logicforms（≥1 期望 LF 集合，任一命中即算对）。
+#
+# 【假域 = harness 自检】本 .example 假域 corpus 设计成 parser 稳过（buffer ≥95%）→ Layer 2 在此 assert
+#   本质是 harness 正确性自检；真准确率门 = kk 在 gitignored semantic_cases.yaml（真 OHX）上跑 eval-live。
+
+# ── fixture catalog（假域；metric shape 镜像 metric_repo.list_metrics 返回 dict）──
+catalog:
+  catalog_id: 1
+  tables:
+    - {db: shop, table: orders, source_type: db}
+    - {db: shop, table: members, source_type: db}
+  metrics:
+    - name: gmv
+      display: 成交额
+      caliber: "SUM(o.pay_amount)"
+      base_object: shop.orders
+      filters: '["o.status=''paid''"]'
+      dimensions: '["date","city"]'
+      date_column: ""
+      lineage: null
+    - name: order_cnt
+      display: 订单数
+      caliber: "COUNT(o.id)"
+      base_object: shop.orders
+      filters: "[]"
+      dimensions: '["date","city"]'
+      date_column: ""
+      lineage: null
+    - name: member_cnt
+      display: 会员数
+      caliber: "COUNT(m.id)"
+      base_object: shop.members
+      filters: "[]"
+      dimensions: '["region"]'
+      date_column: ""
+      lineage: null
+    - name: aov
+      display: 客单价
+      caliber: ""
+      base_object: ""
+      filters: "[]"
+      dimensions: "[]"
+      date_column: ""
+      lineage: '{"op":"divide","left":"gmv","right":"order_cnt"}'
+
+# ── cases：hit（覆盖编译七刀主形 + 基础）+ fallback（OOS/边界各类）──
+cases:
+  - id: gmv_this_month
+    question: 本月成交额是多少
+    tags: [basic, time]
+    expect:
+      mode: hit
+      logicform: {metrics: [gmv], time: this_month_to_latest}
+
+  - id: gmv_by_city
+    question: 本月各城市的成交额
+    tags: [dimension, time]
+    expect:
+      mode: hit
+      logicform: {metrics: [gmv], dimensions: [city], time: this_month_to_latest}
+
+  - id: order_cnt_by_city
+    question: 本月各城市订单数
+    tags: [dimension]
+    expect:
+      mode: hit
+      logicform: {metrics: [order_cnt], dimensions: [city], time: this_month_to_latest}
+
+  - id: gmv_having
+    question: 本月成交额超过一万的城市
+    tags: [having]
+    expect:
+      mode: hit
+      logicform: {metrics: [gmv], dimensions: [city], time: this_month_to_latest, having: ["gmv > 10000"]}
+
+  - id: gmv_topn
+    question: 本月成交额排名前三的城市
+    tags: [window, qualify, topn]
+    expect:
+      mode: hit
+      logicform:
+        metrics: [gmv]
+        dimensions: [city]
+        time: this_month_to_latest
+        window: [{func: row_number, order_by: [{field: gmv, dir: desc}], as_name: rk}]
+        qualify: ["rk <= 3"]
+
+  - id: multi_base_scalar
+    question: 总成交额和会员总数
+    tags: [multi_base, scalar]
+    expect:
+      mode: hit
+      logicform: {metrics: [gmv, member_cnt]}
+
+  - id: aov_derived
+    question: 本月客单价
+    tags: [derived]
+    expect:
+      mode: hit
+      logicform: {metrics: [aov], time: this_month_to_latest}
+
+  # ── fallback：应正确回退 LLM（OOS / 边界 / 未定义）──
+  - id: fallback_attribution
+    question: 为什么本月成交额下降了
+    tags: [oos, attribution]
+    expect: {mode: fallback}
+
+  - id: fallback_undefined_metric
+    question: 本月退款率是多少
+    tags: [oos, undefined_metric]
+    expect: {mode: fallback}
+
+  - id: fallback_cross_domain
+    question: 成交额和天气有关系吗
+    tags: [oos, cross_domain]
+    expect: {mode: fallback}

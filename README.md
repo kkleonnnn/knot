@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.0 · B6.1 语义层片段级注入校验（安全承重 · v0.8 MINOR 开篇）：编译器 7 类 LLM 片段（having/qualify/lf.filters/window partition·arg·order·**as_name**）splice 前经新 leaf `fragment_guard`（G0 注释 prescan · G1 standalone parse · G2 拒子查询/UNION · G3 拒未识别函数 · G4 typed 危险 denylist · G5 别名+限定符拒 · G6 别名类拒函数）校验，`FragmentUnsafe`→`CompileError`→回退 LLM（fail-closed）；AND-join 优先级 seam 括每片段闭合；auto-LIMIT substring→AST 修（防片段内 LIMIT token 绕过全量返回）。`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.2/6.4/6.5/6.6）。走完整 v3 三阶段 + 守护者 7 路 grounded 终审 + 执行者 5 路 POC 复核。<br>**上版** v0.7.48 Foundation 死 icon 清扫 · v0.7.47 死码清扫 · v0.7.46 UX bugfix · v0.7.0~.45 语义层 + 编译七刀 + 价值自测闭环 + B1-B5 收尾。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.1 · B6.2 parser NL→LogicForm 命中率评测集 + ≥90% 门禁（语义激活门 · 评测基建）：把 kk 手工 runbook 三率（命中/误判/漏判）固化成可复演 eval，对标 v0.4.0 intent ≥90% 门禁。两层——**Layer 1**（key-free 主 CI）corpus 良构 + 每 hit case 期望 LogicForm 确定性编译覆盖 + classify scorer；**Layer 2**（live LLM opt-in `@_REQUIRES_KEY`）live parse → canonical 匹配 → `assert 命中率 ≥ 0.9 AND 误判数 == 0`。假域 `.example` = harness 自检；真准确率门 = kk 在 gitignored `semantic_cases.yaml`（真 OHX）跑 = 激活 checkpoint。**零运行时行为改动**（纯 eval 基建）；`KNOT_SEMANTIC_LAYER` 仍 off（激活待 B6.4/6.5/6.6 全清）。走完整 v3 三阶段 + 守护者 Stage 3 (minor)。<br>**上版** v0.8.0 B6.1 片段注入校验 · v0.7.48 Foundation icon · v0.7.46/.47 UX/死码 · v0.7.0~.45 语义层 + 编译七刀 + B1-B5。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 

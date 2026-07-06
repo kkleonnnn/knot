@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.0 — B6.1 语义层片段级注入校验（安全承重 · v0.8 MINOR 开篇 · 语义激活门）
+## [Unreleased] - v0.8.1 — B6.2 parser NL→LogicForm 命中率评测集 + ≥90% 门禁（语义激活门 · 评测基建）
+
+> v0.7 遗留语义激活门 B6.2 落地——「把 kk 手工 runbook 三率（命中/误判/漏判）固化成可复演 eval set + ≥90% 门禁（对标 v0.4.0 intent 门禁）」。**零运行时行为改动**（纯 test/corpus/CI 基建，不碰 parser/compiler/query_steps）。走完整 Loop Protocol v3：执行者 Stage 1（含 grounding workflow）→ 守护者（v0.7 Agent）Stage 3 终审 = ACCEPT WITH REVISIONS (minor)（承重前提 `to_canonical_json()` 存在+确定性全 grounded 成立 + B6.1 R-F1/R-F2/R-F3 确认落 main）→ 执行者整合 + §C 事实订正逐条复核 → 5-commit。plan [`docs/plans/v0.8.1-b6.2-parser-eval-gate.md`](docs/plans/v0.8.1-b6.2-parser-eval-gate.md)（§9 整合记录）。
+>
+> **两层评测**（守护者 Stage 3 LOCKED）：
+> - **Layer 1（key-free · 主 CI 强制）** `tests/services/semantic/test_semantic_eval_corpus.py`：corpus 良构 + 每 hit case 期望 LogicForm **确定性编译覆盖**（0 LLM/DB，monkeypatch metric_repo + 固定 time_ctx）+ classify scorer 逻辑。**放 tests/services/semantic/ 而非 tests/eval**（守护者 §A collect-only 实测：tests/eval 被 `ci.yml --ignore=tests/eval` 排除 → Layer 1 须在其外才每-PR 强制；已验主-CI collected=1/Layer2=0）。
+> - **Layer 2（live LLM · opt-in）** `tests/eval/test_semantic_accuracy.py`（`@_REQUIRES_KEY` skip-if-no-key，eval-live.yml `pytest tests/eval` 自动纳入）：live `parse_to_logicform` → canonical 匹配 → 三率 → **assert 命中率 ≥ 0.9 AND 误判数 == 0**。
+>
+> **canonical 匹配语义**（守护者 §D 承重澄清）：`LogicForm.to_canonical_json()` 对 metrics/dimensions/filters **保序不归一**（仅 order_by 归一）→ 匹配检「parser 是否复现期望**确定性** LF」**非「语义等价」**（对激活门恰正确）；filters 自由文本假阴风险最高 → filter-heavy hit case 用 `expect.logicforms`（≥1 期望 LF 集合）逃生舱。**数值真相类误判**（源路由分歧等）出 auto-eval scope，由 kk runbook live-DB 人判段兜。
+>
+> **corpus 隐私**：committed `semantic_cases.example.yaml` = **假域（e-commerce）harness 自检**（设计成 parser 稳过 ≥95% → Layer 2 在此 assert 本质是 harness 正确性自检）；**真准确率门 = kk 在 gitignored `semantic_cases.yaml`（真 OHX metric/表/期望 LF）跑 Layer 2 = 激活 checkpoint**。
+>
+> **激活**：`KNOT_SEMANTIC_LAYER` **仍 off**（B6.2 不自动开 flag）；kk 跑真 OHX corpus 拿命中≥90%+误判=0，连同 B6.4🔴 同比 + B6.5/6.6🟡 叙述层全清 → 决定开 flag。
+
+## [Released] - v0.8.0 — B6.1 语义层片段级注入校验（安全承重 · v0.8 MINOR 开篇 · 语义激活门）
 
 > v0.7 遗留语义激活门 B6.1（唯一「安全必修」）落地 = v0.8 MINOR 开篇。走完整 Loop Protocol v3 三阶段：执行者 Stage 1 草案（含一轮对抗核验重塑设计）→ 守护者（v0.7 Agent 角色滚动）7 路 grounded workflow 终审 = ACCEPT WITH REVISIONS（推翻执行者 v1 的 G0/G1 rationale + 抓 critical 漏检 window `as_name`）→ 执行者整合 + 5 路 sqlglot POC 复核（逐条 CONFIRM）→ 守护者 diff 级 second pass APPROVED → 6-commit 落码。plan [`docs/plans/v0.8.0-b6.1-fragment-injection-validation.md`](docs/plans/v0.8.0-b6.1-fragment-injection-validation.md)（§9 = 逐 finding→verdict→解 可追溯表）。
 >
