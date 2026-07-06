@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.1 — B6.2 parser NL→LogicForm 命中率评测集 + ≥90% 门禁（语义激活门 · 评测基建）
+## [Unreleased] - v0.8.2 — B6.4🔴 跨期对比「必堵」：curated 标记集确定性拒识（语义激活门）
+
+> v0.7 遗留激活门 B6.4🔴「同比/环比 OOS 静默丢 + narrative overclaim = 命中但误导」（最危险类，v0.7.45 自由提问暴露：「本周平台总盈亏，同比上周」→ 静默丢同比只算本周 + HIT 徽标）。**有运行时路由改动**（符合条件的跨期对比查询：静默命中错答 → 确定性拒识回退 LLM）。走完整 v3 + 守护者 Stage 3 = ACCEPT WITH REVISIONS (major-revise)（B-1 placement / B-2「硬误判=0」重构 / B-3 guard 输入 + §C regex 精修）。plan [`docs/plans/v0.8.2-b6.4-period-comparison-guard.md`](docs/plans/v0.8.2-b6.4-period-comparison-guard.md)（§9 整合记录）。
+>
+> **缺陷两半 owner 不同**（grounded）：① **徽标半（语义层 误判 = 本 PATCH）**：parser 无同环比 lexicon → 标量「同比上周」静默丢 → 过 `_validate_hit`（不查对比意图）→ engine=semantic 徽标；② **散文 overclaim 半**（clarifier `analysis_approach` compile 前跑、0 对账 SQL，`query.py:486/506`）→ **B6.5，非本 PATCH**。
+>
+> **修（确定性 guard）**：`query_steps._period_comparison_unrepresented(raw_question, lf, metrics)` 纯函数 = curated 对比标记 regex **∧** `¬has_lag(lf)` → True。`run_semantic_compile_step` **+`raw_question` 参数**（守护者 B-3：跑**原始 NL** 非 clarifier 改写的 refined_question）；guard 插 **`try` 内、`compile_logicform` 前**（守护者 B-1：否则 CompileError 逃逸成 500）→ raise → 既有 except → near-miss 审计行（诊断）+ 回退 LLM。`query.py:408` 加传 `req.question`。**保留 date-series 环比-lag**（`¬has_lag` 豁免）。regex FP 护（`(?!例)` 防循环比例/同比例 · `\bMoM\b` 防 MoMo · metric/维度名扣除）+ FN 扩集（和上周比/vs昨天/相较/两窗并陈）。
+>
+> **⚠️ 误判关闭范围（守护者 B-2，非「硬误判=0」）**：curated regex **非穷尽** → **仅 curated 标记集内跨期对比误判确定性关闭；novel 措辞残余误判存在，真完整闭合 = 根治 LogicForm 周期对比字段（defer 后续 v0.8 feature）**。guard 是合理 interim（闭 exposing case + 高频措辞），**非** production 同环比误判=0。**激活门「误判≈0」可信度 = B6.2 eval corpus 对比措辞多样性 × regex 覆盖（耦合）**；kk 激活决策须记录 novel 残余。
+>
+> **B6.2 联动**：B6.2 Layer 2 harness 纳 guard（模型生产 parse→guard→compile）+ corpus 加 2 同比/环比标量 fallback case → 确定性 correct_fallback。**散文半 = B6.5**（回退后 engine=llm 已非语义层误判）。`KNOT_SEMANTIC_LAYER` **仍 off**（激活待 B6.5/6.6 + kk 跑真 OHX eval）。prompt nudge（parser.py 拒识文法 + 收窄环比示例）软化 guard 触发、非承重。
+
+## [Released] - v0.8.1 — B6.2 parser NL→LogicForm 命中率评测集 + ≥90% 门禁（语义激活门 · 评测基建）
 
 > v0.7 遗留语义激活门 B6.2 落地——「把 kk 手工 runbook 三率（命中/误判/漏判）固化成可复演 eval set + ≥90% 门禁（对标 v0.4.0 intent 门禁）」。**零运行时行为改动**（纯 test/corpus/CI 基建，不碰 parser/compiler/query_steps）。走完整 Loop Protocol v3：执行者 Stage 1（含 grounding workflow）→ 守护者（v0.7 Agent）Stage 3 终审 = ACCEPT WITH REVISIONS (minor)（承重前提 `to_canonical_json()` 存在+确定性全 grounded 成立 + B6.1 R-F1/R-F2/R-F3 确认落 main）→ 执行者整合 + §C 事实订正逐条复核 → 5-commit。plan [`docs/plans/v0.8.1-b6.2-parser-eval-gate.md`](docs/plans/v0.8.1-b6.2-parser-eval-gate.md)（§9 整合记录）。
 >
