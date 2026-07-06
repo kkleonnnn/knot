@@ -79,6 +79,17 @@ def test_g6_no_function_in_alias_based():
         assert_predicate("ROUND(gmv) > 5", alias_based=True, aliases=ALIASES)
 
 
+@pytest.mark.parametrize("frag", [
+    "gmv REGEXP 'x'",              # RegexpLike (Func∩Binary) — R-F1：旧「排 Binary」误放行
+    "JSON_EXTRACT(gmv, '$.a') > 0",# JSONExtract (Func∩Binary)
+    "pow(gmv, 2) > 4",             # Pow (Func∩Binary)
+])
+def test_g6_func_binary_rejected(frag):
+    """R-F1（守护者 final）：19 个 exp.Func∩exp.Binary 在别名类须被拒（G6 收窄 Binary→Connector）。"""
+    with pytest.raises(FragmentUnsafe):
+        assert_predicate(frag, alias_based=True, aliases=ALIASES)
+
+
 def test_g5_unknown_alias_rejected():
     with pytest.raises(FragmentUnsafe):
         assert_predicate("total_volume > 0", alias_based=True, aliases=ALIASES)  # 幻觉列（Q19 类）
@@ -90,6 +101,8 @@ def test_g5_unknown_alias_rejected():
     "rn AS x",                                      # 逗号/空格逃逸
     "a b",
     "1abc",                                         # 非法标识符
+    "rn\n",                                         # R-F3：Python `$` 陷阱（\Z 才拒尾换行）
+    "rñ",                                           # R-F3：re.ASCII 挡非 ASCII 命名
 ])
 def test_as_name_non_identifier_rejected(name):
     with pytest.raises(FragmentUnsafe):
@@ -111,6 +124,7 @@ def test_order_ref_hallucination_rejected():
     "rk <= 3",           # qualify（rk = window as_name ∈ ALIASES）
     "gmv / dau > 0.5",   # 算术 having（Div 非 Func）
     "gmv > 0 AND dau > 0",
+    "gmv >= 100 OR dau < 5",   # R-F1 重验：布尔连接词 Or（Connector）仍放行
 ])
 def test_alias_based_legit_pass(frag):
     assert_predicate(frag, alias_based=True, aliases=ALIASES)  # 不 raise

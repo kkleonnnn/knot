@@ -27,8 +27,11 @@ window partition_by / window arg / window 内层 order_by[].field / window as_na
 - **G3.5 写/DDL（全片段，defense-in-depth）**：Insert/Update/Delete/Drop/Create/Alter/Command → raise（_is_safe_sql 亦兜）。
 - **G5 别名 + 限定符（仅别名类：having/qualify/window partition·arg）**：每个 Column 须**无限定符**
   （`.table==.db==.catalog==""` —— 堵 `otherdb.users.revenue` 末段命中白名单的跨库读）且 name ∈ 作用域可见别名集。
-- **G6 无函数调用（仅别名类）**：别名类片段严禁任何 `exp.Func`（比较/逻辑/算术是 Binary 非 Func → 放行；
-  `gmv/dau>0.5` OK）。corpus-safe（别名类 having/qualify/partition/arg 0 函数）+ 比 func-allowlist 更严且无 FP。
+- **G6 无函数调用（仅别名类）**：别名类片段严禁任何真函数调用。**放行仅布尔连接词** `And`/`Or`/`Xor`
+  （基类 `exp.Connector` —— sqlglot 30.11.0 把它们归 `exp.Func`，非语义上的函数调用）；**19 个 `exp.Func∩exp.Binary`**
+  （`RegexpLike`/`JSONExtract`/`Pow` 等）与所有普通函数一并拒（守护者 final R-F1：旧「排 exp.Binary」误放行这 19 个）。
+  比较（`GT`/`LT`/`EQ`）/算术（`Add`/`Div`）是 `exp.Binary` **非** `exp.Func` → `find_all(Func)` 天然不 yield →
+  不受影响（`gmv/dau>0.5` OK）。corpus-safe（别名类 having/qualify/partition/arg 0 函数）+ 真·零函数（闭 ReDoS 残余）。
 
 **lf.filters（物理 WHERE）：仅 G0–G4 + G3.5**，不施 G5/G6（物理列无 catalog 列源 + parser 对 filters 0 func
 约束 → 列/func 白名单必误杀 DATE/CAST/LIKE/UNIX_TIMESTAMP）。调用方外科作用域：只校验 lf.filters 切片，
@@ -67,8 +70,9 @@ _BENIGN_ANONYMOUS = frozenset({"UNIX_TIMESTAMP"})
 # G4：typed 危险函数（专有节点，G3 Anonymous 检查抓不到）
 _DANGEROUS_TYPED = (exp.CurrentUser, exp.CurrentVersion, exp.CurrentSchema, exp.SessionUser, exp.GroupConcat)
 
-# G5/as_name：纯 SQL 标识符
-_IDENT_RE = re.compile(r"^[A-Za-z_]\w*$")
+# G5/as_name：纯 SQL 标识符（R-F3：`\A..\Z` 非 `^..$` —— Python `$` 匹配尾换行前 → `'rn\n'` 会漏；
+# `re.ASCII` 使 `\w` 限 ASCII → 挡 `rñ` 类命名过宽，非注入向量但收紧标识符面）
+_IDENT_RE = re.compile(r"\A[A-Za-z_]\w*\Z", re.ASCII)
 
 
 def _parse(frag: str) -> exp.Expression:
@@ -116,10 +120,12 @@ def assert_predicate(frag: str, *, alias_based: bool, aliases=frozenset()) -> No
             raise FragmentUnsafe(f"别名类片段含限定符列 {col.sql()!r}（严禁跨对象/跨库引用）→ 回退：{raw!r}")
         if col.name not in allowed:
             raise FragmentUnsafe(f"别名类片段列 {col.name!r} ∉ 可见别名 {sorted(allowed)} → 回退：{raw!r}")
-    for fn in node.find_all(exp.Func):               # G6：别名类严禁函数调用。
-        # ⚠️ sqlglot 30.11.0 把 And/Or 也归 exp.Func（且是 exp.Binary）；真函数调用是 Func 且非 Binary
-        # （Round/Anonymous/TsOrDsToDate）。故排 Binary → 放行 AND/OR，只拒真函数调用。
-        if isinstance(fn, exp.Binary):
+    for fn in node.find_all(exp.Func):               # G6：别名类严禁真函数调用（真·零函数）。
+        # ⚠️ sqlglot 30.11.0 把布尔连接词 And/Or/Xor 归 exp.Func（基类 exp.Connector）——仅放行这些连接词。
+        # 真函数（Round/Anonymous/TsOrDsToDate + 19 个 Func∩Binary 如 RegexpLike/JSONExtract/Pow）→ 拒。
+        # 比较（GT/LT/EQ）/算术（Add/Div）是 exp.Binary 但**非** exp.Func → find_all(Func) 不 yield → 不受影响。
+        # （R-F1 守护者 final：旧「排 exp.Binary」会误放行 19 个 Func∩Binary → 收窄为 exp.Connector。）
+        if isinstance(fn, exp.Connector):
             continue
         raise FragmentUnsafe(f"别名类片段含函数调用 {type(fn).__name__} → 回退：{raw!r}")
 
