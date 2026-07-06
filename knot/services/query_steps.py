@@ -16,6 +16,9 @@ api/query.py 的 query_stream 内，仅把每步的业务计算 delegate 给本�
 R-106 单向依赖：本模块依赖 stdlib + knot.services.* + knot.adapters.* + knot.config；
 严禁反向 import knot.api.*。
 """
+import json
+import re
+
 from knot import config as cfg
 from knot.adapters.db import doris as db_connector
 from knot.services import cost_service, llm_client
@@ -149,9 +152,63 @@ def _semantic_display_meta(lf, by_name: dict, field_labels: dict) -> tuple[dict,
     return column_labels, list(lf.dimensions), column_formats
 
 
+# ─── B6.4（v0.8.2）跨期对比「必堵」：curated 标记集确定性拒识 ────────────────────────
+# 缺陷：parser 无同环比 lexicon → 标量「同比上周」静默丢只算本周 + HIT 徽标 = 命中但误导（🔴 语义层误判）。
+# 机制：确定性 guard —— question 含跨期对比标记 且 LF 未表达（无 lag/lead 窗）→ 拒识回退。
+# ⚠️ 守护者 B-2：curated regex **非穷尽** → 仅关闭 curated 集内误判；novel 措辞残余（真闭合待根治 compare 字段）。
+# ⚠️ 守护者 B-3：guard 跑**原始 question**（非 clarifier 改写的 refined_question —— clarifier 不锁对比标记 verbatim）。
+# FP 护（守护者 §C）：`(?!例)` 防 循环比例/同比例；`\bMoM\b` 防 MoMo；调用侧扣注册 metric/维度名防业务词误触。
+_COMPARE_RE = re.compile(
+    r"同比(?!例)"
+    r"|环比(?!例)"
+    r"|同期"
+    r"|(较|相较)(上|去)(周|月|年|季|个月)"
+    r"|(和|跟|与)\s*(上周|上月|上个月|去年|上季|去年同期)[^。？!]{0,12}(对比|相比|比较|比)"
+    r"|(今天|本周|本月|今年|这周|这个?月).{0,4}vs.{0,4}(昨天|上周|上月|上个月|去年)"
+    r"|(上周|上月|上个月|去年|上季)[^。？!]{0,15}(对比|相比|比较)"
+    r"|比(去年|上月|上周|上个月)"
+    r"|去年(这时候|同期)"
+    r"|\bYoY\b|\bMoM\b|\bQoQ\b|\bWoW\b"
+)
+
+
+def _has_lag_window(lf) -> bool:
+    """LF 是否含 lag/lead 窗（= date-series 环比已忠实表达 → 豁免拒识，保留既有能力）。"""
+    return any((w or {}).get("func") in ("lag", "lead") for w in (lf.window or []))
+
+
+def _known_names(metrics: list[dict]) -> list[str]:
+    """注册 metric/维度/别名/display 名（§C FP allowlist：标记恰是业务名子串 → 扣除防误触）。长者先扣。"""
+    out: list[str] = []
+    for m in metrics:
+        for k in ("name", "display"):
+            if m.get(k):
+                out.append(str(m[k]))
+        for k in ("aliases", "dimensions"):
+            raw = m.get(k)
+            try:
+                v = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(v, list):
+                    out += [str(x) for x in v]
+            except (ValueError, TypeError):
+                pass
+    return sorted({s for s in out if s}, key=len, reverse=True)
+
+
+def _period_comparison_unrepresented(raw_question: str, lf, metrics: list[dict]) -> bool:
+    """B6.4 判据（纯函数，单表达式）：原始 question 含跨期对比标记 **且** LF 无 lag/lead 窗 = 未表达 → True（拒识）。
+
+    守护者 §D-2：单表达式 `regex ∧ ¬has_lag`（严禁「命中即拒、后置查 lag」→ 会误拒合法 date-series 环比-lag）。
+    """
+    q = raw_question or ""
+    for n in _known_names(metrics):        # 扣注册名防标记恰是业务名子串（§C FP）
+        q = q.replace(n, " ")
+    return bool(_COMPARE_RE.search(q)) and not _has_lag_window(lf)
+
+
 async def run_semantic_compile_step(refined_question: str, engine, sql_planner_key: str,
                                     api_key: str, openrouter_api_key: str, agent_buckets: dict,
-                                    expected_cat, user: dict):
+                                    expected_cat, user: dict, raw_question: str = ""):
     """语义层确定性路径尝试：返回 `(result, audit)`（v0.7.3 改 — 原仅 result）。
 
     - result = AgentResult（命中）| None（未命中 → 回退 LLM，混合架构 R-SL-14）。
@@ -195,9 +252,12 @@ async def run_semantic_compile_step(refined_question: str, engine, sql_planner_k
     _lags = [_lag_of(_by_name[n]) for n in lf.metrics if n in _by_name]
     _lag = min(_lags) if _lags else 1
     try:
+        if _period_comparison_unrepresented(raw_question, lf, metrics):   # B6.4 v0.8.2：跨期对比未表达 → 拒识（try 内 → 经下方 except 回退）
+            raise compiler.CompileError(
+                "跨期对比语义（同比/环比）未在 LogicForm 表达 → 拒识回退（B6.4；根治待周期对比字段）")
         sql = compiler.compile_logicform(lf, catalog, time_resolver.resolve_time_context(data_freshness_lag_days=_lag))
     except compiler.CompileError as e:
-        # near-miss：解析出 LF 但编译歧义 → 回退 LLM + 存审计行（诊断「为何回退」R-SL-34/D4）
+        # near-miss：解析出 LF 但编译歧义 / B6.4 跨期对比拒识 → 回退 LLM + 存审计行（诊断「为何回退」R-SL-34/D4）
         return None, {"catalog_id": catalog_id, "logicform_json": lf_json, "compile_error_reason": str(e)}
     query_helper.assert_catalog_context(expected_cat, user)  # 执行前隔离 assert（v0.6.2.6 / R-SL-39）
     rows, db_error = db_connector.execute_query(engine, sql)
