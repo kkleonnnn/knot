@@ -1,5 +1,6 @@
 import { I, KnotLogo, iconBtn } from './Shared.jsx';
-import { APP_VERSION } from './version.js';  // v0.6.4.11 task #44 — 前端版本单一真相源（不再硬编）
+import { APP_VERSION } from './version.js';
+import { ModeToggle } from './screens/bi/ModeToggle.jsx';  // v0.8.5 ②a — 右上角 ASK/BI 集群（两模式一致）  // v0.6.4.11 task #44 — 前端版本单一真相源（不再硬编）
 
 // v0.4.1.1: 非 admin 屏（chat / saved-reports / 未来用户屏）一律渲染传入的 sidebarContent；
 // admin 屏（active 以 'admin-' 开头）走硬写导航。
@@ -180,6 +181,8 @@ export function AppShell({
             <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
               {T.dark ? <I.sun/> : <I.moon/>}
             </button>
+            {/* v0.8.5 ②a：ASK/BI 模式切换（仅问数模式渲染 → admin 屏 topbar byte-equal 不变；BI 模式在 BIShell 同款集群）*/}
+            {active === 'chat' && onNavigate && <ModeToggle T={T} active={active} onNavigate={onNavigate}/>}
           </div>
         </header>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

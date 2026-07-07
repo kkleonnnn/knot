@@ -1,16 +1,17 @@
-// BI.jsx — v0.8.5 (②a) BIScreen：BI 报表模式屏（全新 BIShell，独立 AppShell — D2/R-BI-1/R-192）。
-// 3 列：左报表目录 + 中报表主区 + 右 da-asst 占位。全用 buildTheme token（R-BI-3 VRP，fluid + anchored）。
+// BI.jsx — v0.8.5 (②a) BIScreen：BI 报表模式屏（全新 BIShell，独立 AppShell — D2/R-192）。
+// 布局照 artboard：左目录 + 右区（全宽顶栏[标题 · 右上角集群] + 下方 [报表主区 | da-asst 面板]）。
+// 右上角集群 = 数据源·N · 主题开关 · ASK/BI（与 AppShell 一致，问题①修）。全用 buildTheme token（VRP）。
 import { useEffect, useState } from 'react';
-import { KnotLogo, iconBtn } from '../Shared.jsx';
+import { I, KnotLogo, iconBtn } from '../Shared.jsx';
 import { APP_VERSION } from '../version.js';
 import { usePersist, Modal, ModalHeader, Input, toast } from '../utils.jsx';
 import { api } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
 import { WideTableReport } from './bi/WideTableReport.jsx';
-import { SkillPanelPlaceholder } from './bi/SkillPanelPlaceholder.jsx';
+import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
+import { ModeToggle } from './bi/ModeToggle.jsx';
 
-// 认证下载（export 端点走 Bearer；window.open 不带 header → fetch blob 触发下载）
 async function download(path, filename) {
   try {
     const r = await fetch(path, { headers: { Authorization: `Bearer ${localStorage.getItem('cb_token') || ''}` } });
@@ -23,14 +24,14 @@ async function download(path, filename) {
   } catch (e) { toast(`导出失败：${e.message || e}`, true); }
 }
 
-export function BIScreen({ T, user, onToggleTheme }) {
+export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount }) {
   const [folders, setFolders] = useState([]);
   const [reports, setReports] = useState([]);
   const [dataSources, setDataSources] = useState([]);
   const [selectedId, setSelectedId] = usePersist('cb_bi_report', null);
   const [selected, setSelected] = useState(null);
   const [skillCollapsed, setSkillCollapsed] = useState(false);
-  const [builder, setBuilder] = useState(null);       // null | 'new' | report(edit)
+  const [builder, setBuilder] = useState(null);
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -67,10 +68,8 @@ export function BIScreen({ T, user, onToggleTheme }) {
   const del = async () => {
     if (!selected) return;
     if (!window.confirm(`删除报表「${selected.title}」？`)) return;
-    try {
-      await api.del(`/api/bi/reports/${selected.id}`);
-      toast('已删除'); setSelectedId(null); loadLists();
-    } catch (e) { toast(`删除失败：${e.message || e}`, true); }
+    try { await api.del(`/api/bi/reports/${selected.id}`); toast('已删除'); setSelectedId(null); loadLists(); }
+    catch (e) { toast(`删除失败：${e.message || e}`, true); }
   };
   const saveFolder = async () => {
     if (!folderName.trim()) return;
@@ -80,7 +79,7 @@ export function BIScreen({ T, user, onToggleTheme }) {
 
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
   const actBtn = (active) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12,
+    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, fontSize: 12.5,
     border: `1px solid ${T.border}`, background: 'transparent', color: active ? T.subtext : T.muted,
     cursor: active ? 'pointer' : 'default', fontFamily: 'inherit', opacity: active ? 1 : 0.5,
   });
@@ -91,7 +90,7 @@ export function BIScreen({ T, user, onToggleTheme }) {
       background: T.bg, color: T.text, fontFamily: T.sans, fontSize: 13.5, overflow: 'hidden',
       letterSpacing: '-0.003em', lineHeight: 1.5,
     }}>
-      {/* ═══ 左：报表目录 ═══ */}
+      {/* ═══ 左：报表目录（全高）═══ */}
       <aside style={{ width: 224, flexShrink: 0, background: T.sidebar, border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: 56, padding: '0 16px', flexShrink: 0, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.border}` }}>
           <KnotLogo T={T} size={20} />
@@ -111,51 +110,64 @@ export function BIScreen({ T, user, onToggleTheme }) {
         </div>
       </aside>
 
-      {/* ═══ 中：报表主区 ═══ */}
-      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ minHeight: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingRight: 130 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 'auto' }}>
+      {/* ═══ 右区：全宽顶栏 + 下方（主区 | da-asst）═══ */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* 全宽顶栏：标题左 · 右上角集群（数据源·N · 主题 · ASK/BI）——与 AppShell 一致（问题①）*/}
+        <header style={{
+          height: 56, flexShrink: 0, padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: T.content, border: `1px solid ${T.border}`, borderRadius: 14,
+        }}>
+          <div style={{ fontSize: 14, color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selected ? selected.title : 'BI 报表'}
-          </span>
-          {selected && isAdmin && (
-            <>
-              <button onClick={() => setBuilder(selected)} style={actBtn(true)}>编辑</button>
-              <button title="调度器即将上线（②c）" style={actBtn(false)} disabled>定时</button>
-              <button onClick={refresh} style={actBtn(true)} disabled={busy}>{busy ? '刷新中…' : '重跑'}</button>
-            </>
-          )}
-          {selected && (
-            <>
-              <button onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} style={actBtn(true)}>CSV</button>
-              <button onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} style={actBtn(true)}>Excel</button>
-            </>
-          )}
-          {selected && isAdmin && <button onClick={del} style={{ ...actBtn(true), color: T.warn }}>删除</button>}
-          <button onClick={onToggleTheme} title="切换主题" style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" /></svg>
-          </button>
-        </div>
-        <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-          {selected ? (
-            <>
-              <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, marginBottom: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <span>type · {selected.report_type}</span>
-                <span>last_run · {selected.last_run_at || '—'}</span>
-                {selected.last_run_ms ? <span>{selected.last_run_ms}ms</span> : null}
-                <span style={{ color: T.warn }}>● frozen</span>
-              </div>
-              <WideTableReport T={T} report={selected} />
-            </>
-          ) : (
-            <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: T.muted, fontSize: 13 }}>
-              选择左侧报表查看{isAdmin ? '，或点 + 新建报表' : '（报表由管理员创建）'}。
-            </div>
-          )}
-        </div>
-      </main>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.muted, fontSize: 12 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: dbOk === false ? T.warn : T.success, flexShrink: 0 }} />
+              <span>数据源 · {dbOk === false ? '未连接' : (sourceCount != null ? `${sourceCount} 已连接` : '已连接')}</span>
+            </span>
+            <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
+              {T.dark ? <I.sun /> : <I.moon />}
+            </button>
+            <ModeToggle T={T} active="bi" onNavigate={onNavigate} />
+          </div>
+        </header>
 
-      {/* ═══ 右：da-asst 占位 ═══ */}
-      <SkillPanelPlaceholder T={T} collapsed={skillCollapsed} onToggle={() => setSkillCollapsed((c) => !c)} />
+        {/* 下方：报表主区 | da-asst 面板 */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 10 }}>
+          <main style={{ flex: 1, minWidth: 0, background: T.content, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {selected ? (
+              <>
+                <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
+                  <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 8 }}>{selected.title}</div>
+                  <div style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, marginBottom: 14, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <span>intent · {selected.report_type === 'dashboard' ? 'compare' : 'detail'}</span>
+                    <span>layout · {selected.report_type === 'dashboard' ? 'overview_grid' : 'wide_table'}</span>
+                    <span>last_run · {selected.last_run_at || '—'}</span>
+                    {selected.last_run_ms ? <span>{selected.last_run_ms}ms</span> : null}
+                    <span style={{ color: T.warn }}>● frozen</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                    {isAdmin && <button onClick={() => setBuilder(selected)} style={actBtn(true)}>编辑</button>}
+                    {isAdmin && <button title="调度器即将上线（②c）" style={actBtn(false)} disabled>定时</button>}
+                    {isAdmin && <button onClick={refresh} style={actBtn(true)} disabled={busy}>{busy ? '刷新中…' : '重跑'}</button>}
+                    <button onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} style={actBtn(true)}>CSV</button>
+                    <button onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} style={actBtn(true)}>Excel</button>
+                    {isAdmin && <button onClick={del} style={{ ...actBtn(true), color: T.warn }}>删除</button>}
+                  </div>
+                </div>
+                <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 24px 24px' }}>
+                  <WideTableReport T={T} report={selected} />
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: T.muted, fontSize: 13 }}>
+                选择左侧报表查看{isAdmin ? '，或点 + 新建报表' : '（报表由管理员创建）'}。
+              </div>
+            )}
+          </main>
+          <SkillPanel T={T} report={selected} collapsed={skillCollapsed} onToggle={() => setSkillCollapsed((c) => !c)} />
+        </div>
+      </div>
 
       {/* 模态 */}
       {builder && (
