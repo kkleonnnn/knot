@@ -48,6 +48,10 @@ AuditAction = Literal[
     "saved_report.pin", "saved_report.unpin",
     # 数据导出
     "export.csv", "export.xlsx",
+    # v0.8.5 (②a BI 模式)：报表目录 + BI 报表 CRUD + 刷新（admin 授权；analyst 只读无 mutation）
+    # emit 在 knot/api/bi_reports.py；per-literal guard = tests/api/test_metric_invariant_guards.py
+    "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
+    "report_folder.create", "report_folder.update", "report_folder.delete",
     # 用户反馈（v0.6.0.3 F-A）
     "feedback.submit",
     # v0.6.2.0 TOTP 2FA（R-PB-B1-11 修订 +4 — 含守护者第 12 次 §III.5 立约 recovery_code_used）
@@ -63,6 +67,8 @@ AuditResourceType = Literal[
     "user", "datasource", "api_key", "budget",
     "agent_model", "prompt", "catalog", "metric", "logicform", "monitor", "few_shots",
     "saved_report", "audit",
+    # v0.8.5 (②a) BI 模式
+    "bi_report", "report_folder",
     # v0.6.0.3 F-A: 反馈关联 message
     "message",
 ]

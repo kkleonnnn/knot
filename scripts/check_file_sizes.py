@@ -26,7 +26,7 @@ BACKEND_ACK = {
     "knot/api/query.py":                   541,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.x →537；v0.8.2 B6.4 +raw_question →539；v0.8.3 B6.5-Q36 +presenter 喂 params 注释 539→540→541（headroom 1）
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
-    "knot/adapters/db/doris.py":           366,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366（headroom 2）
+    "knot/adapters/db/doris.py":           373,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366；v0.8.5 ②a D7 +public is_safe_sql wrapper 366→373（headroom 0，config-only）
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
