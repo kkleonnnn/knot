@@ -74,6 +74,25 @@ def test_refresh_no_datasource_returns_error(client, auth_headers):
     assert out.status_code == 200 and out.json()["error"]  # 无数据源 → error（不写快照）
 
 
+def test_export_csv_400_when_no_rows(client, auth_headers):
+    rid = client.post("/api/bi/reports", json={"title": "t", "sql_text": "SELECT 1"},
+                      headers=auth_headers).json()["id"]
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400
+
+
+def test_export_csv_neutralizes_injection_r_bi_12(client, auth_headers):
+    """R-BI-12：BI 导出复用 export_service（v0.8.4 中性化）→ 文本 =SUMIF 前缀 '。"""
+    from knot.repositories import bi_report_repo as repo
+    rid = client.post("/api/bi/reports", json={"title": "t", "sql_text": "SELECT 1"},
+                      headers=auth_headers).json()["id"]
+    repo.update_last_run(rid, rows_json='[{"a": 1, "b": "=SUMIF(x)"}]', truncated=0,
+                         elapsed_ms=1, run_at="2026-07-07 09:00:00", last_run_by=1)
+    r = client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.content.decode("utf-8-sig")
+    assert "'=SUMIF(x)" in body   # 注入中性化（首字符 = → 前缀 '）
+
+
 def test_folder_delete_reparents_report_to_unfiled(client, auth_headers):
     fid = client.post("/api/bi/folders", json={"name": "p"}, headers=auth_headers).json()["id"]
     rid = client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid},

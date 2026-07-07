@@ -12,12 +12,18 @@ R-BI-1：与 saved_reports（ASK 收藏）严格分开 —— 全新路由前缀
 """
 from __future__ import annotations
 
+import json
+from io import BytesIO
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
 from knot.api.deps import get_current_user, require_admin
 from knot.services import bi_report_service as svc
+from knot.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes
 
 router = APIRouter()
 
@@ -173,3 +179,49 @@ async def delete_folder(folder_id: int, request: Request, admin=Depends(require_
         raise HTTPException(status_code=404, detail="文件夹不存在")
     audit(request, admin, action="report_folder.delete", resource_type="report_folder", resource_id=folder_id)
     return {"ok": True}
+
+
+# ── 导出（全体已认证读；复用 export_service —— CSV/公式注入中性化已由 v0.8.4 chore 落，R-BI-12）──
+
+def _report_rows_or_404(report_id: int):
+    r = svc.get_report(report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报表不存在")
+    try:
+        rows = json.loads(r.get("last_run_rows_json") or "[]")
+    except json.JSONDecodeError:
+        rows = []
+    if not rows:
+        raise HTTPException(status_code=400, detail="该报表无可导出数据（请先重跑）")
+    return r, rows
+
+
+@router.get("/api/bi/reports/{report_id}/export.csv")
+async def export_report_csv(report_id: int, request: Request, user=Depends(get_current_user)):
+    _, rows = _report_rows_or_404(report_id)
+    audit(request, user, action="export.csv", resource_type="bi_report", resource_id=report_id,
+          detail={"row_count": len(rows)})
+    filename = f"bi_report_{report_id}.csv"
+    return StreamingResponse(
+        BytesIO(rows_to_csv_bytes(rows)), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
+@router.get("/api/bi/reports/{report_id}/export.xlsx")
+async def export_report_xlsx(report_id: int, request: Request, user=Depends(get_current_user)):
+    _, rows = _report_rows_or_404(report_id)
+    xlsx_bytes, meta = rows_to_xlsx_bytes(rows)
+    audit(request, user, action="export.xlsx", resource_type="bi_report", resource_id=report_id,
+          detail={"row_count": len(rows)})
+    filename = f"bi_report_{report_id}.xlsx"
+    return StreamingResponse(
+        BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "X-Export-Truncated": "true" if meta["truncated"] else "false",
+            "X-Export-Total-Rows": str(meta["total"]),
+            "X-Export-Returned-Rows": str(meta["exported"]),
+        },
+    )
