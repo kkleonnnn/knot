@@ -6,7 +6,8 @@ import { useState } from 'react';
 export function ModeToggle({ T, active, onNavigate }) {
   const [hover, setHover] = useState(null);
   const seg = (key, on) => ({
-    width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 6,
+    width: 24, height: 24, padding: 0, lineHeight: 0,  // 正方 + line-height:0 → 双轴真居中（消 SVG 基线下沉）
+    display: 'grid', placeItems: 'center', borderRadius: 6,
     border: 'none', cursor: 'pointer',
     background: on ? T.accent : (hover === key ? T.hover : 'transparent'),  // 未激活 hover → 淡底
     color: on ? T.sendFg : T.subtext,
@@ -19,13 +20,13 @@ export function ModeToggle({ T, active, onNavigate }) {
     }}>
       <button onClick={() => onNavigate('chat')} style={seg('chat', active === 'chat')} title="ASK 问数模式"
         onMouseEnter={() => setHover('chat')} onMouseLeave={() => setHover(null)}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
       </button>
       <button onClick={() => onNavigate('bi')} style={seg('bi', active === 'bi')} title="BI 报表模式"
         onMouseEnter={() => setHover('bi')} onMouseLeave={() => setHover(null)}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
           <path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" />
         </svg>
       </button>

@@ -24,7 +24,7 @@ async function download(path, filename) {
   } catch (e) { toast(`导出失败：${e.message || e}`, true); }
 }
 
-// 操作按钮 12px line icon（handoff §4）
+// 操作按钮 line icon（handoff §4）
 const ICONS = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
@@ -33,15 +33,25 @@ const ICONS = {
   excel: 'M4 4h16v16H4zM4 9h16M4 14.5h16M9.5 4v16',
   trash: 'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
 };
-function ActBtn({ T, icon, label, onClick, primary, disabled, danger, title }) {
+// v0.8.5 ②a #6 分享 icon = 多元素（3 节点 + 连线）→ 走 iconNode（ICONS 单 path 表达不了）
+const SHARE_ICON = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+  </svg>
+);
+function ActBtn({ T, icon, iconNode, label, onClick, primary, disabled, danger, title }) {
+  const [hover, setHover] = useState(false);  // #6 幽灵块 hover → var(--hover)
   return (
     <button onClick={onClick} disabled={disabled} title={title}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
         border: primary ? 'none' : `1px solid ${T.border}`, fontFamily: 'inherit', cursor: disabled ? 'default' : 'pointer',
-        background: primary ? T.accent : 'transparent', color: primary ? T.sendFg : (danger ? T.warn : T.subtext), opacity: disabled ? 0.5 : 1,
+        background: primary ? T.accent : (!disabled && hover ? T.hover : 'transparent'),
+        color: primary ? T.sendFg : (danger ? T.warn : T.subtext), opacity: disabled ? 0.5 : 1,
+        transition: 'background 120ms',
       }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[icon]} /></svg>
+      {iconNode || <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d={ICONS[icon]} /></svg>}
       {label}
     </button>
   );
@@ -53,7 +63,6 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [dataSources, setDataSources] = useState([]);
   const [selectedId, setSelectedId] = usePersist('cb_bi_report', null);
   const [selected, setSelected] = useState(null);
-  const [skillCollapsed, setSkillCollapsed] = useState(false);
   const [builder, setBuilder] = useState(null);
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
@@ -108,6 +117,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
             isAdmin={isAdmin} onNewReport={isAdmin ? () => setBuilder('new') : undefined}
             onNewFolder={isAdmin ? () => setFolderModal(true) : undefined} />
         }
+        topbarTitle={selected ? selected.title : ''}
         showConnectionPill connectionOk={dbOk}
         connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
         onToggleTheme={onToggleTheme} onNavigate={onNavigate} onLogout={onLogout}>
@@ -117,13 +127,9 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
             {selected ? (
               <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto', padding: '22px 30px 30px' }}>
-                  <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 8 }}>{selected.title}</div>
-                  <div style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, marginBottom: 16, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <span>intent · {selected.report_type === 'dashboard' ? 'compare' : 'detail'}</span>
-                    <span>layout · {selected.report_type === 'dashboard' ? 'overview_grid' : 'wide_table'}</span>
-                    <span>last_run · {selected.last_run_at || '—'}</span>
-                    {selected.last_run_ms ? <span>{selected.last_run_ms}ms</span> : null}
-                    <span style={{ color: T.warn }}>● frozen</span>
+                  {/* #5：报表名已进 topbar（横线上）→ 内容区删大 H1，只留极简副标 last_run */}
+                  <div style={{ fontFamily: T.mono, fontSize: 12, color: T.muted, marginBottom: 16 }}>
+                    last_run · {selected.last_run_at || '—'}
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
                     {isAdmin && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
@@ -131,6 +137,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {isAdmin && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
                     <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} />
                     <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />
+                    <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
@@ -144,7 +151,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
               </div>
             )}
           </div>
-          <SkillPanel T={T} report={selected} collapsed={skillCollapsed} onToggle={() => setSkillCollapsed((c) => !c)} />
+          <SkillPanel T={T} report={selected} />
         </div>
       </AppShell>
 

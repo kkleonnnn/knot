@@ -19,12 +19,15 @@ function TypeIcon({ T, type }) {
 }
 
 function ReportRow({ T, report, selected, onSelect }) {
+  // v0.8.5 ②a #3：选中样式 = ASK 会话项同一套（accent 8% 底 + accent 25% 四边 border + radius 6，margin 0 8px；
+  // 去左侧竖条；inactive 用 transparent 1px border 防 layout shift）
   return (
     <button onClick={() => onSelect(report.id)} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-      padding: '7px 10px 7px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
-      background: selected ? T.accentSoft : 'transparent',
-      color: selected ? T.text : T.subtext, fontFamily: 'inherit',
+      display: 'flex', alignItems: 'center', gap: 8, width: 'calc(100% - 16px)', textAlign: 'left',
+      margin: '0 8px 1px', padding: '7px 10px', borderRadius: 6, cursor: 'pointer',
+      background: selected ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent',
+      border: selected ? `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)` : '1px solid transparent',
+      color: selected ? T.text : T.subtext, fontWeight: selected ? 500 : 400, fontFamily: 'inherit',
     }}>
       <TypeIcon T={T} type={report.report_type} />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
@@ -46,9 +49,9 @@ function FolderNode({ T, folder, folders, reports, selectedId, onSelect, depth }
   return (
     <div>
       <button onClick={() => setOpen((o) => !o)} style={{
-        display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left',
-        padding: '7px 10px', paddingLeft: 10 + depth * 12, borderRadius: 8, border: 'none',
-        background: 'transparent', color: T.text, cursor: 'pointer', fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 6, width: 'calc(100% - 16px)', textAlign: 'left',
+        margin: '0 8px 1px', padding: '7px 10px', paddingLeft: 10 + depth * 12, borderRadius: 6,
+        border: '1px solid transparent', background: 'transparent', color: T.text, cursor: 'pointer', fontFamily: 'inherit',
       }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2"
              strokeLinecap="round" strokeLinejoin="round"
@@ -91,7 +94,7 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ padding: '4px 4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '2px 8px 8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>报表目录</span>
         {canManage && (
           <span style={{ display: 'flex', gap: 4 }}>
@@ -112,10 +115,11 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
           </span>
         )}
       </div>
-      <div style={{ padding: '0 4px 8px' }}>
+      <div style={{ padding: '0 8px 8px' }}>
+        {/* v0.8.5 ②a #2：搜索框盒子度量对齐 ASK「新建对话」按钮（同 side inset / 撑满 / padding 10×14 / radius8 / 1px border）*/}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索报表…"
           style={{
-            width: '100%', padding: '7px 10px', borderRadius: 8, fontSize: 12.5,
+            width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13,
             border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontFamily: 'inherit',
           }} />
       </div>
