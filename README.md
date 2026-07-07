@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.3 · B6.5/6.6🟡 叙述层收尾（语义激活门**最后一块**）：叙述「说了 SQL 没做的事」= 数字对散文误导。**B6.5**（presenter.md 外科 3 ban）：Q31 无 WHERE 不声称过滤 · Q13 跨指标比率须时间口径可比 · Q36 entity 从 SQL/params 读非裸答案；配 query.py 喂 params 给 presenter（HTTP 路径）+ output.params 脱敏口径统一。**B6.6**（clarifier.md）：analysis_approach 扩相对词、不写具体日期（闭 clarifier 日期漂移 Q3/Q28）。勿一刀切（保单指标直陈/空集诚实）。**narrative-only 数字不变**；`KNOT_SEMANTIC_LAYER` 仍 off。⚠️ prompt = DB-seeded fork → 须 admin-UI 重applied 生效。走完整 v3 + 守护者 Stage 3 (minor)。**⭐ B6.1~B6.6 激活门四项全 addressed** → 待 kk 填真 OHX corpus + 跑 eval-live 拿三率 → 开 flag。<br>**上版** v0.8.2 B6.4 同比必堵 · v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.4 · 安全 chore：**导出 CSV/xlsx 公式注入中性化**。`export_service` 对首字符为 `= + - @ TAB CR` 的**文本**单元格 + 表头前缀 `'`，防电子表格（Excel/Sheets/WPS）打开导出文件时把 `=SUMIF(...)`/`+HYPERLINK`/`@cmd` 当公式执行；**纯数字（含负数/科学计数）不动**。修 v0.8 BI 报表宽表公式覆盖 grounding 发现的共享导出 pre-existing 缺口（chat/收藏报表导出同受益）。<br>**上版** v0.8.3 B6.5/6.6🟡 叙述层收尾（语义激活门四项全 addressed，待填 OHX corpus + eval-live 开 flag）· v0.8.2 B6.4 同比必堵 · v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀。⚠️ OOS-1 死线 sustained
 
 ## 文档导航
 
