@@ -24,6 +24,29 @@ async function download(path, filename) {
   } catch (e) { toast(`导出失败：${e.message || e}`, true); }
 }
 
+// 操作按钮 12px line icon（handoff §4）
+const ICONS = {
+  edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+  clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
+  refresh: 'M21 12a9 9 0 1 1-3-6.7M21 4v5h-5',
+  csv: 'M12 3v12M8 11l4 4 4-4M5 21h14',
+  excel: 'M4 4h16v16H4zM4 9h16M4 14.5h16M9.5 4v16',
+  trash: 'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
+};
+function ActBtn({ T, icon, label, onClick, primary, disabled, danger, title }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
+        border: primary ? 'none' : `1px solid ${T.border}`, fontFamily: 'inherit', cursor: disabled ? 'default' : 'pointer',
+        background: primary ? T.accent : 'transparent', color: primary ? T.sendFg : (danger ? T.warn : T.subtext), opacity: disabled ? 0.5 : 1,
+      }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[icon]} /></svg>
+      {label}
+    </button>
+  );
+}
+
 export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount }) {
   const [folders, setFolders] = useState([]);
   const [reports, setReports] = useState([]);
@@ -78,11 +101,6 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
   };
 
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
-  const actBtn = (active) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, fontSize: 12.5,
-    border: `1px solid ${T.border}`, background: 'transparent', color: active ? T.subtext : T.muted,
-    cursor: active ? 'pointer' : 'default', fontFamily: 'inherit', opacity: active ? 1 : 0.5,
-  });
 
   return (
     <div style={{
@@ -91,7 +109,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
       letterSpacing: '-0.003em', lineHeight: 1.5,
     }}>
       {/* ═══ 左：报表目录（全高）═══ */}
-      <aside style={{ width: 224, flexShrink: 0, background: T.sidebar, border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <aside style={{ width: 236, flexShrink: 0, background: T.sidebar, border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: 56, padding: '0 16px', flexShrink: 0, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.border}` }}>
           <KnotLogo T={T} size={20} />
           <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: T.mono, color: T.muted, letterSpacing: '0.06em' }}>v{APP_VERSION}</span>
@@ -136,29 +154,27 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
         <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 10 }}>
           <main style={{ flex: 1, minWidth: 0, background: T.content, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {selected ? (
-              <>
-                <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
+              <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '22px 30px 30px' }}>
                   <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 8 }}>{selected.title}</div>
-                  <div style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, marginBottom: 14, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, marginBottom: 16, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     <span>intent · {selected.report_type === 'dashboard' ? 'compare' : 'detail'}</span>
                     <span>layout · {selected.report_type === 'dashboard' ? 'overview_grid' : 'wide_table'}</span>
                     <span>last_run · {selected.last_run_at || '—'}</span>
                     {selected.last_run_ms ? <span>{selected.last_run_ms}ms</span> : null}
                     <span style={{ color: T.warn }}>● frozen</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-                    {isAdmin && <button onClick={() => setBuilder(selected)} style={actBtn(true)}>编辑</button>}
-                    {isAdmin && <button title="调度器即将上线（②c）" style={actBtn(false)} disabled>定时</button>}
-                    {isAdmin && <button onClick={refresh} style={actBtn(true)} disabled={busy}>{busy ? '刷新中…' : '重跑'}</button>}
-                    <button onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} style={actBtn(true)}>CSV</button>
-                    <button onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} style={actBtn(true)}>Excel</button>
-                    {isAdmin && <button onClick={del} style={{ ...actBtn(true), color: T.warn }}>删除</button>}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+                    {isAdmin && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
+                    {isAdmin && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
+                    {isAdmin && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
+                    <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} />
+                    <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />
+                    {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
-                </div>
-                <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 24px 24px' }}>
                   <WideTableReport T={T} report={selected} />
                 </div>
-              </>
+              </div>
             ) : (
               <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: T.muted, fontSize: 13 }}>
                 选择左侧报表查看{isAdmin ? '，或点 + 新建报表' : '（报表由管理员创建）'}。

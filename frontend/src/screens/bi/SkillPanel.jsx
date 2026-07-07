@@ -25,7 +25,7 @@ export function SkillPanel({ T, report, collapsed, onToggle }) {
     return (
       <button onClick={onToggle} title="展开数据分析"
         style={{
-          width: 34, flexShrink: 0, alignSelf: 'stretch', border: `1px solid ${T.border}`,
+          width: 52, flexShrink: 0, alignSelf: 'stretch', border: `1px solid ${T.border}`,
           borderRadius: 14, background: T.content, color: T.subtext, cursor: 'pointer',
           display: 'grid', placeItems: 'center', fontFamily: T.sans, fontSize: 12,
         }}>
@@ -36,7 +36,7 @@ export function SkillPanel({ T, report, collapsed, onToggle }) {
   const ctx = report ? report.title : '当前报表';
   return (
     <aside style={{
-      width: 316, flexShrink: 0, border: `1px solid ${T.border}`, borderRadius: 14,
+      width: 352, flexShrink: 0, border: `1px solid ${T.border}`, borderRadius: 14,
       background: T.content, display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <div style={{ height: 56, padding: '0 18px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>

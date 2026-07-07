@@ -2,14 +2,19 @@
 // admin 管理入口（新建文件夹/报表）仅当 onNewFolder/onNewReport 传入时渲染（commit 6 接 builder）。
 import { useMemo, useState } from 'react';
 
-// 报表类型图标（inline SVG，viewBox 24 / stroke 1.6，匹配 I-lib 视觉语言 R-BI-3）
+// 报表类型图标（handoff §3）：宽表 = 表格网格图标 success 绿；图表类 = 折线趋势 青/muted。一眼区分。
 function TypeIcon({ T, type }) {
-  const p = type === 'dashboard'
-    ? <path d="M4 13a8 8 0 0 1 16 0M12 13l4-4" />               // 仪表盘：表盘
-    : <><path d="M4 7h16M4 12h16M4 17h16" /><path d="M9 4v16" /></>; // 宽表：表格
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="1.6"
-         strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{p}</svg>
+  const wide = type !== 'dashboard';   // 非 dashboard（wide_table 等）= 宽表 → 绿表格
+  return wide ? (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.success} strokeWidth="1.6"
+         strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M3 9h18M3 14.5h18M9 4v16" />
+    </svg>
+  ) : (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.6"
+         strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M4 19V5M4 19h16M7 15l3-4 3 3 4-6" />
+    </svg>
   );
 }
 
