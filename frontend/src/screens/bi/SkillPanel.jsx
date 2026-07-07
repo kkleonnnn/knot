@@ -1,7 +1,7 @@
 // SkillPanel.jsx — v0.8.5 (②a) BI 右栏 da-asst 数据分析面板（内容层；chrome 走共享 <RightPanel>）。
 // ⚠️ 本轮「先复刻 UI」：聊天区为**示例/静态**，真·skill 接入 = ③（da-asst 嵌入形态最大设计决策）。
 // #4：宽度/表头/收起键由 RightPanel 统一（与 ASK 思考过程同一套）。#7：卡片式 composer（textarea 自增高 + 方形→发送）。
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from '../../utils.jsx';
 import { RightPanel } from '../../RightPanel.jsx';
 
@@ -37,7 +37,14 @@ function Chip({ T, label, onClick }) {
 export function SkillPanel({ T, report }) {
   const [q, setQ] = useState('');
   const taRef = useRef(null);
-  const grow = (el) => { if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(100, Math.max(22, el.scrollHeight))}px`; };
+  // 自增高：q 变（打字 / 点建议 chip）后统一在 effect 量 scrollHeight —— 复核 nit 修：
+  // 原 chip onClick 同步 grow(taRef) 读到 setQ 前的旧值；effect 在 q 更新 re-render 后量，两路径都准。
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(100, Math.max(22, el.scrollHeight))}px`;
+  }, [q]);
   const ctx = report ? report.title : '当前报表';
   return (
     <RightPanel T={T} title="数据分析">
@@ -56,10 +63,10 @@ export function SkillPanel({ T, report }) {
       {/* 底部：建议 chip 行 + 卡片 composer（#7）*/}
       <div style={{ padding: '12px 14px', borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-          {SUGGESTIONS.map((s) => <Chip key={s} T={T} label={s} onClick={() => { setQ(s); grow(taRef.current); }} />)}
+          {SUGGESTIONS.map((s) => <Chip key={s} T={T} label={s} onClick={() => setQ(s)} />)}
         </div>
         <div style={{ background: T.content, border: `1px solid ${T.inputBorder}`, borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <textarea ref={taRef} value={q} onChange={(e) => { setQ(e.target.value); grow(e.target); }} rows={1} placeholder="追问这份报表…"
+          <textarea ref={taRef} value={q} onChange={(e) => setQ(e.target.value)} rows={1} placeholder="追问这份报表…"
             style={{ width: '100%', minHeight: 22, maxHeight: 100, resize: 'none', background: 'transparent', border: 'none', outline: 'none', color: T.text, fontSize: 12.5, fontFamily: 'inherit', lineHeight: 1.55, padding: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.mono, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.muted }}>
