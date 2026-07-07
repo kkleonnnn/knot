@@ -156,3 +156,77 @@ def test_xlsx_empty_rows_returns_metadata_zero():
     xlsx_bytes, meta = rows_to_xlsx_bytes([])
     assert meta == {"truncated": False, "total": 0, "exported": 0}
     assert xlsx_bytes  # bytes 非空（openpyxl 写了一个 sheet 头）
+
+
+# ── v0.8.4 CSV / 公式注入中性化（安全 chore）────────────────────────────────
+
+_DANGEROUS = [
+    '=SUMIF(B4:B28, "USDT", O4:O28)',   # kk 截图的公式
+    "+HYPERLINK(\"http://evil\")",
+    "@SUM(1)",
+    "-2+3",                              # formula-ish（非纯数字）
+    "=cmd|'/c calc'!A1",                # 经典 CSV 注入 payload
+    "\t=1+1",                           # 前导 TAB
+    "\r=1+1",                           # 前导 CR
+]
+
+
+def test_csv_neutralizes_formula_injection_cells():
+    """首字符 = + - @ TAB CR 的文本单元格导出前应前缀 ' 中性化。"""
+    rows = [{"v": s} for s in _DANGEROUS]
+    parsed = list(csv.DictReader(StringIO(_decode(rows_to_csv_bytes(rows)))))
+    for i, s in enumerate(_DANGEROUS):
+        assert parsed[i]["v"] == "'" + s, f"危险文本应前缀 ': {s!r} → {parsed[i]['v']!r}"
+
+
+def test_csv_does_not_mangle_numbers():
+    """数值（int/float）+ 纯数字字符串（含负数 / 科学计数）不应被中性化。"""
+    rows = [{"i": -5, "f": -3.2, "s_neg": "-5", "s_sci": "-1.5e3", "s_pos": "+42"}]
+    p = list(csv.DictReader(StringIO(_decode(rows_to_csv_bytes(rows)))))[0]
+    assert p["i"] == "-5"
+    assert p["f"] == "-3.2"
+    assert p["s_neg"] == "-5"       # 纯数字字符串不加 '
+    assert p["s_sci"] == "-1.5e3"
+    assert p["s_pos"] == "+42"
+
+
+def test_csv_neutralizes_dangerous_header():
+    """列名（= SQL 别名，可控）也是注入向量 → 表头中性化；安全列名不变。"""
+    rows = [{"=danger": 1, "safe": 2}]
+    hdr = list(csv.reader(StringIO(_decode(rows_to_csv_bytes(rows)))))[0]
+    assert hdr[0] == "'=danger"
+    assert hdr[1] == "safe"
+
+
+def test_csv_sumif_repro_from_screenshot():
+    """kk 截图复现：文本单元格 =SUMIF(...) 导出不再作为公式执行（前缀 '）。"""
+    s = '=SUMIF(B4:B28, "USDT", O4:O28)'
+    p = list(csv.DictReader(StringIO(_decode(rows_to_csv_bytes([{"计算": s}])))))[0]
+    assert p["计算"] == "'" + s
+
+
+def test_xlsx_neutralizes_injection_and_keeps_numbers():
+    """xlsx：文本单元格中性化；数值 native 不动；纯数字字符串不动；formula-ish 中性化。"""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from knot.services.export_service import rows_to_xlsx_bytes
+    rows = [{"txt": '=SUMIF(A1:A2,"x",B1:B2)', "neg": -5, "s_neg": "-5", "fx": "-2+3"}]
+    ws = load_workbook(BytesIO(rows_to_xlsx_bytes(rows)[0])).active
+    assert ws.cell(2, 1).value == '\'=SUMIF(A1:A2,"x",B1:B2)'  # 文本中性化
+    assert ws.cell(2, 2).value == -5 and isinstance(ws.cell(2, 2).value, int)  # native number
+    assert ws.cell(2, 3).value == "-5"      # 纯数字字符串不中性化
+    assert ws.cell(2, 4).value == "'-2+3"   # formula-ish 中性化
+
+
+def test_xlsx_neutralizes_dangerous_header():
+    """xlsx 表头中性化。"""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from knot.services.export_service import rows_to_xlsx_bytes
+    ws = load_workbook(BytesIO(rows_to_xlsx_bytes([{"@evil": 1, "ok": 2}])[0])).active
+    assert ws.cell(1, 1).value == "'@evil"
+    assert ws.cell(1, 2).value == "ok"

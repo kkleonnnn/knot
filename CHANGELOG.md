@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.3 — B6.5/6.6🟡 叙述层收尾：presenter/clarifier ground 到 SQL/params（语义激活门最后一块）
+## [Unreleased] - v0.8.4 — 导出 CSV/xlsx 公式注入中性化（安全 chore）
+
+> **Security**：`export_service`（chat / 收藏报表 CSV+xlsx 导出共用）此前对文本单元格不做 CSV/formula injection 中性化——首字符 `= + - @ TAB CR` 的文本被电子表格（Excel/Sheets/WPS）打开时当公式执行。本 PATCH 在共享序列化层中性化（文本单元格 + 表头前缀 `'`），**纯数字（含负数/科学计数）不动**。发现自 v0.8 BI 报表宽表公式覆盖（「插入」= Excel 式 SUMIF）grounding（workflow `wvb7zc7nx`）。
+> - `_stringify`（CSV）/ `_xlsx_value`（xlsx）：文本值首字符危险 → 前缀 `'`；int/float/bool native 不动；纯数字字符串（`-5` / `-1.5e3` / `+42`）经 `_NUMERIC_RE` 豁免。
+> - CSV 表头 / xlsx `ws.append(cols)`：列名（= SQL 别名可控）同样中性化。
+> - +6 单测（6 注入向量 + 数值不 mangle + 表头 + 截图 SUMIF 复现）。行为变更仅影响首字符危险的文本单元格/表头（无既有测断言旧行为）。
+> - 独立于 ②a BI 模式（本 chore 占 v0.8.4，②a 顺延 v0.8.5）。
+
+## [Released] - v0.8.3 — B6.5/6.6🟡 叙述层收尾：presenter/clarifier ground 到 SQL/params（语义激活门最后一块）
 
 > v0.7 遗留激活门 B6.5🟡 + B6.6🟡（`v0.7-closeout-backlog.md` L67/68）——叙述层「说了 SQL 没做的事」= 数字对、散文误导。**🟡 收尾（非硬 blocker）**：gate（误判≈0+命中≥90%）已由 B6.1（安全）+ B6.4（误判）承重；B6.5/6.6 数字对不动误判率。**narrative-only**（+ 1 处 HTTP 编排 + 1 行脱敏口径统一）。走完整 v3 + 守护者 Stage 3 = ACCEPT WITH REVISIONS (minor)。plan [`docs/plans/v0.8.3-b6.5-6.6-narrative-grounding.md`](docs/plans/v0.8.3-b6.5-6.6-narrative-grounding.md)（§9 整合记录）。
 >

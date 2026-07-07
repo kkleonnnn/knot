@@ -10,10 +10,32 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from io import BytesIO, StringIO
 
 # v0.4.2 R-15 + R-S7：xlsx 单文件硬限 5000 行
 XLSX_MAX_ROWS: int = 5000
+
+# v0.8.4 安全 chore（CSV/公式注入中性化）：电子表格（Excel/Sheets/WPS）打开导出文件时，
+# 首字符为 = + - @ TAB CR 的**文本**单元格会被当公式执行（formula / CSV injection）——
+# 任何用户 / admin 可控文本进导出即为向量。对这类文本前缀 '（强制按文本处理）中性化。
+# 纯数字字面（-5 / +3.2 / -1.5e3）不动，避免破坏合法负数 / 科学计数显示。
+_INJECTION_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
+_NUMERIC_RE = re.compile(r"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$")
+
+
+def _neutralize_text(s: str) -> str:
+    """对可能触发电子表格公式注入的**文本**单元格前缀 ' 中性化（v0.8.4）。
+
+    - 首字符 ∈ {= + - @ TAB CR} → 前缀 '（Excel 视为纯文本，不求值）
+    - 例外：首字符为 + / - 且整串是纯数字字面（-5 / +3.2 / -1.5e3）→ 不动（合法数值）
+    - 其他文本原样返回
+    """
+    if s and s[0] in _INJECTION_PREFIXES:
+        if s[0] in "+-" and _NUMERIC_RE.match(s):
+            return s
+        return "'" + s
+    return s
 
 
 def rows_to_csv_bytes(rows: list[dict], cols: list[str] | None = None) -> bytes:
@@ -28,7 +50,8 @@ def rows_to_csv_bytes(rows: list[dict], cols: list[str] | None = None) -> bytes:
     cols = cols or list(rows[0].keys())
     sio = StringIO()
     writer = csv.DictWriter(sio, fieldnames=cols, extrasaction="ignore")
-    writer.writeheader()
+    # v0.8.4：表头也是注入向量（列名 = SQL 别名可控）→ 中性化后写（等价 writeheader() 对安全列名）
+    writer.writerow({c: _neutralize_text(str(c)) for c in cols})
     for r in rows:
         writer.writerow({c: _stringify(r.get(c)) for c in cols})
     return sio.getvalue().encode("utf-8-sig")
@@ -63,7 +86,7 @@ def rows_to_xlsx_bytes(
     ws = wb.active
     ws.title = sheet_name
     if cols:
-        ws.append(cols)
+        ws.append([_neutralize_text(str(c)) for c in cols])  # v0.8.4：表头中性化
     for r in actual_rows:
         ws.append([_xlsx_value(r.get(c)) for c in cols])
 
@@ -81,7 +104,9 @@ def _stringify(v) -> str:
         return ""
     if isinstance(v, (dict, list)):
         return json.dumps(v, ensure_ascii=False, default=str)
-    return str(v)
+    if isinstance(v, str):
+        return _neutralize_text(v)  # v0.8.4：文本单元格注入中性化
+    return str(v)  # int/float/bool 等数值 — 安全，不中性化（负数原样）
 
 
 def _xlsx_value(v):
@@ -97,4 +122,4 @@ def _xlsx_value(v):
         return v
     if isinstance(v, (dict, list)):
         return json.dumps(v, ensure_ascii=False, default=str)
-    return str(v)
+    return _neutralize_text(str(v))  # v0.8.4：文本单元格注入中性化
