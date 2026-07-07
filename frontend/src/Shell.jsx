@@ -51,7 +51,7 @@ export function AppShell({
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
         {/* v0.6.0.13 #1：非 chat 屏 sidebar 顶部加「返回对话」大按钮（与 Chat 屏「新建对话」同位置同样式）
             实现"哪来的就哪回的"原则；旧的底部 ghost 链接移除（详 L100+ 注释） */}
-        {active !== 'chat' && onNavigate && (
+        {active !== 'chat' && active !== 'bi' && onNavigate && (
           <div style={{ padding: '0 8px 8px' }}>
             <button onClick={() => onNavigate('chat')} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
@@ -181,8 +181,8 @@ export function AppShell({
             <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
               {T.dark ? <I.sun/> : <I.moon/>}
             </button>
-            {/* v0.8.5 ②a：ASK/BI 模式切换（仅问数模式渲染 → admin 屏 topbar byte-equal 不变；BI 模式在 BIShell 同款集群）*/}
-            {active === 'chat' && onNavigate && <ModeToggle T={T} active={active} onNavigate={onNavigate}/>}
+            {/* v0.8.5 ②a：ASK/BI 模式切换（chat + bi 两模式共用同一 Shell topbar 集群；admin 屏不渲染 → byte-equal 不变）*/}
+            {(active === 'chat' || active === 'bi') && onNavigate && <ModeToggle T={T} active={active} onNavigate={onNavigate}/>}
           </div>
         </header>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

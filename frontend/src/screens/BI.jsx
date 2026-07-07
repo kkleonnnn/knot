@@ -1,9 +1,9 @@
-// BI.jsx — v0.8.5 (②a) BIScreen：BI 报表模式屏（全新 BIShell，独立 AppShell — D2/R-192）。
-// 布局照 artboard：左目录 + 右区（全宽顶栏[标题 · 右上角集群] + 下方 [报表主区 | da-asst 面板]）。
-// 右上角集群 = 数据源·N · 主题开关 · ASK/BI（与 AppShell 一致，问题①修）。全用 buildTheme token（VRP）。
+// BI.jsx — v0.8.5 (②a) BIScreen：BI 报表模式屏。
+// ⭐ 与 ASK 共用同一 <AppShell>（侧栏壳 + brand + topbar + 用户 footer 全在 Shell 内）——
+//    BI 只切换两处 slot：sidebarContent = 报表目录树；children = [报表主区 flex:1 单一纵向滚动 | da-asst 满高 border-left]。
+//    右上角集群（数据源·N · 主题 · ASK/BI）+ 用户 footer 由 AppShell 统一渲染 → 两模式严格一致（kk 根因修）。
 import { useEffect, useState } from 'react';
-import { I, KnotLogo, iconBtn } from '../Shared.jsx';
-import { APP_VERSION } from '../version.js';
+import { AppShell } from '../Shell.jsx';
 import { usePersist, Modal, ModalHeader, Input, toast } from '../utils.jsx';
 import { api } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
@@ -11,7 +11,6 @@ import { WideTableReport } from './bi/WideTableReport.jsx';
 import { DashboardReport } from './bi/DashboardReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
-import { ModeToggle } from './bi/ModeToggle.jsx';
 
 async function download(path, filename) {
   try {
@@ -48,7 +47,7 @@ function ActBtn({ T, icon, label, onClick, primary, disabled, danger, title }) {
   );
 }
 
-export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount }) {
+export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, sourceCount }) {
   const [folders, setFolders] = useState([]);
   const [reports, setReports] = useState([]);
   const [dataSources, setDataSources] = useState([]);
@@ -101,59 +100,20 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
     catch (e) { toast(`建文件夹失败：${e.message || e}`, true); }
   };
 
-  const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
-
   return (
-    <div style={{
-      width: '100vw', height: '100vh', display: 'flex', gap: 10, padding: 10,
-      background: T.bg, color: T.text, fontFamily: T.sans, fontSize: 13.5, overflow: 'hidden',
-      letterSpacing: '-0.003em', lineHeight: 1.5,
-    }}>
-      {/* ═══ 左：报表目录（全高）═══ */}
-      <aside style={{ width: 236, flexShrink: 0, background: T.sidebar, border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: 56, padding: '0 16px', flexShrink: 0, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.border}` }}>
-          <KnotLogo T={T} size={20} />
-          <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: T.mono, color: T.muted, letterSpacing: '0.06em' }}>v{APP_VERSION}</span>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, padding: '8px 8px 0' }}>
+    <>
+      <AppShell T={T} user={user} active="bi"
+        sidebarContent={
           <ReportDirectory T={T} folders={folders} reports={reports} selectedId={selectedId} onSelect={setSelectedId}
             isAdmin={isAdmin} onNewReport={isAdmin ? () => setBuilder('new') : undefined}
             onNewFolder={isAdmin ? () => setFolderModal(true) : undefined} />
-        </div>
-        <div style={{ padding: '10px 14px', borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: T.accentSoft, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 600, color: T.accent }}>{initials}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user && user.username}</div>
-            <div style={{ fontSize: 10, color: T.muted, letterSpacing: '0.06em' }}>{((user && user.role) || '').toUpperCase()}</div>
-          </div>
-        </div>
-      </aside>
-
-      {/* ═══ 右区：全宽顶栏 + 下方（主区 | da-asst）═══ */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* 全宽顶栏：标题左 · 右上角集群（数据源·N · 主题 · ASK/BI）——与 AppShell 一致（问题①）*/}
-        <header style={{
-          height: 56, flexShrink: 0, padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: T.content, border: `1px solid ${T.border}`, borderRadius: 14,
-        }}>
-          <div style={{ fontSize: 14, color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selected ? selected.title : 'BI 报表'}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.muted, fontSize: 12 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: dbOk === false ? T.warn : T.success, flexShrink: 0 }} />
-              <span>数据源 · {dbOk === false ? '未连接' : (sourceCount != null ? `${sourceCount} 已连接` : '已连接')}</span>
-            </span>
-            <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
-              {T.dark ? <I.sun /> : <I.moon />}
-            </button>
-            <ModeToggle T={T} active="bi" onNavigate={onNavigate} />
-          </div>
-        </header>
-
-        {/* 下方：报表主区 | da-asst 面板 */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 10 }}>
-          <main style={{ flex: 1, minWidth: 0, background: T.content, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        }
+        showConnectionPill connectionOk={dbOk}
+        connectedCount={sourceCount != null ? sourceCount : (dbOk ? 1 : 0)}
+        onToggleTheme={onToggleTheme} onNavigate={onNavigate} onLogout={onLogout}>
+        {/* 主区 = 单主面板内 flex 行：[报表主区 flex:1 单一纵向滚动] [da-asst 满高 · border-left] */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {selected ? (
               <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto', padding: '22px 30px 30px' }}>
@@ -183,10 +143,10 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
                 选择左侧报表查看{isAdmin ? '，或点 + 新建报表' : '（报表由管理员创建）'}。
               </div>
             )}
-          </main>
+          </div>
           <SkillPanel T={T} report={selected} collapsed={skillCollapsed} onToggle={() => setSkillCollapsed((c) => !c)} />
         </div>
-      </div>
+      </AppShell>
 
       {/* 模态 */}
       {builder && (
@@ -206,6 +166,6 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }
