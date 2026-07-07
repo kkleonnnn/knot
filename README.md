@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.4 · 安全 chore：**导出 CSV/xlsx 公式注入中性化**。`export_service` 对首字符为 `= + - @ TAB CR` 的**文本**单元格 + 表头前缀 `'`，防电子表格（Excel/Sheets/WPS）打开导出文件时把 `=SUMIF(...)`/`+HYPERLINK`/`@cmd` 当公式执行；**纯数字（含负数/科学计数）不动**。修 v0.8 BI 报表宽表公式覆盖 grounding 发现的共享导出 pre-existing 缺口（chat/收藏报表导出同受益）。<br>**上版** v0.8.3 B6.5/6.6🟡 叙述层收尾（语义激活门四项全 addressed，待填 OHX corpus + eval-live 开 flag）· v0.8.2 B6.4 同比必堵 · v0.8.1 B6.2 命中率评测集 · v0.8.0 B6.1 片段注入校验 · v0.7.x 语义层 + 编译七刀。⚠️ OOS-1 死线 sustained
+> **当前版本** v0.8.5 · ②a **BI 报表模式**（问数/报表双模第一刀）：右上 BI/ASK 悬浮切换 → 全新 **BIShell**（独立 AppShell，3 列：报表目录 + 报表主区 + da-asst 占位）。**宽表**类型 = admin 直写 SQL（`doris.is_safe_sql` 存前只读校验）+ 列注释→表头 + 排序/冻结列 + **覆盖层公式**（`=SUMIF(...)` 客户端 `formula.js` 手写白名单求值器，零 eval，双轮红队核验）。冻结快照 + admin 控刷新（不实时跑）。**权限**：admin 建/编/管目录/导出，analyst 只读（SQL 脱敏）。全新 `bi_reports`+`report_folders` 表，**0 触 saved_reports/Chat/AppShell**（R-BI-1）。走完整 v3 + 守护者 Stage 3 approve-with-conditions（GAP-1 环检测 + GAP-2 越界补 0 + R-BI-8 审计 + D7）。<br>**上版** v0.8.4 导出注入中性化 · v0.8.3 B6.5/6.6 叙述层（语义激活门四项全 addressed，待填 OHX corpus + eval-live 开 flag）· v0.8.0~.2 B6.1/6.2/6.4 · v0.7.x 语义层。⚠️ OOS-1 死线 sustained；仪表盘拼板 ②b / 调度器 ②c / da-asst 真接 ③ 顺延
 
 ## 文档导航
 
