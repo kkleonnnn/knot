@@ -40,6 +40,15 @@ def test_create_rejects_write_sql_400(client, auth_headers):
         assert r.status_code == 400, bad
 
 
+def test_create_rejects_oversized_overlay_400(client, auth_headers):
+    """R-BI-11 DoS 防：overlay 单元格上限（>500 → 400），防超大 overlay 客户端求值挂死。"""
+    big = [{"row": i, "col": "A", "kind": "text", "value": "x"} for i in range(501)]
+    r = client.post("/api/bi/reports",
+                    json={"title": "t", "sql_text": "SELECT 1", "overlay_config": big},
+                    headers=auth_headers)
+    assert r.status_code == 400
+
+
 def test_analyst_can_read_but_not_write(client, auth_headers):
     rid = client.post("/api/bi/reports", json={"title": "t", "sql_text": "SELECT secret FROM t"},
                       headers=auth_headers).json()["id"]

@@ -54,8 +54,16 @@ class ReportUpdateRequest(BaseModel):
     overlay_config: list | None = None
 
 
+_MAX_OVERLAY_CELLS = 500  # overlay 单元格上限（防超大 overlay → 客户端求值 DoS；红队复验 residual）
+
+
 def _is_admin(user) -> bool:
     return user.get("role") == "admin"
+
+
+def _check_overlay_size(overlay) -> None:
+    if isinstance(overlay, list) and len(overlay) > _MAX_OVERLAY_CELLS:
+        raise HTTPException(status_code=400, detail=f"覆盖层单元格过多（≤{_MAX_OVERLAY_CELLS}）")
 
 
 # ── 读（全体已认证；非 admin 脱 sql_text）────────────────────────────────────────
@@ -83,6 +91,7 @@ async def get_report(report_id: int, user=Depends(get_current_user)):
 
 @router.post("/api/bi/reports")
 async def create_report(req: ReportCreateRequest, request: Request, admin=Depends(require_admin)):
+    _check_overlay_size(req.overlay_config)
     try:
         r = svc.create_report(
             admin, title=req.title, sql_text=req.sql_text, data_source_id=req.data_source_id,
@@ -99,6 +108,7 @@ async def create_report(req: ReportCreateRequest, request: Request, admin=Depend
 @router.put("/api/bi/reports/{report_id}")
 async def update_report(report_id: int, req: ReportUpdateRequest, request: Request,
                        admin=Depends(require_admin)):
+    _check_overlay_size(req.overlay_config)
     # model_fields_set：只透传显式提供的字段 → svc 默认（None=不改 / _UNSET=不改）保 folder/config 清空语义
     fields = req.model_fields_set
     kw = {k: getattr(req, k) for k in
