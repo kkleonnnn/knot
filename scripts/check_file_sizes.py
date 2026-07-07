@@ -85,7 +85,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 (Btn/Tag 独立文件)
     "frontend/src/utils.jsx":                      200,  # v0.6.2.3 Foundation 纳管
     "frontend/src/decor/NarrativeMotif.jsx":       120,
-    "frontend/src/Shell.jsx":                      222,  # v0.7.7 C5 +指标监控 nav 行（admin 屏 nav 合理增长）
+    "frontend/src/Shell.jsx":                      226,  # v0.7.7 C5 +指标监控 nav；v0.8.5 ②a +inline ModeToggle 集群（chat/BI topbar 双模一致，条件式保 admin 0 影响）222→225（headroom 1）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
     "frontend/src/ErrorBoundary.jsx":              120,  # v0.7.33 B1.1 App+ResultBlock error boundary
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）
