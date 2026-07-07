@@ -7,6 +7,8 @@ import { EnrollScreen } from './screens/Enroll.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
 import { SavedReportsScreen } from './screens/SavedReports.jsx';
+import { BIScreen } from './screens/BI.jsx';
+import { ModeToggle } from './screens/bi/ModeToggle.jsx';
 import { AdminBudgetsScreen } from './screens/AdminBudgets.jsx';
 import { AdminRecoveryScreen } from './screens/AdminRecovery.jsx';
 import { AdminAuditScreen } from './screens/AdminAudit.jsx';
@@ -131,6 +133,8 @@ export default function App() {
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
     'admin-catalog': 'catalog',
   };
+  // v0.8.5 ②a：BI 报表模式（独立 BIShell）+ App 级悬浮模式切换（D1）
+  if (screen === 'bi') return <><BIScreen {...commonProps}/><ModeToggle T={T} screen={screen} onNavigate={navigate}/></>;
   if (screen === 'saved-reports') return <SavedReportsScreen {...commonProps}/>;
   // v0.4.3 admin 看板（budgets + recovery 是独立屏，不走 AdminScreen tab）
   if (screen === 'admin-budgets' && user.role === 'admin') return <AdminBudgetsScreen {...commonProps}/>;
@@ -150,5 +154,6 @@ export default function App() {
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板
   if ((screen === 'user-config' || screen === 'settings') && user.role === 'admin')
     return <AdminScreen {...commonProps} screen="admin-models" initialTab="models"/>;
-  return <ChatScreen {...commonProps}/>;
+  // ASK 问数模式（默认）+ App 级悬浮模式切换（D1；BI/ASK 均可达）
+  return <><ChatScreen {...commonProps}/><ModeToggle T={T} screen="chat" onNavigate={navigate}/></>;
 }
