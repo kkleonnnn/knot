@@ -87,15 +87,16 @@ def delete_folder(folder_id: int) -> None:
 def create_report(title: str, sql_text: str, created_by: int, *,
                   report_type: str = "wide_table", folder_id: int | None = None,
                   sort_order: int = 0, data_source_id: int | None = None,
-                  column_config: str | None = None, overlay_config: str | None = None) -> int:
+                  column_config: str | None = None, overlay_config: str | None = None,
+                  dashboard_config: str | None = None) -> int:
     conn = get_conn()
     cur = conn.execute(
         "INSERT INTO bi_reports "
         "(report_type, title, folder_id, sort_order, data_source_id, sql_text, "
-        " column_config, overlay_config, created_by) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
+        " column_config, overlay_config, dashboard_config, created_by) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
         (report_type, title, folder_id, sort_order, data_source_id, sql_text,
-         column_config, overlay_config, created_by),
+         column_config, overlay_config, dashboard_config, created_by),
     )
     rid = cur.lastrowid
     conn.commit()
@@ -123,7 +124,7 @@ def list_reports() -> list[dict]:
 
 def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
                  sort_order: int | None = None, sql_text: str | None = None,
-                 column_config=_UNSET, overlay_config=_UNSET) -> None:
+                 column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET) -> None:
     """改元数据 / 移动文件夹 / 改 SQL / 列配置 / 覆盖层。
     folder_id / column_config / overlay_config 用 _UNSET 哨兵（None = 显式置 NULL）。
     """
@@ -147,6 +148,9 @@ def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
     if overlay_config is not _UNSET:
         sets.append("overlay_config=?")
         params.append(overlay_config)
+    if dashboard_config is not _UNSET:
+        sets.append("dashboard_config=?")
+        params.append(dashboard_config)
     if not sets:
         return
     params.append(report_id)

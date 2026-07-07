@@ -106,20 +106,21 @@ def get_report(report_id: int) -> dict | None:
 def create_report(admin: dict, *, title: str, sql_text: str,
                   data_source_id: int | None = None, folder_id: int | None = None,
                   report_type: str = "wide_table",
-                  column_config=None, overlay_config=None) -> dict:
+                  column_config=None, overlay_config=None, dashboard_config=None) -> dict:
     """建报表。SQL **存前预校验**（D7）；失败抛 SqlNotReadOnly（api 转 400）。"""
     _validate_sql(sql_text)
     rid = repo.create_report(
         title=_default_title(title), sql_text=sql_text, created_by=admin["id"],
         report_type=report_type, folder_id=folder_id, data_source_id=data_source_id,
         column_config=_dump(column_config), overlay_config=_dump(overlay_config),
+        dashboard_config=_dump(dashboard_config),
     )
     return repo.get_report(rid)
 
 
 def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
                  sort_order: int | None = None, sql_text: str | None = None,
-                 column_config=_UNSET, overlay_config=_UNSET) -> dict | None:
+                 column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET) -> dict | None:
     if repo.get_report(report_id) is None:
         return None
     if sql_text is not None:
@@ -130,6 +131,7 @@ def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
         folder_id=folder_id, sort_order=sort_order, sql_text=sql_text,
         column_config=(_UNSET if column_config is _UNSET else _dump(column_config)),
         overlay_config=(_UNSET if overlay_config is _UNSET else _dump(overlay_config)),
+        dashboard_config=(_UNSET if dashboard_config is _UNSET else _dump(dashboard_config)),
     )
     return repo.get_report(report_id)
 

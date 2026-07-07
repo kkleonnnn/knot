@@ -49,6 +49,7 @@ class ReportCreateRequest(BaseModel):
     report_type: str = "wide_table"
     column_config: dict | None = None
     overlay_config: list | None = None
+    dashboard_config: dict | None = None
 
 
 class ReportUpdateRequest(BaseModel):
@@ -58,6 +59,7 @@ class ReportUpdateRequest(BaseModel):
     sql_text: str | None = None
     column_config: dict | None = None
     overlay_config: list | None = None
+    dashboard_config: dict | None = None
 
 
 _MAX_OVERLAY_CELLS = 500  # overlay 单元格上限（防超大 overlay → 客户端求值 DoS；红队复验 residual）
@@ -103,6 +105,7 @@ async def create_report(req: ReportCreateRequest, request: Request, admin=Depend
             admin, title=req.title, sql_text=req.sql_text, data_source_id=req.data_source_id,
             folder_id=req.folder_id, report_type=req.report_type,
             column_config=req.column_config, overlay_config=req.overlay_config,
+            dashboard_config=req.dashboard_config,
         )
     except svc.SqlNotReadOnly as e:
         raise HTTPException(status_code=400, detail=f"SQL 未通过只读校验：{e}") from e
@@ -118,7 +121,7 @@ async def update_report(report_id: int, req: ReportUpdateRequest, request: Reque
     # model_fields_set：只透传显式提供的字段 → svc 默认（None=不改 / _UNSET=不改）保 folder/config 清空语义
     fields = req.model_fields_set
     kw = {k: getattr(req, k) for k in
-          ("title", "folder_id", "sort_order", "sql_text", "column_config", "overlay_config")
+          ("title", "folder_id", "sort_order", "sql_text", "column_config", "overlay_config", "dashboard_config")
           if k in fields}
     try:
         r = svc.update_report(report_id, **kw)

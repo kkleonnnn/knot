@@ -8,6 +8,7 @@ import { usePersist, Modal, ModalHeader, Input, toast } from '../utils.jsx';
 import { api } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
 import { WideTableReport } from './bi/WideTableReport.jsx';
+import { DashboardReport } from './bi/DashboardReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
 import { ModeToggle } from './bi/ModeToggle.jsx';
@@ -172,7 +173,9 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, dbOk, sourceCount
                     <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
-                  <WideTableReport T={T} report={selected} />
+                  {selected.report_type === 'dashboard'
+                    ? <DashboardReport T={T} report={selected} />
+                    : <WideTableReport T={T} report={selected} />}
                 </div>
               </div>
             ) : (

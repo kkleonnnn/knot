@@ -388,8 +388,9 @@ CREATE TABLE IF NOT EXISTS bi_reports (
     sort_order          INTEGER NOT NULL DEFAULT 0,
     data_source_id      INTEGER,                              -- 绑业务库（OOS-1；refresh 解析 engine）
     sql_text            TEXT    NOT NULL,                     -- admin 直写、过 doris.is_safe_sql 只读闸（R-BI-5/D7）
-    column_config       TEXT,                                 -- JSON 列级：{col:{label,format,frozen,width}}
+    column_config       TEXT,                                 -- JSON 列级：{col:{label,format,frozen,conditional,width}}
     overlay_config      TEXT,                                 -- JSON 单元格/行级：[{row_index,col,kind,value}]
+    dashboard_config    TEXT,                                 -- JSON 仪表盘（②b overview_grid）：kpis/vol/donut/bars/mini/insight
     last_run_at         TEXT,
     last_run_rows_json  TEXT,                                 -- 冻结 rows[:200] JSON
     last_run_truncated  INTEGER DEFAULT 0,
