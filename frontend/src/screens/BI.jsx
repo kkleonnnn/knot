@@ -109,6 +109,15 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
     try { await api.post('/api/bi/folders', { name: folderName.trim() }); toast('已建文件夹'); setFolderName(''); setFolderModal(false); loadLists(); }
     catch (e) { toast(`建文件夹失败：${e.message || e}`, true); }
   };
+  // v0.8.8 ③：目录拖拽排序 → reorder 接口（按 id 顺序赋 sort_order）→ 重载列表
+  const reorderReports = async (ids) => {
+    try { await api.put('/api/bi/reorder/reports', { ordered_ids: ids }); loadLists(); }
+    catch (e) { toast(`排序失败：${e.message || e}`, true); }
+  };
+  const reorderFolders = async (ids) => {
+    try { await api.put('/api/bi/reorder/folders', { ordered_ids: ids }); loadLists(); }
+    catch (e) { toast(`排序失败：${e.message || e}`, true); }
+  };
 
   return (
     <>
@@ -116,7 +125,9 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
         sidebarContent={
           <ReportDirectory T={T} folders={folders} reports={reports} selectedId={selectedId} onSelect={setSelectedId}
             isAdmin={isAdmin} onNewReport={isAdmin ? () => setBuilder('new') : undefined}
-            onNewFolder={isAdmin ? () => setFolderModal(true) : undefined} />
+            onNewFolder={isAdmin ? () => setFolderModal(true) : undefined}
+            onReorderReports={isAdmin ? reorderReports : undefined}
+            onReorderFolders={isAdmin ? reorderFolders : undefined} />
         }
         topbarTitle={selected ? selected.title : ''}
         showConnectionPill connectionOk={dbOk}

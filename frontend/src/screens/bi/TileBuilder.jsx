@@ -2,6 +2,7 @@
 // 手写 HTML5 draggable（R-186 无 DnD 库）。每 tile 一条只读 SQL（存前后端 is_safe_sql 校验）。
 // viz_config 逐类型字段（列名手填，对齐 admin SQL 别名）；KPI valueCol 显式持久化（C-3）。
 import { useState } from 'react';
+import { ColumnConfigEditor } from './ColumnConfigEditor.jsx';
 
 const TYPES = [
   { v: 'kpi', label: '单数值 KPI' },
@@ -71,10 +72,11 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
                 <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列 valueCol" style={{ ...fld, flex: 1 }} />
               </div>
             )}
-            {(t.tile_type === 'line' || t.tile_type === 'table') && (
-              <div style={{ fontSize: 11, color: T.muted }}>
-                {t.tile_type === 'line' ? '首列为 X 轴，其余数值列为系列' : '按 SQL 列自动出表；列名走 SQL 别名'}
-              </div>
+            {t.tile_type === 'line' && (
+              <div style={{ fontSize: 11, color: T.muted }}>首列为 X 轴，其余数值列为系列</div>
+            )}
+            {t.tile_type === 'table' && (
+              <ColumnConfigEditor T={T} tile={t} viz={viz} onChange={(columns) => updViz(i, { columns })} />
             )}
           </div>
         );

@@ -29,6 +29,7 @@ BACKEND_ACK = {
     "knot/adapters/db/doris.py":           373,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366；v0.8.5 ②a D7 +public is_safe_sql wrapper 366→373（headroom 0，config-only）
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
+    "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 
@@ -76,6 +77,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/WideTable.jsx":              140,  # v0.8.7 宽表表体核心（单宽表 + tabbed 页签共用）
     "frontend/src/screens/bi/TabbedTableReport.jsx":      100,  # v0.8.7 多页表（每页一条 SQL，运营日报式）
     "frontend/src/screens/bi/TileBuilder.jsx":            180,  # ②b 结构化拼板（type/SQL/viz/span/DnD）
+    "frontend/src/screens/bi/ColumnConfigEditor.jsx":     70,   # v0.8.8 ② 逐列配置（label/desc/unit/conditional）
     "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
     "frontend/src/screens/bi/DashboardReport.jsx":        120,  # ②b tiles[] 分发渲染
     "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill
@@ -84,6 +86,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/formula.test.js":            220,  # 公式对抗/正确性单测
     "frontend/src/screens/bi/tiles/_shared.jsx":          100,  # Card/Donut/TileState 共享件
     "frontend/src/screens/bi/tiles/tile_data.js":         90,   # orderedCols/parseTile/numericCol 纯 helper
+    "frontend/src/screens/bi/tiles/tile_data.test.js":    50,   # v0.8.8 orderedCols 列序守护（rows-first）
     "frontend/src/screens/bi/tiles/KpiTile.jsx":          90,
     "frontend/src/screens/bi/tiles/LineTile.jsx":         60,
     "frontend/src/screens/bi/tiles/DonutTile.jsx":        90,

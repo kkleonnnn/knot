@@ -63,7 +63,7 @@ def test_refresh_no_engine_returns_error_no_write(tmp_db_path):
 def test_refresh_success_writes_snapshot_and_bumps_seq(tmp_db_path, monkeypatch):
     r = svc.create_report(_ADMIN, title="t", sql_text="SELECT 1", data_source_id=7)
     monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
-    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql: ([{"a": 1}, {"a": 2}], None))
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([{"a": 1}, {"a": 2}], None))
     out = svc.refresh(r["id"], _ADMIN)
     assert out["error"] == "" and len(out["rows"]) == 2
     saved = svc.get_report(r["id"])
@@ -161,7 +161,7 @@ def test_tabbed_report_reuses_tile_path(tmp_db_path, monkeypatch):
                           ])
     assert r["report_type"] == "tabbed" and [t["title"] for t in r["tiles"]] == ["日汇总", "周汇总"]
     monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
-    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql: ([{"统计周期": "2026-07-07"}], None))
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([{"统计周期": "2026-07-07"}], None))
     out = svc.refresh(r["id"], _ADMIN)
     assert out["report_type"] == "tabbed" and out["tile_count"] == 2 and out["error_count"] == 0
     # 非 admin 每页无 sql_text（复用 tile to_dto 脱敏）
@@ -180,3 +180,68 @@ def test_dashboard_refresh_no_engine_preserves_tile_snapshots(tmp_db_path):
     assert out["error"]                                             # 返引擎错
     assert trepo.get_tile(tid)["last_run_rows_json"] == '[{"v":1}]'  # 上次 good 快照保留（未抹空）
     assert svc.get_report(r["id"])["refresh_seq"] == before_seq      # 不 bump
+
+
+# ── v0.8.8 ③ reorder + ② 行上限 ─────────────────────────────────────────────────
+
+def test_reorder_reports_assigns_sort_order(tmp_db_path):
+    a = svc.create_report(_ADMIN, title="A", sql_text="SELECT 1")["id"]
+    b = svc.create_report(_ADMIN, title="B", sql_text="SELECT 1")["id"]
+    c = svc.create_report(_ADMIN, title="C", sql_text="SELECT 1")["id"]
+    svc.reorder_reports([c, a, b])
+    order = {r["id"]: r["sort_order"] for r in repo.list_reports()}
+    assert (order[c], order[a], order[b]) == (0, 1, 2)
+    assert [r["id"] for r in repo.list_reports()] == [c, a, b]   # list 按 sort_order
+
+
+def test_reorder_reports_missing_id_noop(tmp_db_path):
+    a = svc.create_report(_ADMIN, title="A", sql_text="SELECT 1")["id"]
+    svc.reorder_reports([999999, a])                             # 不存在 id → no-op；a 得 sort_order=1
+    assert svc.get_report(a)["sort_order"] == 1
+
+
+def test_reorder_folders_assigns_sort_order(tmp_db_path):
+    f1 = svc.create_folder(_ADMIN, name="F1")["id"]
+    f2 = svc.create_folder(_ADMIN, name="F2")["id"]
+    svc.reorder_folders([f2, f1])
+    assert [f["id"] for f in repo.list_folders()] == [f2, f1]
+
+
+def test_reorder_empty_noop(tmp_db_path):
+    svc.reorder_reports([])                                       # 空列表不炸
+    svc.reorder_folders([])
+
+
+def test_exec_one_caps_at_10000_and_passes_max_rows(tmp_db_path, monkeypatch):
+    seen = {}
+
+    def _exec(eng, sql, **kw):
+        # 真 execute_query 对无顶层 LIMIT 的 SQL 追加 LIMIT max_rows → 至多返 max_rows 行（对抗复核 #2：mock 须尊重之）
+        n = kw.get("max_rows")
+        seen["max_rows"] = n
+        return ([{"a": i} for i in range(n)], None)
+
+    monkeypatch.setattr(svc.db_connector, "execute_query", _exec)
+    snap, truncated, _ms, err = svc._exec_one(object(), "SELECT a FROM t")
+    assert svc._LAST_RUN_ROW_LIMIT == 10000                      # ② kk：全量展示上限
+    assert seen["max_rows"] == 10001                             # fetch +1 才能探顶（=1w 行时 DB 返 1w+1）
+    assert truncated is True and len(snap) == 10000 and err == ""  # 探到超顶 → 截到 1w + flag True
+
+
+def test_exec_one_under_limit_not_truncated(tmp_db_path, monkeypatch):
+    monkeypatch.setattr(svc.db_connector, "execute_query",
+                        lambda eng, sql, **kw: ([{"a": 1}] * 500, None))
+    snap, truncated, _ms, _err = svc._exec_one(object(), "SELECT a FROM t")
+    assert truncated is False and len(snap) == 500               # 数百行（真运营日报量级）全显不截
+
+
+def test_update_rebinds_data_source(tmp_db_path):
+    # v0.8.8：编辑改/解绑数据源须持久化（此前 update 链缺 data_source_id → builder 静默丢弃）
+    r = svc.create_report(_ADMIN, title="t", sql_text="SELECT 1")
+    assert svc.get_report(r["id"])["data_source_id"] is None
+    svc.update_report(r["id"], data_source_id=7)                 # 绑
+    assert svc.get_report(r["id"])["data_source_id"] == 7
+    svc.update_report(r["id"], title="t2")                       # 只改标题 → 数据源不动（_UNSET）
+    assert svc.get_report(r["id"])["data_source_id"] == 7
+    svc.update_report(r["id"], data_source_id=None)              # 解绑（显式 None）
+    assert svc.get_report(r["id"])["data_source_id"] is None

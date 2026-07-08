@@ -18,13 +18,18 @@ function TypeIcon({ T, type }) {
   );
 }
 
-function ReportRow({ T, report, selected, onSelect }) {
+function ReportRow({ T, report, selected, onSelect, dnd }) {
   // v0.8.5 ②a #3：选中样式 = ASK 会话项同一套（accent 8% 底 + accent 25% 四边 border + radius 6，margin 0 8px；
   // 去左侧竖条；inactive 用 transparent 1px border 防 layout shift）
+  // v0.8.8 ③：admin 非搜索态可拖拽排序（同文件夹内）—— dnd 存在即启用（HTML5 draggable，R-186 无库）。
   return (
-    <button onClick={() => onSelect(report.id)} style={{
+    <button onClick={() => onSelect(report.id)}
+      draggable={!!dnd} onDragStart={dnd?.onStart}
+      onDragOver={dnd ? (e) => e.preventDefault() : undefined} onDrop={dnd?.onDrop}
+      style={{
       display: 'flex', alignItems: 'center', gap: 8, width: 'calc(100% - 16px)', textAlign: 'left',
-      margin: '0 8px 1px', padding: '7px 10px', borderRadius: 6, cursor: 'pointer',
+      margin: '0 8px 1px', padding: '7px 10px', borderRadius: 6, cursor: dnd ? 'grab' : 'pointer',
+      opacity: dnd && dnd.dragging ? 0.4 : 1,
       background: selected ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent',
       border: selected ? `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)` : '1px solid transparent',
       color: selected ? T.text : T.subtext, fontWeight: selected ? 500 : 400, fontFamily: 'inherit',
@@ -42,16 +47,21 @@ function ReportRow({ T, report, selected, onSelect }) {
   );
 }
 
-function FolderNode({ T, folder, folders, reports, selectedId, onSelect, depth }) {
+function FolderNode({ T, folder, folders, reports, selectedId, onSelect, depth, reportDnd, folderDnd }) {
   const [open, setOpen] = useState(true);
   const childFolders = folders.filter((f) => f.parent_id === folder.id);
   const childReports = reports.filter((r) => r.folder_id === folder.id);
+  const fdnd = folderDnd && folderDnd(folder, folder.parent_id ?? null);   // 本文件夹拖拽（同级重排）
   return (
     <div>
-      <button onClick={() => setOpen((o) => !o)} style={{
+      <button onClick={() => setOpen((o) => !o)}
+        draggable={!!fdnd} onDragStart={fdnd?.onStart}
+        onDragOver={fdnd ? (e) => e.preventDefault() : undefined} onDrop={fdnd?.onDrop}
+        style={{
         display: 'flex', alignItems: 'center', gap: 6, width: 'calc(100% - 16px)', textAlign: 'left',
         margin: '0 8px 1px', padding: '7px 10px', paddingLeft: 10 + depth * 12, borderRadius: 6,
-        border: '1px solid transparent', background: 'transparent', color: T.text, cursor: 'pointer', fontFamily: 'inherit',
+        opacity: fdnd && fdnd.dragging ? 0.4 : 1,
+        border: '1px solid transparent', background: 'transparent', color: T.text, cursor: fdnd ? 'grab' : 'pointer', fontFamily: 'inherit',
       }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2"
              strokeLinecap="round" strokeLinejoin="round"
@@ -69,10 +79,12 @@ function FolderNode({ T, folder, folders, reports, selectedId, onSelect, depth }
         <div>
           {childFolders.map((cf) => (
             <FolderNode key={cf.id} T={T} folder={cf} folders={folders} reports={reports}
-                        selectedId={selectedId} onSelect={onSelect} depth={depth + 1} />
+                        selectedId={selectedId} onSelect={onSelect} depth={depth + 1}
+                        reportDnd={reportDnd} folderDnd={folderDnd} />
           ))}
           {childReports.map((r) => (
-            <ReportRow key={r.id} T={T} report={r} selected={r.id === selectedId} onSelect={onSelect} />
+            <ReportRow key={r.id} T={T} report={r} selected={r.id === selectedId} onSelect={onSelect}
+                       dnd={reportDnd && reportDnd(r, folder.id)} />
           ))}
         </div>
       )}
@@ -81,8 +93,10 @@ function FolderNode({ T, folder, folders, reports, selectedId, onSelect, depth }
 }
 
 export function ReportDirectory({ T, folders = [], reports = [], selectedId, onSelect,
-                                 isAdmin = false, onNewFolder, onNewReport }) {
+                                 isAdmin = false, onNewFolder, onNewReport,
+                                 onReorderReports, onReorderFolders }) {
   const [q, setQ] = useState('');
+  const [drag, setDrag] = useState(null);   // v0.8.8 ③ {kind:'report'|'folder', id, group}
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
     return kw ? reports.filter((r) => (r.title || '').toLowerCase().includes(kw)) : reports;
@@ -91,6 +105,26 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
   const topFolders = folders.filter((f) => f.parent_id == null);
   const unfiled = filtered.filter((r) => r.folder_id == null);
   const canManage = isAdmin && (onNewFolder || onNewReport);
+
+  // v0.8.8 ③ 拖拽排序：仅 admin 非搜索态（搜索过滤下重排语义不清）。同 group 内移动 → reorder 全 group 有序 id。
+  const dndOn = isAdmin && !q.trim();
+  const _reorder = (items, group, kind, fromId, targetId, cb) => {
+    if (drag == null || drag.kind !== kind || drag.group !== group || fromId === targetId) { setDrag(null); return; }
+    const ids = items.filter((x) => ((kind === 'report' ? x.folder_id : x.parent_id) ?? null) === group).map((x) => x.id);
+    const from = ids.indexOf(fromId), to = ids.indexOf(targetId);
+    if (from >= 0 && to >= 0) { ids.splice(to, 0, ids.splice(from, 1)[0]); cb && cb(ids); }
+    setDrag(null);
+  };
+  const reportDnd = dndOn ? (r, group) => ({
+    dragging: drag && drag.kind === 'report' && drag.id === r.id,
+    onStart: () => setDrag({ kind: 'report', id: r.id, group }),
+    onDrop: () => _reorder(reports, group, 'report', drag && drag.id, r.id, onReorderReports),
+  }) : null;
+  const folderDnd = dndOn ? (f, group) => ({
+    dragging: drag && drag.kind === 'folder' && drag.id === f.id,
+    onStart: () => setDrag({ kind: 'folder', id: f.id, group }),
+    onDrop: () => _reorder(folders, group, 'folder', drag && drag.id, f.id, onReorderFolders),
+  }) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -127,13 +161,15 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
       <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {topFolders.map((f) => (
           <FolderNode key={f.id} T={T} folder={f} folders={folders} reports={filtered}
-                      selectedId={selectedId} onSelect={onSelect} depth={0} />
+                      selectedId={selectedId} onSelect={onSelect} depth={0}
+                      reportDnd={reportDnd} folderDnd={folderDnd} />
         ))}
         {unfiled.length > 0 && (
           <div style={{ marginTop: 6 }}>
             <div style={{ padding: '7px 10px', fontSize: 11, color: T.muted, letterSpacing: '0.04em' }}>未归档</div>
             {unfiled.map((r) => (
-              <ReportRow key={r.id} T={T} report={r} selected={r.id === selectedId} onSelect={onSelect} />
+              <ReportRow key={r.id} T={T} report={r} selected={r.id === selectedId} onSelect={onSelect}
+                         dnd={reportDnd && reportDnd(r, null)} />
             ))}
           </div>
         )}
