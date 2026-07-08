@@ -216,14 +216,16 @@ def test_exec_one_caps_at_10000_and_passes_max_rows(tmp_db_path, monkeypatch):
     seen = {}
 
     def _exec(eng, sql, **kw):
-        seen["max_rows"] = kw.get("max_rows")
-        return ([{"a": i} for i in range(svc._LAST_RUN_ROW_LIMIT + 5)], None)
+        # 真 execute_query 对无顶层 LIMIT 的 SQL 追加 LIMIT max_rows → 至多返 max_rows 行（对抗复核 #2：mock 须尊重之）
+        n = kw.get("max_rows")
+        seen["max_rows"] = n
+        return ([{"a": i} for i in range(n)], None)
 
     monkeypatch.setattr(svc.db_connector, "execute_query", _exec)
     snap, truncated, _ms, err = svc._exec_one(object(), "SELECT a FROM t")
     assert svc._LAST_RUN_ROW_LIMIT == 10000                      # ② kk：全量展示上限
-    assert seen["max_rows"] == 10000                             # 透传查询层（无 LIMIT 的 SQL → LIMIT 10000）
-    assert truncated is True and len(snap) == 10000 and err == ""
+    assert seen["max_rows"] == 10001                             # fetch +1 才能探顶（=1w 行时 DB 返 1w+1）
+    assert truncated is True and len(snap) == 10000 and err == ""  # 探到超顶 → 截到 1w + flag True
 
 
 def test_exec_one_under_limit_not_truncated(tmp_db_path, monkeypatch):

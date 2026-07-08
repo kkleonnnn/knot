@@ -86,6 +86,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/formula.test.js":            220,  # 公式对抗/正确性单测
     "frontend/src/screens/bi/tiles/_shared.jsx":          100,  # Card/Donut/TileState 共享件
     "frontend/src/screens/bi/tiles/tile_data.js":         90,   # orderedCols/parseTile/numericCol 纯 helper
+    "frontend/src/screens/bi/tiles/tile_data.test.js":    50,   # v0.8.8 orderedCols 列序守护（rows-first）
     "frontend/src/screens/bi/tiles/KpiTile.jsx":          90,
     "frontend/src/screens/bi/tiles/LineTile.jsx":         60,
     "frontend/src/screens/bi/tiles/DonutTile.jsx":        90,

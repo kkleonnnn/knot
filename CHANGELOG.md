@@ -13,7 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **② 全量展示上限 200→10000**：`_LAST_RUN_ROW_LIMIT=10000`，`_exec_one` 传 `max_rows` 到 `execute_query`（无顶层 LIMIT 的 SQL → 自动 `LIMIT 10000`；admin 自带 LIMIT 尊重不覆盖）。真实运营日报数百行 → 全显不截；超 1w 截断 + `last_run_truncated=1`。渲染无虚拟化（真数据量级低，非 10000）。
 > **② 列名/口径编辑**：新 `<ColumnConfigEditor>` —— builder 每 table 页/板块逐列编 **label（短表头）/ desc（口径 hover tooltip）/ unit（%）/ conditional（正负着色）**→ 写 `viz_config.columns[col]`（WideTable 已渲染这些）。列来源 = 该页最近快照首行键（= SQL 查询列序）∪ 已有 config；新页未跑无列 → 提示先重跑。**⚠️ 按快照序重建 columns 对象**（含未配置列空占位）—— `orderedCols` cfg 键优先决定列序，防 admin 乱序编辑打乱表格列序。
 > **③ 目录拖拽排序**：`reorder_reports`/`reorder_folders` repo（单连接 `executemany` 批量赋 `sort_order`=位置；缺失 id no-op；单表 UPDATE 无跨表污染）+ service 薄包 + `PUT /api/bi/reorder/reports|folders`（非碰撞前缀，不与 `{id}` int 路径争路由；require_admin；`_MAX_REORDER=1000` DoS 护栏；审计复用 `bi_report.update`/`report_folder.update` **不新增 Literal**）。前端 ReportDirectory 手写 HTML5 DnD（R-186 无库）—— 同文件夹内报表 + 同级文件夹拖拽；仅 admin 非搜索态启用。
-> **闸门**：后端 pytest（+10：reorder 顺序/缺失 id/空/analyst 403/oversized 400 + 行上限截断/max_rows 透传/未截）· eslint · vitest · ruff · R-94（+ColumnConfigEditor 登记）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.8）· R-BI-1 ASK 0 触。
+> **对抗复核修 3 项（workflow 9 agent · 6 findings → 3 distinct confirmed，无 high/无安全/契约破）**：
+>   ① **TableTile 读 `viz.cols` → `viz.columns`**（仪表盘 table 板块此前静默忽略列配置；原 `viz.cols` 无任何写者）+ 补 desc(hover)/conditional(正负色) 与 tabbed 齐平。
+>   ② **行上限截断探测**：`max_rows=_LAST_RUN_ROW_LIMIT + 1`（原 `max_rows==阈值` → `len>阈值` 恒假 → truncated 恒 0 死标志；多取 1 行探顶）+ 修「假信心」测试（mock 尊重 max_rows）。
+>   ③ **幻影列根治**：`orderedCols` 改**数据列（rows）为准**，cfg-only 键不渲染（防列配置后改 SQL 掉列留空幻影列）+ editor `all=当前快照列`（剪陈旧键）+ vitest 守护。（DoS-on-10000 顾虑经对抗验证驳回 —— 真报表数百行、1w 为上限非常态。）
+> **闸门**：后端 pytest（+10：reorder 顺序/缺失 id/空/analyst 403/oversized 400 + 行上限截断/max_rows+1 透传/未截）· vitest（+4 orderedCols 列序）· eslint · ruff · R-94（+ColumnConfigEditor/tile_data.test 登记 + bi_report_service ACK 340）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.8）· R-BI-1 ASK 0 触。
 
 ## [Released] - v0.8.7 — ②b.1 多页表报表（运营日报式：日/周/月 每页一条 SQL）
 

@@ -1,11 +1,13 @@
 // tile_data.js — v0.8.6 (②b) tile 纯数据 helper（无组件 → .js，随 formula.js/fmt.js 惯例，过 react-refresh 门）。
 
-// 通用「SQL rows → 有序列」（union 保序，cfg 键优先）—— WideTableReport + TableTile 共用（B-5 单一真相源）。
+// 通用「SQL rows → 有序列」—— WideTableReport + TableTile + tabbed WideTable 共用（B-5 单一真相源）。
+// v0.8.8 修（对抗复核 #3）：**数据列（rows 键 = SQL 查询序）为准**；cfg-only 键（配置了但当前 SQL 不返 =
+//   陈旧/幻影列）**不渲染**（防列配置编辑后改 SQL 掉列，留下空「—」幻影列）。仅当无数据行时回退 cfg 键（空态可见性）。
 export function orderedCols(rows, cfg) {
   const seen = [];
   const push = (k) => { if (!seen.includes(k)) seen.push(k); };
-  if (cfg && typeof cfg === 'object') Object.keys(cfg).forEach(push);
   for (const r of rows) Object.keys(r || {}).forEach(push);
+  if (!seen.length && cfg && typeof cfg === 'object') Object.keys(cfg).forEach(push);
   return seen;
 }
 

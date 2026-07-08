@@ -211,10 +211,15 @@ _NO_ENGINE = "无可用数据库引擎（检查报表数据源配置）"
 
 
 def _exec_one(engine, sql: str):
-    """跑一条 SQL → (snap, truncated, elapsed_ms, error)；截断 _LAST_RUN_ROW_LIMIT。engine 非空由调用方保证。"""
+    """跑一条 SQL → (snap, truncated, elapsed_ms, error)；截断 _LAST_RUN_ROW_LIMIT。engine 非空由调用方保证。
+
+    对抗复核 #2：**取 +1 行**（`max_rows=_LAST_RUN_ROW_LIMIT + 1`）才能探到「超顶」—— execute_query 对无顶层
+    LIMIT 的 SQL 追加 `LIMIT max_rows`，若 max_rows==截断阈值则返回恒 ≤ 阈值，`> 阈值` 永假、truncated 恒 0。
+    多取 1 行：DB 返 1w+1 → truncated=True + 截到 1w；≤1w → 原样不截。admin 自带 LIMIT>1w 时同样多取 1 探顶。
+    """
     t0 = time.time()
     try:
-        rows, db_error = db_connector.execute_query(engine, sql, max_rows=_LAST_RUN_ROW_LIMIT)
+        rows, db_error = db_connector.execute_query(engine, sql, max_rows=_LAST_RUN_ROW_LIMIT + 1)
     except Exception as e:
         rows, db_error = [], str(e)[:200]
     elapsed_ms = int((time.time() - t0) * 1000)
