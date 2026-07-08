@@ -1,5 +1,6 @@
 import { I, KnotLogo, iconBtn } from './Shared.jsx';
-import { APP_VERSION } from './version.js';  // v0.6.4.11 task #44 — 前端版本单一真相源（不再硬编）
+import { APP_VERSION } from './version.js';
+import { ModeToggle } from './screens/bi/ModeToggle.jsx';  // v0.8.5 ②a — 右上角 ASK/BI 集群（两模式一致）  // v0.6.4.11 task #44 — 前端版本单一真相源（不再硬编）
 
 // v0.4.1.1: 非 admin 屏（chat / saved-reports / 未来用户屏）一律渲染传入的 sidebarContent；
 // admin 屏（active 以 'admin-' 开头）走硬写导航。
@@ -10,6 +11,7 @@ export function AppShell({
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
   connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
+  homeMode,               // v0.8.5 ②a — 子屏「返回」目标（chat / bi）；不传则回落读持久化
   onToggleTheme, onNavigate, onLogout,
   children,
 }) {
@@ -17,6 +19,12 @@ export function AppShell({
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
   // v0.6.4.2 UI v2 — floating inset 面板 chrome（R-313 rgba 豁免 — boxShadow；dark 无阴影）
   const panelShadow = T.dark ? 'none' : '0 1px 3px rgba(15,30,45,0.04)';
+  // v0.8.5 ②a —「返回」目标 = 来时的顶层模式：优先 prop，回落读 App 写入的持久化 cb_home_mode
+  // （子屏 AdminScreen/SavedReports 等不透传 prop → 靠持久化，从 BI 进设置返回 BI 而非硬回 chat）
+  const backMode = homeMode || (() => {
+    try { return JSON.parse(localStorage.getItem('cb_home_mode') || '"chat"') === 'bi' ? 'bi' : 'chat'; }
+    catch { return 'chat'; }
+  })();
 
   return (
     <div style={{
@@ -50,15 +58,16 @@ export function AppShell({
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
         {/* v0.6.0.13 #1：非 chat 屏 sidebar 顶部加「返回对话」大按钮（与 Chat 屏「新建对话」同位置同样式）
             实现"哪来的就哪回的"原则；旧的底部 ghost 链接移除（详 L100+ 注释） */}
-        {active !== 'chat' && onNavigate && (
+        {active !== 'chat' && active !== 'bi' && onNavigate && (
           <div style={{ padding: '0 8px 8px' }}>
-            <button onClick={() => onNavigate('chat')} style={{
+            {/* v0.8.5 ②a — 回到来时的顶层模式（从 BI 进设置 → 返回报表；从 ASK 进 → 返回对话）*/}
+            <button onClick={() => onNavigate(backMode)} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
               padding: '10px 14px', borderRadius: 8, background: T.card,
               color: T.text, border: `1px solid ${T.border}`,
               fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
             }}>
-              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回{backMode === 'bi' ? '报表' : '对话'}
             </button>
           </div>
         )}
@@ -180,6 +189,8 @@ export function AppShell({
             <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
               {T.dark ? <I.sun/> : <I.moon/>}
             </button>
+            {/* v0.8.5 ②a：ASK/BI 模式切换（chat + bi 两模式共用同一 Shell topbar 集群；admin 屏不渲染 → byte-equal 不变）*/}
+            {(active === 'chat' || active === 'bi') && onNavigate && <ModeToggle T={T} active={active} onNavigate={onNavigate}/>}
           </div>
         </header>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

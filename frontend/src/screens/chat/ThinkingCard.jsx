@@ -1,6 +1,7 @@
 // v0.5.3 extracted from Chat.jsx；v0.5.12 (C5+) Thinking 屏复刻 R-266~R-291
 // R-227.5.1 单字母装饰豁免：K/N/O letter chip 是导航标识，不构成完整 KNOT 字面
 import { TypingDots, LetterChip, DoneCheck } from '../../Shared.jsx';
+import { RightPanel } from '../../RightPanel.jsx';  // v0.8.5 ②a #4 — 与 BI da-asst 共用右栏 chrome
 
 export function ThinkingCard({ T, agentEvents = [] }) {
   const AGENT_LABELS = { clarifier: '理解问题', sql_planner: '生成 SQL', presenter: '整理洞察' };
@@ -92,26 +93,14 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
   const doneCount = AGENTS.filter(({ key }) => getStatus(key) === 'done').length;
 
   return (
-    // Panel 320 (R-276)；R-288 Conversation 0 改前置已确认（无 margin-right 字面）
-    <aside style={{
-      width: 320, flexShrink: 0, height: '100%', overflowY: 'auto',
-      borderLeft: `1px solid ${T.border}`, background: T.sidebar,
-      display: 'flex', flexDirection: 'column',
-    }} className="cb-sb">
-      {/* Header step count + transition cubic-bezier (R-280/R-287) */}
-      <div style={{
-        padding: '14px 18px', borderBottom: `1px solid ${T.border}`,
-        display: 'flex', alignItems: 'center', gap: 8,
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>思考过程</span>
-        <span style={{
-          marginLeft: 'auto', fontSize: 10, color: T.muted, fontFamily: T.mono,
-          letterSpacing: '0.06em',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}>{doneCount}/{AGENTS.length} STEPS</span>
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    // #4：chrome（宽 320 / 表头 / » 收起键）走共享 RightPanel；此处只出「思考过程」内容 + STEPS trailing
+    <RightPanel T={T} title="思考过程" headerTrailing={
+      <span style={{
+        fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>{doneCount}/{AGENTS.length} STEPS</span>
+    }>
+      <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       {AGENTS.map(({ key, label, letter, name }) => {
         const status = getStatus(key);
         const output = getDoneOutput(key);
@@ -210,6 +199,6 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
         );
       })}
       </div>
-    </aside>
+    </RightPanel>
   );
 }

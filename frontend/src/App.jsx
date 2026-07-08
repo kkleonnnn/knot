@@ -7,6 +7,7 @@ import { EnrollScreen } from './screens/Enroll.jsx';
 import { ChatScreen } from './screens/Chat.jsx';
 import { AdminScreen } from './screens/Admin.jsx';
 import { SavedReportsScreen } from './screens/SavedReports.jsx';
+import { BIScreen } from './screens/BI.jsx';
 import { AdminBudgetsScreen } from './screens/AdminBudgets.jsx';
 import { AdminRecoveryScreen } from './screens/AdminRecovery.jsx';
 import { AdminAuditScreen } from './screens/AdminAudit.jsx';
@@ -25,6 +26,8 @@ export default function App() {
   const [T, toggleTheme] = useTheme();
   const [user, setUser] = usePersist('cb_user', null);
   const [screen, setScreen] = usePersist('cb_screen', 'chat');
+  // v0.8.5 ②a — 顶层模式记忆（chat / bi）：从某模式进 admin/设置 子屏后，「返回」回到来时的模式（非硬回 chat）
+  const [homeMode, setHomeMode] = usePersist('cb_home_mode', screen === 'bi' ? 'bi' : 'chat');
   // v0.6.5.2 F4-fe 硬伤1：loading 用 useState 非 usePersist —— 持久化 loading 会让刷新
   // 首帧 loading=false 先用旧 cb_user 闪主应用再等 me()（FOUC + 中间帧发请求）。loading 本就不该持久化。
   const [loading, setLoading] = useState(true);
@@ -82,19 +85,23 @@ export default function App() {
     localStorage.removeItem('cb_conv');
     setUser(u);
     setScreen('chat');
+    setHomeMode('chat');
   };
   const handleLogout = () => {
     localStorage.removeItem('cb_token');
     localStorage.removeItem('cb_user');
     localStorage.removeItem('cb_screen');
     localStorage.removeItem('cb_conv');
+    localStorage.removeItem('cb_home_mode');
     setUser(null);
     setScreen('chat');
+    setHomeMode('chat');
     // v0.6.5.2 F4-fe：重置 needsEnroll —— 否则 Enroll 屏点退出后 needsEnroll 仍 true →
     // 渲染顺序 needsEnroll 在 !user 前 → 卡在 Enroll 屏无法回 Login。
     setNeedsEnroll(false);
   };
-  const navigate = (s) => setScreen(s);
+  // 切到顶层模式时记忆之；切子屏（admin-*/settings/saved-reports）不动 homeMode → 「返回」回到来时模式
+  const navigate = (s) => { if (s === 'chat' || s === 'bi') setHomeMode(s); setScreen(s); };
 
   if (loading) {
     return (
@@ -124,13 +131,15 @@ export default function App() {
   }
 
   const commonProps = { T, user, onToggleTheme: toggleTheme, onNavigate: navigate, onLogout: handleLogout,
-                        convs, setConvs, dbOk, sourceCount };
+                        homeMode, convs, setConvs, dbOk, sourceCount };
 
   const adminTabMap = {
     'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
     'admin-catalog': 'catalog',
   };
+  // v0.8.5 ②a：BI 报表模式（独立 BIShell；ASK/BI 切换在 BIShell 顶栏集群，问题①修）
+  if (screen === 'bi') return <BIScreen {...commonProps}/>;
   if (screen === 'saved-reports') return <SavedReportsScreen {...commonProps}/>;
   // v0.4.3 admin 看板（budgets + recovery 是独立屏，不走 AdminScreen tab）
   if (screen === 'admin-budgets' && user.role === 'admin') return <AdminBudgetsScreen {...commonProps}/>;
@@ -150,5 +159,6 @@ export default function App() {
   // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板
   if ((screen === 'user-config' || screen === 'settings') && user.role === 'admin')
     return <AdminScreen {...commonProps} screen="admin-models" initialTab="models"/>;
+  // ASK 问数模式（默认）；ASK/BI 切换在 AppShell topbar 集群（ChatScreen 传 active='chat' + onNavigate）
   return <ChatScreen {...commonProps}/>;
 }

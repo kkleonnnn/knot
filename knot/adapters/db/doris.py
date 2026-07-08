@@ -309,6 +309,15 @@ def _has_top_level_limit(sql: str) -> bool:
     return tree is not None and tree.args.get("limit") is not None
 
 
+def is_safe_sql(sql: str) -> tuple:
+    """v0.8.5 (②a D7)：只读校验的 public 入口。委托 `_is_safe_sql`（fail-closed）。
+
+    供 BI 报表 builder **存前预校验** admin 直写 SQL（bi_report_service），让 admin 即时
+    见错，而非「存后首刷才拒」。返回 (ok: bool, reason: str)。execute_query 仍内嵌 `_is_safe_sql`
+    做执行前二次守护 —— 双层不冗余（存前 UX + 执行前兜底）。"""
+    return _is_safe_sql(sql)
+
+
 def _is_safe_sql(sql: str) -> tuple:
     """v0.2.2: 用 sqlglot AST 解析做只读校验，比正则黑名单稳。
     通过条件：单条语句、根节点是 Select / With / Union / Show / Describe，且 AST 内不出现任何写/DDL 节点。

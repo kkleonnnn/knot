@@ -95,6 +95,12 @@ def init_db():
     if "http_config" not in ds_cols:
         conn.execute("ALTER TABLE data_sources ADD COLUMN http_config TEXT DEFAULT ''")
 
+    # v0.8.5 ②a: bi_reports.dashboard_config — 仪表盘（overview_grid）JSON。新表 CREATE 本已含，
+    # 此 ALTER 兜住本 PATCH 早期 commit 已建表的历史 DB（幂等：列在即 no-op）。
+    bi_cols = {row[1] for row in conn.execute("PRAGMA table_info(bi_reports)").fetchall()}
+    if bi_cols and "dashboard_config" not in bi_cols:
+        conn.execute("ALTER TABLE bi_reports ADD COLUMN dashboard_config TEXT")
+
     # v0.6.2.0 TOTP 2FA — users 表加 4 列（R-PB-B1-1/8/13）
     # totp_secret: Fernet 加密 enc_v1: 前缀（仅 SQLite knot.db；不涉 Doris）
     # totp_enrolled_at / totp_last_used_at: 时间戳（5 次/月 警报基线）

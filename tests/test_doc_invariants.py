@@ -53,8 +53,10 @@ def test_knotlogo_file_set():
     v0.6.4.12 收紧：子串 `"KnotLogo"` → `"<KnotLogo"`（仅渲染引用计入）。
     Shared.jsx 仅 `export function KnotLogo` 定义（0 渲染），由 R-185
     （test_login_version_sync）守护 → 收紧不丢守护，消注释/字符串 false-red。
-    R-199.5：KnotLogo 共 5 文件 = 4 渲染（本 guard）+ 1 Shared 定义（R-185）。
-    第 5 渲染文件混入（如顺手在新屏用）/ 任一渲染蒸发 → 红。
+    R-199.5：KnotLogo 文件集随 brand/app 屏演进（v0.6.2.0 +Enroll/ForceChange）。
+    v0.8.5 ②a：BI 短暂自建 BIShell 时命中 BI.jsx；后 BI 改共用 <AppShell>（Shell 渲染 brand）→
+    BI.jsx 不再直渲 KnotLogo，回落 4 渲染（Shell 一处覆盖 chat/BI/admin 全部 app 外壳）。
+    非 brand/app 屏混入 / 任一渲染蒸发 → 红。
     """
     root = Path("frontend/src")
     hits = sorted(

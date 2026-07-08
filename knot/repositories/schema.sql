@@ -366,3 +366,38 @@ CREATE TABLE IF NOT EXISTS monitor_trigger_audit (
     created_at    TEXT    DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_monitor_trigger ON monitor_trigger_audit(monitor_id, created_at);
+
+-- v0.8.5 (②a BI 模式)：报表目录文件夹（层级 + 排序；admin 管理）。全新表，与 saved_reports
+-- (ASK 模式收藏) 严格分开 — R-BI-1。soft ref parent_id 自引用层级；无硬 FK（删父不级联）。
+CREATE TABLE IF NOT EXISTS report_folders (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    parent_id   INTEGER,                              -- 自引用层级；NULL = 顶层。soft ref
+    sort_order  INTEGER NOT NULL DEFAULT 0,           -- 同级排序
+    created_at  TEXT    DEFAULT (datetime('now','localtime')),
+    created_by  INTEGER NOT NULL                      -- admin user id
+);
+
+-- v0.8.5 (②a)：BI 报表（宽表；dashboard tiles 留 ②b）。admin 授权、analyst 只读。
+-- 冻结快照 + admin 控刷新（D6，不实时跑）；overlay_config（单元格公式覆盖）独立于 column_config（列级）。
+CREATE TABLE IF NOT EXISTS bi_reports (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_type         TEXT    NOT NULL DEFAULT 'wide_table',   -- 'wide_table' | 'dashboard'(②b)
+    title               TEXT    NOT NULL,
+    folder_id           INTEGER,                              -- soft ref → report_folders；NULL = 未归档
+    sort_order          INTEGER NOT NULL DEFAULT 0,
+    data_source_id      INTEGER,                              -- 绑业务库（OOS-1；refresh 解析 engine）
+    sql_text            TEXT    NOT NULL,                     -- admin 直写、过 doris.is_safe_sql 只读闸（R-BI-5/D7）
+    column_config       TEXT,                                 -- JSON 列级：{col:{label,format,frozen,conditional,width}}
+    overlay_config      TEXT,                                 -- JSON 单元格/行级：[{row_index,col,kind,value}]
+    dashboard_config    TEXT,                                 -- JSON 仪表盘（②b overview_grid）：kpis/vol/donut/bars/mini/insight
+    last_run_at         TEXT,
+    last_run_rows_json  TEXT,                                 -- 冻结 rows[:200] JSON
+    last_run_truncated  INTEGER DEFAULT 0,
+    last_run_ms         INTEGER DEFAULT 0,
+    refresh_seq         INTEGER NOT NULL DEFAULT 0,           -- 每次刷新 +1 → UI 标覆盖层 staleness
+    last_run_by         INTEGER,                              -- 触发者（admin id 手动；②c 调度 sentinel）
+    created_at          TEXT    DEFAULT (datetime('now','localtime')),
+    created_by          INTEGER NOT NULL                      -- admin user id
+);
+CREATE INDEX IF NOT EXISTS idx_bi_reports_folder ON bi_reports(folder_id, sort_order);

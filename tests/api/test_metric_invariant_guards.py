@@ -80,3 +80,24 @@ def test_every_metric_literal_has_audit_emit():
     emitted = _api_audit_emit_actions()
     missing = literals - emitted
     assert not missing, f"§4.5 审计守护：metric Literal {missing} 无对应 audit() emit（每 Literal ≥1）"
+
+
+# ─── v0.8.5 (②a) BI 报表：自建 bi 前缀 per-literal-emit guard ─────────────────────
+# 守护者 Stage 3 §C：无「每 Literal ≥1 emit」全局 CI（唯本文件硬编 metric.*）→ BI 显式扩。
+
+def _bi_audit_literals() -> set[str]:
+    from knot.models.audit import AuditAction
+    return {a for a in typing.get_args(AuditAction)
+            if a.startswith("bi_report.") or a.startswith("report_folder.")}
+
+
+def test_every_bi_literal_has_audit_emit():
+    """v0.8.5 ②a：每个 bi_report.* / report_folder.* Literal 须在 API 层有 ≥1 audit() emit。"""
+    literals = _bi_audit_literals()
+    assert literals == {
+        "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
+        "report_folder.create", "report_folder.update", "report_folder.delete",
+    }, f"BI AuditAction Literal 集合不符；实际 {literals}"
+    emitted = _api_audit_emit_actions()
+    missing = literals - emitted
+    assert not missing, f"§R-BI-8 审计守护：BI Literal {missing} 无对应 audit() emit（每 Literal ≥1）"

@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.4 — 导出 CSV/xlsx 公式注入中性化（安全 chore）
+## [Unreleased] - v0.8.5 — ②a BI 报表模式骨架 + 宽表 + 公式求值器
+
+> v0.8 ②（报表双模）第一刀。问数(ASK)/报表(BI)双模切换 + 全新 BIShell（独立 AppShell，3 列）+ **宽表**报表（admin 直写 SQL + 覆盖层 Excel 式公式）。走完整 v3；守护者 Stage 3 = ACCEPT WITH REVISIONS（approve-with-conditions，逐条整合）。plan [`docs/plans/v0.8.5-bi-mode-shell-widetable.md`](docs/plans/v0.8.5-bi-mode-shell-widetable.md)。
+>
+> **后端 greenfield**（0 触 saved_reports/Chat — R-BI-1）：`report_folders` + `bi_reports` 表（冻结快照 + overlay_config；D6 admin 控刷新非实时跑）· `bi_report_repo`/`bi_report_service`/`api/bi_reports.py`（写 require_admin / 读 get_current_user + sql_text 脱敏 R-BI-6）· `doris.is_safe_sql` public 存前只读校验（D7）· AuditAction bi_report.*/report_folder.*（自建 per-literal-emit guard，守护者 §C）· BI 导出复用 export_service（注入中性化 R-BI-12）。
+> **⭐ 新安全承重面 `formula.js`**（R-BI-11）：手写 tokenizer→递归下降→白名单（SUM/AVG/COUNT/MIN/MAX/SUMIF + 算术 + A1）求值器，**零 eval/Function**（eval-free CI 门）；fail-closed；GAP-1 cell 引用环检测；GAP-2 越界补 0（kk 拍）+ non-finite throw；DoS 护栏（长度/token/range/parser 深度 + 跨 cell 深度 + 全局步数预算 + API overlay ≤500）。**双轮红队对抗核验**（workflow + 独立 node POC）抓出并修掉指数 fan-out + 深链栈溢出 + residual re-walk DoS。
+> **前端**：BIScreen/BIShell + ReportDirectory（文件夹树）+ WideTableReport（排序/冻结列/覆盖层）+ ReportBuilderModal（admin 建/编 + 覆盖层编辑）+ SkillPanelPlaceholder + App 级 ModeToggle（D1，不动 AppShell/R-192）；BI 专属 icon 走 inline SVG（0 触 Shared.jsx）。
+> **闸门**：后端 pytest（repo/service/api/guard + formula eval-free）· vitest 53（含公式对抗 + DoS 回归）· lint-imports 9 · doc-invariant · R-94 · 18 屏 + saved_reports/Chat/AppShell/TableContainer byte-equal 0。
+
+## [Released] - v0.8.4 — 导出 CSV/xlsx 公式注入中性化（安全 chore）
 
 > **Security**：`export_service`（chat / 收藏报表 CSV+xlsx 导出共用）此前对文本单元格不做 CSV/formula injection 中性化——首字符 `= + - @ TAB CR` 的文本被电子表格（Excel/Sheets/WPS）打开时当公式执行。本 PATCH 在共享序列化层中性化（文本单元格 + 表头前缀 `'`），**纯数字（含负数/科学计数）不动**。发现自 v0.8 BI 报表宽表公式覆盖（「插入」= Excel 式 SUMIF）grounding（workflow `wvb7zc7nx`）。
 > - `_stringify`（CSV）/ `_xlsx_value`（xlsx）：文本值首字符危险 → 前缀 `'`；int/float/bool native 不动；纯数字字符串（`-5` / `-1.5e3` / `+42`）经 `_NUMERIC_RE` 豁免。
