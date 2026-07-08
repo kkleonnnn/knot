@@ -94,6 +94,15 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* #1：搜索框在上（#2：盒子度量对齐 ASK「新建对话」按钮 —— side inset / 撑满 / padding 10×14 / radius8 / 1px border）*/}
+      <div style={{ padding: '0 8px 8px' }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索报表…"
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13,
+            border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontFamily: 'inherit',
+          }} />
+      </div>
+      {/* #1：报表目录 标题行 + 管理入口移到搜索框下方 */}
       <div style={{ padding: '2px 8px 8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>报表目录</span>
         {canManage && (
@@ -114,14 +123,6 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
             )}
           </span>
         )}
-      </div>
-      <div style={{ padding: '0 8px 8px' }}>
-        {/* v0.8.5 ②a #2：搜索框盒子度量对齐 ASK「新建对话」按钮（同 side inset / 撑满 / padding 10×14 / radius8 / 1px border）*/}
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索报表…"
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13,
-            border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontFamily: 'inherit',
-          }} />
       </div>
       <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {topFolders.map((f) => (

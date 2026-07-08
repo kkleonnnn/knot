@@ -11,6 +11,7 @@ export function AppShell({
   topbarTitle, topbarTrailing,
   showConnectionPill = false, connectionOk = true,
   connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
+  homeMode,               // v0.8.5 ②a — 子屏「返回」目标（chat / bi）；不传则回落读持久化
   onToggleTheme, onNavigate, onLogout,
   children,
 }) {
@@ -18,6 +19,12 @@ export function AppShell({
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
   // v0.6.4.2 UI v2 — floating inset 面板 chrome（R-313 rgba 豁免 — boxShadow；dark 无阴影）
   const panelShadow = T.dark ? 'none' : '0 1px 3px rgba(15,30,45,0.04)';
+  // v0.8.5 ②a —「返回」目标 = 来时的顶层模式：优先 prop，回落读 App 写入的持久化 cb_home_mode
+  // （子屏 AdminScreen/SavedReports 等不透传 prop → 靠持久化，从 BI 进设置返回 BI 而非硬回 chat）
+  const backMode = homeMode || (() => {
+    try { return JSON.parse(localStorage.getItem('cb_home_mode') || '"chat"') === 'bi' ? 'bi' : 'chat'; }
+    catch { return 'chat'; }
+  })();
 
   return (
     <div style={{
@@ -53,13 +60,14 @@ export function AppShell({
             实现"哪来的就哪回的"原则；旧的底部 ghost 链接移除（详 L100+ 注释） */}
         {active !== 'chat' && active !== 'bi' && onNavigate && (
           <div style={{ padding: '0 8px 8px' }}>
-            <button onClick={() => onNavigate('chat')} style={{
+            {/* v0.8.5 ②a — 回到来时的顶层模式（从 BI 进设置 → 返回报表；从 ASK 进 → 返回对话）*/}
+            <button onClick={() => onNavigate(backMode)} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, width: '100%',
               padding: '10px 14px', borderRadius: 8, background: T.card,
               color: T.text, border: `1px solid ${T.border}`,
               fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
             }}>
-              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回对话
+              <I.chev style={{ transform: 'rotate(90deg)' }}/> 返回{backMode === 'bi' ? '报表' : '对话'}
             </button>
           </div>
         )}
