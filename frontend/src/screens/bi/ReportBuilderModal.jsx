@@ -29,7 +29,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
 
   const dsOpts = [{ value: '', label: '（不绑定 / 稍后设）' },
     ...dataSources.map((d) => ({ value: String(d.id), label: d.name || d.label || `#${d.id}` }))];
-  const folderOpts = [{ value: '', label: '未归档' },
+  const folderOpts = [{ value: '', label: '（不归入文件夹）' },
     ...folders.map((f) => ({ value: String(f.id), label: f.name }))];
 
   const addCell = () => setOverlay((o) => [...o, { row: 1, col: 'A', kind: 'text', value: '' }]);

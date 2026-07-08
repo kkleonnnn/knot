@@ -68,6 +68,17 @@ describe('evaluateFormula — fail-closed 对抗（安全承重）', () => {
   it('超大区间拒（>5000 单元）', () => {
     expect(() => evaluateFormula('=SUM(A1:A99999)', R({}))).toThrow(FormulaError);
   });
+  it('列字母过长拒（>7，防列下标溢出 DoS · 对抗复核 #1）', () => {
+    // 13 字母列 → colToIndex ≥ 2^53 → 旧 rangeCells `ci++` no-op → 无限 push OOM；词法层拒、秒回不 hang
+    const t0 = Date.now();
+    expect(() => evaluateFormula('=SUM(AAAAAAAAAAAAA1:AAAAAAAAAAAAA5)', R({}))).toThrow(FormulaError);
+    expect(Date.now() - t0).toBeLessThan(200);
+  });
+  it('除零就地 throw、不被 MIN/聚合掩盖（对抗复核 #2）', () => {
+    expect(() => evaluateFormula('=1/0', R({}))).toThrow(FormulaError);
+    expect(() => evaluateFormula('=MIN(1/0,5)', R({}))).toThrow(FormulaError);   // 旧模型静默返 5
+    expect(() => evaluateFormula('=SUM(1/0,5)', R({}))).toThrow(FormulaError);
+  });
   it('深嵌套拒（>32）', () => {
     expect(() => evaluateFormula('=' + '('.repeat(40) + '1' + ')'.repeat(40), R({}))).toThrow(FormulaError);
   });
@@ -157,6 +168,12 @@ describe('computeOverlay — option A 安全（公式只引数据 → 递归 DoS
     ];
     const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
     expect(values.get('A2')).toBe(9);
+    expect(errors.size).toBe(0);
+  });
+
+  it('非数组 overlay（坏持久化）安全降级不崩（对抗复核 #5）', () => {
+    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay: { bad: 1 } });
+    expect(values.size).toBe(0);
     expect(errors.size).toBe(0);
   });
 });

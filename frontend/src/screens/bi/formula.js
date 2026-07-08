@@ -20,6 +20,10 @@ const MAX_FORMULA_LEN = 500;
 const MAX_TOKENS = 200;
 const MAX_RANGE = 5000;
 const MAX_DEPTH = 32;
+// 列字母长度上限（对抗复核 v0.8.9 #1）：>=12 字母的列 → colToIndex >= 2^53 → rangeCells 里 `ci++` 变 no-op
+// （浮点 ULP>1）→ 单列区间 size 守卫（cHi-cLo=0）与 MAX_TOTAL_STEPS（在 resolve 内、rangeCells 早于它）双双绕过
+// → 无限 push → OOM 冻页。7 字母 = 26^7≈8e9 列（远超任何真表）且 << 2^53 → ci++ 有效、fail-closed 兜住。
+const MAX_COL_LETTERS = 7;
 // v0.8.9 option A：公式只引用数据（无公式格互引 → 无跨-cell 递归）→ 深链/环/re-walk DoS 从结构上消失，
 //   MAX_OVERLAY_DEPTH 随之删。MAX_TOTAL_STEPS 保留：bound 所有 resolve 调用总功（含 range 展开）→ 结构无关硬上限。
 const MAX_TOTAL_STEPS = 1000000; // computeOverlay 全局求值步数预算（fail-closed；防超大 overlay×大 range）。
@@ -81,6 +85,7 @@ function tokenize(src) {
       while (j < s.length && ((s[j] >= 'A' && s[j] <= 'Z') || (s[j] >= 'a' && s[j] <= 'z'))) j++;
       const letters = s.slice(i, j).toUpperCase();
       if (s[j] >= '0' && s[j] <= '9') {
+        if (letters.length > MAX_COL_LETTERS) throw new FormulaError('列引用过长（列字母 >' + MAX_COL_LETTERS + '）'); // 防列下标溢出 DoS
         let k = j;
         while (k < s.length && s[k] >= '0' && s[k] <= '9') k++;
         const row = parseInt(s.slice(j, k), 10);
@@ -208,13 +213,18 @@ function evalNode(node, resolve) {
     case 'cell': return toNum(resolve(node.col, node.row));
     case 'binop': {
       const a = evalNode(node.l, resolve), b = evalNode(node.r, resolve);
+      let r;
       switch (node.op) {
-        case '+': return a + b;
-        case '-': return a - b;
-        case '*': return a * b;
-        case '/': return a / b;   // 除零 → ±Inf；顶层 non-finite 检查兜住（GAP-2③）
+        case '+': r = a + b; break;
+        case '-': r = a - b; break;
+        case '*': r = a * b; break;
+        case '/': r = a / b; break;
         default: throw new FormulaError('未知算子');
       }
+      // 对抗复核 v0.8.9 #2：算子产 non-finite（除零 ±Inf / 溢出 / NaN）→ **就地 throw**。
+      // 原仅靠顶层检查，但 MIN/MAX/COUNT 会把 ±Inf 掩成有限值 → silent-wrong；就地 fail-closed 符合 GAP-2 契约。
+      if (!Number.isFinite(r)) throw new FormulaError('非有限结果（除零/溢出）');
+      return r;
     }
     case 'range': throw new FormulaError('区间只能作函数实参'); // 裸区间非法
     case 'str': throw new FormulaError('字符串只能作 SUMIF criteria');
@@ -301,6 +311,7 @@ export function computeOverlay({ rows = [], cols = [], overlay = [] }) {
   //   → overlay 公式格是**输出、不参与 A1 寻址**：合计格放在数据列（如 B 列合计写 =SUM(B1:B{N})）不再自引，
   //     数据行也不被盖住；无公式互引 → 环/深链/re-walk 递归 DoS 从结构上不可能（②a ovMap 递归 resolve 删）。
   //   越界引用 → undefined（视 0，GAP-2）；non-finite（NaN/±Inf）在 evalNode 层 throw（GAP-2②）。
+  if (!Array.isArray(overlay)) overlay = [];   // 对抗复核 #5：非数组 overlay（坏持久化）→ 安全降级（防 for..of 崩）
   const colIndexByLetter = (letter) => colToIndex(letter);
   let totalSteps = 0;   // 全局求值步数（跨所有 cell + range 展开，共享；结构无关硬上限）
 

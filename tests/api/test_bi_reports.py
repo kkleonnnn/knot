@@ -202,3 +202,12 @@ def test_create_tile_overlay_oversized_400(client, auth_headers):
         "tiles": [{"tile_type": "table", "title": "p", "sql_text": "SELECT 1", "viz_config": {"overlay": big}}],
     }, headers=auth_headers)
     assert r.status_code == 400
+
+
+def test_create_tile_nondict_viz_config_no_500(client, auth_headers):
+    # 对抗复核 #4：viz_config 为非 dict（串）→ _check_tiles_size 须跳过不崩（原 .get 抛 AttributeError → 500）
+    r = client.post("/api/bi/reports", json={
+        "title": "d", "sql_text": "SELECT 1", "report_type": "tabbed",
+        "tiles": [{"tile_type": "table", "title": "p", "sql_text": "SELECT 1", "viz_config": "notadict"}],
+    }, headers=auth_headers)
+    assert r.status_code != 500
