@@ -245,15 +245,18 @@ def refresh(report_id: int, admin: dict) -> dict | None:
 
 
 def _refresh_dashboard(report_id: int, engine) -> dict:
-    """dashboard 整表原子刷新（②b D2/B-3）。engine None → 每 tile 记引擎错（仍 bump → UI 显 stale）。"""
+    """dashboard 整表原子刷新（②b D2/B-3）。
+
+    engine None（数据源缺失 / test_connection 瞬时失败）→ **不触任何 tile 快照、不 bump**，直接返错
+    （镜像 wide_table engine-None 早返，保留各 tile 上次 good 快照 —— 复核 correctness：避免一次 DB blip
+    把整盘 good 快照抹成空）。engine 在但某 tile SQL 失败 → 该 tile 写 [] + error（与 wide_table 查询错一致）。
+    """
+    if engine is None:
+        return {"report_type": "dashboard", "tiles": [], "tile_count": 0, "error_count": 0,
+                "error": _NO_ENGINE, "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
     run_at = _now_iso()
     summaries = []
     for t in tile_repo.list_by_report(report_id):
-        if engine is None:
-            tile_repo.update_tile_last_run(t["id"], rows_json="[]", truncated=0, elapsed_ms=0,
-                                           run_at=run_at, error=_NO_ENGINE)
-            summaries.append({"tile_id": t["id"], "rows_count": 0, "error": _NO_ENGINE})
-            continue
         snap, truncated, elapsed_ms, err = _exec_one(engine, t["sql_text"])
         tile_repo.update_tile_last_run(
             t["id"], rows_json=json.dumps(snap, ensure_ascii=False, default=str),

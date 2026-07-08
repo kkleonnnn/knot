@@ -150,3 +150,16 @@ def test_delete_report_cascades_tiles(tmp_db_path):
     assert len(trepo.list_by_report(r["id"])) == 1
     assert svc.delete_report(r["id"]) is True
     assert trepo.list_by_report(r["id"]) == []                      # 无孤儿
+
+
+def test_dashboard_refresh_no_engine_preserves_tile_snapshots(tmp_db_path):
+    """复核修：engine None（DB blip / 无数据源）→ 不抹 tile 快照、不 bump（镜像 wide_table 早返）。"""
+    from knot.repositories import bi_report_tile_repo as trepo
+    r = _dash_with_tiles([{"tile_type": "kpi", "sql_text": "SELECT 1"}])   # 无 data_source → engine None
+    tid = r["tiles"][0]["id"]
+    trepo.update_tile_last_run(tid, rows_json='[{"v":1}]', truncated=0, elapsed_ms=3, run_at="t", error=None)
+    before_seq = svc.get_report(r["id"])["refresh_seq"]
+    out = svc.refresh(r["id"], _ADMIN)
+    assert out["error"]                                             # 返引擎错
+    assert trepo.get_tile(tid)["last_run_rows_json"] == '[{"v":1}]'  # 上次 good 快照保留（未抹空）
+    assert svc.get_report(r["id"])["refresh_seq"] == before_seq      # 不 bump

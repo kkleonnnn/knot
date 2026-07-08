@@ -28,8 +28,8 @@ export function DashboardReport({ T, report }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* 3 列基网格 + 每 tile grid_span(1/2/3) 占列（D4 order+span，手写 DnD 在 builder）*/}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+      {/* 响应式网格：auto-fit minmax(220) 随宽度回流，每 tile grid_span(1/2/3) 占列（窄屏 span 自动降至可用列数）*/}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {tiles.map((tile) => {
           const Renderer = RENDERERS[tile.tile_type] || KpiTile;
           const span = Math.min(3, Math.max(1, tile.grid_span || 1));
