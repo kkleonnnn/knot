@@ -18,13 +18,17 @@ export function WideTableReport({ T, report }) {
     color: on ? T.accent : T.subtext, fontSize: 12.5, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
   });
 
+  // 空报表（未跑）不显示装饰页签，只出「暂无数据」—— 保 ②a 抽 WideTable 前行为（复核 minor 修）
+  const isEmpty = !rows.length && !overlay.length;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 2 }}>
-        {SHEETS.map((s, i) => (
-          <button key={s} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{s}</button>
-        ))}
-      </div>
+      {!isEmpty && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 2 }}>
+          {SHEETS.map((s, i) => (
+            <button key={s} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{s}</button>
+          ))}
+        </div>
+      )}
       <WideTable T={T} rows={rows} cfg={cfg} overlay={overlay} />
     </div>
   );
