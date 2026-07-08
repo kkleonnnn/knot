@@ -58,17 +58,23 @@ def update_tile(tile_id: int, *, tile_type: str | None = None, title=_UNSET,
     sets: list[str] = []
     params: list = []
     if tile_type is not None:
-        sets.append("tile_type=?"); params.append(tile_type)
+        sets.append("tile_type=?")
+        params.append(tile_type)
     if title is not _UNSET:
-        sets.append("title=?"); params.append(title)
+        sets.append("title=?")
+        params.append(title)
     if sql_text is not None:
-        sets.append("sql_text=?"); params.append(sql_text)
+        sets.append("sql_text=?")
+        params.append(sql_text)
     if viz_config is not _UNSET:
-        sets.append("viz_config=?"); params.append(viz_config)
+        sets.append("viz_config=?")
+        params.append(viz_config)
     if sort_order is not None:
-        sets.append("sort_order=?"); params.append(sort_order)
+        sets.append("sort_order=?")
+        params.append(sort_order)
     if grid_span is not None:
-        sets.append("grid_span=?"); params.append(grid_span)
+        sets.append("grid_span=?")
+        params.append(grid_span)
     if not sets:
         return
     params.append(tile_id)
