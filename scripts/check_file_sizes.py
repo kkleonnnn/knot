@@ -73,6 +73,8 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/ReportDirectory.jsx":        200,  # 报表目录树 + 搜索
     "frontend/src/screens/bi/ReportBuilderModal.jsx":     200,  # 双类型 builder（宽表覆盖层 / 仪表盘 TileBuilder）
     "frontend/src/screens/bi/WideTableReport.jsx":        160,  # 宽表（sheet/冻结列/条件色/覆盖层公式）
+    "frontend/src/screens/bi/WideTable.jsx":              140,  # v0.8.7 宽表表体核心（单宽表 + tabbed 页签共用）
+    "frontend/src/screens/bi/TabbedTableReport.jsx":      100,  # v0.8.7 多页表（每页一条 SQL，运营日报式）
     "frontend/src/screens/bi/TileBuilder.jsx":            180,  # ②b 结构化拼板（type/SQL/viz/span/DnD）
     "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
     "frontend/src/screens/bi/DashboardReport.jsx":        120,  # ②b tiles[] 分发渲染

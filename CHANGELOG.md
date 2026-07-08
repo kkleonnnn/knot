@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.6 — ②b BI 仪表盘结构化拼板 builder
+## [Unreleased] - v0.8.7 — ②b.1 多页表报表（运营日报式：日/周/月 每页一条 SQL）
+
+> v0.8 ② 延伸。新 `report_type='tabbed'`：一个报表内多页签、**每页一条自己的只读 SQL + 独立冻结快照**（对齐真实运营日报的日/周/月三 sheet）。快通道（复用已锁 ②b tile 后端；执行者建 + 自验 + 对抗复核 + CI，kk 拍）。plan 依据真实报表 grounding（`数据日报.py` TASKS + 运营日报 Google Sheet 结构）。
+>
+> **后端（复用 ②b，几乎 0 新增）**：`refresh` 分支 `report_type in ('dashboard','tabbed')` → 同 `_refresh_tiled`（tile-loop + engine-None 保快照 + report 级 bump-only）；api 审计 detail + 导出闸 by report_type 放开到 tabbed（多页无报表级快照 → 整表导出 400，per-页导出后续）。`report_type` 是 TEXT 列，**无 schema 改**。逐页脱敏/归属/校验全复用 ②b tile `to_dto`/`_sync_tiles`/`_validate_sql`。
+> **前端**：宽表表体抽出 `<WideTable>`（冻结列/条件色/排序/覆盖层 + **列注释 `desc` hover tooltip**，对齐真实两层表头 R1 口径 + R3 短表头）；WideTableReport 瘦身复用之；新 `TabbedTableReport`（读 `report.tiles[]` → 页签栏 + 选中页 WideTable）；BI.jsx 三路分发 + 导出按钮仅 wide_table；builder 加「多页表」类型（TileBuilder `tableOnly` 锁 table + 拖拽排序页签）。
+> **闸门**：后端 pytest（tabbed 复用 tile 路径 test）· eslint · ruff · R-94（+WideTable/TabbedTableReport 登记）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.7）· R-BI-1 ASK 0 触。真运营日报 demo（日/周/月 真 SQL + 真口径 + 真数据）live 验证。
+
+## [Released] - v0.8.6 — ②b BI 仪表盘结构化拼板 builder
 
 > v0.8 ② 第二刀。仪表盘从静态 `dashboard_config` 升级为**结构化 tile**（每 tile 一条自己只读 SQL + 类型 kpi/line/donut/bar/table + per-tile 冻结快照）+ 拖拽排序/占列。走完整 v3；守护者 Stage 3 = ACCEPT WITH REVISIONS（7 必修 + 4 裁定，逐条整合）。plan [`docs/plans/v0.8.6-bi-dashboard-tiles.md`](docs/plans/v0.8.6-bi-dashboard-tiles.md)。
 >
