@@ -82,6 +82,20 @@ def delete_folder(folder_id: int) -> None:
     conn.close()
 
 
+def reorder_folders(ordered_ids: list[int]) -> None:
+    """v0.8.8 ③：按传入 id 顺序批量赋 sort_order=位置（0..N）。单连接 executemany 原子；
+    缺失 id 自然 no-op（WHERE id=? 匹配 0 行）；只 UPDATE report_folders → 无跨表污染。"""
+    if not ordered_ids:
+        return
+    conn = get_conn()
+    conn.executemany(
+        "UPDATE report_folders SET sort_order=? WHERE id=?",
+        [(i, fid) for i, fid in enumerate(ordered_ids)],
+    )
+    conn.commit()
+    conn.close()
+
+
 # ─── bi_reports ──────────────────────────────────────────────────────────────
 
 def create_report(title: str, sql_text: str, created_by: int, *,
@@ -180,6 +194,20 @@ def touch_refresh_seq(report_id: int) -> None:
     （report 级 last_run_rows_json 对 dashboard 保持空，与 S3 导出 400 自洽）。"""
     conn = get_conn()
     conn.execute("UPDATE bi_reports SET refresh_seq=refresh_seq+1 WHERE id=?", (report_id,))
+    conn.commit()
+    conn.close()
+
+
+def reorder_reports(ordered_ids: list[int]) -> None:
+    """v0.8.8 ③：按传入 id 顺序批量赋 sort_order=位置（0..N）。单连接 executemany 原子；
+    缺失 id 自然 no-op；只 UPDATE bi_reports → 无跨表污染。目录同文件夹内拖拽发本文件夹有序 id。"""
+    if not ordered_ids:
+        return
+    conn = get_conn()
+    conn.executemany(
+        "UPDATE bi_reports SET sort_order=? WHERE id=?",
+        [(i, rid) for i, rid in enumerate(ordered_ids)],
+    )
     conn.commit()
     conn.close()
 

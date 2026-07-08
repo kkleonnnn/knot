@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.7 — ②b.1 多页表报表（运营日报式：日/周/月 每页一条 SQL）
+## [Unreleased] - v0.8.8 — ②b.2 BI 打磨三项（kk 逐图反馈：类型收敛 / 全量展示+列名编辑 / 目录拖拽排序）
+
+> v0.8 ② 延续。kk 三项反馈：① BI 只留 报表+仪表盘 2 类；② SELECT * 全量展示（上限 10000）+ 列名自定义编辑；③ 目录拖拽排序。快通道（建 + 自验 + 对抗复核 + CI）。
+>
+> **① 类型收敛**（已随 v0.8.7 #229 折入 —— builder 新建只出 报表(tabbed)+仪表盘；宽表转遗留 `isLegacyWide`；单页报表隐页签栏）。本版续 ②③。
+> **② 全量展示上限 200→10000**：`_LAST_RUN_ROW_LIMIT=10000`，`_exec_one` 传 `max_rows` 到 `execute_query`（无顶层 LIMIT 的 SQL → 自动 `LIMIT 10000`；admin 自带 LIMIT 尊重不覆盖）。真实运营日报数百行 → 全显不截；超 1w 截断 + `last_run_truncated=1`。渲染无虚拟化（真数据量级低，非 10000）。
+> **② 列名/口径编辑**：新 `<ColumnConfigEditor>` —— builder 每 table 页/板块逐列编 **label（短表头）/ desc（口径 hover tooltip）/ unit（%）/ conditional（正负着色）**→ 写 `viz_config.columns[col]`（WideTable 已渲染这些）。列来源 = 该页最近快照首行键（= SQL 查询列序）∪ 已有 config；新页未跑无列 → 提示先重跑。**⚠️ 按快照序重建 columns 对象**（含未配置列空占位）—— `orderedCols` cfg 键优先决定列序，防 admin 乱序编辑打乱表格列序。
+> **③ 目录拖拽排序**：`reorder_reports`/`reorder_folders` repo（单连接 `executemany` 批量赋 `sort_order`=位置；缺失 id no-op；单表 UPDATE 无跨表污染）+ service 薄包 + `PUT /api/bi/reorder/reports|folders`（非碰撞前缀，不与 `{id}` int 路径争路由；require_admin；`_MAX_REORDER=1000` DoS 护栏；审计复用 `bi_report.update`/`report_folder.update` **不新增 Literal**）。前端 ReportDirectory 手写 HTML5 DnD（R-186 无库）—— 同文件夹内报表 + 同级文件夹拖拽；仅 admin 非搜索态启用。
+> **闸门**：后端 pytest（+10：reorder 顺序/缺失 id/空/analyst 403/oversized 400 + 行上限截断/max_rows 透传/未截）· eslint · vitest · ruff · R-94（+ColumnConfigEditor 登记）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.8）· R-BI-1 ASK 0 触。
+
+## [Released] - v0.8.7 — ②b.1 多页表报表（运营日报式：日/周/月 每页一条 SQL）
 
 > v0.8 ② 延伸。新 `report_type='tabbed'`：一个报表内多页签、**每页一条自己的只读 SQL + 独立冻结快照**（对齐真实运营日报的日/周/月三 sheet）。快通道（复用已锁 ②b tile 后端；执行者建 + 自验 + 对抗复核 + CI，kk 拍）。plan 依据真实报表 grounding（`数据日报.py` TASKS + 运营日报 Google Sheet 结构）。
 >

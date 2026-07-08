@@ -24,7 +24,8 @@ from knot.repositories import bi_report_repo as repo
 from knot.repositories import bi_report_tile_repo as tile_repo
 from knot.services import engine_cache
 
-_LAST_RUN_ROW_LIMIT = 200  # 复用 saved_report R-3 软限制
+_LAST_RUN_ROW_LIMIT = 10000  # v0.8.8 ②：BI 报表全量展示上限（kk）—— 真实运营日报数百行，1w = 安全顶；
+                             # 超顶截断 + last_run_truncated=1。admin 自带 LIMIT 时 execute_query 尊重不覆盖。
 _TITLE_MAX = 120           # admin 授权、宽表名较长 → 放宽（saved_report 是 30）
 
 _UNSET = repo._UNSET       # 复用 repo 哨兵：区分「不改」vs「显式置 NULL」
@@ -129,6 +130,11 @@ def delete_folder(folder_id: int) -> bool:
     return True
 
 
+def reorder_folders(ordered_ids: list[int]) -> None:
+    """v0.8.8 ③：按 id 顺序赋 sort_order。缺失 id no-op；单表 UPDATE 无跨表污染。"""
+    repo.reorder_folders(list(ordered_ids or []))
+
+
 # ── 报表 ────────────────────────────────────────────────────────────────────────
 
 def list_all() -> list[dict]:
@@ -194,6 +200,11 @@ def delete_report(report_id: int) -> bool:
     return True
 
 
+def reorder_reports(ordered_ids: list[int]) -> None:
+    """v0.8.8 ③：按 id 顺序赋 sort_order（目录同文件夹内拖拽）。缺失 id no-op；单表 UPDATE 无跨表污染。"""
+    repo.reorder_reports(list(ordered_ids or []))
+
+
 # ── 刷新（冻结快照 · D6）────────────────────────────────────────────────────────
 
 _NO_ENGINE = "无可用数据库引擎（检查报表数据源配置）"
@@ -203,7 +214,7 @@ def _exec_one(engine, sql: str):
     """跑一条 SQL → (snap, truncated, elapsed_ms, error)；截断 _LAST_RUN_ROW_LIMIT。engine 非空由调用方保证。"""
     t0 = time.time()
     try:
-        rows, db_error = db_connector.execute_query(engine, sql)
+        rows, db_error = db_connector.execute_query(engine, sql, max_rows=_LAST_RUN_ROW_LIMIT)
     except Exception as e:
         rows, db_error = [], str(e)[:200]
     elapsed_ms = int((time.time() - t0) * 1000)

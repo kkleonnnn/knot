@@ -147,7 +147,7 @@ def test_refresh_dashboard_per_tile_and_export_gated(client, auth_headers, monke
     # mock 引擎/执行（一个 tile 成功、一个报错 → per-tile 隔离）
     monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
     calls = {"n": 0}
-    def _exec(eng, sql):
+    def _exec(eng, sql, **kw):
         calls["n"] += 1
         return ([{"v": 1}], None) if calls["n"] == 1 else ([], "表不存在")
     monkeypatch.setattr(svc.db_connector, "execute_query", _exec)
@@ -155,3 +155,40 @@ def test_refresh_dashboard_per_tile_and_export_gated(client, auth_headers, monke
     assert out["report_type"] == "dashboard" and out["tile_count"] == 2 and out["error_count"] == 1
     # B-7：dashboard 导出闸 → 400（不导报表级空/旧数据）
     assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400
+
+
+# ── v0.8.8 ③ 目录拖拽排序 ────────────────────────────────────────────────────────
+
+def _mk_report(client, auth_headers, title):
+    return client.post("/api/bi/reports", json={"title": title, "sql_text": "SELECT 1"},
+                       headers=auth_headers).json()["id"]
+
+
+def test_reorder_reports_admin_persists_order(client, auth_headers):
+    a = _mk_report(client, auth_headers, "A")
+    b = _mk_report(client, auth_headers, "B")
+    c = _mk_report(client, auth_headers, "C")
+    r = client.put("/api/bi/reorder/reports", json={"ordered_ids": [c, a, b]}, headers=auth_headers)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    ids = [x["id"] for x in client.get("/api/bi/reports", headers=auth_headers).json()]
+    assert ids == [c, a, b]                                      # list 按 sort_order
+
+
+def test_reorder_folders_admin_persists_order(client, auth_headers):
+    f1 = client.post("/api/bi/folders", json={"name": "F1"}, headers=auth_headers).json()["id"]
+    f2 = client.post("/api/bi/folders", json={"name": "F2"}, headers=auth_headers).json()["id"]
+    client.put("/api/bi/reorder/folders", json={"ordered_ids": [f2, f1]}, headers=auth_headers)
+    ids = [x["id"] for x in client.get("/api/bi/folders", headers=auth_headers).json()]
+    assert ids == [f2, f1]
+
+
+def test_reorder_analyst_403(client, auth_headers):
+    a = _mk_report(client, auth_headers, "A")
+    ah = _analyst_headers(client, auth_headers)
+    assert client.put("/api/bi/reorder/reports", json={"ordered_ids": [a]}, headers=ah).status_code == 403
+    assert client.put("/api/bi/reorder/folders", json={"ordered_ids": []}, headers=ah).status_code == 403
+
+
+def test_reorder_oversized_400(client, auth_headers):
+    r = client.put("/api/bi/reorder/reports", json={"ordered_ids": list(range(1001))}, headers=auth_headers)
+    assert r.status_code == 400

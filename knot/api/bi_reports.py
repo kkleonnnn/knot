@@ -65,8 +65,13 @@ class ReportUpdateRequest(BaseModel):
     tiles: list | None = None                 # 提供才 diff-by-id 同步（含 []=全删）；不提供=不动 tiles
 
 
+class ReorderRequest(BaseModel):
+    ordered_ids: list[int]                    # v0.8.8 ③：目录拖拽后的有序 id → sort_order=位置
+
+
 _MAX_OVERLAY_CELLS = 500  # overlay 单元格上限（防超大 overlay → 客户端求值 DoS；红队复验 residual）
 _MAX_TILES = 30           # 仪表盘 tile 数上限（②b C-2；placement 同 overlay 在 api 层）
+_MAX_REORDER = 1000       # reorder id 数上限（DoS 护栏；报表/文件夹不会近此量 —— 超即拒非静默截断）
 
 
 def _is_admin(user) -> bool:
@@ -81,6 +86,11 @@ def _check_overlay_size(overlay) -> None:
 def _check_tiles_size(tiles) -> None:
     if isinstance(tiles, list) and len(tiles) > _MAX_TILES:
         raise HTTPException(status_code=400, detail=f"仪表盘板块过多（≤{_MAX_TILES}）")
+
+
+def _check_reorder_size(ids) -> None:
+    if len(ids) > _MAX_REORDER:
+        raise HTTPException(status_code=400, detail=f"排序项过多（≤{_MAX_REORDER}）")
 
 
 # ── 读（全体已认证；非 admin 脱 sql_text）────────────────────────────────────────
@@ -198,6 +208,28 @@ async def delete_folder(folder_id: int, request: Request, admin=Depends(require_
     if not svc.delete_folder(folder_id):
         raise HTTPException(status_code=404, detail="文件夹不存在")
     audit(request, admin, action="report_folder.delete", resource_type="report_folder", resource_id=folder_id)
+    return {"ok": True}
+
+
+# ── 目录拖拽排序（v0.8.8 ③；require_admin）——────────────────────────────────────
+# 非碰撞前缀 /api/bi/reorder/*（不与 {report_id}/{folder_id} int 路径争路由）。
+# 审计复用 bi_report.update / report_folder.update（sort_order 属更新语义 → 不新增 Literal）。
+
+@router.put("/api/bi/reorder/reports")
+async def reorder_reports(req: ReorderRequest, request: Request, admin=Depends(require_admin)):
+    _check_reorder_size(req.ordered_ids)
+    svc.reorder_reports(req.ordered_ids)
+    audit(request, admin, action="bi_report.update", resource_type="bi_report",
+          resource_id=None, detail={"fields": ["sort_order"], "reorder": len(req.ordered_ids)})
+    return {"ok": True}
+
+
+@router.put("/api/bi/reorder/folders")
+async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(require_admin)):
+    _check_reorder_size(req.ordered_ids)
+    svc.reorder_folders(req.ordered_ids)
+    audit(request, admin, action="report_folder.update", resource_type="report_folder",
+          resource_id=None, detail={"fields": ["sort_order"], "reorder": len(req.ordered_ids)})
     return {"ok": True}
 
 
