@@ -9,6 +9,7 @@ import { api } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
 import { WideTableReport } from './bi/WideTableReport.jsx';
 import { DashboardReport } from './bi/DashboardReport.jsx';
+import { TabbedTableReport } from './bi/TabbedTableReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
 
@@ -135,15 +136,17 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {isAdmin && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
                     {isAdmin && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
                     {isAdmin && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
-                    {/* C-1/B-7：dashboard 无报表级快照 → 隐藏整表导出（后端 _report_rows_or_404 亦拒 400）*/}
-                    {selected.report_type !== 'dashboard' && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} />}
-                    {selected.report_type !== 'dashboard' && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
+                    {/* C-1/B-7：仅单宽表有报表级快照可整表导出；dashboard/tabbed 隐藏（后端亦拒 400）*/}
+                    {selected.report_type === 'wide_table' && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} />}
+                    {selected.report_type === 'wide_table' && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
                     <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
                     ? <DashboardReport T={T} report={selected} />
-                    : <WideTableReport T={T} report={selected} />}
+                    : selected.report_type === 'tabbed'
+                      ? <TabbedTableReport T={T} report={selected} />
+                      : <WideTableReport T={T} report={selected} />}
                 </div>
               </div>
             ) : (

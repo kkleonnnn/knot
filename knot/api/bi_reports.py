@@ -160,8 +160,8 @@ async def refresh_report(report_id: int, request: Request, admin=Depends(require
     out = await loop.run_in_executor(None, svc.refresh, report_id, admin)
     if out is None:
         raise HTTPException(status_code=404, detail="报表不存在")
-    # B-6：审计 detail 按 report_type 分支（dashboard 返 per-tile summary，无顶层 rows/error）
-    if out.get("report_type") == "dashboard":
+    # B-6：审计 detail 按 report_type 分支（dashboard/tabbed 返 per-tile summary，无顶层 rows/error）
+    if out.get("report_type") in ("dashboard", "tabbed"):
         detail = {"tile_count": out.get("tile_count", 0), "error_count": out.get("error_count", 0)}
     else:
         detail = {"row_count": len(out.get("rows", [])), "error": bool(out.get("error"))}
@@ -207,10 +207,10 @@ def _report_rows_or_404(report_id: int):
     r = svc.get_report(report_id)
     if not r:
         raise HTTPException(status_code=404, detail="报表不存在")
-    # B-7：dashboard 无报表级快照（每 tile 各自快照）→ 按 report_type 拒，非仅 rows-空
-    # （防 wide→dashboard 转换残留旧非空 last_run_rows_json 静默导出旧数据）。v1 前端也隐藏按钮（C-1）。
-    if r.get("report_type") == "dashboard":
-        raise HTTPException(status_code=400, detail="仪表盘暂不支持整表导出（v1）")
+    # B-7：dashboard/tabbed 无报表级快照（每 tile/页 各自快照）→ 按 report_type 拒，非仅 rows-空
+    # （防转换残留旧非空 last_run_rows_json 静默导出旧数据）。v1 前端也隐藏按钮（C-1）。per-tile/页导出 = 后续。
+    if r.get("report_type") in ("dashboard", "tabbed"):
+        raise HTTPException(status_code=400, detail="多板块/多页报表暂不支持整表导出（v1）")
     try:
         rows = json.loads(r.get("last_run_rows_json") or "[]")
     except json.JSONDecodeError:

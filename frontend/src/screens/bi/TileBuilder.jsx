@@ -11,12 +11,12 @@ const TYPES = [
   { v: 'table', label: '表格' },
 ];
 
-export function TileBuilder({ T, tiles, onChange }) {
+export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
   const [drag, setDrag] = useState(null);
   const fld = { padding: '5px 7px', borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: T.sans };
   const upd = (i, patch) => onChange(tiles.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const updViz = (i, patch) => upd(i, { viz_config: { ...(tiles[i].viz_config || {}), ...patch } });
-  const add = () => onChange([...tiles, { tile_type: 'kpi', title: '', sql_text: '', viz_config: {}, grid_span: 1, sort_order: tiles.length }]);
+  const add = () => onChange([...tiles, { tile_type: tableOnly ? 'table' : 'kpi', title: '', sql_text: '', viz_config: {}, grid_span: 1, sort_order: tiles.length }]);
   const rm = (i) => onChange(tiles.filter((_, j) => j !== i).map((t, k) => ({ ...t, sort_order: k })));
   const reorder = (from, to) => {
     if (from == null || from === to) return;
@@ -29,8 +29,8 @@ export function TileBuilder({ T, tiles, onChange }) {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: T.subtext, fontWeight: 500 }}>板块（拖拽排序 · 每块一条只读 SQL）</span>
-        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '3px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>+ 板块</button>
+        <span style={{ fontSize: 12, color: T.subtext, fontWeight: 500 }}>{tableOnly ? '页签（拖拽排序 · 每页一条只读 SQL）' : '板块（拖拽排序 · 每块一条只读 SQL）'}</span>
+        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '3px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{tableOnly ? '+ 页' : '+ 板块'}</button>
       </div>
       {tiles.map((t, i) => {
         const viz = t.viz_config || {};
@@ -40,14 +40,18 @@ export function TileBuilder({ T, tiles, onChange }) {
             style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 10, marginBottom: 8, background: T.card, opacity: drag === i ? 0.5 : 1 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
               <span title="拖拽排序" style={{ cursor: 'grab', color: T.muted, fontSize: 14, flexShrink: 0 }}>⠿</span>
-              <select value={t.tile_type} onChange={(e) => upd(i, { tile_type: e.target.value })} style={{ ...fld, cursor: 'pointer' }}>
-                {TYPES.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
-              </select>
-              <input value={t.title || ''} onChange={(e) => upd(i, { title: e.target.value })} placeholder="板块标题" style={{ ...fld, flex: 1 }} />
-              <select value={t.grid_span || 1} onChange={(e) => upd(i, { grid_span: Number(e.target.value) })} title="占列宽" style={{ ...fld, cursor: 'pointer' }}>
-                <option value={1}>1 列</option><option value={2}>2 列</option><option value={3}>3 列</option>
-              </select>
-              <button onClick={() => rm(i)} title="删除板块" style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
+              {!tableOnly && (
+                <select value={t.tile_type} onChange={(e) => upd(i, { tile_type: e.target.value })} style={{ ...fld, cursor: 'pointer' }}>
+                  {TYPES.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+                </select>
+              )}
+              <input value={t.title || ''} onChange={(e) => upd(i, { title: e.target.value })} placeholder={tableOnly ? '页签名（日汇总 / 周汇总…）' : '板块标题'} style={{ ...fld, flex: 1 }} />
+              {!tableOnly && (
+                <select value={t.grid_span || 1} onChange={(e) => upd(i, { grid_span: Number(e.target.value) })} title="占列宽" style={{ ...fld, cursor: 'pointer' }}>
+                  <option value={1}>1 列</option><option value={2}>2 列</option><option value={3}>3 列</option>
+                </select>
+              )}
+              <button onClick={() => rm(i)} title={tableOnly ? '删除页' : '删除板块'} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
             </div>
             <textarea value={t.sql_text || ''} onChange={(e) => upd(i, { sql_text: e.target.value })} rows={2} spellCheck={false}
               placeholder="SELECT ...（只读；存前校验）"

@@ -226,8 +226,8 @@ def refresh(report_id: int, admin: dict) -> dict | None:
         return None
     sid = r.get("data_source_id")
     engine = engine_cache.get_engine_for_source(sid) if sid else None
-    if r["report_type"] == "dashboard":
-        return _refresh_dashboard(report_id, engine)
+    if r["report_type"] in ("dashboard", "tabbed"):     # 两者均 tile 承载 → 同 tile-loop 刷新
+        return _refresh_tiled(report_id, engine, r["report_type"])
     # wide_table（②a 单 SQL 路径）
     if engine is None:
         return {"rows": [], "truncated": False, "last_run_ms": 0, "last_run_at": _now_iso(),
@@ -244,15 +244,15 @@ def refresh(report_id: int, admin: dict) -> dict | None:
             "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
 
 
-def _refresh_dashboard(report_id: int, engine) -> dict:
-    """dashboard 整表原子刷新（②b D2/B-3）。
+def _refresh_tiled(report_id: int, engine, report_type: str) -> dict:
+    """tile 承载报表（dashboard 网格 / tabbed 页签）整表原子刷新（②b D2/B-3；v0.8.7 tabbed 复用）。
 
     engine None（数据源缺失 / test_connection 瞬时失败）→ **不触任何 tile 快照、不 bump**，直接返错
     （镜像 wide_table engine-None 早返，保留各 tile 上次 good 快照 —— 复核 correctness：避免一次 DB blip
     把整盘 good 快照抹成空）。engine 在但某 tile SQL 失败 → 该 tile 写 [] + error（与 wide_table 查询错一致）。
     """
     if engine is None:
-        return {"report_type": "dashboard", "tiles": [], "tile_count": 0, "error_count": 0,
+        return {"report_type": report_type, "tiles": [], "tile_count": 0, "error_count": 0,
                 "error": _NO_ENGINE, "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
     run_at = _now_iso()
     summaries = []
@@ -266,7 +266,7 @@ def _refresh_dashboard(report_id: int, engine) -> dict:
         summaries.append({"tile_id": t["id"], "rows_count": len(snap), "error": err})
     repo.touch_refresh_seq(report_id)      # B-3 报表级 bump-only（不写报表级 rows_json）
     error_count = sum(1 for s in summaries if s["error"])
-    return {"report_type": "dashboard", "tiles": summaries,
+    return {"report_type": report_type, "tiles": summaries,
             "tile_count": len(summaries), "error_count": error_count,
             "error": (f"{error_count} 个板块刷新出错" if error_count else ""),
             "refresh_seq": repo.get_report(report_id)["refresh_seq"]}

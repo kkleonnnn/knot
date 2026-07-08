@@ -152,6 +152,23 @@ def test_delete_report_cascades_tiles(tmp_db_path):
     assert trepo.list_by_report(r["id"]) == []                      # 无孤儿
 
 
+def test_tabbed_report_reuses_tile_path(tmp_db_path, monkeypatch):
+    """v0.8.7：report_type='tabbed' 复用 tile 后端 —— create+tiles / refresh 走 _refresh_tiled / 脱敏。"""
+    r = svc.create_report(_ADMIN, title="运营日报", sql_text="SELECT 1", report_type="tabbed",
+                          data_source_id=7, tiles=[
+                              {"tile_type": "table", "title": "日汇总", "sql_text": "SELECT * FROM d"},
+                              {"tile_type": "table", "title": "周汇总", "sql_text": "SELECT * FROM w"},
+                          ])
+    assert r["report_type"] == "tabbed" and [t["title"] for t in r["tiles"]] == ["日汇总", "周汇总"]
+    monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql: ([{"统计周期": "2026-07-07"}], None))
+    out = svc.refresh(r["id"], _ADMIN)
+    assert out["report_type"] == "tabbed" and out["tile_count"] == 2 and out["error_count"] == 0
+    # 非 admin 每页无 sql_text（复用 tile to_dto 脱敏）
+    dto = svc.to_dto(svc.get_report(r["id"]), is_admin=False)
+    assert all("sql_text" not in t for t in dto["tiles"])
+
+
 def test_dashboard_refresh_no_engine_preserves_tile_snapshots(tmp_db_path):
     """复核修：engine None（DB blip / 无数据源）→ 不抹 tile 快照、不 bump（镜像 wide_table 早返）。"""
     from knot.repositories import bi_report_tile_repo as trepo
