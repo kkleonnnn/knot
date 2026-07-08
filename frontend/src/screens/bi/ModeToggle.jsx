@@ -20,14 +20,16 @@ export function ModeToggle({ T, active, onNavigate }) {
     }}>
       <button onClick={() => onNavigate('chat')} style={seg('chat', active === 'chat')} title="ASK 问数模式"
         onMouseEnter={() => setHover('chat')} onMouseLeave={() => setHover(null)}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        {/* 线性对话气泡（fill none 常态；激活只换色不换实心 glyph）*/}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+          <path d="M21 11.5a8.4 8.4 0 0 1-9 8.3L3 21l1.2-4.9A8.4 8.4 0 1 1 21 11.5z" />
         </svg>
       </button>
       <button onClick={() => onNavigate('bi')} style={seg('bi', active === 'bi')} title="BI 报表模式"
         onMouseEnter={() => setHover('bi')} onMouseLeave={() => setHover(null)}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-          <path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" />
+        {/* 线性柱状图（stroke 1.6）*/}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+          <path d="M3 20h18" /><path d="M6.5 20v-6" /><path d="M12 20V8" /><path d="M17.5 20v-9" />
         </svg>
       </button>
     </div>
