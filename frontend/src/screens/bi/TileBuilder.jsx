@@ -3,6 +3,7 @@
 // viz_config 逐类型字段（列名手填，对齐 admin SQL 别名）；KPI valueCol 显式持久化（C-3）。
 import { useState } from 'react';
 import { ColumnConfigEditor } from './ColumnConfigEditor.jsx';
+import { OverlayEditor } from './OverlayEditor.jsx';
 
 const TYPES = [
   { v: 'kpi', label: '单数值 KPI' },
@@ -14,7 +15,12 @@ const TYPES = [
 
 export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
   const [drag, setDrag] = useState(null);
+  const [open, setOpen] = useState({});   // v0.8.9 折叠：{`${i}c`:列配置, `${i}o`:公式行} 默认收起 → 页签紧凑好拖
+  const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fld = { padding: '5px 7px', borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: T.sans };
+  const secBtn = { display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', marginTop: 6, padding: '4px 2px', border: 'none', borderTop: `1px solid ${T.border}`, background: 'transparent', color: T.subtext, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5 };
+  const caret = (on) => <span style={{ display: 'inline-block', transform: on ? 'rotate(90deg)' : 'none', transition: 'transform .12s', color: T.muted }}>▸</span>;
+  const snapColCount = (t) => { try { const r = JSON.parse(t.last_run_rows_json || '[]'); return r.length ? Object.keys(r[0]).length : 0; } catch { return 0; } };
   const upd = (i, patch) => onChange(tiles.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const updViz = (i, patch) => upd(i, { viz_config: { ...(tiles[i].viz_config || {}), ...patch } });
   const add = () => onChange([...tiles, { tile_type: tableOnly ? 'table' : 'kpi', title: '', sql_text: '', viz_config: {}, grid_span: 1, sort_order: tiles.length }]);
@@ -76,7 +82,14 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
               <div style={{ fontSize: 11, color: T.muted }}>首列为 X 轴，其余数值列为系列</div>
             )}
             {t.tile_type === 'table' && (
-              <ColumnConfigEditor T={T} tile={t} viz={viz} onChange={(columns) => updViz(i, { columns })} />
+              <>
+                {/* v0.8.9 #1：列配置默认收起（26 列不撑爆卡片 → 页签好拖）；点开编辑 */}
+                <button onClick={() => toggle(`${i}c`)} style={secBtn}>{caret(open[`${i}c`])} 列配置（{snapColCount(t)} 列）</button>
+                {open[`${i}c`] && <ColumnConfigEditor T={T} tile={t} viz={viz} onChange={(columns) => updViz(i, { columns })} />}
+                {/* v0.8.9 #2：公式行（表头↔数据之间的聚合/筛选行，formula.js） */}
+                <button onClick={() => toggle(`${i}o`)} style={secBtn}>{caret(open[`${i}o`])} 公式行（{(viz.overlay || []).length} 单元格）</button>
+                {open[`${i}o`] && <OverlayEditor T={T} tile={t} viz={viz} overlay={viz.overlay || []} onChange={(overlay) => updViz(i, { overlay })} />}
+              </>
             )}
           </div>
         );

@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.8 — ②b.2 BI 打磨三项（kk 逐图反馈：类型收敛 / 全量展示+列名编辑 / 目录拖拽排序）
+## [Unreleased] - v0.8.9 — ②b.3 BI builder 两项（kk 逐图反馈：列配置收起 / per-页公式行）
+
+> v0.8 ② 延续。kk 两项反馈（26 列真运营日报暴露）：① 字段多→页签拖不动，列配置加「收起」；② 表头↔数据之间插 Excel 式聚合/筛选行。快通道（建 + 自验 + CI）。
+>
+> **① 列配置/公式行折叠**：TileBuilder 每 table 页的「列配置」+「公式行」两 section **默认收起**（`open` state per-tile：`${i}c`/`${i}o`）→ 页签仅剩 标题+SQL+两折叠头、紧凑好拖（26 列不再撑爆卡片）；点开编辑。折叠头显数量（列配置 N 列 / 公式行 N 单元格）。
+> **② per-页公式行编辑器**：新 `<OverlayEditor>` —— 单元格 `{col,row,kind:text|formula,value}` + **`formula.js` 零 eval 求值器**（SUM/SUMIF/AVG/COUNT/MIN/MAX + 算术 + A1）→ 写 `viz_config.overlay`；WideTable 渲染在表头与数据之间（accentSoft 底），TabbedTableReport 早传 `viz.overlay`。`<ColumnConfigEditor>` + OverlayEditor 图例显**列字母**（A/B/…= 渲染列序，`colLetter` 移入 tile_data.js 共用）助记；OverlayEditor 显数据行数（`=SUM(J1:J{N})` 占位）。
+> **⭐ formula.js 坐标模型改（option A · kk 拍）**：live 测出 ②a 旧模型「公式格与数据共用 A1 坐标」→ 合计格放数据列（`=SUM(B1:B{N})` 在 B 列）**自引报「循环引用：B1」**、且遮住数据首行。改 `computeOverlay`：公式**只引用数据格**（A1 恒解析 rows[row-1]），overlay 公式格是**输出、不参与 A1 寻址** → 合计格放数据列不再自引、数据不被遮、Excel 手感、数据增长不失效。**附带安全增益**：去掉公式格互引 → 环/深链/re-walk **递归 DoS 从结构上消失**（删 ovMap 递归 resolve + `MAX_OVERLAY_DEPTH` + memo/visiting；`MAX_TOTAL_STEPS`/`MAX_RANGE`/tokenizer/parser 护栏全留）。**唯一 live 宽表 rid1 有 0 条 overlay 公式 → 0 契约影响**；formula.test 互引/环/fan-out/深链用例改写为 option-A 语义（合计不自引 + cross-cell 读数据 + 预算兜底）。live 复验：运营日报合计行 注册用户数 6,942 / 充值金额 3,472,192.81（387 行真数据，无循环）。
+> **安全**：per-tile overlay 单元格上限（`_check_tiles_size` 扩：每 tile `viz_config.overlay` ≤ `_MAX_OVERLAY_CELLS`=500，镜像 ②a wide_table overlay 护栏；防塞超大 overlay → 客户端求值 DoS）。
+> **闸门**：后端 pytest（+overlay 超限 tile→400）· eslint · vitest · ruff · R-94（+OverlayEditor 登记）· doc-invariant（版本 4 源点 v0.8.9）· R-BI-1 ASK 0 触。
+
+## [Released] - v0.8.8 — ②b.2 BI 打磨三项（kk 逐图反馈：类型收敛 / 全量展示+列名编辑 / 目录拖拽排序）
 
 > v0.8 ② 延续。kk 三项反馈：① BI 只留 报表+仪表盘 2 类；② SELECT * 全量展示（上限 10000）+ 列名自定义编辑；③ 目录拖拽排序。快通道（建 + 自验 + 对抗复核 + CI）。
 >

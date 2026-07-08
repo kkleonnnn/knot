@@ -85,8 +85,15 @@ def _check_overlay_size(overlay) -> None:
 
 
 def _check_tiles_size(tiles) -> None:
-    if isinstance(tiles, list) and len(tiles) > _MAX_TILES:
+    if not isinstance(tiles, list):
+        return
+    if len(tiles) > _MAX_TILES:
         raise HTTPException(status_code=400, detail=f"仪表盘板块过多（≤{_MAX_TILES}）")
+    for t in tiles:      # v0.8.9：per-tile 公式行单元格上限（镜像 _MAX_OVERLAY_CELLS；防 viz_config 塞超大 overlay → 客户端求值 DoS）
+        if isinstance(t, dict):
+            ov = (t.get("viz_config") or {}).get("overlay")
+            if isinstance(ov, list) and len(ov) > _MAX_OVERLAY_CELLS:
+                raise HTTPException(status_code=400, detail=f"公式行单元格过多（≤{_MAX_OVERLAY_CELLS}）")
 
 
 def _check_reorder_size(ids) -> None:

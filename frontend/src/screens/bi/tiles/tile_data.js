@@ -1,5 +1,12 @@
 // tile_data.js — v0.8.6 (②b) tile 纯数据 helper（无组件 → .js，随 formula.js/fmt.js 惯例，过 react-refresh 门）。
 
+// 列序号 → Excel 列字母（0→A, 25→Z, 26→AA…）—— 公式行 A1 引用 / 列配置字母提示共用（v0.8.9）。
+export function colLetter(i) {
+  let s = '', n = i + 1;
+  while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
 // 通用「SQL rows → 有序列」—— WideTableReport + TableTile + tabbed WideTable 共用（B-5 单一真相源）。
 // v0.8.8 修（对抗复核 #3）：**数据列（rows 键 = SQL 查询序）为准**；cfg-only 键（配置了但当前 SQL 不返 =
 //   陈旧/幻影列）**不渲染**（防列配置编辑后改 SQL 掉列，留下空「—」幻影列）。仅当无数据行时回退 cfg 键（空态可见性）。

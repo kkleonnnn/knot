@@ -192,3 +192,13 @@ def test_reorder_analyst_403(client, auth_headers):
 def test_reorder_oversized_400(client, auth_headers):
     r = client.put("/api/bi/reorder/reports", json={"ordered_ids": list(range(1001))}, headers=auth_headers)
     assert r.status_code == 400
+
+
+def test_create_tile_overlay_oversized_400(client, auth_headers):
+    # v0.8.9：per-tile 公式行单元格上限（≤500）—— 防 viz_config 塞超大 overlay → 客户端求值 DoS
+    big = [{"col": "A", "row": 1, "kind": "text", "value": "x"}] * 501
+    r = client.post("/api/bi/reports", json={
+        "title": "d", "sql_text": "SELECT 1", "report_type": "tabbed",
+        "tiles": [{"tile_type": "table", "title": "p", "sql_text": "SELECT 1", "viz_config": {"overlay": big}}],
+    }, headers=auth_headers)
+    assert r.status_code == 400

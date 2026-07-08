@@ -78,6 +78,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/TabbedTableReport.jsx":      100,  # v0.8.7 多页表（每页一条 SQL，运营日报式）
     "frontend/src/screens/bi/TileBuilder.jsx":            180,  # ②b 结构化拼板（type/SQL/viz/span/DnD）
     "frontend/src/screens/bi/ColumnConfigEditor.jsx":     70,   # v0.8.8 ② 逐列配置（label/desc/unit/conditional）
+    "frontend/src/screens/bi/OverlayEditor.jsx":          70,   # v0.8.9 per-页公式行编辑器（formula.js 覆盖层）
     "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
     "frontend/src/screens/bi/DashboardReport.jsx":        120,  # ②b tiles[] 分发渲染
     "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill

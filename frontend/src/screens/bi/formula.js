@@ -20,10 +20,9 @@ const MAX_FORMULA_LEN = 500;
 const MAX_TOKENS = 200;
 const MAX_RANGE = 5000;
 const MAX_DEPTH = 32;
-const MAX_OVERLAY_DEPTH = 64;    // 跨 cell 引用链深度上限（防深链栈溢出；与 parser MAX_DEPTH 正交）
-const MAX_TOTAL_STEPS = 1000000; // computeOverlay 全局求值步数预算（红队复验 residual 修）：
-// 记忆化只 bound 成功路径；深链 fail-closed 路径不入 memo → O(N×64) re-walk 大 overlay 挂死。
-// 全局步数预算 bound 所有 resolve 调用总功（含 range/失败 re-walk）→ 结构无关的硬上限、fail-closed。
+// v0.8.9 option A：公式只引用数据（无公式格互引 → 无跨-cell 递归）→ 深链/环/re-walk DoS 从结构上消失，
+//   MAX_OVERLAY_DEPTH 随之删。MAX_TOTAL_STEPS 保留：bound 所有 resolve 调用总功（含 range 展开）→ 结构无关硬上限。
+const MAX_TOTAL_STEPS = 1000000; // computeOverlay 全局求值步数预算（fail-closed；防超大 overlay×大 range）。
 
 // 白名单函数（Set 成员判定 + 下方 switch 分派 —— 绝不 obj[name] 动态属性访问）
 const WHITELIST_FUNCS = new Set(['SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'SUMIF']);
@@ -297,46 +296,19 @@ export function evaluateFormula(formula, resolve) {
  * 环检测（GAP-1）：公式 cell 互引 → visited-set 命中 → 该 cell 记 error（不崩全表）。
  */
 export function computeOverlay({ rows = [], cols = [], overlay = [] }) {
-  // overlay 索引：'COL+ROW' → cell（用普通对象但键是拼接字符串；读取仅 Object.prototype.hasOwnProperty 经 Map 规避）
-  const ovMap = new Map();
-  for (const cell of overlay) {
-    if (cell && typeof cell.col === 'string' && Number.isInteger(cell.row)) {
-      ovMap.set(cell.col.toUpperCase() + cell.row, cell);
-    }
-  }
+  // v0.8.9 option A（kk 拍）：公式行公式**只引用数据格**（不引用其它 overlay 公式格）。
+  //   → A1 引用恒解析为数据：row(1-based) → rows[row-1]；col 字母 → cols[idx]（受信列名，非用户串）。
+  //   → overlay 公式格是**输出、不参与 A1 寻址**：合计格放在数据列（如 B 列合计写 =SUM(B1:B{N})）不再自引，
+  //     数据行也不被盖住；无公式互引 → 环/深链/re-walk 递归 DoS 从结构上不可能（②a ovMap 递归 resolve 删）。
+  //   越界引用 → undefined（视 0，GAP-2）；non-finite（NaN/±Inf）在 evalNode 层 throw（GAP-2②）。
   const colIndexByLetter = (letter) => colToIndex(letter);
-  // ⭐ 记忆化（红队 wmme5n9x4 GAP 修）：每公式 cell 至多算一次 → 消跨 cell 指数(diamond fan-out)
-  // 与二次(deep chain)放大；visiting 只挡真环，memo 挡「重复求值」。跨 cell 深度上限防深链栈溢出。
-  const memo = new Map();
-  let totalSteps = 0;   // 全局求值步数（跨所有 top-level cell + 递归，共享）
+  let totalSteps = 0;   // 全局求值步数（跨所有 cell + range 展开，共享；结构无关硬上限）
 
-  // resolve：overlay 公式 cell 递归求值（visiting 环检测 + memo 记忆化 + depth 深链护栏 + 全局步数预算）
-  function makeResolve(visiting, depth) {
-    return function resolve(col, row) {
-      if (++totalSteps > MAX_TOTAL_STEPS) throw new FormulaError('覆盖层求值预算耗尽（overlay 过大/过深）'); // 结构无关硬上限
-      const key = col + row;
-      const ov = ovMap.get(key);
-      if (ov) {
-        if (ov.kind === 'formula') {
-          if (memo.has(key)) return memo.get(key);                              // 记忆化命中 → O(cells)
-          if (visiting.has(key)) throw new FormulaError('单元格循环引用：' + key); // GAP-1 真环
-          if (depth > MAX_OVERLAY_DEPTH) throw new FormulaError('覆盖层引用链过深'); // 防深链栈溢出
-          visiting.add(key);
-          try {
-            const v = evaluateFormula(ov.value, makeResolve(visiting, depth + 1));
-            memo.set(key, v);
-            return v;
-          } finally {
-            visiting.delete(key);
-          }
-        }
-        return ov.value;                 // overlay text
-      }
-      // 数据格：row(1-based) → rows[row-1]；col 字母 → cols[idx]（受信列名，非用户串）
-      const ri = row - 1, ci = colIndexByLetter(col);
-      if (ri < 0 || ri >= rows.length || ci < 0 || ci >= cols.length) return undefined; // 越界 → 0
-      return rows[ri][cols[ci]];
-    };
+  function resolve(col, row) {
+    if (++totalSteps > MAX_TOTAL_STEPS) throw new FormulaError('覆盖层求值预算耗尽（overlay 过大）');
+    const ri = row - 1, ci = colIndexByLetter(col);
+    if (ri < 0 || ri >= rows.length || ci < 0 || ci >= cols.length) return undefined; // 越界 → 0
+    return rows[ri][cols[ci]];
   }
 
   const values = new Map();
@@ -345,11 +317,8 @@ export function computeOverlay({ rows = [], cols = [], overlay = [] }) {
     // 跳过畸形 overlay 条目（col 非串 / row 非整 → 防 to* 崩，LENS-1 note）
     if (!cell || cell.kind !== 'formula' || typeof cell.col !== 'string' || !Number.isInteger(cell.row)) continue;
     const key = cell.col.toUpperCase() + cell.row;
-    if (memo.has(key)) { values.set(key, memo.get(key)); continue; }  // 已被前面 cell 引用时算过
     try {
-      const v = evaluateFormula(cell.value, makeResolve(new Set([key]), 0));
-      values.set(key, v);
-      memo.set(key, v);
+      values.set(key, evaluateFormula(cell.value, resolve));
     } catch (e) {
       errors.set(key, e instanceof FormulaError ? e.message : '公式错误');
     }
