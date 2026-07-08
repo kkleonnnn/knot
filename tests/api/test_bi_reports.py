@@ -211,3 +211,33 @@ def test_create_tile_nondict_viz_config_no_500(client, auth_headers):
         "tiles": [{"tile_type": "table", "title": "p", "sql_text": "SELECT 1", "viz_config": "notadict"}],
     }, headers=auth_headers)
     assert r.status_code != 500
+
+
+def test_tabbed_export_csv_current_page_and_xlsx_multisheet(client, auth_headers, monkeypatch):
+    # v0.8.9 #3：多页表 CSV=当前页（中文 label 表头）+ Excel=多 sheet 全页
+    from knot.services import bi_report_service as svc
+    rid = client.post("/api/bi/reports", json={
+        "title": "运营", "sql_text": "SELECT 1", "report_type": "tabbed", "data_source_id": 1,
+        "tiles": [
+            {"tile_type": "table", "title": "日汇总", "sql_text": "SELECT 1", "viz_config": {"columns": {"a": {"label": "甲列"}}}},
+            {"tile_type": "table", "title": "周汇总", "sql_text": "SELECT 1", "viz_config": {}},
+        ],
+    }, headers=auth_headers).json()["id"]
+    monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([{"a": 1}, {"a": 2}], None))
+    client.post(f"/api/bi/reports/{rid}/refresh", headers=auth_headers)
+    tid = client.get(f"/api/bi/reports/{rid}", headers=auth_headers).json()["tiles"][0]["id"]
+    csv = client.get(f"/api/bi/reports/{rid}/export.csv?tile_id={tid}", headers=auth_headers)
+    assert csv.status_code == 200 and "甲列" in csv.content.decode("utf-8-sig")   # 中文 label 表头
+    xl = client.get(f"/api/bi/reports/{rid}/export.xlsx", headers=auth_headers)
+    assert xl.status_code == 200 and len(xl.content) > 100                        # 多 sheet xlsx 非空
+
+
+def test_dashboard_export_still_gated_400(client, auth_headers):
+    # 仪表盘（图表板块）不支持表格导出 → 400（不因 v0.8.9 tabbed 放开而误开）
+    rid = client.post("/api/bi/reports", json={
+        "title": "dash", "sql_text": "SELECT 1", "report_type": "dashboard",
+        "tiles": [{"tile_type": "kpi", "title": "k", "sql_text": "SELECT 1", "viz_config": {"valueCol": "a"}}],
+    }, headers=auth_headers).json()["id"]
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400
+    assert client.get(f"/api/bi/reports/{rid}/export.xlsx", headers=auth_headers).status_code == 400

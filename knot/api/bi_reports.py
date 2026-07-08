@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from knot.api._audit_helpers import audit
 from knot.api.deps import get_current_user, require_admin
 from knot.services import bi_report_service as svc
-from knot.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes
+from knot.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes, sheets_to_xlsx_bytes
 
 router = APIRouter()
 
@@ -247,49 +247,95 @@ async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(r
 
 # ── 导出（全体已认证读；复用 export_service —— CSV/公式注入中性化已由 v0.8.4 chore 落，R-BI-12）──
 
-def _report_rows_or_404(report_id: int):
+def _report_or_404(report_id: int) -> dict:
     r = svc.get_report(report_id)
     if not r:
         raise HTTPException(status_code=404, detail="报表不存在")
-    # B-7：dashboard/tabbed 无报表级快照（每 tile/页 各自快照）→ 按 report_type 拒，非仅 rows-空
-    # （防转换残留旧非空 last_run_rows_json 静默导出旧数据）。v1 前端也隐藏按钮（C-1）。per-tile/页导出 = 后续。
-    if r.get("report_type") in ("dashboard", "tabbed"):
-        raise HTTPException(status_code=400, detail="多板块/多页报表暂不支持整表导出（v1）")
+    return r
+
+
+def _wide_rows_or_400(r: dict) -> list:
     try:
         rows = json.loads(r.get("last_run_rows_json") or "[]")
     except json.JSONDecodeError:
         rows = []
     if not rows:
         raise HTTPException(status_code=400, detail="该报表无可导出数据（请先重跑）")
-    return r, rows
+    return rows
 
+
+def _tile_sheet(tile: dict) -> dict:
+    """tile → {name, rows, cols, headers}（列序=数据列 SQL 序；headers=viz_config.columns label 中文）。v0.8.9 导出。"""
+    try:
+        rows = json.loads(tile.get("last_run_rows_json") or "[]")
+    except (json.JSONDecodeError, TypeError):
+        rows = []
+    try:
+        cfg = (json.loads(tile.get("viz_config") or "{}") or {}).get("columns") or {}
+    except (json.JSONDecodeError, TypeError):
+        cfg = {}
+    cols = list(rows[0].keys()) if rows else list(cfg.keys())
+    headers = [((cfg.get(c) or {}).get("label") or c) for c in cols]
+    return {"name": tile.get("title") or "页", "rows": rows, "cols": cols, "headers": headers}
+
+
+# dashboard = 图表板块（非表格）→ 不支持表格导出；tabbed = 多页表（Excel 多 sheet / CSV 单页）；wide_table = 单表。
 
 @router.get("/api/bi/reports/{report_id}/export.csv")
-async def export_report_csv(report_id: int, request: Request, user=Depends(get_current_user)):
-    _, rows = _report_rows_or_404(report_id)
+async def export_report_csv(report_id: int, request: Request, tile_id: int | None = None,
+                            user=Depends(get_current_user)):
+    r = _report_or_404(report_id)
+    rtype = r.get("report_type")
+    if rtype == "dashboard":
+        raise HTTPException(status_code=400, detail="仪表盘（图表板块）不支持表格导出")
+    if rtype == "tabbed":
+        tiles = r.get("tiles") or []
+        if not tiles:
+            raise HTTPException(status_code=400, detail="该报表无页签")
+        tile = next((t for t in tiles if t.get("id") == tile_id), tiles[0])   # 当前页；未给取第一页
+        sheet = _tile_sheet(tile)
+        if not sheet["rows"]:
+            raise HTTPException(status_code=400, detail="该页无可导出数据（请先重跑）")
+        rows, cols, headers, stem = sheet["rows"], sheet["cols"], sheet["headers"], f"bi_report_{report_id}_{tile.get('id')}"
+    else:
+        rows, cols, headers, stem = _wide_rows_or_400(r), None, None, f"bi_report_{report_id}"
     audit(request, user, action="export.csv", resource_type="bi_report", resource_id=report_id,
-          detail={"row_count": len(rows)})
-    filename = f"bi_report_{report_id}.csv"
+          detail={"row_count": len(rows), "tile_id": tile_id})
+    filename = f"{stem}.csv"
     return StreamingResponse(
-        BytesIO(rows_to_csv_bytes(rows)), media_type="text/csv; charset=utf-8",
+        BytesIO(rows_to_csv_bytes(rows, cols=cols, headers=headers)), media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
 
 @router.get("/api/bi/reports/{report_id}/export.xlsx")
 async def export_report_xlsx(report_id: int, request: Request, user=Depends(get_current_user)):
-    _, rows = _report_rows_or_404(report_id)
-    xlsx_bytes, meta = rows_to_xlsx_bytes(rows)
+    r = _report_or_404(report_id)
+    rtype = r.get("report_type")
+    if rtype == "dashboard":
+        raise HTTPException(status_code=400, detail="仪表盘（图表板块）不支持表格导出")
+    if rtype == "tabbed":
+        sheets = [_tile_sheet(t) for t in (r.get("tiles") or [])]
+        if not any(s["rows"] for s in sheets):
+            raise HTTPException(status_code=400, detail="该报表各页均无可导出数据（请先重跑）")
+        xlsx_bytes, meta = sheets_to_xlsx_bytes(sheets)          # 多 sheet：每页一 sheet
+        total = sum(m["total"] for m in meta["sheets"])
+        exported = sum(m["exported"] for m in meta["sheets"])
+        truncated = meta["truncated"]
+    else:
+        rows = _wide_rows_or_400(r)
+        xlsx_bytes, m = rows_to_xlsx_bytes(rows)
+        total, exported, truncated = m["total"], m["exported"], m["truncated"]
     audit(request, user, action="export.xlsx", resource_type="bi_report", resource_id=report_id,
-          detail={"row_count": len(rows)})
+          detail={"row_count": total})
     filename = f"bi_report_{report_id}.xlsx"
     return StreamingResponse(
         BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
-            "X-Export-Truncated": "true" if meta["truncated"] else "false",
-            "X-Export-Total-Rows": str(meta["total"]),
-            "X-Export-Returned-Rows": str(meta["exported"]),
+            "X-Export-Truncated": "true" if truncated else "false",
+            "X-Export-Total-Rows": str(total),
+            "X-Export-Returned-Rows": str(exported),
         },
     )

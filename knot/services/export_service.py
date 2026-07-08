@@ -38,29 +38,71 @@ def _neutralize_text(s: str) -> str:
     return s
 
 
-def rows_to_csv_bytes(rows: list[dict], cols: list[str] | None = None) -> bytes:
+def rows_to_csv_bytes(rows: list[dict], cols: list[str] | None = None,
+                     headers: list[str] | None = None) -> bytes:
     """把 [{col: val}, ...] 转成 CSV 字节流（utf-8-sig，带 BOM）。
 
     cols=None 时从首行 keys 推断字段顺序。
+    headers（v0.8.9）：表头显示名（默认 = cols）—— 值仍按 cols(key) 取，但表头行写 headers（如 BI 列中文 label）。
     复杂值（dict / list）使用 JSON 序列化（中文不转义）。
     空 rows 返回空 bytes。
     """
     if not rows:
         return b""
     cols = cols or list(rows[0].keys())
+    hdr = headers if (headers and len(headers) == len(cols)) else cols
     sio = StringIO()
     writer = csv.DictWriter(sio, fieldnames=cols, extrasaction="ignore")
     # v0.8.4：表头也是注入向量（列名 = SQL 别名可控）→ 中性化后写（等价 writeheader() 对安全列名）
-    writer.writerow({c: _neutralize_text(str(c)) for c in cols})
+    writer.writerow({c: _neutralize_text(str(h)) for c, h in zip(cols, hdr)})
     for r in rows:
         writer.writerow({c: _stringify(r.get(c)) for c in cols})
     return sio.getvalue().encode("utf-8-sig")
+
+
+def _safe_sheet_name(name: str, used: set) -> str:
+    """Excel sheet 名约束（v0.8.9 多 sheet 导出）：≤31 字符 · 去 []:*?/\\ · 非空 · 去重。"""
+    s = "".join(c for c in str(name or "") if c not in '[]:*?/\\')[:31].strip() or "Sheet"
+    base, n = s, 1
+    while s in used:
+        suffix = f"~{n}"
+        s = base[:31 - len(suffix)] + suffix
+        n += 1
+    used.add(s)
+    return s
+
+
+def sheets_to_xlsx_bytes(sheets: list[dict]) -> tuple[bytes, dict]:
+    """v0.8.9：多 sheet xlsx（tabbed 报表每页一 sheet）。sheets=[{name, rows, cols?, headers?}]。
+    返回 (bytes, meta)；meta={"sheets":[{name,truncated,total,exported}], "truncated":bool}。中性化 + 5000 行/表硬限沿用。"""
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.remove(wb.active)                       # 去默认空 sheet
+    used, metas = set(), []
+    for i, sh in enumerate(sheets):
+        rows = sh.get("rows") or []
+        truncated = len(rows) > XLSX_MAX_ROWS
+        actual = rows[:XLSX_MAX_ROWS] if truncated else rows
+        cols = sh.get("cols") or (list(actual[0].keys()) if actual else [])
+        hdr = sh.get("headers") if (sh.get("headers") and len(sh["headers"]) == len(cols)) else cols
+        ws = wb.create_sheet(title=_safe_sheet_name(sh.get("name") or f"Sheet{i + 1}", used))
+        if cols:
+            ws.append([_neutralize_text(str(h)) for h in hdr])
+        for r in actual:
+            ws.append([_xlsx_value(r.get(c)) for c in cols])
+        metas.append({"name": ws.title, "truncated": truncated, "total": len(rows), "exported": len(actual)})
+    if not wb.sheetnames:                      # 全空 → 至少留一个 sheet 防 openpyxl save 崩
+        wb.create_sheet(title="Empty")
+    bio = BytesIO()
+    wb.save(bio)
+    return bio.getvalue(), {"sheets": metas, "truncated": any(m["truncated"] for m in metas)}
 
 
 def rows_to_xlsx_bytes(
     rows: list[dict],
     cols: list[str] | None = None,
     sheet_name: str = "Data",
+    headers: list[str] | None = None,
 ) -> tuple[bytes, dict]:
     """v0.4.2：rows → xlsx bytes + R-S7 metadata。
 
@@ -82,11 +124,12 @@ def rows_to_xlsx_bytes(
     actual_rows = rows[:XLSX_MAX_ROWS] if truncated else rows
     cols = cols or (list(actual_rows[0].keys()) if actual_rows else [])
 
+    hdr = headers if (headers and len(headers) == len(cols)) else cols
     wb = Workbook()
     ws = wb.active
     ws.title = sheet_name
     if cols:
-        ws.append([_neutralize_text(str(c)) for c in cols])  # v0.8.4：表头中性化
+        ws.append([_neutralize_text(str(h)) for h in hdr])  # v0.8.4：表头中性化（v0.8.9 headers=显示名）
     for r in actual_rows:
         ws.append([_xlsx_value(r.get(c)) for c in cols])
 

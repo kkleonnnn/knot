@@ -1,16 +1,19 @@
 // TabbedTableReport.jsx — v0.8.7 多页表报表（report_type='tabbed'）。
 // report.tiles[] 每 tile = 一个页签：一条自己的 SQL + 独立冻结快照 + 列配置（对齐运营日报 日/周/月 三 sheet）。
 // 页签栏（复用宽表页签视觉）+ 选中页 <WideTable>。tile.viz_config = { columns:{col:{label,desc,conditional,unit}}, overlay:[] }。
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { WideTable } from './WideTable.jsx';
 import { parseTile } from './tiles/tile_data.js';
 
-export function TabbedTableReport({ T, report }) {
+export function TabbedTableReport({ T, report, onActiveTile }) {
   const [tab, setTab] = useState(0);
   const tiles = useMemo(
     () => [...(report.tiles || [])].sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id)),
     [report.tiles],
   );
+  const active = tiles.length ? tiles[Math.min(tab, tiles.length - 1)] : null;
+  // v0.8.9 #3：上报当前页 id 给父（BI.jsx）→ CSV 导出当前页
+  useEffect(() => { if (active && onActiveTile) onActiveTile(active.id); }, [active, onActiveTile]);
 
   if (!tiles.length) {
     return (
@@ -20,7 +23,6 @@ export function TabbedTableReport({ T, report }) {
     );
   }
 
-  const active = tiles[Math.min(tab, tiles.length - 1)];
   const { rows, viz, error } = parseTile(active);
   const cfg = viz.columns || {};
   const overlay = viz.overlay || [];

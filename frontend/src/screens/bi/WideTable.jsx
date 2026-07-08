@@ -14,6 +14,9 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
   // 对抗复核 v0.8.9 #5：持久化的 viz_config.overlay 可能被写成非数组（对象）→ `for..of` TypeError 崩整屏。
   // 归一为数组，坏数据静默降级为「无公式行」而非崩溃（后端只在 list 时 cap → 非 list 会漏过）。
   const ovList = useMemo(() => (Array.isArray(overlay) ? overlay : []), [overlay]);
+  // 对抗复核/kk #1：sticky 公式行须**不透明**（accentSoft 在 dark 是 0.14 alpha → 滚动数据透视穿过）。
+  // 半透明 accentSoft 叠在实底 content 上 → 合成不透明的同色调（gradient-over-solid，两模式都不透）。
+  const ovBg = `linear-gradient(${T.accentSoft}, ${T.accentSoft}), ${T.content}`;
   const cols = useMemo(() => orderedCols(rows, cfg), [rows, cfg]);
   const label = (c) => (cfg[c] && cfg[c].label) || c;
   const desc = (c) => (cfg[c] && cfg[c].desc) || '';   // v0.8.7 长口径 → 表头 hover tooltip
@@ -81,7 +84,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
               {cols.map((c, i) => {
                 const v = cells[colLetter(i)];
                 const warn = typeof v === 'string' && v.startsWith('⚠');
-                return <td key={c} style={{ ...tdStyle(c, i, v), position: 'sticky', top: 34 + ri * 34, zIndex: i === 0 ? 3 : 2, fontWeight: 600, background: T.accentSoft, color: warn ? T.warn : T.text }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
+                return <td key={c} style={{ ...tdStyle(c, i, v), position: 'sticky', top: 34 + ri * 34, zIndex: i === 0 ? 3 : 2, fontWeight: 600, background: ovBg, color: warn ? T.warn : T.text }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
               })}
             </tr>
           ))}
