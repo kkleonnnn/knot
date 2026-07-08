@@ -67,6 +67,26 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/AdminErrors.jsx":        150,
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻
     "frontend/src/screens/Enroll.jsx":             256,  # v0.6.5.2 F5 sessionStorage 缓存 helpers
+    # BI 模式（v0.8.5 ②a + v0.8.6 ②b）—— 补前端 size-gate 盲区（critic D：bi/ 原零登记 = 不受守护）
+    "frontend/src/screens/BI.jsx":                        210,  # BIScreen 调度（AppShell slots + ActBtn + 模态）
+    "frontend/src/RightPanel.jsx":                        60,   # 共享右栏 chrome（BI da-asst ∥ ASK 思考过程）
+    "frontend/src/screens/bi/ReportDirectory.jsx":        200,  # 报表目录树 + 搜索
+    "frontend/src/screens/bi/ReportBuilderModal.jsx":     200,  # 双类型 builder（宽表覆盖层 / 仪表盘 TileBuilder）
+    "frontend/src/screens/bi/WideTableReport.jsx":        160,  # 宽表（sheet/冻结列/条件色/覆盖层公式）
+    "frontend/src/screens/bi/TileBuilder.jsx":            180,  # ②b 结构化拼板（type/SQL/viz/span/DnD）
+    "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
+    "frontend/src/screens/bi/DashboardReport.jsx":        120,  # ②b tiles[] 分发渲染
+    "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill
+    "frontend/src/screens/bi/InsightCard.jsx":            50,
+    "frontend/src/screens/bi/formula.js":                 400,  # ⭐ 安全承重（零 eval 求值器 R-BI-11）；guards 增长 ACK
+    "frontend/src/screens/bi/formula.test.js":            220,  # 公式对抗/正确性单测
+    "frontend/src/screens/bi/tiles/_shared.jsx":          100,  # Card/Donut/TileState 共享件
+    "frontend/src/screens/bi/tiles/tile_data.js":         90,   # orderedCols/parseTile/numericCol 纯 helper
+    "frontend/src/screens/bi/tiles/KpiTile.jsx":          90,
+    "frontend/src/screens/bi/tiles/LineTile.jsx":         60,
+    "frontend/src/screens/bi/tiles/DonutTile.jsx":        90,
+    "frontend/src/screens/bi/tiles/BarTile.jsx":          90,
+    "frontend/src/screens/bi/tiles/TableTile.jsx":        90,
     # audit/ 子组件（v0.6.3.2 C5）
     "frontend/src/screens/audit/AuditStatGrid.jsx":     50,
     "frontend/src/screens/audit/AuditRetentionBar.jsx": 60,
