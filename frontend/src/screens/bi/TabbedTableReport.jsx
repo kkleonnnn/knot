@@ -25,15 +25,17 @@ export function TabbedTableReport({ T, report }) {
   const cfg = viz.columns || {};
   const overlay = viz.overlay || [];
 
+  // 页签接缝（kk 修）：表体保完整上边框；选中 border-bottom=bg 仅咬脚下 1px + margin-bottom:-1 骑线；
+  // 未选中 border-bottom:none + margin-bottom:0 落在上边框上（线可见）；左缘与表体对齐（无 paddingLeft）。
   const tabStyle = (on) => ({
     padding: '8px 16px', background: on ? T.bg : T.content, border: `1px solid ${T.border}`,
-    borderBottom: `1px solid ${on ? T.bg : T.border}`, borderRadius: '7px 7px 0 0', marginBottom: -1,
+    borderBottom: on ? `1px solid ${T.bg}` : 'none', marginBottom: on ? -1 : 0, borderRadius: '7px 7px 0 0',
     color: on ? T.accent : T.subtext, fontSize: 12.5, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
   });
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 2, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap' }}>
         {tiles.map((t, i) => (
           <button key={t.id} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{t.title || `页 ${i + 1}`}</button>
         ))}

@@ -12,9 +12,11 @@ export function WideTableReport({ T, report }) {
   const cfg = useMemo(() => { try { return report.column_config ? JSON.parse(report.column_config) : {}; } catch { return {}; } }, [report.column_config]);
   const overlay = useMemo(() => { try { return report.overlay_config ? JSON.parse(report.overlay_config) : []; } catch { return []; } }, [report.overlay_config]);
 
+  // 页签接缝（kk 修）：表体保完整上边框；选中标签 border(l/t/r) + border-bottom=bg（仅咬脚下 1px）+
+  // margin-bottom:-1 骑到上边框上；未选中 border-bottom:none + margin-bottom:0 落在上边框上（线可见）。
   const tabStyle = (on) => ({
     padding: '8px 16px', background: on ? T.bg : T.content, border: `1px solid ${T.border}`,
-    borderBottom: `1px solid ${on ? T.bg : T.border}`, borderRadius: '7px 7px 0 0', marginBottom: -1,
+    borderBottom: on ? `1px solid ${T.bg}` : 'none', marginBottom: on ? -1 : 0, borderRadius: '7px 7px 0 0',
     color: on ? T.accent : T.subtext, fontSize: 12.5, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
   });
 
@@ -23,7 +25,7 @@ export function WideTableReport({ T, report }) {
   return (
     <div>
       {!isEmpty && (
-        <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
           {SHEETS.map((s, i) => (
             <button key={s} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{s}</button>
           ))}

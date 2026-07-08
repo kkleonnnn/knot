@@ -58,7 +58,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
   };
 
   return (
-    <div className="cb-sb" style={{ overflow: 'auto', maxHeight, border: `1px solid ${T.border}`, borderTop: 'none', borderRadius: '0 0 12px 12px', background: T.content }}>
+    <div className="cb-sb" style={{ overflow: 'auto', maxHeight, border: `1px solid ${T.border}`, borderRadius: '0 0 12px 12px', background: T.content }}>
       <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
