@@ -174,6 +174,16 @@ def update_last_run(report_id: int, rows_json: str, truncated: int, elapsed_ms: 
     conn.close()
 
 
+def touch_refresh_seq(report_id: int) -> None:
+    """仅 bump refresh_seq（不写报表级快照）—— v0.8.6 ②b B-3：dashboard 整表原子刷新时
+    每 tile 快照各自走 tile_repo.update_tile_last_run，报表级 refresh_seq 作全盘 staleness 信号
+    （report 级 last_run_rows_json 对 dashboard 保持空，与 S3 导出 400 自洽）。"""
+    conn = get_conn()
+    conn.execute("UPDATE bi_reports SET refresh_seq=refresh_seq+1 WHERE id=?", (report_id,))
+    conn.commit()
+    conn.close()
+
+
 def delete_report(report_id: int) -> None:
     conn = get_conn()
     conn.execute("DELETE FROM bi_reports WHERE id=?", (report_id,))

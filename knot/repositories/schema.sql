@@ -401,3 +401,26 @@ CREATE TABLE IF NOT EXISTS bi_reports (
     created_by          INTEGER NOT NULL                      -- admin user id
 );
 CREATE INDEX IF NOT EXISTS idx_bi_reports_folder ON bi_reports(folder_id, sort_order);
+
+-- v0.8.6 (②b)：仪表盘 tile —— 每 tile 一条自己的 SQL + 类型 + 冻结快照 + 布局(order+span)。
+-- report_id soft ref bi_reports（无硬 FK，镜像 report_folders）；删报表由 service 层级联删 tiles。
+-- report 级 refresh_seq 是唯一 staleness（D2 整表原子刷新）→ tile 无自己的 refresh_seq。
+-- per-tile sql_text 存前过 doris.is_safe_sql（R-BI-5/D7）；非 admin 由 to_dto 逐 tile 脱敏（R-BI-6）。
+CREATE TABLE IF NOT EXISTS bi_report_tiles (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id           INTEGER NOT NULL,                     -- soft ref → bi_reports.id
+    tile_type           TEXT    NOT NULL DEFAULT 'kpi',       -- kpi | line | donut | bar | table
+    title               TEXT,
+    sql_text            TEXT    NOT NULL,                     -- per-tile 只读 SQL（过 is_safe_sql）
+    viz_config          TEXT,                                 -- JSON：列/系列/格式映射（column_config 风格）
+    sort_order          INTEGER NOT NULL DEFAULT 0,           -- reorder
+    grid_span           INTEGER NOT NULL DEFAULT 1,           -- resize：占 1|2|3 列
+    last_run_rows_json  TEXT,                                 -- per-tile 冻结快照 rows[:cap]
+    last_run_truncated  INTEGER DEFAULT 0,
+    last_run_ms         INTEGER DEFAULT 0,
+    last_run_at         TEXT,
+    last_run_error      TEXT,                                 -- per-tile 错误（一 tile 挂不连累其余）
+    created_at          TEXT    DEFAULT (datetime('now','localtime')),
+    created_by          INTEGER NOT NULL                      -- admin user id
+);
+CREATE INDEX IF NOT EXISTS idx_bi_report_tiles_report ON bi_report_tiles(report_id, sort_order);
