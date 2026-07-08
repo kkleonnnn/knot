@@ -166,7 +166,13 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
         ))}
         {unfiled.length > 0 && (
           <div style={{ marginTop: 6 }}>
-            <div style={{ padding: '7px 10px', fontSize: 11, color: T.muted, letterSpacing: '0.04em' }}>未归档</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', fontSize: 11, color: T.muted, letterSpacing: '0.04em' }}>
+              {/* #3（kk）：「未归档」不好听 → 「未分组」+ 无文件夹 icon（斜杠文件夹）明示不在文件夹内 */}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M3 3l18 18" />
+              </svg>
+              未分组
+            </div>
             {unfiled.map((r) => (
               <ReportRow key={r.id} T={T} report={r} selected={r.id === selectedId} onSelect={onSelect}
                          dnd={reportDnd && reportDnd(r, null)} />

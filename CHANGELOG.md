@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.8 — ②b.2 BI 打磨三项（kk 逐图反馈：类型收敛 / 全量展示+列名编辑 / 目录拖拽排序）
+## [Unreleased] - v0.8.9 — ②b.3 BI builder 两项（kk 逐图反馈：列配置收起 / per-页公式行）
+
+> v0.8 ② 延续。kk 两项反馈（26 列真运营日报暴露）：① 字段多→页签拖不动，列配置加「收起」；② 表头↔数据之间插 Excel 式聚合/筛选行。快通道（建 + 自验 + CI）。
+>
+> **① 列配置/公式行折叠**：TileBuilder 每 table 页的「列配置」+「公式行」两 section **默认收起**（`open` state per-tile：`${i}c`/`${i}o`）→ 页签仅剩 标题+SQL+两折叠头、紧凑好拖（26 列不再撑爆卡片）；点开编辑。折叠头显数量（列配置 N 列 / 公式行 N 单元格）。
+> **② per-页公式行编辑器**：新 `<OverlayEditor>` —— 单元格 `{col,row,kind:text|formula,value}` + **`formula.js` 零 eval 求值器**（SUM/SUMIF/AVG/COUNT/MIN/MAX + 算术 + A1）→ 写 `viz_config.overlay`；WideTable 渲染在表头与数据之间（accentSoft 底），TabbedTableReport 早传 `viz.overlay`。`<ColumnConfigEditor>` + OverlayEditor 图例显**列字母**（A/B/…= 渲染列序，`colLetter` 移入 tile_data.js 共用）助记；OverlayEditor 显数据行数（`=SUM(J1:J{N})` 占位）。
+> **⭐ formula.js 坐标模型改（option A · kk 拍）**：live 测出 ②a 旧模型「公式格与数据共用 A1 坐标」→ 合计格放数据列（`=SUM(B1:B{N})` 在 B 列）**自引报「循环引用：B1」**、且遮住数据首行。改 `computeOverlay`：公式**只引用数据格**（A1 恒解析 rows[row-1]），overlay 公式格是**输出、不参与 A1 寻址** → 合计格放数据列不再自引、数据不被遮、Excel 手感、数据增长不失效。**附带安全增益**：去掉公式格互引 → 环/深链/re-walk **递归 DoS 从结构上消失**（删 ovMap 递归 resolve + `MAX_OVERLAY_DEPTH` + memo/visiting；`MAX_TOTAL_STEPS`/`MAX_RANGE`/tokenizer/parser 护栏全留）。**唯一 live 宽表 rid1 有 0 条 overlay 公式 → 0 契约影响**；formula.test 互引/环/fan-out/深链用例改写为 option-A 语义（合计不自引 + cross-cell 读数据 + 预算兜底）。live 复验：运营日报合计行 注册用户数 6,942 / 充值金额 3,472,192.81（387 行真数据，无循环）。
+> **③ 冻结公式行（kk 逐图②）**：公式行随表头一起 sticky —— WideTable overlay 行 `position:sticky; top:34+ri*34`（表头正下方级联），z 层 表头(4/3) > 公式行(3/2) > 数据；首列 corner 双向 sticky。滚 387 行时合计行常驻。（kk①「不是所有报表都要公式行」= 已满足：空 overlay 不渲染，per-报表可选。）
+> **④「未归档」→「未分组」+ 无文件夹 icon（kk 逐图③）**：目录段头 `未归档`→`未分组` + 斜杠文件夹 icon 明示不在文件夹内；builder 文件夹下拉 `未归档`→`（不归入文件夹）`。
+> **⑤ 冻结公式行不透明修（kk 逐图·二轮①）**：sticky 公式行 bg 原用 accentSoft（**dark 是 0.14 alpha 半透明** → 滚动数据透视穿过）。改 `linear-gradient(accentSoft,accentSoft), content`（半透明叠实底 → 合成不透明同色调，两模式都不透）。kk 二轮②（重跑重置插入行）**经查非 bug**：`update_tile_last_run` 只写 last_run_*、不碰 viz_config；实测 refresh 运营日报 overlay byte-identical 存活（②c 调度器亦安全）；kk 见的消失 = 我清了财务日报 stray 合计（巧合早于其重跑）。
+> **⑥ tabbed 报表导出（kk 逐图·二轮③）**：放开多页表导出（dashboard 仍拒=图表非表格）。**Excel=多 sheet**（每页一 sheet，新 `sheets_to_xlsx_bytes`，镜像 Google Sheet）· **CSV=当前页**（`export.csv?tile_id=`；TabbedTableReport `onActiveTile` 上报当前页给 BI.jsx）；均 **中文 label 表头**（export_service +`headers` 参；`_neutralize_text` 注入中性化沿用）。BI.jsx 导出按钮 wide_table→+tabbed。
+> **安全**：per-tile overlay 单元格上限（`_check_tiles_size` 扩：每 tile `viz_config.overlay` ≤ `_MAX_OVERLAY_CELLS`=500；防塞超大 overlay → 客户端求值 DoS）。
+> **对抗复核修 4 项（workflow 9 agent · 6 findings → 6 confirmed 全 corrected=low；均预存 formula.js 弱点/本版新码 robustness）**：
+>   #1 **列下标溢出 DoS**：≥12 字母列（`=SUM(AAAAAAAAAAAAA1:…)`）→ `colToIndex`≥2^53 → rangeCells `ci++` no-op 无限 push OOM，绕过 MAX_RANGE（单列 size=5）+ MAX_TOTAL_STEPS（在 resolve 内、rangeCells 早于它）。补 `MAX_COL_LETTERS`=7 词法层拒（预存漏洞，红队漏；admin-gated + 单租户 → low，仍修）。
+>   #2 **除零被 MIN/聚合掩盖**：`=MIN(1/0,5)`→5 silent-wrong（违 GAP-2）。binop 结果 non-finite → **就地 throw**（原仅顶层检查、被 Math.min 掩）。
+>   #4/#6 **`_check_tiles_size` 非 dict viz_config → 500**：本版新码 `.get` 抛 AttributeError；补 `isinstance(vc,dict)` 跳过。
+>   #5 **非数组 overlay 崩屏**：WideTable `for..of` 非数组 TypeError；`ovList=Array.isArray?...:[]`（useMemo 稳定引用）+ computeOverlay 内亦 guard。
+>   #3（option-A 改既有 overlay 互引语义）**无 fix**：唯一 live 宽表 0 条 overlay 公式 → 0 影响，属 kk 已拍的 option-A 预期变更。
+> **闸门**：后端 pytest（+overlay 超限→400 + 非 dict viz_config 不 500 + tabbed 导出 CSV 当前页中文表头/Excel 多 sheet + dashboard 导出仍 400）· vitest 37（+列字母/除零/非数组）· eslint · ruff · R-94（+OverlayEditor 登记 + bi_reports ACK 360）· doc-invariant（版本 4 源点 v0.8.9）· R-BI-1 ASK 0 触。
+> **数据（非 repo）**：live seed 真实报表 —— 运营日报（绑 doris + 26 列中文口径）+ **财务日报**（7 页：平台总数据/现货·合约做市/折扣买币/套利工具/结构性套利/跟盈宝，各真 SQL）。
+
+## [Released] - v0.8.8 — ②b.2 BI 打磨三项（kk 逐图反馈：类型收敛 / 全量展示+列名编辑 / 目录拖拽排序）
 
 > v0.8 ② 延续。kk 三项反馈：① BI 只留 报表+仪表盘 2 类；② SELECT * 全量展示（上限 10000）+ 列名自定义编辑；③ 目录拖拽排序。快通道（建 + 自验 + 对抗复核 + CI）。
 >

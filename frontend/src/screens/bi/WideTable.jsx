@@ -11,6 +11,12 @@ function colLetter(i) { let s = '', n = i + 1; while (n > 0) { s = String.fromCh
 
 export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 520, roundTop = false }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
+  // 对抗复核 v0.8.9 #5：持久化的 viz_config.overlay 可能被写成非数组（对象）→ `for..of` TypeError 崩整屏。
+  // 归一为数组，坏数据静默降级为「无公式行」而非崩溃（后端只在 list 时 cap → 非 list 会漏过）。
+  const ovList = useMemo(() => (Array.isArray(overlay) ? overlay : []), [overlay]);
+  // 对抗复核/kk #1：sticky 公式行须**不透明**（accentSoft 在 dark 是 0.14 alpha → 滚动数据透视穿过）。
+  // 半透明 accentSoft 叠在实底 content 上 → 合成不透明的同色调（gradient-over-solid，两模式都不透）。
+  const ovBg = `linear-gradient(${T.accentSoft}, ${T.accentSoft}), ${T.content}`;
   const cols = useMemo(() => orderedCols(rows, cfg), [rows, cfg]);
   const label = (c) => (cfg[c] && cfg[c].label) || c;
   const desc = (c) => (cfg[c] && cfg[c].desc) || '';   // v0.8.7 长口径 → 表头 hover tooltip
@@ -24,17 +30,17 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
     });
   }, [rows, sort]);
 
-  const { values, errors } = useMemo(() => computeOverlay({ rows, cols, overlay }), [rows, cols, overlay]);
+  const { values, errors } = useMemo(() => computeOverlay({ rows, cols, overlay: ovList }), [rows, cols, ovList]);
   const overlayRows = useMemo(() => {
     const byRow = new Map();
-    for (const c of overlay) {
+    for (const c of ovList) {
       if (!c || typeof c.col !== 'string' || !Number.isInteger(c.row)) continue;
       if (!byRow.has(c.row)) byRow.set(c.row, {});
       const key = c.col.toUpperCase() + c.row;
       byRow.get(c.row)[c.col.toUpperCase()] = c.kind === 'formula' ? (errors.has(key) ? '⚠ ' + errors.get(key) : values.get(key)) : c.value;
     }
     return [...byRow.entries()].sort((a, b) => a[0] - b[0]).map(([, cells]) => cells);
-  }, [overlay, values, errors]);
+  }, [ovList, values, errors]);
 
   if (!rows.length && !overlayRows.length) {
     return <div style={{ padding: '48px 20px', textAlign: 'center', color: T.muted, fontSize: 13 }}>暂无数据 —— 点「重跑」拉取最新结果（admin）。</div>;
@@ -71,12 +77,14 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
           </tr>
         </thead>
         <tbody>
+          {/* #2 冻结公式行（kk）：overlay 行 sticky 贴表头正下方（header≈34px + 每行≈34px 级联）→ 滚 387 行时合计行常驻。
+              z 层：表头(4/3) > 公式行(3/2) > 数据(1/auto)；首列 corner 双向 sticky（left:0 + top）。 */}
           {overlayRows.map((cells, ri) => (
-            <tr key={`ov-${ri}`} style={{ background: T.accentSoft }}>
+            <tr key={`ov-${ri}`}>
               {cols.map((c, i) => {
                 const v = cells[colLetter(i)];
                 const warn = typeof v === 'string' && v.startsWith('⚠');
-                return <td key={c} style={{ ...tdStyle(c, i, v), fontWeight: 600, color: warn ? T.warn : T.text, background: T.accentSoft }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
+                return <td key={c} style={{ ...tdStyle(c, i, v), position: 'sticky', top: 34 + ri * 34, zIndex: i === 0 ? 3 : 2, fontWeight: 600, background: ovBg, color: warn ? T.warn : T.text }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
               })}
             </tr>
           ))}

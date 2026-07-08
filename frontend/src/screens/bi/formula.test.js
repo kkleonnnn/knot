@@ -68,6 +68,17 @@ describe('evaluateFormula — fail-closed 对抗（安全承重）', () => {
   it('超大区间拒（>5000 单元）', () => {
     expect(() => evaluateFormula('=SUM(A1:A99999)', R({}))).toThrow(FormulaError);
   });
+  it('列字母过长拒（>7，防列下标溢出 DoS · 对抗复核 #1）', () => {
+    // 13 字母列 → colToIndex ≥ 2^53 → 旧 rangeCells `ci++` no-op → 无限 push OOM；词法层拒、秒回不 hang
+    const t0 = Date.now();
+    expect(() => evaluateFormula('=SUM(AAAAAAAAAAAAA1:AAAAAAAAAAAAA5)', R({}))).toThrow(FormulaError);
+    expect(Date.now() - t0).toBeLessThan(200);
+  });
+  it('除零就地 throw、不被 MIN/聚合掩盖（对抗复核 #2）', () => {
+    expect(() => evaluateFormula('=1/0', R({}))).toThrow(FormulaError);
+    expect(() => evaluateFormula('=MIN(1/0,5)', R({}))).toThrow(FormulaError);   // 旧模型静默返 5
+    expect(() => evaluateFormula('=SUM(1/0,5)', R({}))).toThrow(FormulaError);
+  });
   it('深嵌套拒（>32）', () => {
     expect(() => evaluateFormula('=' + '('.repeat(40) + '1' + ')'.repeat(40), R({}))).toThrow(FormulaError);
   });
@@ -78,7 +89,7 @@ describe('evaluateFormula — fail-closed 对抗（安全承重）', () => {
   });
 });
 
-describe('computeOverlay — 数据 + 覆盖层 + 环检测', () => {
+describe('computeOverlay — 数据 + 公式行（v0.8.9 option A：公式只引数据）', () => {
   it('公式 cell 引用数据列（SUMIF 落到 values）', () => {
     const rows = [
       { 币种: 'USDT', 余额: 100 },
@@ -94,67 +105,54 @@ describe('computeOverlay — 数据 + 覆盖层 + 环检测', () => {
     expect(errors.size).toBe(0);
     expect(values.get('B5')).toBe(192);
   });
-  it('公式 cell 互引 → 环检测 fail-closed（记 error 不崩）', () => {
+  it('⭐ 列合计放在数据列 → 求该列全数据、不自引（option A 核心：合计格不参与 A1 寻址）', () => {
+    const rows = [{ v: 100 }, { v: 200 }, { v: 92 }];   // A1..A3 = 100,200,92
+    const cols = ['v'];  // A=v
     const overlay = [
-      { row: 1, col: 'A', kind: 'formula', value: '=B1' },
-      { row: 1, col: 'B', kind: 'formula', value: '=A1' },
+      { row: 1, col: 'A', kind: 'formula', value: '=SUM(A1:A3)' },  // 合计格在 A 列第 1 行，求 A 列全 3 行
     ];
-    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
-    // 两个公式互引 → 至少一个记环 error；不抛穿全表
-    expect(errors.size).toBeGreaterThan(0);
-    expect([...errors.values()].some((m) => m.includes('循环'))).toBe(true);
-    expect(values.has('A1') && values.has('B1')).toBe(false);
+    const { values, errors } = computeOverlay({ rows, cols, overlay });
+    expect(errors.size).toBe(0);           // 旧模型此处会报「循环引用：A1」；option A 无自引
+    expect(values.get('A1')).toBe(392);    // 100+200+92
   });
-  it('公式 cell 引用另一个（非环）公式 cell → 正常', () => {
-    const rows = [{ x: 10 }];
-    const cols = ['x']; // A=x
+  it('公式 A1 引用恒解析为数据（overlay 公式格不遮蔽/不互引）', () => {
+    const rows = [{ x: 5, y: 7 }];    // A1=5, B1=7
+    const cols = ['x', 'y'];
     const overlay = [
-      { row: 2, col: 'A', kind: 'formula', value: '=A1*2' },   // A1=10 → 20
-      { row: 3, col: 'A', kind: 'formula', value: '=A2+5' },   // A2=20 → 25
+      { row: 1, col: 'A', kind: 'formula', value: '=B1' },   // 读数据 B1=7（非另一 overlay 格）
+      { row: 1, col: 'B', kind: 'formula', value: '=A1' },   // 读数据 A1=5 → 无环
     ];
     const { values, errors } = computeOverlay({ rows, cols, overlay });
     expect(errors.size).toBe(0);
-    expect(values.get('A2')).toBe(20);
-    expect(values.get('A3')).toBe(25);
+    expect(values.get('A1')).toBe(7);
+    expect(values.get('B1')).toBe(5);
   });
 });
 
-describe('computeOverlay — DoS 修（红队 wmme5n9x4：记忆化 + 深链护栏）', () => {
-  it('指数 fan-out（A_r=A_{r+1}+A_{r+1}）不再指数爆炸（记忆化 → 线性、快、finite）', () => {
-    const N = 30;
-    const overlay = [];
-    for (let r = 1; r < N; r++) overlay.push({ row: r, col: 'A', kind: 'formula', value: `=A${r + 1}+A${r + 1}` });
-    overlay.push({ row: N, col: 'A', kind: 'formula', value: '=1' });
-    const t0 = Date.now();
-    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
-    expect(Date.now() - t0).toBeLessThan(1000);   // 未记忆化会 2^29 挂死；记忆化 → 毫秒级
-    expect(errors.size).toBe(0);
-    expect(values.get('A1')).toBe(2 ** (N - 1));  // 值正确
-  });
-
-  it('深链（200 cell A_r=A_{r+1}）不栈溢出/不挂：深端 fail-closed，浅端算出', () => {
-    const N = 200;
-    const overlay = [];
-    for (let r = 1; r < N; r++) overlay.push({ row: r, col: 'A', kind: 'formula', value: `=A${r + 1}` });
-    overlay.push({ row: N, col: 'A', kind: 'formula', value: '=1' });
-    const t0 = Date.now();
-    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
-    expect(Date.now() - t0).toBeLessThan(2000);
-    expect(errors.get('A1')).toContain('过深');       // 链深 > 64 → fail-closed（非栈溢出）
-    expect(values.get('A200')).toBe(1);               // 浅端（链 ≤64）正常算出
-  });
-
-  it('API-max overlay（500 cell 深链，= 服务端 _MAX_OVERLAY_CELLS 上限）渲染快（红队复验 residual 修）', () => {
-    // residual = 大 overlay 深链失败路径 re-walk。真正 bound = API cap ≤500（>500 → 400）+
-    // 客户端全局步数预算兜底。此测证 API 可存的最大 overlay（500 cell 深链）秒级内渲染、深端 fail-closed。
+describe('computeOverlay — option A 安全（公式只引数据 → 递归 DoS 结构性消失）', () => {
+  it('cross-cell 形态（=A{r+1}）不再递归：读数据（越界→0）、无环无深链、瞬时', () => {
+    // 旧模型此形态是深链/fan-out DoS 源；option A 下 =A2 读「数据」A2（非 overlay 格）→ 无递归。
     const N = 500;
     const overlay = [];
-    for (let r = 1; r < N; r++) overlay.push({ row: r, col: 'A', kind: 'formula', value: `=A${r + 1}` });
-    overlay.push({ row: N, col: 'A', kind: 'formula', value: '=1' });
+    for (let r = 1; r <= N; r++) overlay.push({ row: r, col: 'A', kind: 'formula', value: `=A${r + 1}` });
     const t0 = Date.now();
-    const { errors } = computeOverlay({ rows: [], cols: [], overlay });
-    expect(Date.now() - t0).toBeLessThan(1500);   // 深度上限 + 记忆化 → 快；未修时同规模仍 O(N×64) 可控
-    expect(errors.get('A1')).toBeTruthy();          // 链深 >64 → fail-closed（非挂死）
+    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
+    expect(Date.now() - t0).toBeLessThan(500);   // 无递归 → 每格读一次数据，O(N)
+    expect(errors.size).toBe(0);                 // 无环/深链错误（结构上不可能）
+    expect(values.get('A1')).toBe(0);            // 数据空 → 越界补 0
+  });
+
+  it('全局步数预算兜底：大量 cell × 大 range → 部分 fail-closed、不挂死', () => {
+    const cols = ['a'];
+    const rows = Array.from({ length: 4000 }, () => ({ a: 1 }));
+    const overlay = [];
+    for (let r = 1; r <= 500; r++) overlay.push({ row: r, col: 'B', kind: 'formula', value: '=SUM(A1:A4000)' });
+    const t0 = Date.now();
+    const { values, errors } = computeOverlay({ rows, cols, overlay });
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(errors.size).toBeGreaterThan(0);      // 500×4000=2M > 1M 预算 → 后段耗尽 fail-closed
+    expect(values.size).toBeGreaterThan(0);      // 前段算出（finite）
+    expect(values.size + errors.size).toBe(500); // 每 cell → 值或错，无丢
   });
 
   it('evaluateFormula 契约：resolver 抛非 FormulaError → 归一为 FormulaError', () => {
@@ -170,6 +168,12 @@ describe('computeOverlay — DoS 修（红队 wmme5n9x4：记忆化 + 深链护�
     ];
     const { values, errors } = computeOverlay({ rows: [], cols: [], overlay });
     expect(values.get('A2')).toBe(9);
+    expect(errors.size).toBe(0);
+  });
+
+  it('非数组 overlay（坏持久化）安全降级不崩（对抗复核 #5）', () => {
+    const { values, errors } = computeOverlay({ rows: [], cols: [], overlay: { bad: 1 } });
+    expect(values.size).toBe(0);
     expect(errors.size).toBe(0);
   });
 });

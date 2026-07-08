@@ -68,6 +68,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [activeTile, setActiveTile] = useState(null);   // v0.8.9 #3：多页表当前页（CSV 导出当前页用）
   const isAdmin = user && user.role === 'admin';
 
   const loadLists = () => {
@@ -147,16 +148,16 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {isAdmin && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
                     {isAdmin && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
                     {isAdmin && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
-                    {/* C-1/B-7：仅单宽表有报表级快照可整表导出；dashboard/tabbed 隐藏（后端亦拒 400）*/}
-                    {selected.report_type === 'wide_table' && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv`, `bi_report_${selected.id}.csv`)} />}
-                    {selected.report_type === 'wide_table' && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
+                    {/* v0.8.9 #3：宽表 + 多页表可导出（dashboard=图表板块拒）。CSV 多页表=当前页（tile_id）；Excel 多页表=多 sheet 全页。*/}
+                    {(selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv${selected.report_type === 'tabbed' && activeTile ? `?tile_id=${activeTile}` : ''}`, `bi_report_${selected.id}.csv`)} />}
+                    {(selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
                     <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
                     ? <DashboardReport T={T} report={selected} />
                     : selected.report_type === 'tabbed'
-                      ? <TabbedTableReport T={T} report={selected} />
+                      ? <TabbedTableReport T={T} report={selected} onActiveTile={setActiveTile} />
                       : <WideTableReport T={T} report={selected} />}
                 </div>
               </div>

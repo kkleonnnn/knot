@@ -3,6 +3,9 @@
 // 列来源 = 该页最近快照（last_run_rows_json 首行键 = SQL 查询列序）；新页未跑无列 → 提示先重跑。
 // v0.8.8 修（对抗复核 #3）：orderedCols 已改「数据列为准」→ 列序恒 = SQL 查询序（不依赖 cfg 键序）；
 //   updCol 按 all（当前快照列）重建 columns → 顺带剪除改 SQL 掉列后的陈旧 config 键（不再留空占位幻影列）。
+// v0.8.9：每列显示列字母（A/B/…，= 渲染列序）助记公式行 A1 引用。
+import { colLetter } from './tiles/tile_data.js';
+
 export function ColumnConfigEditor({ T, tile, viz, onChange }) {
   const fld = { padding: '4px 6px', borderRadius: 5, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 11.5, fontFamily: T.sans };
   const cfg = viz.columns || {};
@@ -28,11 +31,13 @@ export function ColumnConfigEditor({ T, tile, viz, onChange }) {
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>列配置（表头名 · 口径 hover · 单位 · 正负色）</div>
-      {all.map((col) => {
+      {all.map((col, idx) => {
         const c = cfg[col] || {};
         return (
           <div key={col} style={{ display: 'flex', gap: 5, marginBottom: 4, alignItems: 'center' }}>
-            <span title={col} style={{ width: 88, flexShrink: 0, fontSize: 11, color: T.subtext, fontFamily: T.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</span>
+            <span title={`列 ${colLetter(idx)} · ${col}`} style={{ width: 96, flexShrink: 0, fontSize: 11, color: T.subtext, fontFamily: T.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: T.accent, fontWeight: 600 }}>{colLetter(idx)}</span> {col}
+            </span>
             <input value={c.label || ''} onChange={(e) => updCol(col, { label: e.target.value })} placeholder="表头名" style={{ ...fld, flex: 1, minWidth: 0 }} />
             <input value={c.desc || ''} onChange={(e) => updCol(col, { desc: e.target.value })} placeholder="口径(hover)" style={{ ...fld, flex: 1.4, minWidth: 0 }} />
             <select value={c.unit || ''} onChange={(e) => updCol(col, { unit: e.target.value || undefined })} title="单位" style={{ ...fld, width: 54, cursor: 'pointer' }}>
