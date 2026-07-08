@@ -21,6 +21,7 @@ from datetime import datetime
 
 from knot.adapters.db import doris as db_connector
 from knot.repositories import bi_report_repo as repo
+from knot.repositories import bi_report_tile_repo as tile_repo
 from knot.services import engine_cache
 
 _LAST_RUN_ROW_LIMIT = 200  # 复用 saved_report R-3 软限制
@@ -55,6 +56,42 @@ def _dump(v) -> str | None:
 
 def _now_iso() -> str:
     return datetime.now().isoformat(sep=" ", timespec="seconds")
+
+
+# ── 仪表盘 tile 同步（②b · diff-by-id）────────────────────────────────────────────
+
+def _sync_tiles(report_id: int, tiles: list, admin: dict) -> None:
+    """把 payload tiles[] 同步到 bi_report_tiles（diff-by-id）—— report create/update 内调。
+
+    - **B-1 id 归属**：payload tile 带 `id` 必须 ∈ 本 report 现有 tiles，否则忽略（防一个 report
+      PUT 越权覆盖他报表 tile；admin-only 低危但必堵）。
+    - 有合法 id → update（**保留其冻结快照**，update_tile 不碰 last_run_*）；无 id → insert；
+      库内存在但不在 payload → delete。
+    - 每 tile.sql_text 存前过 `_validate_sql`（D7 fail-closed → SqlNotReadOnly → api 400）。
+    - tile 数上限由 api 层 `_check_tiles_size` 守（C-2 placement 同 overlay）。
+    """
+    existing = {t["id"] for t in tile_repo.list_by_report(report_id)}
+    keep: set[int] = set()
+    for i, t in enumerate(tiles or []):
+        sql = (t.get("sql_text") or "").strip()
+        _validate_sql(sql)
+        fields = dict(
+            tile_type=(t.get("tile_type") or "kpi"),
+            title=t.get("title"),
+            sql_text=sql,
+            viz_config=_dump(t.get("viz_config")),
+            sort_order=int(t.get("sort_order", i)),
+            grid_span=int(t.get("grid_span", 1)),
+        )
+        tid = t.get("id")
+        if tid is not None and tid in existing:      # B-1：合法归属 → update（保快照）
+            tile_repo.update_tile(tid, **fields)
+            keep.add(tid)
+        elif tid is None:                            # 新 tile → insert
+            tile_repo.create_tile(report_id, created_by=admin["id"], **fields)
+        # else：带 id 但 ∉ existing（越权/陈旧）→ 忽略（B-1）
+    for tid in existing - keep:                      # payload 里没了的 → delete
+        tile_repo.delete_tile(tid)
 
 
 # ── 文件夹 ──────────────────────────────────────────────────────────────────────
@@ -100,14 +137,22 @@ def list_all() -> list[dict]:
 
 
 def get_report(report_id: int) -> dict | None:
-    return repo.get_report(report_id)
+    """单报表 + **附 tiles**（B-2a：组装在 getter，非 to_dto —— to_dto admin 早返会漏掉）。
+    tiles 含 sql_text（admin builder 需要）；非 admin 由 to_dto 逐 tile 脱敏。viz_config /
+    last_run_rows_json 保 JSON 串（前端 parse，同 dashboard_config 惯例）。"""
+    r = repo.get_report(report_id)
+    if r is None:
+        return None
+    r["tiles"] = tile_repo.list_by_report(report_id)
+    return r
 
 
 def create_report(admin: dict, *, title: str, sql_text: str,
                   data_source_id: int | None = None, folder_id: int | None = None,
                   report_type: str = "wide_table",
-                  column_config=None, overlay_config=None, dashboard_config=None) -> dict:
-    """建报表。SQL **存前预校验**（D7）；失败抛 SqlNotReadOnly（api 转 400）。"""
+                  column_config=None, overlay_config=None, dashboard_config=None,
+                  tiles: list | None = None) -> dict:
+    """建报表。报表级 SQL + 每 tile SQL 均 **存前预校验**（D7）；失败抛 SqlNotReadOnly（api 转 400）。"""
     _validate_sql(sql_text)
     rid = repo.create_report(
         title=_default_title(title), sql_text=sql_text, created_by=admin["id"],
@@ -115,12 +160,15 @@ def create_report(admin: dict, *, title: str, sql_text: str,
         column_config=_dump(column_config), overlay_config=_dump(overlay_config),
         dashboard_config=_dump(dashboard_config),
     )
-    return repo.get_report(rid)
+    if tiles is not None:
+        _sync_tiles(rid, tiles, admin)      # dashboard tiles（每 tile SQL 校验 + insert）
+    return get_report(rid)
 
 
-def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
-                 sort_order: int | None = None, sql_text: str | None = None,
-                 column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET) -> dict | None:
+def update_report(report_id: int, *, admin: dict | None = None, title: str | None = None,
+                 folder_id=_UNSET, sort_order: int | None = None, sql_text: str | None = None,
+                 column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET,
+                 tiles=_UNSET) -> dict | None:
     if repo.get_report(report_id) is None:
         return None
     if sql_text is not None:
@@ -133,42 +181,58 @@ def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
         overlay_config=(_UNSET if overlay_config is _UNSET else _dump(overlay_config)),
         dashboard_config=(_UNSET if dashboard_config is _UNSET else _dump(dashboard_config)),
     )
-    return repo.get_report(report_id)
+    if tiles is not _UNSET:                # 提供 tiles（含 []=全删）才 diff-by-id 同步；_UNSET=不动 tiles
+        _sync_tiles(report_id, tiles or [], admin or {"id": None})
+    return get_report(report_id)
 
 
 def delete_report(report_id: int) -> bool:
     if repo.get_report(report_id) is None:
         return False
+    tile_repo.delete_by_report(report_id)     # 先级联删 tiles（soft-FK，避免孤儿）
     repo.delete_report(report_id)
     return True
 
 
 # ── 刷新（冻结快照 · D6）────────────────────────────────────────────────────────
 
+_NO_ENGINE = "无可用数据库引擎（检查报表数据源配置）"
+
+
+def _exec_one(engine, sql: str):
+    """跑一条 SQL → (snap, truncated, elapsed_ms, error)；截断 _LAST_RUN_ROW_LIMIT。engine 非空由调用方保证。"""
+    t0 = time.time()
+    try:
+        rows, db_error = db_connector.execute_query(engine, sql)
+    except Exception as e:
+        rows, db_error = [], str(e)[:200]
+    elapsed_ms = int((time.time() - t0) * 1000)
+    truncated = len(rows) > _LAST_RUN_ROW_LIMIT
+    snap = rows[:_LAST_RUN_ROW_LIMIT] if truncated else rows
+    return snap, truncated, elapsed_ms, (db_error or "")
+
+
 def refresh(report_id: int, admin: dict) -> dict | None:
     """重执行报表冻结 SQL 回写快照 + bump refresh_seq。返 None = 报表不存在（api 转 404）。
 
-    引擎解析：报表绑 data_source_id（admin 建时选）→ engine_cache.get_engine_for_source。
-    无 source / engine 不可用 → 返 error（不写快照）。②c 调度器复用本函数（admin=sentinel）。
+    - **dashboard**：循环每 tile 各自 SQL → 写各自冻结快照（per-tile error 隔离）→ 报表级
+      refresh_seq **bump-only**（D2 整表原子 · B-3，不写报表级 rows）。
+    - **wide_table**：单 SQL 写报表级快照（②a 路径不变）。
+    引擎解析：报表绑 data_source_id → engine_cache.get_engine_for_source（无 source/engine → 记错）。
+    ②c 调度器复用本函数（admin=sentinel；service 不 emit 审计，在 api 层）。
     """
     r = repo.get_report(report_id)
     if not r:
         return None
     sid = r.get("data_source_id")
     engine = engine_cache.get_engine_for_source(sid) if sid else None
+    if r["report_type"] == "dashboard":
+        return _refresh_dashboard(report_id, engine)
+    # wide_table（②a 单 SQL 路径）
     if engine is None:
         return {"rows": [], "truncated": False, "last_run_ms": 0, "last_run_at": _now_iso(),
-                "error": "无可用数据库引擎（检查报表数据源配置）", "refresh_seq": r["refresh_seq"]}
-
-    t0 = time.time()
-    try:
-        rows, db_error = db_connector.execute_query(engine, r["sql_text"])
-    except Exception as e:
-        rows, db_error = [], str(e)[:200]
-    elapsed_ms = int((time.time() - t0) * 1000)
-
-    truncated = len(rows) > _LAST_RUN_ROW_LIMIT
-    snap = rows[:_LAST_RUN_ROW_LIMIT] if truncated else rows
+                "error": _NO_ENGINE, "refresh_seq": r["refresh_seq"]}
+    snap, truncated, elapsed_ms, err = _exec_one(engine, r["sql_text"])
     run_at = _now_iso()
     repo.update_last_run(
         report_id, rows_json=json.dumps(snap, ensure_ascii=False, default=str),
@@ -176,16 +240,52 @@ def refresh(report_id: int, admin: dict) -> dict | None:
         last_run_by=admin["id"],
     )
     return {"rows": snap, "truncated": truncated, "last_run_ms": elapsed_ms,
-            "last_run_at": run_at, "error": db_error or "",
+            "last_run_at": run_at, "error": err,
+            "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
+
+
+def _refresh_dashboard(report_id: int, engine) -> dict:
+    """dashboard 整表原子刷新（②b D2/B-3）。
+
+    engine None（数据源缺失 / test_connection 瞬时失败）→ **不触任何 tile 快照、不 bump**，直接返错
+    （镜像 wide_table engine-None 早返，保留各 tile 上次 good 快照 —— 复核 correctness：避免一次 DB blip
+    把整盘 good 快照抹成空）。engine 在但某 tile SQL 失败 → 该 tile 写 [] + error（与 wide_table 查询错一致）。
+    """
+    if engine is None:
+        return {"report_type": "dashboard", "tiles": [], "tile_count": 0, "error_count": 0,
+                "error": _NO_ENGINE, "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
+    run_at = _now_iso()
+    summaries = []
+    for t in tile_repo.list_by_report(report_id):
+        snap, truncated, elapsed_ms, err = _exec_one(engine, t["sql_text"])
+        tile_repo.update_tile_last_run(
+            t["id"], rows_json=json.dumps(snap, ensure_ascii=False, default=str),
+            truncated=1 if truncated else 0, elapsed_ms=elapsed_ms, run_at=run_at,
+            error=(err or None),
+        )
+        summaries.append({"tile_id": t["id"], "rows_count": len(snap), "error": err})
+    repo.touch_refresh_seq(report_id)      # B-3 报表级 bump-only（不写报表级 rows_json）
+    error_count = sum(1 for s in summaries if s["error"])
+    return {"report_type": "dashboard", "tiles": summaries,
+            "tile_count": len(summaries), "error_count": error_count,
+            "error": (f"{error_count} 个板块刷新出错" if error_count else ""),
             "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
 
 
 # ── 脱敏 DTO（R-BI-6）────────────────────────────────────────────────────────────
 
 def to_dto(report: dict, is_admin: bool) -> dict:
-    """非 admin **不下发 sql_text**（R-BI-6）。列配置 / 覆盖层（展示层）保留。"""
+    """非 admin **不下发 sql_text**（R-BI-6）—— 报表级 + **每 tile**。列配置 / 覆盖层 / viz_config（展示层）保留。
+
+    B-2b：`{**report}` 是浅拷 → `tiles` 是共享引用；若 in-place pop 会 mutate repo 返回的 tile dict
+    污染同进程 admin 路径 → 必须**深拷每个 tile dict 再 pop**（新 list + 新 dict，剔 sql_text）。
+    B-2a：tiles 由 getter（get_report）附上，此处仅脱敏 —— to_dto admin 早返，组装绝不能放这里。
+    """
     if is_admin:
         return report
     d = {**report}
     d.pop("sql_text", None)
+    tiles = d.get("tiles")
+    if isinstance(tiles, list):
+        d["tiles"] = [{k: v for k, v in t.items() if k != "sql_text"} for t in tiles]
     return d

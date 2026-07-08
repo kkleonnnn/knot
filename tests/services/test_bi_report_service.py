@@ -73,3 +73,93 @@ def test_refresh_success_writes_snapshot_and_bumps_seq(tmp_db_path, monkeypatch)
 
 def test_refresh_missing_report_returns_none(tmp_db_path):
     assert svc.refresh(9999, _ADMIN) is None
+
+
+# ── ②b 仪表盘 tile（diff-by-id / B-1 归属 / B-2 脱敏 / 级联删）─────────────────────
+
+def _dash_with_tiles(tiles):
+    return svc.create_report(_ADMIN, title="仪表盘", sql_text="SELECT 1",
+                             report_type="dashboard", tiles=tiles)
+
+
+def test_create_with_tiles_persists_and_validates(tmp_db_path):
+    r = _dash_with_tiles([
+        {"tile_type": "kpi", "title": "今日量", "sql_text": "SELECT sum(v) FROM t", "grid_span": 1},
+        {"tile_type": "line", "title": "趋势", "sql_text": "SELECT d, v FROM t", "sort_order": 1},
+    ])
+    tiles = r["tiles"]
+    assert [t["title"] for t in tiles] == ["今日量", "趋势"]
+    assert tiles[0]["tile_type"] == "kpi" and tiles[1]["tile_type"] == "line"
+
+
+def test_create_tile_rejects_write_sql(tmp_db_path):
+    with pytest.raises(svc.SqlNotReadOnly):
+        _dash_with_tiles([{"tile_type": "kpi", "sql_text": "DELETE FROM t"}])
+
+
+def test_to_dto_strips_per_tile_sql_and_no_mutation(tmp_db_path):
+    """B-2：非 admin 报表级 + 每 tile 都无 sql_text；且脱敏不 mutate 原 dict（admin 仍见 SQL）。"""
+    r = _dash_with_tiles([{"tile_type": "kpi", "sql_text": "SELECT secret FROM t"}])
+    full = svc.get_report(r["id"])
+    dto = svc.to_dto(full, is_admin=False)
+    assert "sql_text" not in dto
+    assert all("sql_text" not in t for t in dto["tiles"])
+    # B-2b：深拷 → 原 full.tiles 未被 mutate（同进程 admin 路径不受污染）
+    assert full["tiles"][0]["sql_text"] == "SELECT secret FROM t"
+    admin_dto = svc.to_dto(svc.get_report(r["id"]), is_admin=True)
+    assert admin_dto["tiles"][0]["sql_text"] == "SELECT secret FROM t"
+
+
+def test_update_diff_by_id_preserves_snapshot_inserts_deletes(tmp_db_path):
+    from knot.repositories import bi_report_tile_repo as trepo
+    r = _dash_with_tiles([
+        {"tile_type": "kpi", "title": "keep", "sql_text": "SELECT 1"},
+        {"tile_type": "kpi", "title": "drop", "sql_text": "SELECT 2"},
+    ])
+    keep_id = r["tiles"][0]["id"]
+    trepo.update_tile_last_run(keep_id, rows_json='[{"v":9}]', truncated=0, elapsed_ms=4,
+                               run_at="t", error=None)
+    svc.update_report(r["id"], admin=_ADMIN, tiles=[
+        {"id": keep_id, "tile_type": "kpi", "title": "keep2", "sql_text": "SELECT 1"},
+        {"tile_type": "line", "title": "add", "sql_text": "SELECT 3"},
+    ])
+    tiles = svc.get_report(r["id"])["tiles"]
+    assert sorted(t["title"] for t in tiles) == ["add", "keep2"]     # drop 删、add 插
+    keep = next(t for t in tiles if t["id"] == keep_id)
+    assert keep["title"] == "keep2"
+    assert keep["last_run_rows_json"] == '[{"v":9}]'                 # §5#7 快照未 wipe
+
+
+def test_update_tile_id_ownership_guard(tmp_db_path):
+    """B-1：payload tile id ∉ 本 report → 忽略，绝不改他报表 tile、不并入本表。"""
+    from knot.repositories import bi_report_tile_repo as trepo
+    other = _dash_with_tiles([{"tile_type": "kpi", "title": "他表", "sql_text": "SELECT 1"}])
+    other_tid = other["tiles"][0]["id"]
+    target = _dash_with_tiles([{"tile_type": "kpi", "title": "本表", "sql_text": "SELECT 2"}])
+    svc.update_report(target["id"], admin=_ADMIN, tiles=[
+        {"id": other_tid, "tile_type": "kpi", "title": "越权改", "sql_text": "SELECT 9"},
+        {"id": target["tiles"][0]["id"], "tile_type": "kpi", "title": "本表2", "sql_text": "SELECT 2"},
+    ])
+    assert trepo.get_tile(other_tid)["title"] == "他表"             # 他表 tile 未被动
+    assert [t["title"] for t in svc.get_report(target["id"])["tiles"]] == ["本表2"]  # 越权 id 忽略
+
+
+def test_delete_report_cascades_tiles(tmp_db_path):
+    from knot.repositories import bi_report_tile_repo as trepo
+    r = _dash_with_tiles([{"tile_type": "kpi", "sql_text": "SELECT 1"}])
+    assert len(trepo.list_by_report(r["id"])) == 1
+    assert svc.delete_report(r["id"]) is True
+    assert trepo.list_by_report(r["id"]) == []                      # 无孤儿
+
+
+def test_dashboard_refresh_no_engine_preserves_tile_snapshots(tmp_db_path):
+    """复核修：engine None（DB blip / 无数据源）→ 不抹 tile 快照、不 bump（镜像 wide_table 早返）。"""
+    from knot.repositories import bi_report_tile_repo as trepo
+    r = _dash_with_tiles([{"tile_type": "kpi", "sql_text": "SELECT 1"}])   # 无 data_source → engine None
+    tid = r["tiles"][0]["id"]
+    trepo.update_tile_last_run(tid, rows_json='[{"v":1}]', truncated=0, elapsed_ms=3, run_at="t", error=None)
+    before_seq = svc.get_report(r["id"])["refresh_seq"]
+    out = svc.refresh(r["id"], _ADMIN)
+    assert out["error"]                                             # 返引擎错
+    assert trepo.get_tile(tid)["last_run_rows_json"] == '[{"v":1}]'  # 上次 good 快照保留（未抹空）
+    assert svc.get_report(r["id"])["refresh_seq"] == before_seq      # 不 bump

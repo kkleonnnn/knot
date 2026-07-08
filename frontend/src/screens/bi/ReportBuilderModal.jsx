@@ -1,9 +1,10 @@
 // ReportBuilderModal.jsx — v0.8.5 (②a) admin 报表 builder（新建/编辑；报表类型 = 宽表 / 仪表盘）。
 // SQL 存前经后端 doris.is_safe_sql 校验（D7；非只读 → 400 → toast）。
-// 宽表：overlay 单元格编辑（「插入」= 公式覆盖 D3）。仪表盘：板块布局 JSON（KPI / vol / donut / bars / miniRows / insight）。
+// 宽表：overlay 单元格编辑（「插入」= 公式覆盖 D3）。仪表盘：结构化 TileBuilder（每 tile 一 SQL + 类型 + viz + 排序）+ 洞察。
 import { useState } from 'react';
 import { Modal, ModalHeader, Input, Select, toast } from '../../utils.jsx';
 import { api } from '../../api.js';
+import { TileBuilder } from './TileBuilder.jsx';
 
 const _parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
 
@@ -14,8 +15,10 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
   const [folderId, setFolderId] = useState(editing && editing.folder_id != null ? String(editing.folder_id) : '');
   const [overlay, setOverlay] = useState(() => (editing ? _parse(editing.overlay_config, []) : []));
   const [reportType, setReportType] = useState(editing ? (editing.report_type || 'wide_table') : 'wide_table');
-  const [dashJson, setDashJson] = useState(() =>
-    (editing && editing.dashboard_config ? JSON.stringify(_parse(editing.dashboard_config, {}), null, 2) : ''));
+  // 仪表盘：结构化 tiles（viz_config 由 JSON 串 → 对象供编辑）+ 报表级 insight
+  const [tiles, setTiles] = useState(() => (editing && Array.isArray(editing.tiles)
+    ? editing.tiles.map((t) => ({ ...t, viz_config: _parse(t.viz_config, {}) })) : []));
+  const [insight, setInsight] = useState(() => (_parse(editing && editing.dashboard_config, {}).insight || ''));
   const [saving, setSaving] = useState(false);
   const isDash = reportType === 'dashboard';
 
@@ -29,18 +32,19 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
   const rmCell = (i) => setOverlay((o) => o.filter((_, j) => j !== i));
 
   const save = async () => {
-    if (!title.trim() || !sqlText.trim()) { toast('标题和 SQL 必填', true); return; }
+    if (!title.trim()) { toast('标题必填', true); return; }
+    if (!isDash && !sqlText.trim()) { toast('SQL 必填', true); return; }
     // column_config 不在本 builder 编辑 → 省略（编辑时保留、新建时默认 null）
     const body = {
-      title, report_type: reportType, sql_text: sqlText,
+      title, report_type: reportType,
+      // dashboard 报表级 SQL 为名义占位（S1，tiles 各自带 SQL）；wide_table 用直写 SQL
+      sql_text: isDash ? (sqlText.trim() || 'SELECT 1') : sqlText,
       data_source_id: dataSourceId ? Number(dataSourceId) : null,
       folder_id: folderId ? Number(folderId) : null,
     };
     if (isDash) {
-      let dc;
-      try { dc = dashJson.trim() ? JSON.parse(dashJson) : {}; }
-      catch { toast('仪表盘配置 JSON 格式有误', true); return; }
-      body.dashboard_config = dc;
+      body.tiles = tiles;                          // 后端 diff-by-id 同步 + 每 tile SQL 校验
+      body.dashboard_config = { insight: insight || '' };
     } else {
       body.overlay_config = overlay;
     }
@@ -64,7 +68,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
   return (
     <Modal T={T} onClose={onClose} width={620}>
       <ModalHeader T={T} title={editing ? '编辑报表' : (isDash ? '新建仪表盘报表' : '新建宽表报表')}
-        subtitle={isDash ? 'admin 直写 SQL（只读校验）+ 板块布局 JSON（KPI / 折线 / 环形 / 横条 / 迷你表）'
+        subtitle={isDash ? '每板块一条只读 SQL + 类型（KPI / 折线 / 圆盘 / 横条 / 表）+ 拖拽排序 / 占列'
           : 'admin 直写 SQL（只读校验）；覆盖层可插文本 / Excel 式公式'} onClose={onClose} />
       <div className="cb-sb" style={{ padding: 20, maxHeight: '70vh', overflowY: 'auto' }}>
         <Input T={T} label="标题" value={title} onChange={setTitle} placeholder={isDash ? '合约交易总览 · 仪表盘' : '平台日汇总 · 宽表'} required />
@@ -73,6 +77,8 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
             { value: 'dashboard', label: '仪表盘（KPI / 图表 板块布局）' }]} />
         <Select T={T} label="数据源" value={dataSourceId} onChange={setDataSourceId} options={dsOpts} />
         <Select T={T} label="文件夹" value={folderId} onChange={setFolderId} options={folderOpts} />
+        {/* 报表级 SQL 仅宽表（dashboard 报表级 SQL 名义占位，SQL 落每 tile — S1）*/}
+        {!isDash && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>SQL（只读；列别名 → 表头）</div>
           <textarea value={sqlText} onChange={(e) => setSqlText(e.target.value)} rows={6} spellCheck={false}
@@ -82,6 +88,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
               padding: '9px 11px', fontSize: 12.5, color: T.text, fontFamily: T.mono, resize: 'vertical',
             }} />
         </div>
+        )}
 
         {/* 宽表：覆盖层编辑（D3「插入」= 文本 / 公式）*/}
         {!isDash && (
@@ -107,18 +114,17 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
         </div>
         )}
 
-        {/* 仪表盘：板块布局 JSON（KPI / vol / donut / bars / miniRows / insight）*/}
+        {/* 仪表盘：结构化 tile builder（每 tile 一 SQL + 类型 + viz 映射 + 拖拽排序 + 占列）+ 报表级洞察 */}
         {isDash && (
-        <div style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>板块布局（JSON）</div>
-          <textarea value={dashJson} onChange={(e) => setDashJson(e.target.value)} rows={12} spellCheck={false}
-            placeholder={'{\n  "kpis": [{"label":"今日交易量","value":"84.2","unit":"亿","main":true,"hint":"环比 +12.4%"}],\n  "volTitle": "近 14 日（亿元）", "vol": [62,70,58,...],\n  "donutTitle": "多空占比", "donut": [{"name":"多头","value":54},{"name":"空头","value":46}], "donutBig": "54%", "donutSub": "多头占比",\n  "barsTitle": "各品种交易量", "bars": [{"label":"BTC 永续","value":38,"valueLabel":"¥38.0亿"}],\n  "miniTitle": "最近强平", "miniRows": [{"time":"09:12","symbol":"BTC 永续","side":"多","notional":"¥182万","status":"已强平"}],\n  "insight": "……"\n}'}
-            style={{
-              width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7,
-              padding: '9px 11px', fontSize: 12, color: T.text, fontFamily: T.mono, resize: 'vertical', lineHeight: 1.55,
-            }} />
-          <div style={{ fontSize: 11, color: T.muted, marginTop: 5 }}>字段：kpis[]（label/value/unit/main/hint）· vol[] + volTitle · donut[] + donutBig/donutSub/donutTitle · bars[]（label/value/valueLabel）+ barsTitle · miniRows[] + miniCols/miniTitle · insight。缺省板块自动隐藏。</div>
-        </div>
+        <>
+          <TileBuilder T={T} tiles={tiles} onChange={setTiles} />
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>洞察（底部 AI 生成位；可留空）</div>
+            <textarea value={insight} onChange={(e) => setInsight(e.target.value)} rows={2} spellCheck={false}
+              placeholder="一句话结论（展示在仪表盘底部洞察卡）"
+              style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '9px 11px', fontSize: 12.5, color: T.text, fontFamily: T.sans, resize: 'vertical' }} />
+          </div>
+        </>
         )}
       </div>
       <div style={{ padding: '14px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
