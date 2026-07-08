@@ -173,6 +173,7 @@ def create_report(admin: dict, *, title: str, sql_text: str,
 
 def update_report(report_id: int, *, admin: dict | None = None, title: str | None = None,
                  folder_id=_UNSET, sort_order: int | None = None, sql_text: str | None = None,
+                 data_source_id=_UNSET,
                  column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET,
                  tiles=_UNSET) -> dict | None:
     if repo.get_report(report_id) is None:
@@ -183,6 +184,7 @@ def update_report(report_id: int, *, admin: dict | None = None, title: str | Non
         report_id,
         title=(_default_title(title) if title is not None else None),
         folder_id=folder_id, sort_order=sort_order, sql_text=sql_text,
+        data_source_id=data_source_id,                            # v0.8.8：换/解绑数据源（_UNSET=不动）
         column_config=(_UNSET if column_config is _UNSET else _dump(column_config)),
         overlay_config=(_UNSET if overlay_config is _UNSET else _dump(overlay_config)),
         dashboard_config=(_UNSET if dashboard_config is _UNSET else _dump(dashboard_config)),

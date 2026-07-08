@@ -233,3 +233,15 @@ def test_exec_one_under_limit_not_truncated(tmp_db_path, monkeypatch):
                         lambda eng, sql, **kw: ([{"a": 1}] * 500, None))
     snap, truncated, _ms, _err = svc._exec_one(object(), "SELECT a FROM t")
     assert truncated is False and len(snap) == 500               # 数百行（真运营日报量级）全显不截
+
+
+def test_update_rebinds_data_source(tmp_db_path):
+    # v0.8.8：编辑改/解绑数据源须持久化（此前 update 链缺 data_source_id → builder 静默丢弃）
+    r = svc.create_report(_ADMIN, title="t", sql_text="SELECT 1")
+    assert svc.get_report(r["id"])["data_source_id"] is None
+    svc.update_report(r["id"], data_source_id=7)                 # 绑
+    assert svc.get_report(r["id"])["data_source_id"] == 7
+    svc.update_report(r["id"], title="t2")                       # 只改标题 → 数据源不动（_UNSET）
+    assert svc.get_report(r["id"])["data_source_id"] == 7
+    svc.update_report(r["id"], data_source_id=None)              # 解绑（显式 None）
+    assert svc.get_report(r["id"])["data_source_id"] is None

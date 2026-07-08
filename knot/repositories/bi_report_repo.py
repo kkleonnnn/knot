@@ -138,9 +138,10 @@ def list_reports() -> list[dict]:
 
 def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
                  sort_order: int | None = None, sql_text: str | None = None,
+                 data_source_id=_UNSET,
                  column_config=_UNSET, overlay_config=_UNSET, dashboard_config=_UNSET) -> None:
-    """改元数据 / 移动文件夹 / 改 SQL / 列配置 / 覆盖层。
-    folder_id / column_config / overlay_config 用 _UNSET 哨兵（None = 显式置 NULL）。
+    """改元数据 / 移动文件夹 / 改 SQL / 换数据源 / 列配置 / 覆盖层。
+    folder_id / data_source_id / column_config / overlay_config 用 _UNSET 哨兵（None = 显式置 NULL / 解绑）。
     """
     sets: list[str] = []
     params: list = []
@@ -150,6 +151,9 @@ def update_report(report_id: int, *, title: str | None = None, folder_id=_UNSET,
     if folder_id is not _UNSET:
         sets.append("folder_id=?")
         params.append(folder_id)
+    if data_source_id is not _UNSET:            # v0.8.8：编辑改/解绑数据源（此前 update 链缺此字段 → UI 改数据源静默丢弃）
+        sets.append("data_source_id=?")
+        params.append(data_source_id)
     if sort_order is not None:
         sets.append("sort_order=?")
         params.append(sort_order)

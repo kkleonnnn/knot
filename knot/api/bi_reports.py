@@ -57,6 +57,7 @@ class ReportCreateRequest(BaseModel):
 class ReportUpdateRequest(BaseModel):
     title: str | None = None
     folder_id: int | None = None
+    data_source_id: int | None = None         # v0.8.8：编辑可换/解绑数据源（此前缺 → builder 改数据源静默丢弃）
     sort_order: int | None = None
     sql_text: str | None = None
     column_config: dict | None = None
@@ -142,7 +143,7 @@ async def update_report(report_id: int, req: ReportUpdateRequest, request: Reque
     # model_fields_set：只透传显式提供的字段 → svc 默认（None=不改 / _UNSET=不改）保 folder/config/tiles 清空语义
     fields = req.model_fields_set
     kw = {k: getattr(req, k) for k in
-          ("title", "folder_id", "sort_order", "sql_text", "column_config", "overlay_config", "dashboard_config", "tiles")
+          ("title", "folder_id", "data_source_id", "sort_order", "sql_text", "column_config", "overlay_config", "dashboard_config", "tiles")
           if k in fields}
     try:
         r = svc.update_report(report_id, admin=admin, **kw)   # admin 供 diff-by-id 新 tile created_by
