@@ -100,3 +100,58 @@ def test_folder_delete_reparents_report_to_unfiled(client, auth_headers):
     client.put(f"/api/bi/folders/{fid}", json={"name": "p2"}, headers=auth_headers)
     assert client.delete(f"/api/bi/folders/{fid}", headers=auth_headers).status_code == 200
     assert client.get(f"/api/bi/reports/{rid}", headers=auth_headers).json()["folder_id"] is None
+
+
+# ── ②b 仪表盘 tile API（tiles payload / 脱敏 / DoS / refresh / 导出闸）────────────
+
+def _dash(client, auth_headers, tiles, data_source_id=None):
+    body = {"title": "仪表盘", "sql_text": "SELECT 1", "report_type": "dashboard", "tiles": tiles}
+    if data_source_id is not None:
+        body["data_source_id"] = data_source_id
+    return client.post("/api/bi/reports", json=body, headers=auth_headers)
+
+
+def test_create_dashboard_with_tiles_and_per_tile_desensitize(client, auth_headers):
+    r = _dash(client, auth_headers, [
+        {"tile_type": "kpi", "title": "量", "sql_text": "SELECT secret FROM t"},
+        {"tile_type": "line", "title": "趋势", "sql_text": "SELECT d,v FROM t", "sort_order": 1},
+    ])
+    assert r.status_code == 200
+    rid = r.json()["id"]
+    assert [t["title"] for t in r.json()["tiles"]] == ["量", "趋势"]
+    # admin GET 见 tile sql
+    admin_tiles = client.get(f"/api/bi/reports/{rid}", headers=auth_headers).json()["tiles"]
+    assert admin_tiles[0]["sql_text"] == "SELECT secret FROM t"
+    # analyst GET 每 tile 无 sql_text（R-BI-6 per-tile）
+    ah = _analyst_headers(client, auth_headers)
+    an_tiles = client.get(f"/api/bi/reports/{rid}", headers=ah).json()["tiles"]
+    assert an_tiles and all("sql_text" not in t for t in an_tiles)
+
+
+def test_tile_write_sql_rejected_400(client, auth_headers):
+    r = _dash(client, auth_headers, [{"tile_type": "kpi", "sql_text": "DROP TABLE t"}])
+    assert r.status_code == 400
+
+
+def test_oversized_tiles_400(client, auth_headers):
+    big = [{"tile_type": "kpi", "sql_text": "SELECT 1"} for _ in range(31)]
+    assert _dash(client, auth_headers, big).status_code == 400
+
+
+def test_refresh_dashboard_per_tile_and_export_gated(client, auth_headers, monkeypatch):
+    from knot.services import bi_report_service as svc
+    rid = _dash(client, auth_headers, [
+        {"tile_type": "kpi", "sql_text": "SELECT 1"},
+        {"tile_type": "table", "sql_text": "SELECT 2"},
+    ], data_source_id=7).json()["id"]
+    # mock 引擎/执行（一个 tile 成功、一个报错 → per-tile 隔离）
+    monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
+    calls = {"n": 0}
+    def _exec(eng, sql):
+        calls["n"] += 1
+        return ([{"v": 1}], None) if calls["n"] == 1 else ([], "表不存在")
+    monkeypatch.setattr(svc.db_connector, "execute_query", _exec)
+    out = client.post(f"/api/bi/reports/{rid}/refresh", headers=auth_headers).json()
+    assert out["report_type"] == "dashboard" and out["tile_count"] == 2 and out["error_count"] == 1
+    # B-7：dashboard 导出闸 → 400（不导报表级空/旧数据）
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400

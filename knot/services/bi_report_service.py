@@ -196,30 +196,43 @@ def delete_report(report_id: int) -> bool:
 
 # ── 刷新（冻结快照 · D6）────────────────────────────────────────────────────────
 
+_NO_ENGINE = "无可用数据库引擎（检查报表数据源配置）"
+
+
+def _exec_one(engine, sql: str):
+    """跑一条 SQL → (snap, truncated, elapsed_ms, error)；截断 _LAST_RUN_ROW_LIMIT。engine 非空由调用方保证。"""
+    t0 = time.time()
+    try:
+        rows, db_error = db_connector.execute_query(engine, sql)
+    except Exception as e:
+        rows, db_error = [], str(e)[:200]
+    elapsed_ms = int((time.time() - t0) * 1000)
+    truncated = len(rows) > _LAST_RUN_ROW_LIMIT
+    snap = rows[:_LAST_RUN_ROW_LIMIT] if truncated else rows
+    return snap, truncated, elapsed_ms, (db_error or "")
+
+
 def refresh(report_id: int, admin: dict) -> dict | None:
     """重执行报表冻结 SQL 回写快照 + bump refresh_seq。返 None = 报表不存在（api 转 404）。
 
-    引擎解析：报表绑 data_source_id（admin 建时选）→ engine_cache.get_engine_for_source。
-    无 source / engine 不可用 → 返 error（不写快照）。②c 调度器复用本函数（admin=sentinel）。
+    - **dashboard**：循环每 tile 各自 SQL → 写各自冻结快照（per-tile error 隔离）→ 报表级
+      refresh_seq **bump-only**（D2 整表原子 · B-3，不写报表级 rows）。
+    - **wide_table**：单 SQL 写报表级快照（②a 路径不变）。
+    引擎解析：报表绑 data_source_id → engine_cache.get_engine_for_source（无 source/engine → 记错）。
+    ②c 调度器复用本函数（admin=sentinel；service 不 emit 审计，在 api 层）。
     """
     r = repo.get_report(report_id)
     if not r:
         return None
     sid = r.get("data_source_id")
     engine = engine_cache.get_engine_for_source(sid) if sid else None
+    if r["report_type"] == "dashboard":
+        return _refresh_dashboard(report_id, engine)
+    # wide_table（②a 单 SQL 路径）
     if engine is None:
         return {"rows": [], "truncated": False, "last_run_ms": 0, "last_run_at": _now_iso(),
-                "error": "无可用数据库引擎（检查报表数据源配置）", "refresh_seq": r["refresh_seq"]}
-
-    t0 = time.time()
-    try:
-        rows, db_error = db_connector.execute_query(engine, r["sql_text"])
-    except Exception as e:
-        rows, db_error = [], str(e)[:200]
-    elapsed_ms = int((time.time() - t0) * 1000)
-
-    truncated = len(rows) > _LAST_RUN_ROW_LIMIT
-    snap = rows[:_LAST_RUN_ROW_LIMIT] if truncated else rows
+                "error": _NO_ENGINE, "refresh_seq": r["refresh_seq"]}
+    snap, truncated, elapsed_ms, err = _exec_one(engine, r["sql_text"])
     run_at = _now_iso()
     repo.update_last_run(
         report_id, rows_json=json.dumps(snap, ensure_ascii=False, default=str),
@@ -227,7 +240,32 @@ def refresh(report_id: int, admin: dict) -> dict | None:
         last_run_by=admin["id"],
     )
     return {"rows": snap, "truncated": truncated, "last_run_ms": elapsed_ms,
-            "last_run_at": run_at, "error": db_error or "",
+            "last_run_at": run_at, "error": err,
+            "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
+
+
+def _refresh_dashboard(report_id: int, engine) -> dict:
+    """dashboard 整表原子刷新（②b D2/B-3）。engine None → 每 tile 记引擎错（仍 bump → UI 显 stale）。"""
+    run_at = _now_iso()
+    summaries = []
+    for t in tile_repo.list_by_report(report_id):
+        if engine is None:
+            tile_repo.update_tile_last_run(t["id"], rows_json="[]", truncated=0, elapsed_ms=0,
+                                           run_at=run_at, error=_NO_ENGINE)
+            summaries.append({"tile_id": t["id"], "rows_count": 0, "error": _NO_ENGINE})
+            continue
+        snap, truncated, elapsed_ms, err = _exec_one(engine, t["sql_text"])
+        tile_repo.update_tile_last_run(
+            t["id"], rows_json=json.dumps(snap, ensure_ascii=False, default=str),
+            truncated=1 if truncated else 0, elapsed_ms=elapsed_ms, run_at=run_at,
+            error=(err or None),
+        )
+        summaries.append({"tile_id": t["id"], "rows_count": len(snap), "error": err})
+    repo.touch_refresh_seq(report_id)      # B-3 报表级 bump-only（不写报表级 rows_json）
+    error_count = sum(1 for s in summaries if s["error"])
+    return {"report_type": "dashboard", "tiles": summaries,
+            "tile_count": len(summaries), "error_count": error_count,
+            "error": (f"{error_count} 个板块刷新出错" if error_count else ""),
             "refresh_seq": repo.get_report(report_id)["refresh_seq"]}
 
 
