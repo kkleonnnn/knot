@@ -9,7 +9,7 @@ import { orderedCols } from './tiles/tile_data.js';
 const RED = 'oklch(66% 0.20 25)';
 function colLetter(i) { let s = '', n = i + 1; while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); } return s; }
 
-export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 520 }) {
+export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 520, roundTop = false }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
   const cols = useMemo(() => orderedCols(rows, cfg), [rows, cfg]);
   const label = (c) => (cfg[c] && cfg[c].label) || c;
@@ -58,7 +58,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
   };
 
   return (
-    <div className="cb-sb" style={{ overflow: 'auto', maxHeight, border: `1px solid ${T.border}`, borderRadius: '0 0 12px 12px', background: T.content }}>
+    <div className="cb-sb" style={{ overflow: 'auto', maxHeight, border: `1px solid ${T.border}`, borderRadius: roundTop ? 12 : '0 0 12px 12px', background: T.content }}>
       <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>

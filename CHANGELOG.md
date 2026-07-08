@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 > **后端（复用 ②b，几乎 0 新增）**：`refresh` 分支 `report_type in ('dashboard','tabbed')` → 同 `_refresh_tiled`（tile-loop + engine-None 保快照 + report 级 bump-only）；api 审计 detail + 导出闸 by report_type 放开到 tabbed（多页无报表级快照 → 整表导出 400，per-页导出后续）。`report_type` 是 TEXT 列，**无 schema 改**。逐页脱敏/归属/校验全复用 ②b tile `to_dto`/`_sync_tiles`/`_validate_sql`。
 > **前端**：宽表表体抽出 `<WideTable>`（冻结列/条件色/排序/覆盖层 + **列注释 `desc` hover tooltip**，对齐真实两层表头 R1 口径 + R3 短表头）；WideTableReport 瘦身复用之；新 `TabbedTableReport`（读 `report.tiles[]` → 页签栏 + 选中页 WideTable）；BI.jsx 三路分发 + 导出按钮仅 wide_table；builder 加「多页表」类型（TileBuilder `tableOnly` 锁 table + 拖拽排序页签）。
-> **闸门**：后端 pytest（tabbed 复用 tile 路径 test）· eslint · ruff · R-94（+WideTable/TabbedTableReport 登记）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.7）· R-BI-1 ASK 0 触。真运营日报 demo（日/周/月 真 SQL + 真口径 + 真数据）live 验证。
+> **页签接缝修（kk live）**：表体补回完整上边框（表头上方横线全宽可见）；选中页签 `border-bottom=bg` 仅咬脚下 1px + `margin-bottom:-1` 骑线连通，未选中 `border-bottom:none` 落线上（线可见）；首页签左缘与表体左缘对齐、左上角闭合。宽表装饰页签同修。
+> **① BI 类型收敛（kk 折入 #229）**：BI 报表只留 **报表**（tabbed，1+ 页每页一 SQL；**单页自动隐页签栏 + 圆角顶** = 普通表格）+ **仪表盘** 两类；「宽表」转遗留（`isLegacyWide` 仅编辑既有 wide_table 报表时选项可见，不再新建；覆盖层随之遗留，既有报表仍渲染）；新建默认 `tabbed`。dispatch/后端契约 byte-equal（纯 builder 选项 + 单页渲染，0 后端改）。
+> **闸门**：后端 pytest（tabbed 复用 tile 路径 test）· eslint · ruff · R-94（+WideTable/TabbedTableReport 登记）· doc-invariant（KnotLogo 4 / 版本 4 源点 v0.8.7）· R-BI-1 ASK 0 触。真运营日报 demo（日/周/月 真 SQL + 真口径 + 真数据）live 验证；builder 2-类选项 + 遗留 wide_table 3-类 live 验证。
 
 ## [Released] - v0.8.6 — ②b BI 仪表盘结构化拼板 builder
 

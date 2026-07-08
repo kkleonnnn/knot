@@ -24,6 +24,7 @@ export function TabbedTableReport({ T, report }) {
   const { rows, viz, error } = parseTile(active);
   const cfg = viz.columns || {};
   const overlay = viz.overlay || [];
+  const single = tiles.length === 1;   // v0.8.7 ①：单页报表 = 普通表格（隐页签栏 + 圆角顶）
 
   // 页签接缝（kk 修）：表体保完整上边框；选中 border-bottom=bg 仅咬脚下 1px + margin-bottom:-1 骑线；
   // 未选中 border-bottom:none + margin-bottom:0 落在上边框上（线可见）；左缘与表体对齐（无 paddingLeft）。
@@ -35,15 +36,17 @@ export function TabbedTableReport({ T, report }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        {tiles.map((t, i) => (
-          <button key={t.id} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{t.title || `页 ${i + 1}`}</button>
-        ))}
-      </div>
+      {!single && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          {tiles.map((t, i) => (
+            <button key={t.id} onClick={() => setTab(i)} style={tabStyle(i === tab)}>{t.title || `页 ${i + 1}`}</button>
+          ))}
+        </div>
+      )}
       {error && (
         <div style={{ padding: '8px 14px', fontSize: 12, color: 'oklch(66% 0.20 25)', border: `1px solid ${T.border}`, borderTop: 'none', background: T.content }}>⚠ {error}</div>
       )}
-      <WideTable T={T} rows={rows} cfg={cfg} overlay={overlay} />
+      <WideTable T={T} rows={rows} cfg={cfg} overlay={overlay} roundTop={single && !error} />
     </div>
   );
 }
