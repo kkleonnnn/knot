@@ -5,16 +5,10 @@
 import { useMemo, useState } from 'react';
 import { fmtValue } from '../chat/ResultBlock/fmt.js';
 import { computeOverlay } from './formula.js';
+import { orderedCols } from './tiles/tile_data.js';   // v0.8.6 ②b B-5：单一真相源（TableTile 共用）
 
 const RED = 'oklch(66% 0.20 25)';
 
-function orderedCols(rows, cfg) {
-  const seen = [];
-  const push = (k) => { if (!seen.includes(k)) seen.push(k); };
-  if (cfg && typeof cfg === 'object') Object.keys(cfg).forEach(push);
-  for (const r of rows) Object.keys(r || {}).forEach(push);
-  return seen;
-}
 function colLetter(i) { let s = '', n = i + 1; while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); } return s; }
 
 export function WideTableReport({ T, report }) {
