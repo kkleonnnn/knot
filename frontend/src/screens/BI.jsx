@@ -155,7 +155,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
-                    ? <DashboardReport T={T} report={selected} />
+                    ? <DashboardReport T={T} report={selected} isAdmin={isAdmin} onAddWidget={() => setBuilder(selected)} />
                     : selected.report_type === 'tabbed'
                       ? <TabbedTableReport T={T} report={selected} onActiveTile={setActiveTile} />
                       : <WideTableReport T={T} report={selected} />}

@@ -1,0 +1,184 @@
+// DashboardWidgets.jsx — v0.8.10 仪表盘可组合组件（基准 §5 逐像素还原）。
+// 6 类型 · 固定 w×h（同类尺寸一致）· 统一卡头（色点 + 标题 + 类型标签 + 6 点拖拽手柄）。
+// 每组件从 tile 冻结快照(last_run_rows_json) + viz_config 渲染。数值走 fmtBig（万/亿）。
+import { CHART_COLORS } from '../../Shared.jsx';
+import { fmtBig, fmtValue } from '../chat/ResultBlock/fmt.js';
+import { parseTile, orderedCols, sparkPath, WIDGET_META } from './tiles/tile_data.js';
+import { Donut } from './tiles/_shared.jsx';
+
+const RED = 'oklch(66% 0.20 25)';
+const dotColor = (i) => CHART_COLORS[i % CHART_COLORS.length];   // 卡头色点（按序循环 8 色板）
+
+// 日期-值序列（stat/pair/trend）：按 dateCol 升序 → valueCol 数值。
+function series(rows, dateCol, valueCol) {
+  return [...rows]
+    .sort((a, b) => String(a[dateCol]).localeCompare(String(b[dateCol])))
+    .map((r) => Number(r[valueCol]))
+    .filter((n) => Number.isFinite(n));
+}
+function statOf(tile) {
+  const { rows, viz } = parseTile(tile);
+  const keys = rows.length ? Object.keys(rows[0]) : [];
+  const dateCol = viz.dateCol || keys[0];
+  const valueCol = viz.valueCol || keys.find((k) => k !== dateCol) || keys[0];
+  const s = series(rows, dateCol, valueCol);
+  const last = s.length ? s[s.length - 1] : null;
+  const prev = s.length > 1 ? s[s.length - 2] : null;
+  const delta = (prev != null && prev !== 0) ? (last - prev) / Math.abs(prev) : null;
+  return { rows, viz, s, dateCol, last, prev, delta };
+}
+const deltaStr = (d) => (d == null ? '—' : `${d >= 0 ? '▲' : '▼'}${(Math.abs(d) * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`);
+
+// ── 统一卡头 + 外壳 ─────────────────────────────────────────────────────────────
+export function WidgetCard({ T, title, kind, dot, children }) {
+  return (
+    <div style={{ width: '100%', height: '100%', background: T.content, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '11px 12px 8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 2, flexShrink: 0, background: dot }} />
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.05em', flexShrink: 0 }}>{kind}</span>
+        <span style={{ display: 'inline-flex', color: T.muted, flexShrink: 0 }} title="拖拽排布">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3" /><circle cx="15" cy="6" r="1.3" /><circle cx="9" cy="12" r="1.3" /><circle cx="15" cy="12" r="1.3" /><circle cx="9" cy="18" r="1.3" /><circle cx="15" cy="18" r="1.3" /></svg>
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const valueStyle = (T, neg, main) => ({ fontSize: 26, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.02em', color: neg ? RED : (main ? T.accent : T.text) });
+const deltaStyle = (T, up) => ({ fontSize: 12.5, fontWeight: 600, color: up ? T.success : RED });
+
+// ── 6 body ─────────────────────────────────────────────────────────────────────
+function StatBody({ T, tile }) {
+  const { viz, last, delta } = statOf(tile);
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+        <span style={valueStyle(T, last < 0, viz.main)}>{fmtBig(last, viz.fmt)}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={deltaStyle(T, (delta || 0) >= 0)}>{deltaStr(delta)}</span>
+        <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{viz.hint || '环比昨天'}</span>
+      </div>
+    </div>
+  );
+}
+function PairBody({ T, tile }) {
+  const { viz, s, last, delta } = statOf(tile);
+  const { line, area } = sparkPath(s, 300, 84, 6);
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+      <div style={{ flex: '0 0 42%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 8, borderRight: `1px solid ${T.borderSoft}` }}>
+        <span style={valueStyle(T, last < 0, viz.main)}>{fmtBig(last, viz.fmt)}</span>
+        <span style={deltaStyle(T, (delta || 0) >= 0)}>{deltaStr(delta)}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '10px 12px 8px' }}>
+        <svg viewBox="0 0 300 84" preserveAspectRatio="none" style={{ width: '100%', flex: 1, minHeight: 0, display: 'block' }}>
+          <path d={area} style={{ fill: `color-mix(in oklch, ${T.accent} 13%, transparent)`, stroke: 'none' }} />
+          <path d={line} style={{ fill: 'none', stroke: T.accent, strokeWidth: 2, vectorEffect: 'non-scaling-stroke', strokeLinejoin: 'round', strokeLinecap: 'round' }} />
+        </svg>
+        <div style={{ fontSize: 9, color: T.chartLabel || T.muted, fontFamily: T.mono, textAlign: 'right', paddingTop: 5 }}>{viz.trendLabel || `近 ${s.length} 点`}</div>
+      </div>
+    </div>
+  );
+}
+function TrendBody({ T, tile }) {
+  const { rows, s, dateCol } = statOf(tile);
+  const { line, area } = sparkPath(s, 1000, 300, 10);
+  const dates = [...rows].sort((a, b) => String(a[dateCol]).localeCompare(String(b[dateCol]))).map((r) => String(r[dateCol]));
+  const ticks = dates.length ? [0, 1, 2, 3].map((k) => dates[Math.round((k / 3) * (dates.length - 1))]) : [];
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '6px 12px 8px' }}>
+      <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ width: '100%', flex: 1, minHeight: 0, display: 'block' }}>
+        {[60, 150, 240].map((y) => <line key={y} x1="0" y1={y} x2="1000" y2={y} style={{ stroke: T.chartGrid || T.border, strokeWidth: 1, strokeDasharray: '4 5', vectorEffect: 'non-scaling-stroke' }} />)}
+        <path d={area} style={{ fill: `color-mix(in oklch, ${T.accent} 13%, transparent)`, stroke: 'none' }} />
+        <path d={line} style={{ fill: 'none', stroke: T.accent, strokeWidth: 2, vectorEffect: 'non-scaling-stroke', strokeLinejoin: 'round', strokeLinecap: 'round' }} />
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.chartLabel || T.muted, fontFamily: T.mono, padding: '8px 2px 2px' }}>
+        {ticks.map((t, i) => <span key={i}>{t}</span>)}
+      </div>
+    </div>
+  );
+}
+function labelValueRows(tile) {
+  const { rows, viz } = parseTile(tile);
+  const keys = rows.length ? Object.keys(rows[0]) : [];
+  const labelCol = viz.labelCol || keys[0];
+  const valueCol = viz.valueCol || keys.find((k) => typeof rows[0]?.[k] === 'number') || keys[1] || keys[0];
+  return { rows, viz, labelCol, valueCol };
+}
+function DonutBody({ T, tile }) {
+  const { rows, viz, labelCol, valueCol } = labelValueRows(tile);
+  const slices = rows.map((r) => ({ name: String(r[labelCol]), value: Number(r[valueCol]) || 0 }));
+  const total = slices.reduce((a, s) => a + s.value, 0);
+  const big = viz.big || (slices[0] && total ? `${Math.round((slices[0].value / total) * 100)}%` : '');
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', gap: 16, padding: '8px 16px 16px' }}>
+      <Donut T={T} slices={slices} big={big} sub={viz.sub || slices[0]?.name} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
+        {slices.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+            <span style={{ fontSize: 12, color: T.subtext, fontFamily: T.mono }}>{fmtBig(s.value, viz.fmt)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function BarsBody({ T, tile }) {
+  const { rows, viz, labelCol, valueCol } = labelValueRows(tile);
+  const bars = rows.map((r) => ({ label: String(r[labelCol]), value: Number(r[valueCol]) || 0 }));
+  const max = Math.max(1, ...bars.map((b) => Math.abs(b.value)));
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 13, padding: '8px 16px 14px' }}>
+      {bars.map((b, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ width: 70, flexShrink: 0, fontSize: 12, color: T.subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
+          <div style={{ flex: 1, height: 9, borderRadius: 5, background: T.borderSoft, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(Math.abs(b.value) / max * 100).toFixed(1)}%`, borderRadius: 5, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+          </div>
+          <span style={{ width: 62, flexShrink: 0, textAlign: 'right', fontSize: 12, color: T.text, fontFamily: T.mono }}>{fmtBig(b.value, viz.fmt)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function TableBody({ T, tile }) {
+  const { rows, viz } = parseTile(tile);
+  const cfg = viz.columns || {};
+  const cols = orderedCols(rows, cfg).slice(0, 4);
+  const label = (c) => (cfg[c] && cfg[c].label) || c;
+  const gt = `1.2fr repeat(${Math.max(1, cols.length - 1)}, 1fr)`;
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: gt, padding: '7px 16px', background: T.bg, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em' }}>
+        {cols.map((c, i) => <span key={c} style={{ textAlign: i === 0 ? 'left' : 'right' }}>{label(c)}</span>)}
+      </div>
+      <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {rows.map((r, ri) => (
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: gt, padding: '8px 16px', borderBottom: `1px solid ${T.borderSoft}`, fontSize: 12, alignItems: 'center' }}>
+            {cols.map((c, i) => <span key={c} style={{ textAlign: i === 0 ? 'left' : 'right', color: i === 0 ? T.muted : T.text, fontFamily: T.mono }}>{fmtValue(r[c], cfg[c] && cfg[c].unit)}</span>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const BODIES = { stat: StatBody, pair: PairBody, trend: TrendBody, donut: DonutBody, bars: BarsBody, table: TableBody };
+
+export function DashboardWidget({ T, tile, index }) {
+  const meta = WIDGET_META[tile.tile_type] || WIDGET_META.stat;
+  const Body = BODIES[tile.tile_type] || StatBody;
+  const { error } = parseTile(tile);
+  return (
+    <WidgetCard T={T} title={tile.title} kind={meta.kind} dot={dotColor(index)}>
+      {error
+        ? <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 12, color: RED, padding: 12 }}>⚠ {error}</div>
+        : <Body T={T} tile={tile} />}
+    </WidgetCard>
+  );
+}

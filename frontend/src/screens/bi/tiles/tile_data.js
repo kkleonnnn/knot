@@ -1,10 +1,34 @@
 // tile_data.js — v0.8.6 (②b) tile 纯数据 helper（无组件 → .js，随 formula.js/fmt.js 惯例，过 react-refresh 门）。
 
+// v0.8.10 仪表盘组件类型 → 栅格尺寸(w 列 × h 行) + 类型标签（同类尺寸完全一致 §5）。非组件常量放 .js 过 react-refresh 门。
+export const WIDGET_META = {
+  stat:  { w: 3, h: 1, kind: '单值' },
+  pair:  { w: 6, h: 1, kind: '单值+趋势' },
+  trend: { w: 6, h: 2, kind: '趋势' },
+  donut: { w: 6, h: 2, kind: '占比' },
+  bars:  { w: 6, h: 2, kind: '排行' },
+  table: { w: 6, h: 2, kind: '明细' },
+};
+
 // 列序号 → Excel 列字母（0→A, 25→Z, 26→AA…）—— 公式行 A1 引用 / 列配置字母提示共用（v0.8.9）。
 export function colLetter(i) {
   let s = '', n = i + 1;
   while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); }
   return s;
+}
+
+// v0.8.10 值序列 → SVG path d（line + area），归一化到 viewBox w×h（pad 内边距）。
+//   基准 §5 sparkline/trend：preserveAspectRatio:none 拉伸 + vector-effect:non-scaling-stroke。area 闭合到底边。
+export function sparkPath(values, w, h, pad = 4) {
+  const vals = (values || []).map(Number).filter((n) => Number.isFinite(n));
+  if (vals.length < 2) return { line: '', area: '' };
+  const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1;
+  const xy = vals.map((v, i) => [
+    (i / (vals.length - 1)) * w,
+    h - pad - ((v - min) / range) * (h - 2 * pad),
+  ]);
+  const line = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+  return { line, area: `${line} L${w} ${h} L0 ${h} Z` };
 }
 
 // 通用「SQL rows → 有序列」—— WideTableReport + TableTile + tabbed WideTable 共用（B-5 单一真相源）。

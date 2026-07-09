@@ -14,3 +14,23 @@ export function fmtValue(value, unit) {
   if (unit === 'percentage' && typeof value === 'number') return fmtPercent(value);
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
+
+// v0.8.10 BI 仪表盘大数值（基准 §5）：kind='money' → ¥ + 万/亿（≥1亿 保 1-2 位小数、≥1万 <100万带1位否则整数千分位）；
+//   'percentage' → ×100+%；否则（'count'）→ 千分位。非数原样。
+export function fmtBig(value, kind = 'count') {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  if (kind === 'percentage') return fmtPercent(n);
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (kind === 'money') {
+    if (abs >= 1e8) return `${sign}¥${(abs / 1e8).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}亿`;
+    if (abs >= 1e4) {
+      const wan = abs / 1e4;
+      return `${sign}¥${wan < 100 ? wan.toLocaleString(undefined, { maximumFractionDigits: 1 }) : Math.round(wan).toLocaleString()}万`;
+    }
+    return `${sign}¥${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  }
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });   // count 千分位
+}
