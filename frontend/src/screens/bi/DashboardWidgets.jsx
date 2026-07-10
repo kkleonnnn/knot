@@ -36,7 +36,7 @@ export function WidgetCard({ T, title, kind, dot, children }) {
       <div style={{ padding: '11px 12px 8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{ width: 6, height: 6, borderRadius: 2, flexShrink: 0, background: dot }} />
         <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.05em', flexShrink: 0 }}>{kind}</span>
+        {kind && <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.05em', flexShrink: 0 }}>{kind}</span>}
         <span style={{ display: 'inline-flex', color: T.muted, flexShrink: 0 }} title="拖拽排布">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3" /><circle cx="15" cy="6" r="1.3" /><circle cx="9" cy="12" r="1.3" /><circle cx="15" cy="12" r="1.3" /><circle cx="9" cy="18" r="1.3" /><circle cx="15" cy="18" r="1.3" /></svg>
         </span>
@@ -175,7 +175,7 @@ export function DashboardWidget({ T, tile, index }) {
   const Body = BODIES[tile.tile_type] || StatBody;
   const { error } = parseTile(tile);
   return (
-    <WidgetCard T={T} title={tile.title} kind={meta.kind} dot={dotColor(index)}>
+    <WidgetCard T={T} title={tile.title} kind={meta.w >= 6 ? meta.kind : null} dot={dotColor(index)}>
       {error
         ? <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 12, color: RED, padding: 12 }}>⚠ {error}</div>
         : <Body T={T} tile={tile} />}
