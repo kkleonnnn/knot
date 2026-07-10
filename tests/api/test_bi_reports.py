@@ -241,3 +241,70 @@ def test_dashboard_export_still_gated_400(client, auth_headers):
     }, headers=auth_headers).json()["id"]
     assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400
     assert client.get(f"/api/bi/reports/{rid}/export.xlsx", headers=auth_headers).status_code == 400
+
+
+# ── da-asst 只读报表解读（v0.8.10 §5 ③ 提前）────────────────────────────────────────
+
+def test_analyze_report_da_asst(client, auth_headers, monkeypatch):
+    import knot.services.agents.da_asst as da
+    rid = client.post("/api/bi/reports", json={
+        "title": "解读测试", "sql_text": "SELECT dt AS 日期 FROM t"}, headers=auth_headers).json()["id"]
+
+    async def fake(report, question, history=None, model_key=""):
+        assert report["title"] == "解读测试"                       # 上下文确实带了本报表
+        return {"answer": f"已解读：{question}", "input_tokens": 1, "output_tokens": 2, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+
+    r = client.post(f"/api/bi/reports/{rid}/analyze",
+                    json={"question": "趋势如何？", "history": []}, headers=auth_headers)
+    assert r.status_code == 200 and r.json()["answer"] == "已解读：趋势如何？"
+    # 空问题 → 400；报表不存在 → 404
+    assert client.post(f"/api/bi/reports/{rid}/analyze",
+                       json={"question": "   "}, headers=auth_headers).status_code == 400
+    assert client.post("/api/bi/reports/999999/analyze",
+                       json={"question": "x"}, headers=auth_headers).status_code == 404
+
+
+def test_analyze_read_only_desensitized_for_analyst(client, auth_headers, monkeypatch):
+    """R-BI-4/6：analyst（非 admin）可只读解读；da-asst 拿到的是脱敏 DTO（无 sql_text）。"""
+    import knot.services.agents.da_asst as da
+    rid = client.post("/api/bi/reports", json={
+        "title": "脱敏解读", "sql_text": "SELECT secret FROM t"}, headers=auth_headers).json()["id"]
+    seen = {}
+
+    async def fake(report, question, history=None, model_key=""):
+        seen["has_sql"] = "sql_text" in report
+        return {"answer": "ok", "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+
+    ah = _analyst_headers(client, auth_headers)
+    r = client.post(f"/api/bi/reports/{rid}/analyze", json={"question": "x"}, headers=ah)
+    assert r.status_code == 200
+    assert seen["has_sql"] is False                                # analyst 路径脱敏 → 不下发 sql_text
+
+
+def test_analyze_history_too_long_400(client, auth_headers):
+    rid = client.post("/api/bi/reports", json={
+        "title": "h", "sql_text": "SELECT 1"}, headers=auth_headers).json()["id"]
+    big = [{"role": "user", "content": "x"} for _ in range(25)]     # > _MAX_ANALYZE_HISTORY(24)
+    assert client.post(f"/api/bi/reports/{rid}/analyze",
+                       json={"question": "x", "history": big}, headers=auth_headers).status_code == 400
+
+
+def test_analyze_blocked_when_over_monthly_budget(client, auth_headers, monkeypatch):
+    """成本控制：月预算 status=='block' → 402 pre-block，绝不触发 LLM 花费（脚本 loop 财务 DoS 护栏）。"""
+    import knot.services.agents.da_asst as da
+    import knot.services.budget_service as budget_service
+    rid = client.post("/api/bi/reports", json={
+        "title": "预算门", "sql_text": "SELECT 1"}, headers=auth_headers).json()["id"]
+    called = {"llm": False}
+
+    async def fake(*a, **k):
+        called["llm"] = True
+        return {"answer": "x", "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+    monkeypatch.setattr(budget_service, "check_user_monthly_budget", lambda uid: ("block", {"threshold": 1.0}))
+
+    r = client.post(f"/api/bi/reports/{rid}/analyze", json={"question": "x"}, headers=auth_headers)
+    assert r.status_code == 402
+    assert called["llm"] is False                                  # over-budget → LLM 未被调用

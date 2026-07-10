@@ -30,7 +30,7 @@ BACKEND_ACK = {
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
-    "knot/api/bi_reports.py":              360,  # BI 报表 CRUD + reorder + 导出（v0.8.9 tabbed 多 sheet/当前页 CSV）341>300 → ACK
+    "knot/api/bi_reports.py":              410,  # BI 报表 CRUD + reorder + 导出（v0.8.9 tabbed 多 sheet/当前页 CSV）341>300 → ACK；v0.8.10 +da-asst /analyze（只读解读 + 月预算 pre-block + 记账 + audit）360→393（headroom 17）
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 

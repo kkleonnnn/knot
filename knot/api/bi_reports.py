@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from io import BytesIO
 from urllib.parse import quote
 
@@ -70,9 +71,15 @@ class ReorderRequest(BaseModel):
     ordered_ids: list[int]                    # v0.8.8 ③：目录拖拽后的有序 id → sort_order=位置
 
 
+class ReportAnalyzeRequest(BaseModel):
+    question: str                             # v0.8.10 da-asst：用户对本报表的提问
+    history: list[dict] = []                  # 既往对话 [{role, content}]（service 再截 12 轮）
+
+
 _MAX_OVERLAY_CELLS = 500  # overlay 单元格上限（防超大 overlay → 客户端求值 DoS；红队复验 residual）
 _MAX_TILES = 30           # 仪表盘 tile 数上限（②b C-2；placement 同 overlay 在 api 层）
 _MAX_REORDER = 1000       # reorder id 数上限（DoS 护栏；报表/文件夹不会近此量 —— 超即拒非静默截断）
+_MAX_ANALYZE_HISTORY = 24 # da-asst 对话历史硬顶（防超大 payload；service 再 -12 轮 + 单条截断）
 
 
 def _is_admin(user) -> bool:
@@ -124,6 +131,51 @@ async def get_report(report_id: int, user=Depends(get_current_user)):
     if not r:
         raise HTTPException(status_code=404, detail="报表不存在")
     return svc.to_dto(r, _is_admin(user))
+
+
+@router.post("/api/bi/reports/{report_id}/analyze")
+async def analyze_report(report_id: int, req: ReportAnalyzeRequest, request: Request,
+                        user=Depends(get_current_user)):
+    """da-asst 只读报表解读（v0.8.10）：基于报表**冻结快照**回答提问 —— 不写库、不跑新 SQL。
+
+    读权限门 = `get_current_user`（与 get_report 一致）；非 admin 用脱敏 DTO（不含 sql_text）。
+    **成本控制平面**（对齐 /api/query，防脚本 loop 财务 DoS + 花费不可见）：
+    - LLM 调用前：月预算 pre-block（R-16/17，status=='block' → 402），over-budget 用户禁触发花费；
+    - LLM 调用后：`update_user_usage` 记 input/output/cost → 入 user.monthly_cost_usd（可见 + 未来预算门有效）；
+    - 每次 emit `bi_report.analyze` audit（花费归属 + R-BI-8 留痕）。
+    LLM 领域异常（budget/auth/network，R-30）→ error_translator 翻译成 502 + user_message。
+    """
+    from knot.models.errors import KnotError
+    from knot.repositories import user_repo
+    from knot.services import budget_service, error_translator
+    from knot.services.agents import da_asst
+
+    q = (req.question or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    if len(req.history) > _MAX_ANALYZE_HISTORY:
+        raise HTTPException(status_code=400, detail="对话历史过长")
+    r = svc.get_report(report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报表不存在")
+    status, _meta = budget_service.check_user_monthly_budget(user["id"])   # 月预算 pre-block
+    if status == "block":
+        raise HTTPException(status_code=402, detail="已达本月预算上限，暂停 AI 解读")
+    dto = svc.to_dto(r, _is_admin(user))     # 非 admin 脱敏（不含 sql_text）→ da-asst 只见展示层快照
+    t0 = time.time()
+    try:
+        out = await da_asst.arun_da_asst(dto, q, req.history)
+    except KnotError as e:
+        raise HTTPException(status_code=502, detail=error_translator.to_response(e)["user_message"]) from e
+    # 记账（R-S8）：da-asst LLM 花费入 user 月度用量 → 可见 + 预算门下轮生效
+    user_repo.update_user_usage(user["id"], out.get("input_tokens", 0), out.get("output_tokens", 0),
+                                out.get("cost_usd", 0.0), int((time.time() - t0) * 1000))
+    audit(request, user, action="bi_report.analyze", resource_type="bi_report",
+          resource_id=report_id, detail={"cost_usd": round(out.get("cost_usd", 0.0), 6)})
+    answer = out.get("answer") or ""
+    if not answer:
+        raise HTTPException(status_code=502, detail="分析未返回内容，请重试")
+    return {"answer": answer}
 
 
 # ── 写：报表（require_admin）──────────────────────────────────────────────────────

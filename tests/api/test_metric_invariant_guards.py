@@ -96,6 +96,7 @@ def test_every_bi_literal_has_audit_emit():
     literals = _bi_audit_literals()
     assert literals == {
         "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
+        "bi_report.analyze",   # v0.8.10 da-asst 解读
         "report_folder.create", "report_folder.update", "report_folder.delete",
     }, f"BI AuditAction Literal 集合不符；实际 {literals}"
     emitted = _api_audit_emit_actions()
