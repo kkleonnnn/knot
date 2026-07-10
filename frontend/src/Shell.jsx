@@ -34,7 +34,7 @@ export function AppShell({
     }}>
       {/* ═══ Sidebar — v0.6.4.2 floating inset 面板（radius 14 + 全 border + boxShadow） ═══ */}
       <aside style={{
-        width: 224, flexShrink: 0,
+        width: 236, flexShrink: 0,
         background: T.sidebar, border: `1px solid ${T.border}`,
         borderRadius: 14, overflow: 'hidden', boxShadow: panelShadow,
         display: 'flex', flexDirection: 'column',

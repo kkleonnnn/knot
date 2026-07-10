@@ -82,7 +82,8 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/OverlayEditor.jsx":          70,   # v0.8.9 per-页公式行编辑器（formula.js 覆盖层）
     "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
     "frontend/src/screens/bi/DashboardReport.jsx":        90,   # v0.8.10 12 列组件网格
-    "frontend/src/screens/bi/DashboardWidgets.jsx":       230,  # v0.8.10 §5 6 组件 + 卡头（基准还原）  # ②b tiles[] 分发渲染
+    "frontend/src/screens/bi/DashboardWidgets.jsx":       230,  # v0.8.10 §5 6 组件 + 卡头
+    "frontend/src/screens/bi/AddWidgetModal.jsx":         100,  # v0.8.10 §5 添加组件弹窗（6 类型 chip + 指标 + 周期 + SQL）  # v0.8.10 §5 6 组件 + 卡头（基准还原）  # ②b tiles[] 分发渲染
     "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill
     "frontend/src/screens/bi/InsightCard.jsx":            50,
     "frontend/src/screens/bi/formula.js":                 400,  # ⭐ 安全承重（零 eval 求值器 R-BI-11）；guards 增长 ACK

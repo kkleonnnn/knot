@@ -12,6 +12,7 @@ import { DashboardReport } from './bi/DashboardReport.jsx';
 import { TabbedTableReport } from './bi/TabbedTableReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
+import { AddWidgetModal } from './bi/AddWidgetModal.jsx';
 
 async function download(path, filename) {
   try {
@@ -65,6 +66,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [selectedId, setSelectedId] = usePersist('cb_bi_report', null);
   const [selected, setSelected] = useState(null);
   const [builder, setBuilder] = useState(null);
+  const [addWidget, setAddWidget] = useState(null);   // v0.8.10 §5「添加组件」弹窗（当前仪表盘）
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -155,7 +157,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
-                    ? <DashboardReport T={T} report={selected} isAdmin={isAdmin} onAddWidget={() => setBuilder(selected)} />
+                    ? <DashboardReport T={T} report={selected} isAdmin={isAdmin} onAddWidget={() => setAddWidget(selected)} />
                     : selected.report_type === 'tabbed'
                       ? <TabbedTableReport T={T} report={selected} onActiveTile={setActiveTile} />
                       : <WideTableReport T={T} report={selected} />}
@@ -176,6 +178,10 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
         <ReportBuilderModal T={T} editing={builder === 'new' ? null : builder}
           folders={folders} dataSources={dataSources}
           onClose={() => setBuilder(null)} onSaved={() => { loadLists(); if (selected) loadSelected(selected.id); }} />
+      )}
+      {addWidget && (
+        <AddWidgetModal T={T} report={addWidget}
+          onClose={() => setAddWidget(null)} onSaved={() => { if (selected) loadSelected(selected.id); }} />
       )}
       {folderModal && (
         <Modal T={T} onClose={() => setFolderModal(false)} width={420}>
