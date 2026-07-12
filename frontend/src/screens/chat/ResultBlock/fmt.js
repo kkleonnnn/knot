@@ -16,10 +16,10 @@ export function fmtValue(value, unit) {
 }
 
 // v0.8.10/8.11 BI 仪表盘大数值（基准 §5 + kk 迭代）：
-//   金额类（kind='money' 或有 unit）→ 万/亿 压缩 + **恒 2 位小数**（无则 .00，point 4）。
-//     非 bare：带标记（有 unit → 数字+后缀 如 116.21万USDT；否则 ¥ 前缀 如 ¥2.30万）。
-//     bare=true：**只返数字**（标记由调用方 UnitBadge 单独渲染在右侧，point 1）。
-//   count → **整数千分位**（用户数等，point 4）；percentage → ×100+%（fmtPercent，不动）。非数原样。
+//   金额类（kind='money' 或有 unit）→ 万/亿 压缩 + **恒 2 位小数**（无则 .00，point 4）。**不带 ¥**（kk：币种一律 USDT，
+//     由 UnitBadge / unit 后缀承载，见 DashboardWidgets.unitMarker）。非 bare 且有 unit → 追加后缀（如 116.21万USDT）；
+//     bare / 无 unit → 只返数字（标记由 badge 渲染）。
+//   count → **整数千分位**（用户数等）；percentage → ×100+%（fmtPercent，不动）。非数原样。
 export function fmtBig(value, kind = 'count', unit = '', bare = false) {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);
@@ -29,10 +29,9 @@ export function fmtBig(value, kind = 'count', unit = '', bare = false) {
   const abs = Math.abs(n);
   if (kind === 'money' || unit) {
     const d2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-    const pre = bare ? '' : (unit ? '' : '¥');       // ¥ 前缀仅无 unit 且非 bare
-    const suf = bare ? '' : (unit || '');            // unit 后缀仅非 bare
+    const suf = bare ? '' : (unit || '');            // 无 ¥；unit 后缀仅非 bare
     const scale = abs >= 1e8 ? [1e8, '亿'] : abs >= 1e4 ? [1e4, '万'] : [1, ''];
-    return `${sign}${pre}${(abs / scale[0]).toLocaleString(undefined, d2)}${scale[1]}${suf}`;
+    return `${sign}${(abs / scale[0]).toLocaleString(undefined, d2)}${scale[1]}${suf}`;
   }
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });   // count → 整数
 }

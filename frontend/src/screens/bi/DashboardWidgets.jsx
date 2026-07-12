@@ -49,7 +49,7 @@ function statOf(tile) {
   }
   return { rows, viz, s, win, dateCol, value, delta, cmpLabel };
 }
-const deltaStr = (d) => (d == null ? '—' : `${d >= 0 ? '▲' : '▼'}${(Math.abs(d) * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`);
+const deltaStr = (d) => (d == null ? '—' : `${d >= 0 ? '▲' : '▼'}${(Math.abs(d) * 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
 
 // ── 统一卡头 + 外壳 ─────────────────────────────────────────────────────────────
 export function WidgetCard({ T, title, kind, dot, children }) {
@@ -68,16 +68,16 @@ export function WidgetCard({ T, title, kind, dot, children }) {
   );
 }
 
-// size 由调用方按内容/卡宽定（窄单值卡 + 多字符单位如 USDT → 缩小以让 badge 留在右侧、不裁不换行）
-const valueStyle = (T, neg, main, size = 24) => ({ fontSize: size, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.03em', whiteSpace: 'nowrap', color: neg ? RED : (main ? T.accent : T.text) });
+// 窄单值卡（147px）要容纳 大数 + 多字符 USDT badge → 统一 20（保行内一致，不逐卡跳字号）。
+const valueStyle = (T, neg, main) => ({ fontSize: 20, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.03em', whiteSpace: 'nowrap', color: neg ? RED : (main ? T.accent : T.text) });
 const deltaStyle = (T, up) => ({ fontSize: 12.5, fontWeight: 600, color: up ? T.success : RED });
 
-// 币种/货币标记（kk point 1）：有 unit → unit（USDT…）；否则 money → ¥；count/percentage → 无。
-const unitMarker = (viz) => viz.unit || (viz.fmt === 'money' ? '¥' : '');
-// 小字号带背景 badge，贴数值右侧（统一 USDT/¥ 呈现）
+// 币种/货币标记（kk）：有 unit → unit；否则 money → USDT（crypto 平台一律 USDT，不用 ¥）；count/percentage → 无。
+const unitMarker = (viz) => viz.unit || (viz.fmt === 'money' ? 'USDT' : '');
+// 小字号带背景 badge，贴数值右侧（统一 USDT 呈现）
 function UnitBadge({ T, children }) {
   if (!children) return null;
-  return <span style={{ fontSize: 10, fontWeight: 600, fontFamily: T.mono, color: T.subtext, background: T.chipBg, border: `1px solid ${T.borderSoft}`, padding: '2px 5px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}>{children}</span>;
+  return <span style={{ fontSize: 9, fontWeight: 600, fontFamily: T.mono, color: T.subtext, background: T.chipBg, border: `1px solid ${T.borderSoft}`, padding: '2px 4px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}>{children}</span>;
 }
 
 // 对比行（可选）：compare==='none' 时调用方不渲染本行 → 「对比可选」
@@ -95,7 +95,7 @@ function TrendChart({ T, series, dates, fmt, unit, compact }) {
   if (series.length < 2) return <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 11, color: T.muted }}>数据不足</div>;
   const { line, area } = sparkPath(series, 1000, 300, 12);
   const max = Math.max(...series), min = Math.min(...series), last = series[series.length - 1];
-  const c = min < 0 ? RED : T.accent;   // kk point 3：序列含负值 → 红线红趋势
+  const c = T.accent;   // kk：取消负值红趋势 → 一律 accent
   const yLab = { fontSize: 9, color: T.chartLabel || T.muted, fontFamily: T.mono, whiteSpace: 'nowrap' };
   const ticks = (dates && dates.length) ? [0, 1, 2, 3].map((k) => dates[Math.round((k / 3) * (dates.length - 1))]) : [];
   return (
@@ -129,11 +129,10 @@ function StatBody({ T, tile }) {
   const { viz, value, delta, cmpLabel } = statOf(tile);
   const showCmp = (viz.compare || 'dod') !== 'none';
   const marker = unitMarker(viz);
-  const size = marker.length > 1 ? 18 : 24;   // 多字符单位（USDT…）在窄卡缩小 → badge 留右侧不裁
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 12px 12px', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={valueStyle(T, value < 0, viz.main, size)}>{fmtBig(value, viz.fmt, viz.unit, true)}</span>
+        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit, true)}</span>
         <UnitBadge T={T}>{marker}</UnitBadge>
       </div>
       {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
