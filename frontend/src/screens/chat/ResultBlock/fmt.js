@@ -17,13 +17,19 @@ export function fmtValue(value, unit) {
 
 // v0.8.10 BI 仪表盘大数值（基准 §5）：kind='money' → ¥ + 万/亿（≥1亿 保 1-2 位小数、≥1万 <100万带1位否则整数千分位）；
 //   'percentage' → ×100+%；否则（'count'）→ 千分位。非数原样。
-export function fmtBig(value, kind = 'count') {
+// v0.8.11 kk：unit 后缀（如 'USDT'）→ 万/亿 压缩 + 2 位小数 + 后缀、**无 ¥**（如 116.21万USDT）。unit 优先于 kind。
+export function fmtBig(value, kind = 'count', unit = '') {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
   if (kind === 'percentage') return fmtPercent(n);
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
+  if (unit) {
+    if (abs >= 1e8) return `${sign}${(abs / 1e8).toLocaleString(undefined, { maximumFractionDigits: 2 })}亿${unit}`;
+    if (abs >= 1e4) return `${sign}${(abs / 1e4).toLocaleString(undefined, { maximumFractionDigits: 2 })}万${unit}`;
+    return `${sign}${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit}`;
+  }
   if (kind === 'money') {
     if (abs >= 1e8) return `${sign}¥${(abs / 1e8).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}亿`;
     if (abs >= 1e4) {

@@ -82,7 +82,7 @@ function DeltaRow({ T, delta, cmpLabel }) {
 }
 
 // 折线图（有值）：y 轴 max/mid/min 刻度（HTML，不随 SVG 拉伸）+ 最新值标 + 可选 x 轴日期。
-function TrendChart({ T, series, dates, fmt, compact }) {
+function TrendChart({ T, series, dates, fmt, unit, compact }) {
   if (series.length < 2) return <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 11, color: T.muted }}>数据不足</div>;
   const { line, area } = sparkPath(series, 1000, 300, 12);
   const max = Math.max(...series), min = Math.min(...series), last = series[series.length - 1];
@@ -92,9 +92,9 @@ function TrendChart({ T, series, dates, fmt, compact }) {
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 6 }}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', flexShrink: 0, padding: '1px 0' }}>
-          <span style={yLab}>{fmtBig(max, fmt)}</span>
-          {!compact && <span style={yLab}>{fmtBig((max + min) / 2, fmt)}</span>}
-          <span style={yLab}>{fmtBig(min, fmt)}</span>
+          <span style={yLab}>{fmtBig(max, fmt, unit)}</span>
+          {!compact && <span style={yLab}>{fmtBig((max + min) / 2, fmt, unit)}</span>}
+          <span style={yLab}>{fmtBig(min, fmt, unit)}</span>
         </div>
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
           <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -102,7 +102,7 @@ function TrendChart({ T, series, dates, fmt, compact }) {
             <path d={area} style={{ fill: `color-mix(in oklch, ${T.accent} 13%, transparent)`, stroke: 'none' }} />
             <path d={line} style={{ fill: 'none', stroke: T.accent, strokeWidth: 2, vectorEffect: 'non-scaling-stroke', strokeLinejoin: 'round', strokeLinecap: 'round' }} />
           </svg>
-          <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 9.5, fontFamily: T.mono, color: T.accent, background: `color-mix(in oklch, ${T.content} 82%, transparent)`, padding: '1px 5px', borderRadius: 5 }}>最新 {fmtBig(last, fmt)}</div>
+          <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 9.5, fontFamily: T.mono, color: T.accent, background: `color-mix(in oklch, ${T.content} 82%, transparent)`, padding: '1px 5px', borderRadius: 5 }}>最新 {fmtBig(last, fmt, unit)}</div>
         </div>
       </div>
       {ticks.length > 0 && (
@@ -121,7 +121,7 @@ function StatBody({ T, tile }) {
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt)}</span>
+        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit)}</span>
       </div>
       {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
     </div>
@@ -135,12 +135,12 @@ function PairBody({ T, tile }) {
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
       <div style={{ flex: '0 0 32%', minWidth: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 7, borderRight: `1px solid ${T.borderSoft}` }}>
-        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt)}</span>
+        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit)}</span>
         {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
         <span style={{ fontSize: 9.5, color: T.chartLabel || T.muted, fontFamily: T.mono }}>{viz.trendLabel || `近 ${trendSeries.length} 点`}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0, padding: '10px 12px 8px' }}>
-        <TrendChart T={T} series={trendSeries} dates={trendDates} fmt={viz.fmt} compact />
+        <TrendChart T={T} series={trendSeries} dates={trendDates} fmt={viz.fmt} unit={viz.unit} compact />
       </div>
     </div>
   );
@@ -149,7 +149,7 @@ function TrendBody({ T, tile }) {
   const { s, rows, dateCol, viz } = statOf(tile);
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '6px 12px 8px' }}>
-      <TrendChart T={T} series={s} dates={dateLabels(rows, dateCol)} fmt={viz.fmt} />
+      <TrendChart T={T} series={s} dates={dateLabels(rows, dateCol)} fmt={viz.fmt} unit={viz.unit} />
     </div>
   );
 }
@@ -173,7 +173,7 @@ function DonutBody({ T, tile }) {
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: CHART_COLORS[i % CHART_COLORS.length] }} />
             <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.name}</span>
-            <span style={{ fontSize: 12, color: T.subtext, fontFamily: T.mono }}>{fmtBig(x.value, viz.fmt)}</span>
+            <span style={{ fontSize: 12, color: T.subtext, fontFamily: T.mono }}>{fmtBig(x.value, viz.fmt, viz.unit)}</span>
           </div>
         ))}
       </div>
@@ -192,7 +192,7 @@ function BarsBody({ T, tile }) {
           <div style={{ flex: 1, height: 9, borderRadius: 5, background: T.borderSoft, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${(Math.abs(b.value) / max * 100).toFixed(1)}%`, borderRadius: 5, background: CHART_COLORS[i % CHART_COLORS.length] }} />
           </div>
-          <span style={{ width: 62, flexShrink: 0, textAlign: 'right', fontSize: 12, color: T.text, fontFamily: T.mono }}>{fmtBig(b.value, viz.fmt)}</span>
+          <span style={{ width: 62, flexShrink: 0, textAlign: 'right', fontSize: 12, color: T.text, fontFamily: T.mono }}>{fmtBig(b.value, viz.fmt, viz.unit)}</span>
         </div>
       ))}
     </div>

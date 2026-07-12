@@ -86,6 +86,7 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
                     <input type="number" min="1" value={viz.window || 7} onChange={(e) => updViz(i, { window: Number(e.target.value) || 7 })} placeholder="N" title="期数 N" style={{ ...fld, width: 56 }} />
                   )}
                   <input value={viz.compareLabel || ''} onChange={(e) => updViz(i, { compareLabel: e.target.value })} placeholder="对比标签(较昨日)" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <input value={viz.unit || ''} onChange={(e) => updViz(i, { unit: e.target.value })} placeholder="单位(USDT)" title="单位后缀：万/亿压缩+后缀、无¥" style={{ ...fld, width: 88 }} />
                   {t.tile_type === 'pair' && (
                     <input value={viz.trendLabel || ''} onChange={(e) => updViz(i, { trendLabel: e.target.value })} placeholder="趋势标签(近7日)" style={{ ...fld, width: 110 }} />
                   )}
