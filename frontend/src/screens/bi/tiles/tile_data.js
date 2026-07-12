@@ -3,7 +3,7 @@
 // v0.8.10 仪表盘组件类型 → 栅格尺寸(w 列 × h 行) + 类型标签（同类尺寸完全一致 §5）。非组件常量放 .js 过 react-refresh 门。
 export const WIDGET_META = {
   stat:  { w: 3, h: 1, kind: '单值' },
-  pair:  { w: 6, h: 1, kind: '单值+趋势' },
+  pair:  { w: 9, h: 1, kind: '单值+趋势' },   // v0.8.11 kk：单值+趋势扩到 3 列（9/12）→ 趋势有呼吸空间
   trend: { w: 6, h: 2, kind: '趋势' },
   donut: { w: 6, h: 2, kind: '占比' },
   bars:  { w: 6, h: 2, kind: '排行' },

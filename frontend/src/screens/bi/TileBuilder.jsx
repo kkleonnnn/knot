@@ -61,20 +61,35 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
               placeholder="SELECT ...（只读；存前校验）"
               style={{ width: '100%', ...fld, fontFamily: T.mono, resize: 'vertical', marginBottom: 6 }} />
             {(t.tile_type === 'stat' || t.tile_type === 'pair') && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <input value={viz.dateCol || ''} onChange={(e) => updViz(i, { dateCol: e.target.value })} placeholder="日期列（默认首列）" style={{ ...fld, flex: 1, minWidth: 96 }} />
-                <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列（今日值+环比）" style={{ ...fld, flex: 1, minWidth: 96 }} />
-                <select value={viz.fmt || 'count'} onChange={(e) => updViz(i, { fmt: e.target.value })} title="数值格式" style={{ ...fld, width: 78, cursor: 'pointer' }}>
-                  <option value="count">数量</option><option value="money">金额¥</option><option value="percentage">%</option>
-                </select>
-                {t.tile_type === 'stat' && (
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.subtext }}>
-                    <input type="checkbox" checked={!!viz.main} onChange={(e) => updViz(i, { main: e.target.checked })} /> 主指标
-                  </label>
-                )}
-                {t.tile_type === 'pair' && (
-                  <input value={viz.trendLabel || ''} onChange={(e) => updViz(i, { trendLabel: e.target.value })} placeholder="趋势标签(近7日)" style={{ ...fld, width: 110 }} />
-                )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input value={viz.dateCol || ''} onChange={(e) => updViz(i, { dateCol: e.target.value })} placeholder="日期列（默认首列）" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <select value={viz.fmt || 'count'} onChange={(e) => updViz(i, { fmt: e.target.value })} title="数值格式" style={{ ...fld, width: 78, cursor: 'pointer' }}>
+                    <option value="count">数量</option><option value="money">金额¥</option><option value="percentage">%</option>
+                  </select>
+                  {t.tile_type === 'stat' && (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.subtext }}>
+                      <input type="checkbox" checked={!!viz.main} onChange={(e) => updViz(i, { main: e.target.checked })} /> 主指标
+                    </label>
+                  )}
+                </div>
+                {/* v0.8.11 对比可选 + 灵活：取值(末值/近N求和) + 对比(无/环比上期/环比前N期) */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select value={viz.agg || 'latest'} onChange={(e) => updViz(i, { agg: e.target.value })} title="取值方式" style={{ ...fld, width: 108, cursor: 'pointer' }}>
+                    <option value="latest">取值·末值</option><option value="sum">取值·近N求和</option>
+                  </select>
+                  <select value={viz.compare || 'dod'} onChange={(e) => updViz(i, { compare: e.target.value })} title="对比方式" style={{ ...fld, width: 118, cursor: 'pointer' }}>
+                    <option value="none">对比·无</option><option value="dod">对比·环比上期</option><option value="wow">对比·环比前N期</option>
+                  </select>
+                  {(viz.compare === 'wow' || viz.agg === 'sum') && (
+                    <input type="number" min="1" value={viz.window || 7} onChange={(e) => updViz(i, { window: Number(e.target.value) || 7 })} placeholder="N" title="期数 N" style={{ ...fld, width: 56 }} />
+                  )}
+                  <input value={viz.compareLabel || ''} onChange={(e) => updViz(i, { compareLabel: e.target.value })} placeholder="对比标签(较昨日)" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  {t.tile_type === 'pair' && (
+                    <input value={viz.trendLabel || ''} onChange={(e) => updViz(i, { trendLabel: e.target.value })} placeholder="趋势标签(近7日)" style={{ ...fld, width: 110 }} />
+                  )}
+                </div>
               </div>
             )}
             {t.tile_type === 'trend' && (
