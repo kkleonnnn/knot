@@ -11,9 +11,12 @@ export function RightPanel({ T, title, headerTrailing, children }) {
         style={{
           width: 52, flexShrink: 0, alignSelf: 'stretch', border: 'none', borderLeft: `1px solid ${T.border}`,
           background: T.sidebar, color: T.subtext, cursor: 'pointer',
-          display: 'grid', placeItems: 'center', fontFamily: T.sans, fontSize: 12,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+          fontFamily: T.sans, fontSize: 12,
         }}>
-        <span style={{ writingMode: 'vertical-rl', letterSpacing: '0.12em' }}>{title} «</span>
+        <span style={{ writingMode: 'vertical-rl', letterSpacing: '0.12em' }}>{title}</span>
+        {/* 箭头独立成行、不套 vertical-rl（否则 « 被竖排旋转成朝上）→ 水平左向 « = 向左展开 */}
+        <span style={{ fontSize: 16, lineHeight: 1 }}>«</span>
       </button>
     );
   }
