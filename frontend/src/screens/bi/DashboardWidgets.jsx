@@ -68,8 +68,17 @@ export function WidgetCard({ T, title, kind, dot, children }) {
   );
 }
 
-const valueStyle = (T, neg, main) => ({ fontSize: 26, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.02em', color: neg ? RED : (main ? T.accent : T.text) });
+// size 由调用方按内容/卡宽定（窄单值卡 + 多字符单位如 USDT → 缩小以让 badge 留在右侧、不裁不换行）
+const valueStyle = (T, neg, main, size = 24) => ({ fontSize: size, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.03em', whiteSpace: 'nowrap', color: neg ? RED : (main ? T.accent : T.text) });
 const deltaStyle = (T, up) => ({ fontSize: 12.5, fontWeight: 600, color: up ? T.success : RED });
+
+// 币种/货币标记（kk point 1）：有 unit → unit（USDT…）；否则 money → ¥；count/percentage → 无。
+const unitMarker = (viz) => viz.unit || (viz.fmt === 'money' ? '¥' : '');
+// 小字号带背景 badge，贴数值右侧（统一 USDT/¥ 呈现）
+function UnitBadge({ T, children }) {
+  if (!children) return null;
+  return <span style={{ fontSize: 10, fontWeight: 600, fontFamily: T.mono, color: T.subtext, background: T.chipBg, border: `1px solid ${T.borderSoft}`, padding: '2px 5px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}>{children}</span>;
+}
 
 // 对比行（可选）：compare==='none' 时调用方不渲染本行 → 「对比可选」
 function DeltaRow({ T, delta, cmpLabel }) {
@@ -86,6 +95,7 @@ function TrendChart({ T, series, dates, fmt, unit, compact }) {
   if (series.length < 2) return <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 11, color: T.muted }}>数据不足</div>;
   const { line, area } = sparkPath(series, 1000, 300, 12);
   const max = Math.max(...series), min = Math.min(...series), last = series[series.length - 1];
+  const c = min < 0 ? RED : T.accent;   // kk point 3：序列含负值 → 红线红趋势
   const yLab = { fontSize: 9, color: T.chartLabel || T.muted, fontFamily: T.mono, whiteSpace: 'nowrap' };
   const ticks = (dates && dates.length) ? [0, 1, 2, 3].map((k) => dates[Math.round((k / 3) * (dates.length - 1))]) : [];
   return (
@@ -99,10 +109,10 @@ function TrendChart({ T, series, dates, fmt, unit, compact }) {
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
           <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
             {[60, 150, 240].map((y) => <line key={y} x1="0" y1={y} x2="1000" y2={y} style={{ stroke: T.chartGrid || T.border, strokeWidth: 1, strokeDasharray: '4 5', vectorEffect: 'non-scaling-stroke' }} />)}
-            <path d={area} style={{ fill: `color-mix(in oklch, ${T.accent} 13%, transparent)`, stroke: 'none' }} />
-            <path d={line} style={{ fill: 'none', stroke: T.accent, strokeWidth: 2, vectorEffect: 'non-scaling-stroke', strokeLinejoin: 'round', strokeLinecap: 'round' }} />
+            <path d={area} style={{ fill: `color-mix(in oklch, ${c} 13%, transparent)`, stroke: 'none' }} />
+            <path d={line} style={{ fill: 'none', stroke: c, strokeWidth: 2, vectorEffect: 'non-scaling-stroke', strokeLinejoin: 'round', strokeLinecap: 'round' }} />
           </svg>
-          <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 9.5, fontFamily: T.mono, color: T.accent, background: `color-mix(in oklch, ${T.content} 82%, transparent)`, padding: '1px 5px', borderRadius: 5 }}>最新 {fmtBig(last, fmt, unit)}</div>
+          <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 9.5, fontFamily: T.mono, color: c, background: `color-mix(in oklch, ${T.content} 82%, transparent)`, padding: '1px 5px', borderRadius: 5 }}>最新 {fmtBig(last, fmt, unit)}</div>
         </div>
       </div>
       {ticks.length > 0 && (
@@ -118,10 +128,13 @@ function TrendChart({ T, series, dates, fmt, unit, compact }) {
 function StatBody({ T, tile }) {
   const { viz, value, delta, cmpLabel } = statOf(tile);
   const showCmp = (viz.compare || 'dod') !== 'none';
+  const marker = unitMarker(viz);
+  const size = marker.length > 1 ? 18 : 24;   // 多字符单位（USDT…）在窄卡缩小 → badge 留右侧不裁
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 9 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit)}</span>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 12px 12px', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={valueStyle(T, value < 0, viz.main, size)}>{fmtBig(value, viz.fmt, viz.unit, true)}</span>
+        <UnitBadge T={T}>{marker}</UnitBadge>
       </div>
       {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
     </div>
@@ -135,9 +148,11 @@ function PairBody({ T, tile }) {
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
       <div style={{ flex: '0 0 32%', minWidth: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px 12px', gap: 7, borderRight: `1px solid ${T.borderSoft}` }}>
-        <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={valueStyle(T, value < 0, viz.main)}>{fmtBig(value, viz.fmt, viz.unit, true)}</span>
+          <UnitBadge T={T}>{unitMarker(viz)}</UnitBadge>
+        </div>
         {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
-        <span style={{ fontSize: 9.5, color: T.chartLabel || T.muted, fontFamily: T.mono }}>{viz.trendLabel || `近 ${trendSeries.length} 点`}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0, padding: '10px 12px 8px' }}>
         <TrendChart T={T} series={trendSeries} dates={trendDates} fmt={viz.fmt} unit={viz.unit} compact />

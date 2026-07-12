@@ -15,28 +15,24 @@ export function fmtValue(value, unit) {
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
 
-// v0.8.10 BI 仪表盘大数值（基准 §5）：kind='money' → ¥ + 万/亿（≥1亿 保 1-2 位小数、≥1万 <100万带1位否则整数千分位）；
-//   'percentage' → ×100+%；否则（'count'）→ 千分位。非数原样。
-// v0.8.11 kk：unit 后缀（如 'USDT'）→ 万/亿 压缩 + 2 位小数 + 后缀、**无 ¥**（如 116.21万USDT）。unit 优先于 kind。
-export function fmtBig(value, kind = 'count', unit = '') {
+// v0.8.10/8.11 BI 仪表盘大数值（基准 §5 + kk 迭代）：
+//   金额类（kind='money' 或有 unit）→ 万/亿 压缩 + **恒 2 位小数**（无则 .00，point 4）。
+//     非 bare：带标记（有 unit → 数字+后缀 如 116.21万USDT；否则 ¥ 前缀 如 ¥2.30万）。
+//     bare=true：**只返数字**（标记由调用方 UnitBadge 单独渲染在右侧，point 1）。
+//   count → **整数千分位**（用户数等，point 4）；percentage → ×100+%（fmtPercent，不动）。非数原样。
+export function fmtBig(value, kind = 'count', unit = '', bare = false) {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
   if (kind === 'percentage') return fmtPercent(n);
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
-  if (unit) {
-    if (abs >= 1e8) return `${sign}${(abs / 1e8).toLocaleString(undefined, { maximumFractionDigits: 2 })}亿${unit}`;
-    if (abs >= 1e4) return `${sign}${(abs / 1e4).toLocaleString(undefined, { maximumFractionDigits: 2 })}万${unit}`;
-    return `${sign}${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit}`;
+  if (kind === 'money' || unit) {
+    const d2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    const pre = bare ? '' : (unit ? '' : '¥');       // ¥ 前缀仅无 unit 且非 bare
+    const suf = bare ? '' : (unit || '');            // unit 后缀仅非 bare
+    const scale = abs >= 1e8 ? [1e8, '亿'] : abs >= 1e4 ? [1e4, '万'] : [1, ''];
+    return `${sign}${pre}${(abs / scale[0]).toLocaleString(undefined, d2)}${scale[1]}${suf}`;
   }
-  if (kind === 'money') {
-    if (abs >= 1e8) return `${sign}¥${(abs / 1e8).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}亿`;
-    if (abs >= 1e4) {
-      const wan = abs / 1e4;
-      return `${sign}¥${wan < 100 ? wan.toLocaleString(undefined, { maximumFractionDigits: 1 }) : Math.round(wan).toLocaleString()}万`;
-    }
-    return `${sign}¥${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-  }
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });   // count 千分位
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });   // count → 整数
 }
