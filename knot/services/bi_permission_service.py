@@ -37,3 +37,14 @@ def can(user, report: dict, action: str) -> bool:
     if action not in ACTIONS:
         return False
     return effective(user, report).get(action, False)
+
+
+def can_folder(user, folder_id, action: str) -> bool:
+    """user 对某目录是否有 action 权限（create_report 归档建报表用）。admin 恒 True；
+    未分组（folder_id None）非 admin → False（无 report_id 可授，未分组建报表仅 admin）。"""
+    if _is_admin(user):
+        return True
+    if folder_id is None or action not in ACTIONS:
+        return False
+    g = repo.get_folder_grant((user or {}).get("role") or "", folder_id)
+    return bool(g and g.get(_COL[action]))

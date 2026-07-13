@@ -88,7 +88,7 @@ def test_every_metric_literal_has_audit_emit():
 def _bi_audit_literals() -> set[str]:
     from knot.models.audit import AuditAction
     return {a for a in typing.get_args(AuditAction)
-            if a.startswith("bi_report.") or a.startswith("report_folder.")}
+            if a.startswith(("bi_report.", "bi_permission.", "report_folder."))}
 
 
 def test_every_bi_literal_has_audit_emit():
@@ -97,6 +97,7 @@ def test_every_bi_literal_has_audit_emit():
     assert literals == {
         "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
         "bi_report.analyze",   # v0.8.10 da-asst 解读
+        "bi_permission.change",  # v0.8.12 RBAC grant 变更
         "report_folder.create", "report_folder.update", "report_folder.delete",
     }, f"BI AuditAction Literal 集合不符；实际 {literals}"
     emitted = _api_audit_emit_actions()

@@ -24,6 +24,8 @@ from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
 from knot.api.deps import get_current_user, require_admin
+from knot.repositories import bi_permission_repo
+from knot.services import bi_permission_service as perm_svc
 from knot.services import bi_report_service as svc
 from knot.services.export_service import rows_to_csv_bytes, rows_to_xlsx_bytes, sheets_to_xlsx_bytes
 
@@ -76,6 +78,16 @@ class ReportAnalyzeRequest(BaseModel):
     history: list[dict] = []                  # 既往对话 [{role, content}]（service 再截 12 轮）
 
 
+class PermissionSetRequest(BaseModel):        # v0.8.12 RBAC：设一条 grant（folder_id / report_id 二选一）
+    role: str
+    folder_id: int | None = None
+    report_id: int | None = None
+    can_schedule: bool = False
+    can_edit: bool = False
+    can_export: bool = False
+    can_share: bool = False
+
+
 _MAX_OVERLAY_CELLS = 500  # overlay 单元格上限（防超大 overlay → 客户端求值 DoS；红队复验 residual）
 _MAX_TILES = 30           # 仪表盘 tile 数上限（②b C-2；placement 同 overlay 在 api 层）
 _MAX_REORDER = 1000       # reorder id 数上限（DoS 护栏；报表/文件夹不会近此量 —— 超即拒非静默截断）
@@ -84,6 +96,19 @@ _MAX_ANALYZE_HISTORY = 24 # da-asst 对话历史硬顶（防超大 payload；ser
 
 def _is_admin(user) -> bool:
     return user.get("role") == "admin"
+
+
+def require_report_perm(action: str):
+    """依赖工厂（v0.8.12 RBAC）：admin ∨ 当前用户对该报表有 <action> 权限，否则 403；报表不存在 404。
+    返当前 user（handler 复用作 audit / created_by）。归档报表继承目录 grant、未分组查报表 grant（perm_svc）。"""
+    def _dep(report_id: int, user=Depends(get_current_user)):
+        r = svc.get_report(report_id)
+        if not r:
+            raise HTTPException(status_code=404, detail="报表不存在")
+        if not perm_svc.can(user, r, action):
+            raise HTTPException(status_code=403, detail="无该操作权限")
+        return user
+    return _dep
 
 
 def _check_overlay_size(overlay) -> None:
@@ -178,29 +203,32 @@ async def analyze_report(report_id: int, req: ReportAnalyzeRequest, request: Req
     return {"answer": answer}
 
 
-# ── 写：报表（require_admin）──────────────────────────────────────────────────────
+# ── 写：报表（v0.8.12 RBAC —— edit 权限；admin 全权）─────────────────────────────────
 
 @router.post("/api/bi/reports")
-async def create_report(req: ReportCreateRequest, request: Request, admin=Depends(require_admin)):
+async def create_report(req: ReportCreateRequest, request: Request, user=Depends(get_current_user)):
+    # RBAC：归档建报表需该目录 edit（admin 全权）；未分组建报表仅 admin（无 report_id 可授，can_folder 返 False）
+    if not perm_svc.can_folder(user, req.folder_id, "edit"):
+        raise HTTPException(status_code=403, detail="无该目录的建报表权限")
     _check_overlay_size(req.overlay_config)
     _check_tiles_size(req.tiles)
     try:
         r = svc.create_report(
-            admin, title=req.title, sql_text=req.sql_text, data_source_id=req.data_source_id,
+            user, title=req.title, sql_text=req.sql_text, data_source_id=req.data_source_id,
             folder_id=req.folder_id, report_type=req.report_type,
             column_config=req.column_config, overlay_config=req.overlay_config,
             dashboard_config=req.dashboard_config, tiles=req.tiles,
         )
     except svc.SqlNotReadOnly as e:
         raise HTTPException(status_code=400, detail=f"SQL 未通过只读校验：{e}") from e
-    audit(request, admin, action="bi_report.create", resource_type="bi_report",
+    audit(request, user, action="bi_report.create", resource_type="bi_report",
           resource_id=r["id"], detail={"title": r["title"], "data_source_id": req.data_source_id})
     return r
 
 
 @router.put("/api/bi/reports/{report_id}")
 async def update_report(report_id: int, req: ReportUpdateRequest, request: Request,
-                       admin=Depends(require_admin)):
+                       user=Depends(require_report_perm("edit"))):
     _check_overlay_size(req.overlay_config)
     _check_tiles_size(req.tiles)
     # model_fields_set：只透传显式提供的字段 → svc 默认（None=不改 / _UNSET=不改）保 folder/config/tiles 清空语义
@@ -209,29 +237,29 @@ async def update_report(report_id: int, req: ReportUpdateRequest, request: Reque
           ("title", "folder_id", "data_source_id", "sort_order", "sql_text", "column_config", "overlay_config", "dashboard_config", "tiles")
           if k in fields}
     try:
-        r = svc.update_report(report_id, admin=admin, **kw)   # admin 供 diff-by-id 新 tile created_by
+        r = svc.update_report(report_id, admin=user, **kw)   # 供 diff-by-id 新 tile created_by（非 admin 编辑者亦可）
     except svc.SqlNotReadOnly as e:
         raise HTTPException(status_code=400, detail=f"SQL 未通过只读校验：{e}") from e
     if r is None:
         raise HTTPException(status_code=404, detail="报表不存在")
-    audit(request, admin, action="bi_report.update", resource_type="bi_report",
+    audit(request, user, action="bi_report.update", resource_type="bi_report",
           resource_id=report_id, detail={"fields": sorted(kw.keys())})
     return r
 
 
 @router.delete("/api/bi/reports/{report_id}")
-async def delete_report(report_id: int, request: Request, admin=Depends(require_admin)):
+async def delete_report(report_id: int, request: Request, user=Depends(require_report_perm("edit"))):
     if not svc.delete_report(report_id):
         raise HTTPException(status_code=404, detail="报表不存在")
-    audit(request, admin, action="bi_report.delete", resource_type="bi_report", resource_id=report_id)
+    audit(request, user, action="bi_report.delete", resource_type="bi_report", resource_id=report_id)
     return {"ok": True}
 
 
 @router.post("/api/bi/reports/{report_id}/refresh")
-async def refresh_report(report_id: int, request: Request, admin=Depends(require_admin)):
+async def refresh_report(report_id: int, request: Request, user=Depends(require_report_perm("edit"))):
     # 卸载 sync SQLAlchemy 到线程池（dashboard N tile 查询串行，防阻塞事件循环）—— B-3/先例 datasources.py
     loop = asyncio.get_event_loop()
-    out = await loop.run_in_executor(None, svc.refresh, report_id, admin)
+    out = await loop.run_in_executor(None, svc.refresh, report_id, user)
     if out is None:
         raise HTTPException(status_code=404, detail="报表不存在")
     # B-6：审计 detail 按 report_type 分支（dashboard/tabbed 返 per-tile summary，无顶层 rows/error）
@@ -239,7 +267,7 @@ async def refresh_report(report_id: int, request: Request, admin=Depends(require
         detail = {"tile_count": out.get("tile_count", 0), "error_count": out.get("error_count", 0)}
     else:
         detail = {"row_count": len(out.get("rows", [])), "error": bool(out.get("error"))}
-    audit(request, admin, action="bi_report.refresh", resource_type="bi_report",
+    audit(request, user, action="bi_report.refresh", resource_type="bi_report",
           resource_id=report_id, detail=detail)
     return out
 
@@ -297,7 +325,33 @@ async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(r
     return {"ok": True}
 
 
-# ── 导出（全体已认证读；复用 export_service —— CSV/公式注入中性化已由 v0.8.4 chore 落，R-BI-12）──
+# ── 权限 RBAC 管理（v0.8.12；admin 授权角色×目录 / ×报表）─────────────────────────────
+
+@router.get("/api/bi/permissions")
+async def list_permissions(admin=Depends(require_admin)):
+    """所有 grant（admin 管理 UI 渲染角色×资源矩阵）。"""
+    return bi_permission_repo.list_all()
+
+
+@router.put("/api/bi/permissions")
+async def set_permission(req: PermissionSetRequest, request: Request, admin=Depends(require_admin)):
+    """设一条 grant（folder_id / report_id 二选一）；4 权限全 0 = 撤销（删行）。emit bi_permission.change。"""
+    if (req.folder_id is None) == (req.report_id is None):
+        raise HTTPException(status_code=400, detail="folder_id / report_id 须且仅提供一个")
+    perms = {"can_schedule": req.can_schedule, "can_edit": req.can_edit,
+             "can_export": req.can_export, "can_share": req.can_share}
+    if req.folder_id is not None:
+        bi_permission_repo.set_folder_grant(req.role, req.folder_id, perms, admin["id"])
+        target = {"folder_id": req.folder_id}
+    else:
+        bi_permission_repo.set_report_grant(req.role, req.report_id, perms, admin["id"])
+        target = {"report_id": req.report_id}
+    audit(request, admin, action="bi_permission.change", resource_type="bi_report",
+          resource_id=req.folder_id or req.report_id or 0, detail={"role": req.role, **target, **perms})
+    return {"ok": True}
+
+
+# ── 导出（v0.8.12 收紧为 admin∨export 权限；复用 export_service —— CSV 注入中性化 v0.8.4，R-BI-12）──
 
 def _report_or_404(report_id: int) -> dict:
     r = svc.get_report(report_id)
@@ -335,7 +389,7 @@ def _tile_sheet(tile: dict) -> dict:
 
 @router.get("/api/bi/reports/{report_id}/export.csv")
 async def export_report_csv(report_id: int, request: Request, tile_id: int | None = None,
-                            user=Depends(get_current_user)):
+                            user=Depends(require_report_perm("export"))):   # v0.8.12：收紧为 admin∨export 权限
     r = _report_or_404(report_id)
     rtype = r.get("report_type")
     if rtype == "dashboard":
@@ -361,7 +415,7 @@ async def export_report_csv(report_id: int, request: Request, tile_id: int | Non
 
 
 @router.get("/api/bi/reports/{report_id}/export.xlsx")
-async def export_report_xlsx(report_id: int, request: Request, user=Depends(get_current_user)):
+async def export_report_xlsx(report_id: int, request: Request, user=Depends(require_report_perm("export"))):   # v0.8.12：收紧为 admin∨export
     r = _report_or_404(report_id)
     rtype = r.get("report_type")
     if rtype == "dashboard":

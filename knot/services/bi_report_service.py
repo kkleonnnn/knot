@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 
 from knot.adapters.db import doris as db_connector
+from knot.repositories import bi_permission_repo as perm_repo
 from knot.repositories import bi_report_repo as repo
 from knot.repositories import bi_report_tile_repo as tile_repo
 from knot.services import engine_cache
@@ -126,6 +127,7 @@ def delete_folder(folder_id: int) -> bool:
     for f in repo.list_folders():
         if f["parent_id"] == folder_id:
             repo.update_folder(f["id"], parent_id=None)
+    perm_repo.delete_for_folder(folder_id)    # v0.8.12：级联清该目录的 RBAC grant（内含报表已 reparent 未归档，其继承权限自然失效）
     repo.delete_folder(folder_id)
     return True
 
@@ -198,6 +200,7 @@ def delete_report(report_id: int) -> bool:
     if repo.get_report(report_id) is None:
         return False
     tile_repo.delete_by_report(report_id)     # 先级联删 tiles（soft-FK，避免孤儿）
+    perm_repo.delete_for_report(report_id)    # v0.8.12：级联清该报表的 RBAC grant（软 ref 防孤儿）
     repo.delete_report(report_id)
     return True
 
