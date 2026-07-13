@@ -77,7 +77,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         const loaded = { openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' };
         setApiKeys(loaded);
         setApiKeysLoaded(loaded);
-        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '' });
+        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '', da_asst: ac.da_asst || '' });
       }
       if (tab === 'knowledge') { const d = await api.get('/api/knowledge'); setKnowledgeDocs(d); }
       if (tab === 'fewshots') { const d = await api.get('/api/few-shots').catch(() => []); setFewShots(d || []); }
