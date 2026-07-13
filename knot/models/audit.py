@@ -27,6 +27,7 @@ AuditAction = Literal[
     "config.agent_models_update", "config.prompt_update",
     "config.catalog_update", "config.few_shots_change",
     "config.budget_update",  # v0.6.5.9 修 admin.py budget-config 审计调用崩溃（原裸字符串错位 TypeError）
+    "config.im_share_update",  # v0.8.14 分享 IM 凭据 + 投递目标白名单变更（emit knot/api/admin/share.py）
     # v0.6.2.5 段 4 (A1): 多 catalog 切换（per-user active catalog；AuditAction 38→39）
     "catalog.switch",
     # v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离第②层 assert 失败（async race 漂移；39→40）
@@ -72,6 +73,8 @@ AuditResourceType = Literal[
     "saved_report", "audit",
     # v0.8.5 (②a) BI 模式
     "bi_report", "report_folder",
+    # v0.8.14 分享 IM 凭据 + 投递目标白名单
+    "share_target",
     # v0.6.0.3 F-A: 反馈关联 message
     "message",
 ]
