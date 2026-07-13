@@ -92,6 +92,21 @@ def test_R62_blacklist_synced_with_v045():
     assert not missing, f"R-62：_PII_BLACKLIST 漏掉 v0.4.5 字段：{missing}"
 
 
+def test_R62_pii_superset_of_sensitive_keys():
+    """R-BI-SHARE-2（v0.8.14 守护者 B2）：_PII_BLACKLIST 必须是 settings_repo._SENSITIVE_KEYS 的超集。
+
+    元教训：旧 test_R62_blacklist_synced_with_v045 用硬编集，加密 setting key 漏进黑名单
+    不会被抓（重演 v0.6.2.0 totp_secret 坑）。本测试动态引用 _SENSITIVE_KEYS →
+    任何新 sensitive key 未同步 _PII_BLACKLIST 即红（_scrub 精确键匹配，漏则明文入 audit detail_json）。
+    """
+    from knot.repositories import settings_repo
+    missing = set(settings_repo._SENSITIVE_KEYS) - audit_service._PII_BLACKLIST
+    assert not missing, (
+        f"R-62 破：settings_repo._SENSITIVE_KEYS 有 key 未进 audit_service._PII_BLACKLIST："
+        f"{missing} —— 这些加密凭据会以明文进 audit detail_json。补进 _PII_BLACKLIST。"
+    )
+
+
 # ─── R-51 actor 从 token 取 ──────────────────────────────────────────
 
 def test_R51_actor_from_dict_param_not_payload(tmp_db_path):

@@ -443,3 +443,16 @@ CREATE TABLE IF NOT EXISTS bi_permissions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_folder ON bi_permissions(user_id, folder_id) WHERE folder_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_report ON bi_permissions(user_id, report_id) WHERE report_id IS NOT NULL;
+
+-- v0.8.14 分享投递目标白名单（admin 策展；用户分享时提交 target_id 引本表行，chat_id 禁用户自填）。
+-- OOS-1：绑 data_source_id（可空=全局），严禁 tenant_id。chat_id 非机密可明文；IM 凭据走 app_settings 加密。
+CREATE TABLE IF NOT EXISTS bi_share_targets (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT    NOT NULL,                       -- 展示名（如「运营大群」）
+    platform       TEXT    NOT NULL,                       -- 'lark' | 'tg'
+    chat_id        TEXT    NOT NULL,                        -- TG chat_id / Lark receive_id（chat_id 维度）
+    region         TEXT,                                    -- Lark：'feishu'(open.feishu.cn) | 'lark'(open.larksuite.com)；TG 留空
+    data_source_id INTEGER,                                 -- OOS-1 绑业务库（可空=全局），严禁 tenant_id
+    created_at     TEXT    DEFAULT (datetime('now','localtime')),
+    created_by     INTEGER NOT NULL
+);

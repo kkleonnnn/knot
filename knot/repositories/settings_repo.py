@@ -13,7 +13,12 @@ from knot.models.errors import ConfigMissingError
 from knot.repositories.base import get_conn
 
 # 敏感 setting key 白名单 — 新增 sensitive setting 必须更新此集合（CLAUDE.md 流程红线）
-_SENSITIVE_KEYS = frozenset({"openrouter_api_key", "embedding_api_key"})
+# ⚠️ 新增此集合的 key 必须同步 audit_service._PII_BLACKLIST（R-62；superset CI 强制，v0.8.14 R-BI-SHARE-2）
+# v0.8.14 分享 IM 凭据：lark_app_secret + telegram_bot_token 机密；lark_app_id/lark_region 非机密不入此集
+_SENSITIVE_KEYS = frozenset({
+    "openrouter_api_key", "embedding_api_key",
+    "lark_app_secret", "telegram_bot_token",
+})
 
 
 # ── 通用 KV ────────────────────────────────────────────────────────────
