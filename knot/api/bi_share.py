@@ -53,10 +53,16 @@ async def share_report_endpoint(report_id: int, req: ReportShareRequest, request
         raise HTTPException(status_code=413, detail=f"图片过大（≤{_MAX_PNG_BYTES // (1024 * 1024)}MB）")
 
     loop = asyncio.get_event_loop()
-    try:  # SYNC 分享（阻塞 HTTP fan-out）卸载线程池；校验失败（target_id∉白名单/凭据缺）→ 400
+    try:  # SYNC 分享（阻塞 HTTP fan-out）卸载线程池
         results = await loop.run_in_executor(None, share_svc.share_report, png, req.target_ids, req.caption)
     except share_svc.ShareValidationError as e:
+        # 校验失败（target_id∉白名单/凭据缺，fan-out 前 0 出境）→ 400，无出境尝试不审计
         raise HTTPException(status_code=400, detail=str(e)) from None
+    except Exception as e:
+        # 意外错误（如 KNOT_MASTER_KEY 轮换后凭据解密失败）→ 出境尝试仍留痕（审计完整性），再 502
+        audit(request, user, action="bi_report.share", resource_type="bi_report", resource_id=report_id,
+              detail={"target_count": len(req.target_ids), "ok_count": 0, "error": type(e).__name__})
+        raise HTTPException(status_code=502, detail="分享投递失败") from None
 
     ok = sum(1 for r in results if r.get("ok"))
     audit(request, user, action="bi_report.share", resource_type="bi_report", resource_id=report_id,

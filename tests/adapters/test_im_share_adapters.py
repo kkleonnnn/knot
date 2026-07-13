@@ -180,3 +180,11 @@ def test_lark_host_gate_rejects(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: pytest.fail("host 门未拦"))
     with pytest.raises(lk.LarkError):
         lk.LarkImageAdapter().send_image(b"P", "", "oc", app_id="c", app_secret="s", region="feishu")
+
+
+def test_lark_non_dict_json_raises_larkerror(monkeypatch):
+    """对抗复核 fix：合法但非 dict JSON（list）→ LarkError（非 AttributeError 逃逸出 adapter）。"""
+    import requests
+    monkeypatch.setattr(requests, "post", lambda url, timeout=None, **k: _Resp(["not", "a", "dict"]))
+    with pytest.raises(lk.LarkError):
+        lk.LarkImageAdapter().send_image(b"P", "", "oc", app_id="c", app_secret="s", region="feishu")

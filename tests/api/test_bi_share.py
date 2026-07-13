@@ -82,3 +82,18 @@ def test_share_bad_target_id_400(client, auth_headers):
     r = client.post(f"/api/bi/reports/{rid}/share",
                     json={"image_png": _PNG, "target_ids": [1]}, headers=auth_headers)
     assert r.status_code == 400
+
+
+def test_share_unexpected_error_audits_and_502(client, auth_headers, monkeypatch):
+    """对抗复核 confirmed fix：意外异常（非 ShareValidationError）→ 502 且 bi_report.share 审计仍写（不跳）。"""
+    from knot.api import bi_share
+    monkeypatch.setattr(bi_share.share_svc, "share_report",
+                        lambda png, ids, cap: (_ for _ in ()).throw(RuntimeError("decrypt boom")))
+    audited = []
+    monkeypatch.setattr(bi_share, "audit", lambda *a, **k: audited.append(k))
+    rid = _make_report(client, auth_headers)
+    r = client.post(f"/api/bi/reports/{rid}/share",
+                    json={"image_png": _PNG, "target_ids": [1]}, headers=auth_headers)
+    assert r.status_code == 502
+    assert any(k.get("action") == "bi_report.share" and (k.get("detail") or {}).get("ok_count") == 0
+               for k in audited), "意外错误路径须仍审计 bi_report.share（出境尝试留痕）"

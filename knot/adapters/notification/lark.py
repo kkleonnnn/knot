@@ -41,11 +41,14 @@ def _post(url: str, **kw) -> dict:
     try:
         resp = requests.post(url, timeout=_TIMEOUT_SEC, **kw)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
     except requests.RequestException as e:
         raise LarkError(f"Lark 请求失败: {type(e).__name__}") from None  # 不含 URL/token/secret
     except ValueError as e:                            # resp.json() 解析失败
         raise LarkError(f"Lark 响应非 JSON: {type(e).__name__}") from None
+    if not isinstance(data, dict):                     # 合法但非 dict JSON（list/str/num）→ 防 .get AttributeError 逃逸
+        raise LarkError("Lark 响应非对象 JSON")
+    return data
 
 
 def _tenant_token(region: str, app_id: str, app_secret: str) -> str:
