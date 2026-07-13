@@ -38,7 +38,7 @@ BACKEND_ACK = {
 EXPLICIT_LIMITS = {
     # 2 主屏
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 435,  # v0.6.2.5 段4 →420（多 catalog）；v0.8.12 C1 +BI tab dispatch/titles →425（headroom 10；BI 内容在 tab_bi.jsx）
+    "frontend/src/screens/Admin.jsx": 455,  # v0.6.2.5 →420；v0.8.12 C1 +BI dispatch →425；v0.8.13 +few-shot 批删 + catalog 上传 handler 440
     # chat/ 子模块
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,

@@ -83,4 +83,24 @@ async def download_template(kind: str, admin=Depends(require_admin)):
             headers={"Content-Disposition": 'attachment; filename="knowledge_template.txt"'},
         )
 
+    if kind == "catalog":
+        # v0.8.13：业务目录是结构化 JSON（非表格）→ JSON 模板；上传走 PUT /api/admin/catalog 校验。
+        import json
+        sample = {
+            "tables": [
+                {"table": "ohx_ads.ads_operation_report_daily",
+                 "columns": ["sta_date", "reg_user_num", "active_user_num", "deposit", "platform_pnl"],
+                 "desc": "平台运营日报（每日一行）"},
+            ],
+            "lexicon": {"GMV": "已支付订单 pay_amount 之和（不含退款）", "活跃用户": "近 30 天有登录/下单的用户"},
+            "business_rules": "口径说明：金额单位一律 USDT；日期列 sta_date。",
+            "relations": [["orders", "user_id", "users", "id", "多对一"]],
+            "field_labels": {"reg_user_num": "注册用户数", "deposit": "充值金额"},
+        }
+        return Response(
+            content=json.dumps(sample, ensure_ascii=False, indent=2).encode("utf-8"),
+            media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="catalog_template.json"'},
+        )
+
     raise HTTPException(status_code=404, detail="未知模板类型")

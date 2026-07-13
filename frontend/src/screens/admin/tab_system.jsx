@@ -1,14 +1,23 @@
 // v0.5.3: extracted from Admin.jsx L516-561 (Catalog tab JSX)
 // D4 mapping: System (Catalog) — 系统与治理（Audit / Recovery 是独立页面 AdminAudit.jsx / AdminRecovery.jsx）
 // v0.5.22: 视觉重构 — Inset 8% 闭环第九处扩张（7→8 文件）+ borderLeft 25% 第四处闭环 + 蓝色 hex 双残留偿还
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { pillBtn, NumChip, OverrideChip, SourceTag } from '../../Shared.jsx';
-import { Spinner } from '../../utils.jsx';
+import { Spinner, toast } from '../../utils.jsx';
 
 export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalogField, onResetCatalogField,
+                            onDownloadTemplate, onUploadCatalog,
                             catalogs = [], activeCatalogId = 1, onSwitchCatalog, onCreateCatalog, onDeleteCatalog }) {
   // v0.6.2.5 段 4 (A1): 新建 catalog 名称输入（UI-local 受控态）
   const [newCatalogName, setNewCatalogName] = useState('');
+  // v0.8.13：业务目录 JSON 上传（客户端 parse → onUploadCatalog）
+  const fileRef = useRef(null);
+  const onFile = (f) => {
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { try { onUploadCatalog(JSON.parse(rd.result)); } catch (e) { toast(`JSON 解析失败：${e.message}`, true); } };
+    rd.readAsText(f);
+  };
   // v0.5.44 — 加第 4 section 表关系（RELATIONS）— 笛卡尔积根因解 (admin UI 替代 gitignored .py)
   const sections = [
     { num: '01', key: 'tables', title: '表目录', source: 'tables', hint: 'JSON 数组：[{db, table, topics:[], summary}]，给 schema_filter 做主题加分。', mono: true },
@@ -39,6 +48,14 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
           业务目录注入到 schema 检索 + 3 个 Agent prompt。优先级：DB（本面板编辑）→ 仓库 _local_catalog.py（部署方填）→ _template_catalog.py（仓库默认）。
           当前生效来源：<b style={{ color: T.text }}>{catalog.source || '...'}</b>。任一字段保存即覆盖默认；点"恢复默认"清空 DB 覆盖。
         </div>
+      </div>
+
+      {/* v0.8.13：业务目录 JSON 模板下载 + 上传（结构化 JSON，非表格）*/}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button onClick={onDownloadTemplate} style={{ ...pillBtn(T), padding: '6px 12px' }}>下载模板 (JSON)</button>
+        <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }}
+          onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }}/>
+        <button onClick={() => fileRef.current?.click()} style={{ ...pillBtn(T, true), padding: '6px 12px' }}>上传 JSON</button>
       </div>
 
       {/* v0.6.2.5 段 4 (A1): 多 catalog 切换选择器 — VRP 视觉延续（Inset 8% + 25% border + SourceTag/pillBtn）*/}

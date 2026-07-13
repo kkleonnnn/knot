@@ -210,6 +210,11 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
       })
       .catch(e => toast(String(e), true));
   };
+  // v0.8.13：业务目录 JSON 上传 → 走 put_catalog 校验（前端已 JSON.parse 好 obj）
+  const uploadCatalog = async (obj) => {
+    try { const r = await api.put('/api/admin/catalog', obj); toast(`已导入业务目录（来源：${r.source || 'db'}）`); loadAll(); }
+    catch (e) { toast(`导入失败：${e.message || e}`, true); }
+  };
 
   const uploadFewShots = async (file) => {
     setFsUploading(true);
@@ -414,6 +419,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                      catalogSaving={catalogSaving}
                      onSaveCatalogField={saveCatalogField}
                      onResetCatalogField={resetCatalogField}
+                     onDownloadTemplate={() => downloadTemplate('catalog', 'catalog_template.json')}
+                     onUploadCatalog={uploadCatalog}
                      catalogs={catalogs} activeCatalogId={activeCatalogId}
                      onSwitchCatalog={switchCatalog} onCreateCatalog={createCatalog}
                      onDeleteCatalog={deleteCatalog}/>
