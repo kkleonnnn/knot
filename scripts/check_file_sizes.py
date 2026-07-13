@@ -38,7 +38,7 @@ BACKEND_ACK = {
 EXPLICIT_LIMITS = {
     # 2 主屏
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 420,  # v0.6.2.5 段4 400→420（多 catalog 切换 state/handlers 状态容器 ack）
+    "frontend/src/screens/Admin.jsx": 435,  # v0.6.2.5 段4 →420（多 catalog）；v0.8.12 C1 +BI tab dispatch/titles →425（headroom 10；BI 内容在 tab_bi.jsx）
     # chat/ 子模块
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
@@ -108,13 +108,14 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/admin/tab_resources.jsx": 250,
     "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 Knowledge + Few-shot 完整 UI
     "frontend/src/screens/admin/tab_system.jsx":   250,
+    "frontend/src/screens/admin/tab_bi.jsx":       200,  # v0.8.12 C1 BI 设置（目录/权限/da-asst）；C2/C4/C5 填充
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 SourceFormModal HTTP type 5 字段
     # Foundation + 基础设施
     "frontend/src/Shared.jsx":                     760,  # v0.6.4.0 UI v2 (TOKENS_V2 + 16 图标 additive)
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 (Btn/Tag 独立文件)
     "frontend/src/utils.jsx":                      200,  # v0.6.2.3 Foundation 纳管
     "frontend/src/decor/NarrativeMotif.jsx":       120,
-    "frontend/src/Shell.jsx":                      235,  # v0.7.7 C5 +指标监控 nav；v0.8.5 ②a +inline ModeToggle 集群 222→225；+子屏返回来时模式 backMode 逻辑 →233（headroom 2）
+    "frontend/src/Shell.jsx":                      260,  # v0.7.7 +指标监控；v0.8.5 ②a +ModeToggle+backMode →233；v0.8.12 C1 +BI 设置 nav 分栏（backMode==='bi' 分支）→250（headroom 10）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
     "frontend/src/ErrorBoundary.jsx":              120,  # v0.7.33 B1.1 App+ResultBlock error boundary
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）

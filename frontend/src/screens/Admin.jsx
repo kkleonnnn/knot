@@ -18,6 +18,7 @@ import { TabAccess } from './admin/tab_access.jsx';
 import { TabResources } from './admin/tab_resources.jsx';
 import { TabKnowledge } from './admin/tab_knowledge.jsx';
 import { TabSystem } from './admin/tab_system.jsx';
+import { TabBI } from './admin/tab_bi.jsx';   // v0.8.12 C1 — BI 设置专属 tab（目录/权限/da-asst）
 import { UserFormModal, SourceFormModal, FewShotModal } from './admin/modals.jsx';
 
 export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, screen: screenProp, initialTab = 'users' }) {
@@ -314,7 +315,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     catch (e) { toast(String(e), true); }
   };
 
-  const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录' };
+  const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录',
+    'bi-directory': '报表目录', 'bi-permissions': '目录权限', 'bi-daasst': 'da-asst' };   // v0.8.12 C1
 
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
@@ -407,6 +409,11 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                      catalogs={catalogs} activeCatalogId={activeCatalogId}
                      onSwitchCatalog={switchCatalog} onCreateCatalog={createCatalog}
                      onDeleteCatalog={deleteCatalog}/>
+        )}
+
+        {/* v0.8.12 C1 — BI 设置专属 tab（从 BI 齿轮进；自包含 fetch） */}
+        {(tab === 'bi-directory' || tab === 'bi-permissions' || tab === 'bi-daasst') && (
+          <TabBI T={T} tab={tab}/>
         )}
       </div>
 
