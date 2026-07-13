@@ -37,11 +37,20 @@ function FolderRow({ T, folder, onRename, onDelete, dnd }) {
 
 function DirectoryManager({ T }) {
   const [folders, setFolders] = useState([]);
+  const [reports, setReports] = useState([]);
   const [newName, setNewName] = useState('');
   const [newParent, setNewParent] = useState('');
   const [drag, setDrag] = useState(null);
-  const reload = useCallback(() => { api.get('/api/bi/folders').then((f) => setFolders(f || [])).catch(() => {}); }, []);
+  const reload = useCallback(() => {
+    Promise.all([api.get('/api/bi/folders').catch(() => []), api.get('/api/bi/reports').catch(() => [])])
+      .then(([f, r]) => { setFolders(f || []); setReports(r || []); });
+  }, []);
   useEffect(() => { reload(); }, [reload]);
+
+  const move = async (reportId, folderId) => {
+    try { await api.put(`/api/bi/reports/${reportId}`, { folder_id: folderId ? Number(folderId) : null }); reload(); }
+    catch (e) { toast(String(e.message || e), true); }
+  };
 
   const create = async () => {
     const name = newName.trim();
@@ -72,7 +81,7 @@ function DirectoryManager({ T }) {
 
   const fld = { padding: '8px 11px', borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' };
   return (
-    <Panel T={T} title="报表目录管理" desc="BI 报表目录的新建 / 重命名（点名字直接改）/ 删除 / 拖拽排序。">
+    <Panel T={T} title="报表目录管理" desc="目录的新建 / 重命名（点名字直接改）/ 删除 / 拖拽排序；下方把报表归入目录（或移出到未分组）。">
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="新目录名称"
           onKeyDown={(e) => { if (e.key === 'Enter') create(); }} style={{ ...fld, flex: 1 }} />
@@ -89,6 +98,25 @@ function DirectoryManager({ T }) {
             {folders.map((f, i) => (
               <FolderRow key={`${f.id}:${f.name}`} T={T} folder={f} onRename={rename} onDelete={del}
                 dnd={{ dragging: drag === i, start: () => setDrag(i), drop: () => { reorder(drag, i); setDrag(null); } }} />
+            ))}
+          </div>
+        )}
+
+      {/* 报表归入：每张报表选归属目录（PUT folder_id；未分组 = 移出目录） */}
+      <div style={{ fontSize: 13, color: T.subtext, fontWeight: 500, margin: '24px 0 8px' }}>报表归入目录</div>
+      {reports.length === 0
+        ? <div style={{ fontSize: 12, color: T.muted }}>暂无报表。</div>
+        : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {reports.map((r) => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
+                <select value={r.folder_id ?? ''} onChange={(e) => move(r.id, e.target.value)}
+                  style={{ ...fld, width: 180, cursor: 'pointer', flexShrink: 0 }}>
+                  <option value="">未分组</option>
+                  {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              </div>
             ))}
           </div>
         )}
