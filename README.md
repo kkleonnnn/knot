@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.9 · ②b.3 **BI builder 两项（kk 逐图反馈）**：① **列配置/公式行「收起」** —— builder 每页列配置默认折叠（26 列不撑爆卡片、页签好拖），点开编辑。② **per-页公式行编辑器** —— 表头↔数据之间插聚合/筛选行（复用 ②a `formula.js` 零 eval：SUM/SUMIF/AVG/COUNT/MIN/MAX + A1 引用 → `viz_config.overlay`，WideTable 渲染器早已支持）；列配置显示列字母（A/B/…）助记公式；per-tile overlay 单元格上限防 DoS。<br>**上版** v0.8.8 ②b.2 **BI 打磨三项**：① 报表类型收敛 2 类（报表 tabbed + 仪表盘，宽表遗留）· ② 全量展示上限 200→10000 + 列名/口径自定义编辑 · ③ 目录拖拽排序（HTML5 DnD 无库）· ④ update 链补 data_source_id（编辑改数据源）。<br>**更早** v0.8.7 ②b.1 **多页表报表（运营日报式）**：新 `report_type='tabbed'` —— 一个报表内日/周/月式多页签，每页一条自己的只读 SQL + 独立冻结快照（复用 ②b `bi_report_tiles` 后端）；宽表表体抽出 `<WideTable>` 共用；列注释表头扩 `desc`。<br>**更早** v0.8.6 ②b **仪表盘结构化拼板**：静态配置 → **结构化 tile**（每板块一条 SQL + 类型 KPI/折线/圆盘/横条/表 + 冻结快照 + 拖拽/占列）；`bi_report_tiles` 子表（per-tile SQL `is_safe_sql` 校验 + 逐 tile 脱敏 R-BI-6 + diff-by-id id 归属校验）；整表原子刷新。<br>**更早** v0.8.5 ②a BI/ASK 双模（共用 `<AppShell>` + 分段 ModeToggle + 共享 RightPanel；宽表 SQL + 覆盖层公式 零 eval `formula.js`；R-BI-1 0 触 saved_reports/Chat）· v0.8.4 导出注入中性化 · v0.8.0~.3 B6 语义激活门（待填 OHX corpus + eval-live 开 flag）· v0.7.x 语义层。⚠️ OOS-1 死线 sustained；②c 调度器 / ③ da-asst 真接顺延
+> **当前版本** v0.8.13 · **admin 批量运维**：ASK few-shot + 指标注册表 全选/反选/**批量删除** · 指标注册表 **xlsx 模板下载 + 批量导入** · 业务目录 **JSON 模板 + 上传**（形状严格对齐真实契约）。<br>**上版** v0.8.12 **BI 设置 + 目录权限 RBAC**：BI 模式独立设置面板（数据源 / 用户 / API&模型 / 报表目录 / 目录权限）；新 `bi_permissions` = **按用户 × 目录/报表 × 4 权限**（定时 / 编辑 / 导出 / 分享，admin 恒全权，default-deny）—— 单租户内 user×resource（⚠️ OOS-1 死线 sustained，0 tenant_id）；da-asst 升为**第一类数据分析引擎**（独立模型槽 + BI 右栏只读报表解读 + 成本控制平面）。<br>**更早** v0.8.10~.11 **BI 仪表盘 12 列组件网格 builder**（6 类型 tile：KPI / 折线 / 圆盘 / 横条 / 表 / donut + 拖拽占列 + 冻结快照）+ 逐图视觉打磨。<br>**更早** v0.8.5~.9 **BI / ASK 双模**（共用 `<AppShell>` + 分段 ModeToggle + 共享 RightPanel；报表模式 = 仪表盘 tile / 多页 tabbed 报表 / 宽表 + 零 eval `formula.js` 覆盖层公式）· v0.7.x **5 层语义层 + LogicForm**（指标注册表 → NL→LogicForm→SQL 编译 → 混合路由；`KNOT_SEMANTIC_LAYER` flag 默认 off，待填真实 corpus + eval-live 达标后开）。
 
 ## 文档导航
 
@@ -26,41 +26,50 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 ## 角色
 
-- **admin**：配置数据源、API key、3-agent 模型；维护 few-shot / prompt / 知识库 / 业务目录（表 / 词典 / 规则 / **表关系 RELATIONS** v0.5.44）/ 预算配置（单 global 5 字段 v0.5.42）
-- **analyst**（运营 / 执行）：聊天提问，自动生成 SQL、图表、洞察 + 思考过程 4-step (Knowledge → Nexus → Objective → Trace) 透明可追溯
+- **admin**：配置数据源、API key、Agent 模型（3-agent + da-asst）；维护 few-shot / prompt / 知识库 / 业务目录（表 / 词典 / 规则 / **表关系 RELATIONS**）/ 指标注册表 / 预算配置；BI 侧管理**报表目录 + 目录权限（按用户 RBAC）**（v0.8.12）
+- **analyst**（运营 / 执行）：**ASK 问数**（自动生成 SQL、图表、洞察 + 思考过程 4-step Knowledge → Nexus → Objective → Trace 透明可追溯）+ **BI 报表**（在授权目录内查看/编辑/导出仪表盘与报表，da-asst 只读解读）
 
-## knot 当前能做什么 / 不能做什么（v0.6.x 阶段宣告）
+## knot 当前能做什么 / 不能做什么（v0.8.x 阶段宣告）
 
-> v0.6.1 R-PA-PB-1 立约 — 窄场景宣告 + 责任边界
+> v0.6.1 R-PA-PB-1 立约延续 — 窄场景宣告 + 责任边界；随 v0.7 语义层 + v0.8 BI 双模扩围更新。
 
-### ✅ 当前能做（v0.6.x 范围）
+### ✅ 当前能做（v0.8.x 范围）
+
+**ASK 问数模式**（自然语言 → SQL → 图表 + 洞察）
 
 - **NL → SELECT SQL**：单表 / 多表 JOIN / GROUP BY / 时间过滤 / 排序 / TopN / 子查询 / CTE
 - **简单业务问题**：销售统计 / 用户行为 / 趋势分析 / 维度对比 / 同比环比
 - **数据可视化**：line / bar / pie / table / metric card / rank_view / retention_matrix
-- **笛卡尔积硬防御**：v0.5.1 R-80~93 + v0.6.0.1 R-PA-9 4 层守护 + execute_sql 路径
-- **复杂 CTE 多表查询**：v0.6.0.1 R-PA-10 修复（WITH...SELECT 识别为可执行）
-- **时间语义统一**（v0.6.1）：5 类核心表达 + 同比基准 + 节假日上下文 + D-1 数据更新延迟
-- **业务流**：收藏报表 + CSV/xlsx 导出 + 重跑 + 多轮追问继承
-- **成本治理**：4 桶 agent_kind 分桶 + 预算告警 + audit_log INSERT-only
+- **笛卡尔积 6 层硬防御** + **复杂 CTE 多表查询** + **时间语义统一**（5 类核心表达 + 同比基准 + 节假日上下文 + D-1 数据更新延迟）
+- **成本治理**：agent_kind 4 桶分桶 + 预算 gate + 告警 + audit_log INSERT-only
 
-### ❌ 当前不能做（OOS 范畴 / 推迟到 v0.7+）
+**BI 报表模式**（v0.8 ② · 与 ASK 共用 `<AppShell>`，分段 ModeToggle 切换）
 
-- **归因分析**（"为什么下降"）— 5 层语义中**事件 + 规则层未建**（v0.7+）
-- **跨业务域聚合**（不同 catalog 跨域分析）— **对象语义层未建**（v0.7+）
-- **数据合理性反检**（"这个数对吗"）— **校验段未建**（v0.7.2）
-- **动作触发**（通知 / 工单 / 审批）— **动作语义层未建**（v1.x+）
-- **多租户隔离 / SSO / RBAC** — OOS-1~3
+- **仪表盘 builder**：12 列组件网格，6 类型 tile（KPI / 折线 / 圆盘 / 横条 / 表 / donut）+ 拖拽占列 + 每 tile 独立只读 SQL + 冻结快照 + 整表原子刷新
+- **多页 tabbed 报表**（运营日报式：日 / 周 / 月每页一条 SQL）+ **宽表** + 零 eval `formula.js` 覆盖层公式（SUM/SUMIF/AVG/COUNT/MIN/MAX + A1 引用）
+- **目录权限 RBAC**：按用户 × 目录/报表 × 4 权限（定时 / 编辑 / 导出 / 分享）；admin 恒全权、default-deny
+- **da-asst 数据分析引擎**：BI 右栏只读报表解读（独立模型槽 + 成本控制平面 + 审计）
+
+**语义层**（v0.7 · `KNOT_SEMANTIC_LAYER` flag，默认 off）
+
+- **指标注册表** + **NL → LogicForm → SQL 编译**（编译七刀）+ **混合路由**（语义命中走 LogicForm，未命中回退 3-agent SQL）；flag 未开时全走 ASK 3-agent 链
+
+### ❌ 当前不能做（OOS 范畴 / 推迟）
+
+- **归因分析**（"为什么下降"）— 5 层语义中**事件 + 规则层未建**
+- **跨业务域聚合**（不同 catalog 跨域分析）— **对象语义层跨对象聚合仍窄**（维度派生续做）
+- **主动数据合理性反检**（"这个数对吗"）— 语义层有编译期 guard，**主动校验段未建**
+- **动作触发**（通知 / 工单 / 审批 / 写回）— **动作语义层未建**（v1.x+）；BI 报表定时刷新调度器（②c）在建
+- **多租户隔离 / SSO** — OOS-1（单租户死线）/ OOS-2；BI RBAC 已建但**限单租户内 user × resource，0 tenant_id**
 - **国际化 i18n** — v1.x+ 公测准备
 - **大规模向量 / RAG / 多模态** — 不在 knot 范围（Doris/SelectDB 4.0 这类是 DB 厂商课题）
 
 ### 当前阶段定位
 
-- **knot v0.6.x = "更好的 ChatBI" 层级**（DAU 5-20 人内部工具）
-- **knot v0.7.x+ = 进入 "Data Agent" 分界线**（5 层语义建模 + LogicForm 中间层）— Phase B 路线
-- **1.0 团队公测**前完成 v0.7.x 核心能力
+- **v0.6.x "更好的 ChatBI"**（DAU 5-20 人内部工具）→ **v0.7.x 跨入 "Data Agent"**（5 层语义建模 + LogicForm 中间层）→ **v0.8.x = BI / ASK 双模报表平台**（仪表盘 builder + 目录 RBAC + da-asst）
+- **1.0 团队公测**前：语义层激活（真实 corpus + eval-live 达标）+ BI 报表调度器 + da-asst 洞察替代
 
-> 详 v0.6→v0.7 整体审核 LOCKED 结论：[`docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md`](docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md)（定向 v0.7 = 5 层语义层 + LogicForm；Phase B 已于 v0.6.2.0~v0.6.3.2 完成）
+> 详 v0.6→v0.7 整体审核 LOCKED 结论：[`docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md`](docs/plans/v0.6-to-v0.7-overall-review-2026-06-20.md)（定向 v0.7 = 5 层语义层 + LogicForm）；v0.8 逐 PATCH 路线见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 4-Step 流式管线（v0.5.39 起 Trace 加入）
 
@@ -153,25 +162,11 @@ docker logs knot | tail -10
 - **监控**：UptimeRobot 拨测 `/healthz` 端点
 - **业务目录定制**：admin 后台「业务目录」tab 编辑 lexicon / tables / business_rules / RELATIONS 四字段适配你的真实业务库（**推荐第 2-3 天做** — 默认 generic 模板体验受限）
 
-## v0.4.x → v0.6.0 升级路径（dev 用户）
+## 版本升级
 
-> v0.5.0 R-67/68/74 双源兼容承诺已于 v0.6.0 Phase A 撤回（详 [CHANGELOG v0.6.0 (Phase A)](CHANGELOG.md)）。v0.4.x dev 用户需手动完成以下两步迁移：
-
-### 1. DB 文件 rename
-
-```bash
-cd /path/to/your/knot/data
-cp bi_agent.db bi_agent.db.v044.bak    # 备份原 DB
-mv bi_agent.db knot.db                  # rename
-```
-
-### 2. env 改名（必须同值）
-
-`.env`：
-- `BIAGENT_MASTER_KEY=<key>` → `KNOT_MASTER_KEY=<same-key>`（⚠️ **必须同值**，否则历史加密数据无法解密）
-- `JWT_SECRET=bi-agent-secret-...` → `JWT_SECRET=knot-secret-...`（旧 token 失效，重新登录）
-
-升级完成 — `docker restart knot` 或 `python3 -m uvicorn knot.main:app --port 8000` 启动；业务功能与 v0.4.x 一致。
+> **新部署**（v0.6.0+）无需迁移步骤，按上方 5 分钟快速开始即可。
+> **同版本内升级**（拉新镜像 / 代码）：`docker restart knot`，DB schema 启动期幂等 migrate。
+> **早期 dev 用户**（v0.4.x → v0.6.0 的 DB 文件 rename + env 改名，v0.5.0 双源兼容已于 v0.6.0 Phase A 撤回）详见 [CHANGELOG v0.6.0 (Phase A)](CHANGELOG.md) 与 [DEPLOY.md](DEPLOY.md)。
 
 ## 部署私有数据（可选）
 
@@ -192,9 +187,11 @@ cp tests/eval/fake_schema.example.txt    tests/eval/fake_schema.txt
 
 ## 技术栈
 
-- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；113 routes（smoke 下限 80）；9 import-linter contracts KEPT
-- **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°
-- **LLM**：OpenRouter 统一路由（Claude 4.x / GPT-4o / Gemini / DeepSeek V3+R1 / Qwen / GLM / MiniMax — 15 OpenRouter models，v0.6.5.4 起 OR-only；max_context 字段 v0.6.0.6 起 OR live API 实测）；3-agent 异步并行
+- **后端**：Python 3 + FastAPI + SQLAlchemy + SQLite + loguru；124 routes（smoke 下限 80）；9 import-linter contracts KEPT
+- **前端**：React 19 + Vite 8（构建产物输出至 `knot/static/`）；OKLCH 单色空间 brand 195°；BI / ASK 双模共用 `<AppShell>`
+- **LLM**：OpenRouter 统一路由（Claude 4.x / GPT-4o / Gemini / DeepSeek V3+R1 / Qwen / GLM / MiniMax — 15 OpenRouter models，v0.6.5.4 起 OR-only；max_context 字段 v0.6.0.6 起 OR live API 实测）；3-agent + da-asst 异步并行
+- **语义层**（v0.7 · flag `KNOT_SEMANTIC_LAYER`）：指标注册表 + LogicForm 中间层（NL→LogicForm→SQL 编译七刀）+ 混合路由（语义命中 ∥ 未命中回退 3-agent）
+- **BI 报表**（v0.8）：`bi_reports` + `bi_report_tiles`（结构化 tile：每 tile 只读 SQL + 冻结快照 + 逐 tile 脱敏）+ `bi_permissions`（按用户 × 目录/报表 × 4 权限 RBAC）+ 零 eval `formula.js` 覆盖层公式
 - **业务库**：Apache Doris / MySQL（多源按 `host:port:user` 分组合并）
 - **RAG**：BM25 + embedding cosine + RELATIONS 元数据注入 prompt
 - **SQL 安全**：sqlglot AST 校验 + DB grants 探测 + **6 层笛卡尔积防御**（v0.5.44 + v0.6.0.1 R-PA-9 收官）
