@@ -3,7 +3,7 @@
 // UI v2 设计系统（镜像 AdminBudgets + tab_resources tokens：T.card/border/radius12 + brandSoft +
 // pillBtn/FormRow/inputStyleMono/theadStyle）。CRUD → /api/admin/metrics-registry（C2 端点）。
 // OOS-1：metric.catalog_id 水平切分（默认 1）；lineage v0.7.16 激活为派生定义 {op,left,right}（占比/人均）。
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
@@ -46,6 +46,29 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
       catch (e) { toast(`删除 #${id} 失败: ${e.message}`, true); }
     }
     toast(`已删除 ${ok} 个指标`); setSel(new Set()); load();
+  }
+
+  // v0.8.13 模板下载 + xlsx 批量上传
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  function downloadTemplate() {
+    fetch('/api/templates/metrics', { headers: { Authorization: `Bearer ${api._token()}` } })
+      .then(r => r.ok ? r.blob() : Promise.reject(new Error('下载失败')))
+      .then(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'metrics_template.xlsx'; document.body.appendChild(a); a.click(); a.remove(); })
+      .catch(e => toast(String(e), true));
+  }
+  async function uploadMetrics(f) {
+    setUploading(true);
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const r = await fetch('/api/admin/metrics-registry/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      toast(`已导入 ${d.inserted} 个指标${d.errors && d.errors.length ? `，${d.errors.length} 行有误（见控制台）` : ''}`);
+      if (d.errors && d.errors.length) console.warn('指标导入错误:', d.errors);
+      load();
+    } catch (e) { toast(`上传失败: ${e.message}`, true); }
+    finally { setUploading(false); }
   }
 
   function handleEdit(m) {
@@ -102,6 +125,16 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* v0.8.13 模板下载 + 批量上传 */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={downloadTemplate} style={{ ...pillBtn(T), padding: '6px 12px' }}>下载模板</button>
+            <input ref={fileRef} type="file" accept=".xlsx" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadMetrics(f); e.target.value = ''; }}/>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...pillBtn(T, true), padding: '6px 12px' }}>
+              {uploading ? <><Spinner size={11} color={T.sendFg}/> 上传中…</> : '上传 xlsx'}
+            </button>
+          </div>
 
           {/* 创建 / 编辑 form */}
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '4px 24px 20px' }}>

@@ -54,6 +54,21 @@ async def download_template(kind: str, admin=Depends(require_admin)):
             headers={"Content-Disposition": 'attachment; filename="prompts_template.xlsx"'},
         )
 
+    if kind == "metrics":
+        # v0.8.13：指标注册表批量导入模板（扁平字段；JSON 高级字段 dimensions/filters/lineage 走 UI 单建）
+        data = _xlsx_bytes(
+            ["name", "display", "caliber", "base_object", "date_column", "unit", "aliases"],
+            [
+                ["gmv", "成交额 GMV", "SUM(o.pay_amount)", "orders", "sta_date", "money", "成交额,营业额"],
+                ["dau", "日活跃用户", "COUNT(DISTINCT o.user_id)", "orders", "sta_date", "count", "活跃用户,日活"],
+            ],
+        )
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="metrics_template.xlsx"'},
+        )
+
     if kind == "knowledge":
         sample = (
             "# 知识库文档模板\n\n"
