@@ -14,3 +14,24 @@ export function fmtValue(value, unit) {
   if (unit === 'percentage' && typeof value === 'number') return fmtPercent(value);
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
+
+// v0.8.10/8.11 BI 仪表盘大数值（基准 §5 + kk 迭代）：
+//   金额类（kind='money' 或有 unit）→ 万/亿 压缩 + **恒 2 位小数**（无则 .00，point 4）。**不带 ¥**（kk：币种一律 USDT，
+//     由 UnitBadge / unit 后缀承载，见 DashboardWidgets.unitMarker）。非 bare 且有 unit → 追加后缀（如 116.21万USDT）；
+//     bare / 无 unit → 只返数字（标记由 badge 渲染）。
+//   count → **整数千分位**（用户数等）；percentage → ×100+%（fmtPercent，不动）。非数原样。
+export function fmtBig(value, kind = 'count', unit = '', bare = false) {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  if (kind === 'percentage') return fmtPercent(n);
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (kind === 'money' || unit) {
+    const d2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    const suf = bare ? '' : (unit || '');            // 无 ¥；unit 后缀仅非 bare
+    const scale = abs >= 1e8 ? [1e8, '亿'] : abs >= 1e4 ? [1e4, '万'] : [1, ''];
+    return `${sign}${(abs / scale[0]).toLocaleString(undefined, d2)}${scale[1]}${suf}`;
+  }
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });   // count → 整数
+}

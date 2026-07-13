@@ -12,6 +12,7 @@ import { DashboardReport } from './bi/DashboardReport.jsx';
 import { TabbedTableReport } from './bi/TabbedTableReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
+import { AddWidgetModal } from './bi/AddWidgetModal.jsx';
 
 async function download(path, filename) {
   try {
@@ -65,11 +66,14 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [selectedId, setSelectedId] = usePersist('cb_bi_report', null);
   const [selected, setSelected] = useState(null);
   const [builder, setBuilder] = useState(null);
+  const [addWidget, setAddWidget] = useState(null);   // v0.8.10 §5「添加组件」弹窗（当前仪表盘）
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
   const [activeTile, setActiveTile] = useState(null);   // v0.8.9 #3：多页表当前页（CSV 导出当前页用）
   const isAdmin = user && user.role === 'admin';
+  // v0.8.12 C4b：按当前用户对选中报表的 effective 权限显隐工具栏（admin 恒全权；后端仍强制）
+  const can = (p) => isAdmin || !!(selected && selected._perms && selected._perms[p]);
 
   const loadLists = () => {
     api.get('/api/bi/folders').then((f) => setFolders(Array.isArray(f) ? f : [])).catch(() => {});
@@ -145,17 +149,18 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     last_run · {selected.last_run_at || '—'}
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-                    {isAdmin && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
-                    {isAdmin && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
-                    {isAdmin && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
+                    {/* v0.8.12 C4b：按 perm 显隐（编辑/删除/重跑=edit · 定时=schedule · 导出=export · 分享=share；admin 全权）*/}
+                    {can('edit') && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
+                    {can('schedule') && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
+                    {can('edit') && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
                     {/* v0.8.9 #3：宽表 + 多页表可导出（dashboard=图表板块拒）。CSV 多页表=当前页（tile_id）；Excel 多页表=多 sheet 全页。*/}
-                    {(selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv${selected.report_type === 'tabbed' && activeTile ? `?tile_id=${activeTile}` : ''}`, `bi_report_${selected.id}.csv`)} />}
-                    {(selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
-                    <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />
-                    {isAdmin && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
+                    {can('export') && (selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv${selected.report_type === 'tabbed' && activeTile ? `?tile_id=${activeTile}` : ''}`, `bi_report_${selected.id}.csv`)} />}
+                    {can('export') && (selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
+                    {can('share') && <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />}
+                    {can('edit') && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
-                    ? <DashboardReport T={T} report={selected} />
+                    ? <DashboardReport T={T} report={selected} isAdmin={isAdmin} onAddWidget={() => setAddWidget(selected)} />
                     : selected.report_type === 'tabbed'
                       ? <TabbedTableReport T={T} report={selected} onActiveTile={setActiveTile} />
                       : <WideTableReport T={T} report={selected} />}
@@ -176,6 +181,10 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
         <ReportBuilderModal T={T} editing={builder === 'new' ? null : builder}
           folders={folders} dataSources={dataSources}
           onClose={() => setBuilder(null)} onSaved={() => { loadLists(); if (selected) loadSelected(selected.id); }} />
+      )}
+      {addWidget && (
+        <AddWidgetModal T={T} report={addWidget}
+          onClose={() => setAddWidget(null)} onSaved={() => { if (selected) loadSelected(selected.id); }} />
       )}
       {folderModal && (
         <Modal T={T} onClose={() => setFolderModal(false)} width={420}>

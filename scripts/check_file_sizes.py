@@ -30,7 +30,7 @@ BACKEND_ACK = {
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
-    "knot/api/bi_reports.py":              360,  # BI 报表 CRUD + reorder + 导出（v0.8.9 tabbed 多 sheet/当前页 CSV）341>300 → ACK
+    "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 
@@ -38,7 +38,7 @@ BACKEND_ACK = {
 EXPLICIT_LIMITS = {
     # 2 主屏
     "frontend/src/screens/Chat.jsx":  350,
-    "frontend/src/screens/Admin.jsx": 420,  # v0.6.2.5 段4 400→420（多 catalog 切换 state/handlers 状态容器 ack）
+    "frontend/src/screens/Admin.jsx": 455,  # v0.6.2.5 →420；v0.8.12 C1 +BI dispatch →425；v0.8.13 +few-shot 批删 + catalog 上传 handler 440
     # chat/ 子模块
     "frontend/src/screens/chat/intent_helpers.js":  80,
     "frontend/src/screens/chat/sse_handler.js":    150,
@@ -61,7 +61,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/AdminBudgets.jsx":       380,
     "frontend/src/screens/AdminRecovery.jsx":      380,
     "frontend/src/screens/AdminMetrics.jsx":       200,  # 内测健康 KPI 屏（≠ v0.7 metric registry）
-    "frontend/src/screens/AdminMetricRegistry.jsx": 215,  # v0.7.0 C5 语义层指标注册表（≠ AdminMetrics KPI 屏）；v0.7.25 +unit 值格式 FormRow 200→215
+    "frontend/src/screens/AdminMetricRegistry.jsx": 290,  # v0.7.0 C5；v0.7.25 +unit →215；v0.8.13 +批量删除 →237 +模板下载/xlsx上传 270
     "frontend/src/screens/AdminLogicForm.jsx":     200,  # v0.7.3 C2 LogicForm 审计屏（read-only）
     "frontend/src/screens/logicform/LogicFormHistory.jsx": 130,  # v0.7.5 C2 版本历史 + diff 子组件
     "frontend/src/screens/AdminMonitors.jsx":      200,  # v0.7.7 C5 事件/规则/动作监控屏（CRUD + 立即检查）
@@ -81,7 +81,9 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/ColumnConfigEditor.jsx":     70,   # v0.8.8 ② 逐列配置（label/desc/unit/conditional）
     "frontend/src/screens/bi/OverlayEditor.jsx":          70,   # v0.8.9 per-页公式行编辑器（formula.js 覆盖层）
     "frontend/src/screens/bi/SkillPanel.jsx":             130,  # da-asst UI 壳（真接 ③）
-    "frontend/src/screens/bi/DashboardReport.jsx":        120,  # ②b tiles[] 分发渲染
+    "frontend/src/screens/bi/DashboardReport.jsx":        90,   # v0.8.10 12 列组件网格
+    "frontend/src/screens/bi/DashboardWidgets.jsx":       260,  # v0.8.10 §5 6 组件 + 卡头；v0.8.11 kk 迭代 +对比模型(none/dod/wow) +TrendChart 有值 +表格横滚 239
+    "frontend/src/screens/bi/AddWidgetModal.jsx":         100,  # v0.8.10 §5 添加组件弹窗（6 类型 chip + 指标 + 周期 + SQL）  # v0.8.10 §5 6 组件 + 卡头（基准还原）  # ②b tiles[] 分发渲染
     "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill
     "frontend/src/screens/bi/InsightCard.jsx":            50,
     "frontend/src/screens/bi/formula.js":                 400,  # ⭐ 安全承重（零 eval 求值器 R-BI-11）；guards 增长 ACK
@@ -106,13 +108,15 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/admin/tab_resources.jsx": 250,
     "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 Knowledge + Few-shot 完整 UI
     "frontend/src/screens/admin/tab_system.jsx":   250,
+    "frontend/src/screens/admin/tab_bi.jsx":       200,  # v0.8.12 C1 BI 设置（目录/权限/da-asst）；C2/C4/C5 填充
+    "frontend/src/screens/admin/bi_permissions.jsx": 120,  # v0.8.12 C4a 权限矩阵
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 SourceFormModal HTTP type 5 字段
     # Foundation + 基础设施
     "frontend/src/Shared.jsx":                     760,  # v0.6.4.0 UI v2 (TOKENS_V2 + 16 图标 additive)
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 (Btn/Tag 独立文件)
     "frontend/src/utils.jsx":                      200,  # v0.6.2.3 Foundation 纳管
     "frontend/src/decor/NarrativeMotif.jsx":       120,
-    "frontend/src/Shell.jsx":                      235,  # v0.7.7 C5 +指标监控 nav；v0.8.5 ②a +inline ModeToggle 集群 222→225；+子屏返回来时模式 backMode 逻辑 →233（headroom 2）
+    "frontend/src/Shell.jsx":                      260,  # v0.7.7 +指标监控；v0.8.5 ②a +ModeToggle+backMode →233；v0.8.12 C1 +BI 设置 nav 分栏（backMode==='bi' 分支）→250（headroom 10）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
     "frontend/src/ErrorBoundary.jsx":              120,  # v0.7.33 B1.1 App+ResultBlock error boundary
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）

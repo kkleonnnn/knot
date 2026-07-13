@@ -6,11 +6,12 @@ import { ColumnConfigEditor } from './ColumnConfigEditor.jsx';
 import { OverlayEditor } from './OverlayEditor.jsx';
 
 const TYPES = [
-  { v: 'kpi', label: '单数值 KPI' },
-  { v: 'line', label: '折线' },
-  { v: 'donut', label: '圆盘' },
-  { v: 'bar', label: '横条' },
-  { v: 'table', label: '表格' },
+  { v: 'stat', label: '单值（3×1）' },
+  { v: 'pair', label: '单值+趋势（6×1）' },
+  { v: 'trend', label: '趋势图（6×2）' },
+  { v: 'donut', label: '占比环（6×2）' },
+  { v: 'bars', label: '排行榜（6×2）' },
+  { v: 'table', label: '明细表（6×2）' },
 ];
 
 export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
@@ -23,7 +24,7 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
   const snapColCount = (t) => { try { const r = JSON.parse(t.last_run_rows_json || '[]'); return r.length ? Object.keys(r[0]).length : 0; } catch { return 0; } };
   const upd = (i, patch) => onChange(tiles.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const updViz = (i, patch) => upd(i, { viz_config: { ...(tiles[i].viz_config || {}), ...patch } });
-  const add = () => onChange([...tiles, { tile_type: tableOnly ? 'table' : 'kpi', title: '', sql_text: '', viz_config: {}, grid_span: 1, sort_order: tiles.length }]);
+  const add = () => onChange([...tiles, { tile_type: tableOnly ? 'table' : 'stat', title: '', sql_text: '', viz_config: {}, grid_span: 1, sort_order: tiles.length }]);
   const rm = (i) => onChange(tiles.filter((_, j) => j !== i).map((t, k) => ({ ...t, sort_order: k })));
   const reorder = (from, to) => {
     if (from == null || from === to) return;
@@ -36,8 +37,8 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: T.subtext, fontWeight: 500 }}>{tableOnly ? '页签（拖拽排序 · 每页一条只读 SQL）' : '板块（拖拽排序 · 每块一条只读 SQL）'}</span>
-        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '3px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{tableOnly ? '+ 页' : '+ 板块'}</button>
+        <span style={{ fontSize: 12, color: T.subtext, fontWeight: 500 }}>{tableOnly ? '页签（拖拽排序 · 每页一条只读 SQL）' : '组件（拖拽排序 · 每个一条只读 SQL · 尺寸随类型固定）'}</span>
+        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '3px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{tableOnly ? '+ 页' : '+ 组件'}</button>
       </div>
       {tiles.map((t, i) => {
         const viz = t.viz_config || {};
@@ -52,34 +53,57 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
                   {TYPES.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
                 </select>
               )}
-              <input value={t.title || ''} onChange={(e) => upd(i, { title: e.target.value })} placeholder={tableOnly ? '页签名（日汇总 / 周汇总…）' : '板块标题'} style={{ ...fld, flex: 1 }} />
-              {!tableOnly && (
-                <select value={t.grid_span || 1} onChange={(e) => upd(i, { grid_span: Number(e.target.value) })} title="占列宽" style={{ ...fld, cursor: 'pointer' }}>
-                  <option value={1}>1 列</option><option value={2}>2 列</option><option value={3}>3 列</option>
-                </select>
-              )}
-              <button onClick={() => rm(i)} title={tableOnly ? '删除页' : '删除板块'} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
+              <input value={t.title || ''} onChange={(e) => upd(i, { title: e.target.value })} placeholder={tableOnly ? '页签名（日汇总 / 周汇总…）' : '组件标题'} style={{ ...fld, flex: 1 }} />
+              {/* v0.8.10：仪表盘组件 w×h 由类型固定（同类尺寸一致 §5）→ 不再手选占列 */}
+              <button onClick={() => rm(i)} title={tableOnly ? '删除页' : '删除组件'} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
             </div>
             <textarea value={t.sql_text || ''} onChange={(e) => upd(i, { sql_text: e.target.value })} rows={2} spellCheck={false}
               placeholder="SELECT ...（只读；存前校验）"
               style={{ width: '100%', ...fld, fontFamily: T.mono, resize: 'vertical', marginBottom: 6 }} />
-            {t.tile_type === 'kpi' && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列名 valueCol（必填）" style={{ ...fld, flex: 1 }} />
-                <input value={viz.suffix || ''} onChange={(e) => updViz(i, { suffix: e.target.value })} placeholder="后缀(亿/万)" style={{ ...fld, width: 84 }} />
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.subtext }}>
-                  <input type="checkbox" checked={!!viz.main} onChange={(e) => updViz(i, { main: e.target.checked })} /> 主指标
-                </label>
+            {(t.tile_type === 'stat' || t.tile_type === 'pair') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input value={viz.dateCol || ''} onChange={(e) => updViz(i, { dateCol: e.target.value })} placeholder="日期列（默认首列）" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <select value={viz.fmt || 'count'} onChange={(e) => updViz(i, { fmt: e.target.value })} title="数值格式" style={{ ...fld, width: 78, cursor: 'pointer' }}>
+                    <option value="count">数量</option><option value="money">金额¥</option><option value="percentage">%</option>
+                  </select>
+                  {t.tile_type === 'stat' && (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.subtext }}>
+                      <input type="checkbox" checked={!!viz.main} onChange={(e) => updViz(i, { main: e.target.checked })} /> 主指标
+                    </label>
+                  )}
+                </div>
+                {/* v0.8.11 对比可选 + 灵活：取值(末值/近N求和) + 对比(无/环比上期/环比前N期) */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select value={viz.agg || 'latest'} onChange={(e) => updViz(i, { agg: e.target.value })} title="取值方式" style={{ ...fld, width: 108, cursor: 'pointer' }}>
+                    <option value="latest">取值·末值</option><option value="sum">取值·近N求和</option>
+                  </select>
+                  <select value={viz.compare || 'dod'} onChange={(e) => updViz(i, { compare: e.target.value })} title="对比方式" style={{ ...fld, width: 118, cursor: 'pointer' }}>
+                    <option value="none">对比·无</option><option value="dod">对比·环比上期</option><option value="wow">对比·环比前N期</option>
+                  </select>
+                  {(viz.compare === 'wow' || viz.agg === 'sum') && (
+                    <input type="number" min="1" value={viz.window || 7} onChange={(e) => updViz(i, { window: Number(e.target.value) || 7 })} placeholder="N" title="期数 N" style={{ ...fld, width: 56 }} />
+                  )}
+                  <input value={viz.compareLabel || ''} onChange={(e) => updViz(i, { compareLabel: e.target.value })} placeholder="对比标签(较昨日)" style={{ ...fld, flex: 1, minWidth: 96 }} />
+                  <input value={viz.unit || ''} onChange={(e) => updViz(i, { unit: e.target.value })} placeholder="单位(USDT)" title="单位后缀：万/亿压缩+后缀、无¥" style={{ ...fld, width: 88 }} />
+                </div>
               </div>
             )}
-            {(t.tile_type === 'donut' || t.tile_type === 'bar') && (
+            {t.tile_type === 'trend' && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input value={viz.dateCol || ''} onChange={(e) => updViz(i, { dateCol: e.target.value })} placeholder="X 轴列（默认首列）" style={{ ...fld, flex: 1 }} />
+                <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列（默认次列）" style={{ ...fld, flex: 1 }} />
+              </div>
+            )}
+            {(t.tile_type === 'donut' || t.tile_type === 'bars') && (
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={viz.labelCol || ''} onChange={(e) => updViz(i, { labelCol: e.target.value })} placeholder="标签列 labelCol" style={{ ...fld, flex: 1 }} />
                 <input value={viz.valueCol || ''} onChange={(e) => updViz(i, { valueCol: e.target.value })} placeholder="值列 valueCol" style={{ ...fld, flex: 1 }} />
+                <select value={viz.fmt || 'count'} onChange={(e) => updViz(i, { fmt: e.target.value })} title="数值格式" style={{ ...fld, width: 78, cursor: 'pointer' }}>
+                  <option value="count">数量</option><option value="money">金额¥</option><option value="percentage">%</option>
+                </select>
               </div>
-            )}
-            {t.tile_type === 'line' && (
-              <div style={{ fontSize: 11, color: T.muted }}>首列为 X 轴，其余数值列为系列</div>
             )}
             {t.tile_type === 'table' && (
               <>
@@ -94,7 +118,7 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
           </div>
         );
       })}
-      {!tiles.length && <div style={{ padding: 16, textAlign: 'center', color: T.muted, fontSize: 12 }}>点「+ 板块」添加第一个仪表盘板块。</div>}
+      {!tiles.length && <div style={{ padding: 16, textAlign: 'center', color: T.muted, fontSize: 12 }}>点「+ 组件」添加第一个仪表盘组件。</div>}
     </div>
   );
 }

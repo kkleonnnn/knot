@@ -3,7 +3,7 @@
 // UI v2 设计系统（镜像 AdminBudgets + tab_resources tokens：T.card/border/radius12 + brandSoft +
 // pillBtn/FormRow/inputStyleMono/theadStyle）。CRUD → /api/admin/metrics-registry（C2 端点）。
 // OOS-1：metric.catalog_id 水平切分（默认 1）；lineage v0.7.16 激活为派生定义 {op,left,right}（占比/人均）。
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast, Spinner } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
@@ -16,13 +16,14 @@ const _EMPTY = {
   op: '', left: '', right: '',
 };
 const _DERIVED_OPS = ['divide', 'multiply', 'add', 'subtract'];   // 与后端 _DERIVED_OPS / compile_helpers._OP_SQL 对齐
-const GRID = '1.2fr 1.3fr 1.8fr 0.6fr 0.6fr 70px';
+const GRID = '34px 1.2fr 1.3fr 1.8fr 0.6fr 0.6fr 70px';   // v0.8.13 首列 checkbox
 
 export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [metrics, setMetrics] = useState(null);   // null = loading
   const [draft, setDraft] = useState(_EMPTY);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [sel, setSel] = useState(() => new Set());   // v0.8.13 批量删除选中 id
 
   function load() {
     api.get('/api/admin/metrics-registry')
@@ -30,6 +31,45 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
        .catch(e => { toast(`指标加载失败: ${e.message}`, true); setMetrics([]); });
   }
   useEffect(() => { load(); }, []);
+
+  // v0.8.13 多选 + 批量删除（循环现有 DELETE；全选/反选/删除选中）
+  const ids = () => (metrics || []).map(m => m.id);
+  const toggleSel = (id) => setSel(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const selAll = () => setSel(new Set(ids()));
+  const selInvert = () => setSel(s => new Set(ids().filter(id => !s.has(id))));
+  async function batchDelete() {
+    const list = [...sel];
+    if (!list.length || !confirm(`删除选中的 ${list.length} 个指标？此操作不可撤销。`)) return;
+    let ok = 0;
+    for (const id of list) {
+      try { await api.del(`/api/admin/metrics-registry/${id}`); ok += 1; }
+      catch (e) { toast(`删除 #${id} 失败: ${e.message}`, true); }
+    }
+    toast(`已删除 ${ok} 个指标`); setSel(new Set()); load();
+  }
+
+  // v0.8.13 模板下载 + xlsx 批量上传
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  function downloadTemplate() {
+    fetch('/api/templates/metrics', { headers: { Authorization: `Bearer ${api._token()}` } })
+      .then(r => r.ok ? r.blob() : Promise.reject(new Error('下载失败')))
+      .then(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'metrics_template.xlsx'; document.body.appendChild(a); a.click(); a.remove(); })
+      .catch(e => toast(String(e), true));
+  }
+  async function uploadMetrics(f) {
+    setUploading(true);
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const r = await fetch('/api/admin/metrics-registry/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      toast(`已导入 ${d.inserted} 个指标${d.errors && d.errors.length ? `，${d.errors.length} 行有误（见控制台）` : ''}`);
+      if (d.errors && d.errors.length) console.warn('指标导入错误:', d.errors);
+      load();
+    } catch (e) { toast(`上传失败: ${e.message}`, true); }
+    finally { setUploading(false); }
+  }
 
   function handleEdit(m) {
     setEditingId(m.id);
@@ -73,6 +113,8 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
     try {
       await api.del(`/api/admin/metrics-registry/${m.id}`);
       toast('指标已删除');
+      // v0.8.13 fixup：单删后从批量选中集剔除该 id（否则表头全选态 desync + 批量删除重发已删 id 致计数虚高/冗余审计）
+      setSel(s => { const n = new Set(s); n.delete(m.id); return n; });
       load();
     } catch (e) {
       toast(`删除失败: ${e.message}`, true);
@@ -85,6 +127,16 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
               onNavigate={onNavigate} onLogout={onLogout}>
       <div style={{ padding: '20px 28px 24px', overflowY: 'auto', flex: 1 }} className="cb-sb">
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* v0.8.13 模板下载 + 批量上传 */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={downloadTemplate} style={{ ...pillBtn(T), padding: '6px 12px' }}>下载模板</button>
+            <input ref={fileRef} type="file" accept=".xlsx" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadMetrics(f); e.target.value = ''; }}/>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...pillBtn(T, true), padding: '6px 12px' }}>
+              {uploading ? <><Spinner size={11} color={T.sendFg}/> 上传中…</> : '上传 xlsx'}
+            </button>
+          </div>
 
           {/* 创建 / 编辑 form */}
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '4px 24px 20px' }}>
@@ -161,13 +213,26 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
             <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: T.muted }}>暂无指标，使用上方表单创建第一个</div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+              {/* v0.8.13 批量工具条 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
+                <button onClick={selAll} style={{ ...pillBtn(T), padding: '4px 10px' }}>全选</button>
+                <button onClick={selInvert} style={{ ...pillBtn(T), padding: '4px 10px' }}>反选</button>
+                <span style={{ color: T.muted }}>已选 {sel.size}</span>
+                <button onClick={batchDelete} disabled={!sel.size}
+                  style={{ ...pillBtn(T), padding: '4px 10px', marginLeft: 'auto', color: sel.size ? T.error : T.muted, borderColor: sel.size ? T.error : T.border, cursor: sel.size ? 'pointer' : 'default' }}>
+                  删除选中{sel.size ? `（${sel.size}）` : ''}
+                </button>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '9px 16px', ...theadStyle(T) }}>
+                <div><input type="checkbox" checked={metrics.length > 0 && sel.size === metrics.length}
+                  onChange={e => (e.target.checked ? selAll() : setSel(new Set()))} style={{ cursor: 'pointer', accentColor: T.accent }}/></div>
                 <div>指标名</div><div>显示名</div><div>口径</div><div>Catalog</div><div>状态</div><div></div>
               </div>
               {metrics.map((m, i) => (
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '11px 16px',
                   borderBottom: i < metrics.length - 1 ? `1px solid ${T.borderSoft}` : 'none',
                   alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+                  <div><input type="checkbox" checked={sel.has(m.id)} onChange={() => toggleSel(m.id)} style={{ cursor: 'pointer', accentColor: T.accent }}/></div>
                   <div style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                   <div style={{ color: T.subtext, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.display || '—'}</div>
                   <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.caliber}</div>

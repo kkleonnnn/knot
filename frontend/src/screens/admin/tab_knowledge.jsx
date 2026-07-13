@@ -24,10 +24,14 @@ function _relativeTime(iso) {
 }
 
 export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, onUploadKb,
-                              fewShots, onEditFewShot, onDeleteFewShot,
+                              fewShots, onEditFewShot, onDeleteFewShot, onBatchDeleteFewShots,
                               prompts, setPrompts, promptsSaving, onSavePrompt }) {
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fsSel, setFsSel] = useState(() => new Set());   // v0.8.13 few-shot 批量删除选中
+  const fsToggle = (id) => setFsSel(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const fsAll = () => setFsSel(new Set(fewShots.map(f => f.id)));
+  const fsInvert = () => setFsSel(s => new Set(fewShots.filter(f => !s.has(f.id)).map(f => f.id)));
 
   // v0.5.35 stats 计算
   const indexedCount = knowledgeDocs.filter(d => (d.chunk_count || 0) > 0).length;
@@ -177,6 +181,18 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
             );
           })()}
 
+          {/* v0.8.13 批量删除工具条 */}
+          {fewShots.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 }}>
+              <button onClick={fsAll} style={{ ...pillBtn(T), padding: '4px 10px' }}>全选</button>
+              <button onClick={fsInvert} style={{ ...pillBtn(T), padding: '4px 10px' }}>反选</button>
+              <span style={{ color: T.muted }}>已选 {fsSel.size}</span>
+              <button onClick={async () => { const n = await onBatchDeleteFewShots([...fsSel]); if (n) setFsSel(new Set()); }} disabled={!fsSel.size}
+                style={{ ...pillBtn(T), padding: '4px 10px', marginLeft: 'auto', color: fsSel.size ? T.error : T.muted, borderColor: fsSel.size ? T.error : T.border, cursor: fsSel.size ? 'pointer' : 'default' }}>
+                删除选中{fsSel.size ? `（${fsSel.size}）` : ''}
+              </button>
+            </div>
+          )}
           {/* v0.5.36 example cards — demo L103-145 byte-equal（flask icon + question + id/upd + tags + hits + actions + SQL block）*/}
           {fewShots.length === 0 ? (
             <div style={{ padding: '40px 24px', textAlign: 'center', color: T.muted, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>
@@ -186,6 +202,8 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
             fewShots.map(f => (
               <div key={f.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: `1px solid ${T.border}` }}>
+                  <input type="checkbox" checked={fsSel.has(f.id)} onChange={() => fsToggle(f.id)}
+                    style={{ cursor: 'pointer', accentColor: T.accent, flexShrink: 0 }}/>
                   {/* flask icon avatar (Q2 VRP — Shared 无 I.flask 走 inline svg) */}
                   <span style={{
                     width: 30, height: 30, borderRadius: 8,
@@ -225,7 +243,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                   </div>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
                     <button onClick={() => onEditFewShot(f)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
-                    <button onClick={() => onDeleteFewShot(f.id)} style={iconBtn(T)} title="删除"><I.trash/></button>
+                    <button onClick={async () => { const ok = await onDeleteFewShot(f.id); if (ok) setFsSel(s => { const n = new Set(s); n.delete(f.id); return n; }); }} style={iconBtn(T)} title="删除"><I.trash/></button>
                   </div>
                 </div>
                 {/* SQL block — bgInset + mono + pre */}

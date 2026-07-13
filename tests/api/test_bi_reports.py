@@ -241,3 +241,170 @@ def test_dashboard_export_still_gated_400(client, auth_headers):
     }, headers=auth_headers).json()["id"]
     assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 400
     assert client.get(f"/api/bi/reports/{rid}/export.xlsx", headers=auth_headers).status_code == 400
+
+
+# ── da-asst 只读报表解读（v0.8.10 §5 ③ 提前）────────────────────────────────────────
+
+def test_analyze_report_da_asst(client, auth_headers, monkeypatch):
+    import knot.services.agents.da_asst as da
+    rid = client.post("/api/bi/reports", json={
+        "title": "解读测试", "sql_text": "SELECT dt AS 日期 FROM t"}, headers=auth_headers).json()["id"]
+
+    async def fake(report, question, history=None, model_key=""):
+        assert report["title"] == "解读测试"                       # 上下文确实带了本报表
+        return {"answer": f"已解读：{question}", "input_tokens": 1, "output_tokens": 2, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+
+    r = client.post(f"/api/bi/reports/{rid}/analyze",
+                    json={"question": "趋势如何？", "history": []}, headers=auth_headers)
+    assert r.status_code == 200 and r.json()["answer"] == "已解读：趋势如何？"
+    # 空问题 → 400；报表不存在 → 404
+    assert client.post(f"/api/bi/reports/{rid}/analyze",
+                       json={"question": "   "}, headers=auth_headers).status_code == 400
+    assert client.post("/api/bi/reports/999999/analyze",
+                       json={"question": "x"}, headers=auth_headers).status_code == 404
+
+
+def test_analyze_read_only_desensitized_for_analyst(client, auth_headers, monkeypatch):
+    """R-BI-4/6：analyst（非 admin）可只读解读；da-asst 拿到的是脱敏 DTO（无 sql_text）。"""
+    import knot.services.agents.da_asst as da
+    rid = client.post("/api/bi/reports", json={
+        "title": "脱敏解读", "sql_text": "SELECT secret FROM t"}, headers=auth_headers).json()["id"]
+    seen = {}
+
+    async def fake(report, question, history=None, model_key=""):
+        seen["has_sql"] = "sql_text" in report
+        return {"answer": "ok", "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+
+    ah = _analyst_headers(client, auth_headers)
+    r = client.post(f"/api/bi/reports/{rid}/analyze", json={"question": "x"}, headers=ah)
+    assert r.status_code == 200
+    assert seen["has_sql"] is False                                # analyst 路径脱敏 → 不下发 sql_text
+
+
+def test_analyze_history_too_long_400(client, auth_headers):
+    rid = client.post("/api/bi/reports", json={
+        "title": "h", "sql_text": "SELECT 1"}, headers=auth_headers).json()["id"]
+    big = [{"role": "user", "content": "x"} for _ in range(25)]     # > _MAX_ANALYZE_HISTORY(24)
+    assert client.post(f"/api/bi/reports/{rid}/analyze",
+                       json={"question": "x", "history": big}, headers=auth_headers).status_code == 400
+
+
+def test_analyze_blocked_when_over_monthly_budget(client, auth_headers, monkeypatch):
+    """成本控制：月预算 status=='block' → 402 pre-block，绝不触发 LLM 花费（脚本 loop 财务 DoS 护栏）。"""
+    import knot.services.agents.da_asst as da
+    import knot.services.budget_service as budget_service
+    rid = client.post("/api/bi/reports", json={
+        "title": "预算门", "sql_text": "SELECT 1"}, headers=auth_headers).json()["id"]
+    called = {"llm": False}
+
+    async def fake(*a, **k):
+        called["llm"] = True
+        return {"answer": "x", "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+    monkeypatch.setattr(da, "arun_da_asst", fake)
+    monkeypatch.setattr(budget_service, "check_user_monthly_budget", lambda uid: ("block", {"threshold": 1.0}))
+
+    r = client.post(f"/api/bi/reports/{rid}/analyze", json={"question": "x"}, headers=auth_headers)
+    assert r.status_code == 402
+    assert called["llm"] is False                                  # over-budget → LLM 未被调用
+
+
+# ── v0.8.12 RBAC 端点强制 + 权限管理（**用户**×目录 + 未分组逐报表）───────────────────
+
+def _analyst(client, auth_headers, uname="bi_analyst"):
+    """建 analyst → 返 (headers, uid)。"""
+    client.post("/api/admin/users", json={"username": uname, "password": "p", "role": "analyst"},
+                headers=auth_headers)
+    tok = client.post("/api/auth/login", json={"username": uname, "password": "p"}).json()["token"]
+    uid = next(u["id"] for u in client.get("/api/admin/users", headers=auth_headers).json()
+               if u["username"] == uname)
+    return {"Authorization": f"Bearer {tok}"}, uid
+
+
+def _grant(client, auth_headers, user_id, *, folder_id=None, report_id=None, **perms):
+    body = {"user_id": user_id, "folder_id": folder_id, "report_id": report_id,
+            "can_schedule": False, "can_edit": False, "can_export": False, "can_share": False, **perms}
+    return client.put("/api/bi/permissions", json=body, headers=auth_headers)
+
+
+def test_rbac_edit_denied_then_folder_granted(client, auth_headers):
+    fid = client.post("/api/bi/folders", json={"name": "运营"}, headers=auth_headers).json()["id"]
+    rid = client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid},
+                      headers=auth_headers).json()["id"]
+    ah, uid = _analyst(client, auth_headers)
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "r2"}, headers=ah).status_code == 403   # 无 grant
+    assert _grant(client, auth_headers, uid, folder_id=fid, can_edit=True).status_code == 200
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "r2"}, headers=ah).status_code == 200    # 授权后可
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "r3"}, headers=auth_headers).status_code == 200  # admin 恒可
+
+
+def test_rbac_user_scoped(client, auth_headers):
+    """按用户：授 A 不影响 B（同角色不同权限）。"""
+    fid = client.post("/api/bi/folders", json={"name": "运营"}, headers=auth_headers).json()["id"]
+    rid = client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid},
+                      headers=auth_headers).json()["id"]
+    ah_a, uid_a = _analyst(client, auth_headers, "user_a")
+    ah_b, _uid_b = _analyst(client, auth_headers, "user_b")
+    _grant(client, auth_headers, uid_a, folder_id=fid, can_edit=True)   # 只授 A
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "x"}, headers=ah_a).status_code == 200   # A 可
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "y"}, headers=ah_b).status_code == 403   # B 不可
+
+
+def test_rbac_export_tightened(client, auth_headers, monkeypatch):
+    from knot.services import bi_report_service as bsvc
+    fid = client.post("/api/bi/folders", json={"name": "F"}, headers=auth_headers).json()["id"]
+    rid = client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid,
+                      "data_source_id": 1}, headers=auth_headers).json()["id"]   # 有 sid → refresh 走 mock engine 写快照
+    monkeypatch.setattr(bsvc.engine_cache, "get_engine_for_source", lambda sid: object())
+    monkeypatch.setattr(bsvc.db_connector, "execute_query", lambda e, s, **k: ([{"a": 1}], None))
+    client.post(f"/api/bi/reports/{rid}/refresh", headers=auth_headers)
+    ah, uid = _analyst(client, auth_headers)
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=ah).status_code == 403   # 收紧：无 grant 拒
+    _grant(client, auth_headers, uid, folder_id=fid, can_export=True)
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=ah).status_code == 200
+    assert client.get(f"/api/bi/reports/{rid}/export.csv", headers=auth_headers).status_code == 200  # admin 恒可
+
+
+def test_rbac_ungrouped_per_report(client, auth_headers):
+    rid = client.post("/api/bi/reports", json={"title": "u", "sql_text": "SELECT 1"},
+                      headers=auth_headers).json()["id"]                       # 未分组
+    ah, uid = _analyst(client, auth_headers)
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "x"}, headers=ah).status_code == 403
+    _grant(client, auth_headers, uid, report_id=rid, can_edit=True)
+    assert client.put(f"/api/bi/reports/{rid}", json={"title": "x"}, headers=ah).status_code == 200
+
+
+def test_rbac_create_gate(client, auth_headers):
+    fid = client.post("/api/bi/folders", json={"name": "F"}, headers=auth_headers).json()["id"]
+    ah, uid = _analyst(client, auth_headers)
+    assert client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid},
+                       headers=ah).status_code == 403                          # 无目录 edit
+    assert client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1"},
+                       headers=ah).status_code == 403                          # 未分组建报表仅 admin
+    _grant(client, auth_headers, uid, folder_id=fid, can_edit=True)
+    assert client.post("/api/bi/reports", json={"title": "r", "sql_text": "SELECT 1", "folder_id": fid},
+                       headers=ah).status_code == 200
+
+
+def test_permissions_api_admin_only_and_validation(client, auth_headers):
+    ah, uid = _analyst(client, auth_headers)
+    assert client.get("/api/bi/permissions", headers=ah).status_code == 403    # analyst 不能读权限表
+    assert client.put("/api/bi/permissions", json={"user_id": uid, "can_edit": True},
+                      headers=auth_headers).status_code == 400                 # 无 folder/report
+    assert client.put("/api/bi/permissions", json={"user_id": uid, "folder_id": 1, "report_id": 2,
+                      "can_edit": True}, headers=auth_headers).status_code == 400   # 两个都给
+    _grant(client, auth_headers, uid, folder_id=1, can_edit=True)
+    lst = client.get("/api/bi/permissions", headers=auth_headers).json()
+    assert any(g["folder_id"] == 1 and g["user_id"] == uid and g["can_edit"] == 1 for g in lst)
+
+
+def test_rbac_grant_cascade_on_report_delete(client, auth_headers):
+    rid = client.post("/api/bi/reports", json={"title": "u", "sql_text": "SELECT 1"},
+                      headers=auth_headers).json()["id"]
+    _ah, uid = _analyst(client, auth_headers)
+    _grant(client, auth_headers, uid, report_id=rid, can_edit=True)
+    assert any(g["report_id"] == rid for g in client.get("/api/bi/permissions", headers=auth_headers).json())
+    client.delete(f"/api/bi/reports/{rid}", headers=auth_headers)
+    assert not any(g["report_id"] == rid for g in client.get("/api/bi/permissions", headers=auth_headers).json())
+

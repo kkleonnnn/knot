@@ -18,6 +18,7 @@ import { TabAccess } from './admin/tab_access.jsx';
 import { TabResources } from './admin/tab_resources.jsx';
 import { TabKnowledge } from './admin/tab_knowledge.jsx';
 import { TabSystem } from './admin/tab_system.jsx';
+import { TabBI } from './admin/tab_bi.jsx';   // v0.8.12 C1 — BI 设置专属 tab（目录/权限/da-asst）
 import { UserFormModal, SourceFormModal, FewShotModal } from './admin/modals.jsx';
 
 export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, screen: screenProp, initialTab = 'users' }) {
@@ -35,7 +36,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   // v0.4.5 R-39：记录 GET 返回的 masked 值；保存时若 input 仍等于此值 → 不发送该字段
   const [apiKeysLoaded, setApiKeysLoaded] = useState({ openrouter_api_key: '', embedding_api_key: '' });
   const [apiKeysSaving, setApiKeysSaving] = useState(false);
-  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '' });
+  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '', da_asst: '' });
   const [agentSaving, setAgentSaving] = useState(false);
   const [fewShots, setFewShots] = useState([]);
   const [fsUploading, setFsUploading] = useState(false);
@@ -76,7 +77,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         const loaded = { openrouter_api_key: ks.openrouter_api_key || '', embedding_api_key: ks.embedding_api_key || '' };
         setApiKeys(loaded);
         setApiKeysLoaded(loaded);
-        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '' });
+        setAgentCfg({ clarifier: ac.clarifier || '', sql_planner: ac.sql_planner || '', presenter: ac.presenter || '', da_asst: ac.da_asst || '' });
       }
       if (tab === 'knowledge') { const d = await api.get('/api/knowledge'); setKnowledgeDocs(d); }
       if (tab === 'fewshots') { const d = await api.get('/api/few-shots').catch(() => []); setFewShots(d || []); }
@@ -209,6 +210,11 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
       })
       .catch(e => toast(String(e), true));
   };
+  // v0.8.13：业务目录 JSON 上传 → 走 put_catalog 校验（前端已 JSON.parse 好 obj）
+  const uploadCatalog = async (obj) => {
+    try { const r = await api.put('/api/admin/catalog', obj); toast(`已导入业务目录（来源：${r.source || 'db'}）`); loadAll(); }
+    catch (e) { toast(`导入失败：${e.message || e}`, true); }
+  };
 
   const uploadFewShots = async (file) => {
     setFsUploading(true);
@@ -226,9 +232,18 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const deleteFewShot = async (id) => {
-    if (!confirm('删除该示例？')) return;
-    try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); }
-    catch (e) { toast(String(e), true); }
+    if (!confirm('删除该示例？')) return false;
+    try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); return true; }
+    catch (e) { toast(String(e), true); return false; }
+  };
+  // v0.8.13 批量删除 few-shot（一次确认 + 循环现有 DELETE）
+  // v0.8.13 fixup：返回删除数 → 子组件据此清选中集（取消/0 删则保留选中，不误清）
+  const batchDeleteFewShots = async (ids) => {
+    if (!ids.length || !confirm(`删除选中的 ${ids.length} 个示例？`)) return 0;
+    let ok = 0;
+    for (const id of ids) { try { await api.del(`/api/few-shots/${id}`); ok += 1; } catch (e) { toast(String(e), true); } }
+    loadAll(); toast(`已删除 ${ok} 个`);
+    return ok;
   };
 
   const savePrompt = async (agent) => {
@@ -314,7 +329,8 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     catch (e) { toast(String(e), true); }
   };
 
-  const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录' };
+  const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录',
+    'bi-directory': '报表目录', 'bi-permissions': '目录权限' };   // v0.8.12（da-asst 移入 API&模型）
 
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
@@ -395,6 +411,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                         fewShots={fewShots}
                         onEditFewShot={(f) => setModal({ type: 'fewshot', data: f })}
                         onDeleteFewShot={deleteFewShot}
+                        onBatchDeleteFewShots={batchDeleteFewShots}
                         prompts={prompts} setPrompts={setPrompts}
                         promptsSaving={promptsSaving} onSavePrompt={savePrompt}/>
         )}
@@ -404,9 +421,16 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                      catalogSaving={catalogSaving}
                      onSaveCatalogField={saveCatalogField}
                      onResetCatalogField={resetCatalogField}
+                     onDownloadTemplate={() => downloadTemplate('catalog', 'catalog_template.json')}
+                     onUploadCatalog={uploadCatalog}
                      catalogs={catalogs} activeCatalogId={activeCatalogId}
                      onSwitchCatalog={switchCatalog} onCreateCatalog={createCatalog}
                      onDeleteCatalog={deleteCatalog}/>
+        )}
+
+        {/* v0.8.12 C1 — BI 设置专属 tab（从 BI 齿轮进；自包含 fetch） */}
+        {(tab === 'bi-directory' || tab === 'bi-permissions' || tab === 'bi-daasst') && (
+          <TabBI T={T} tab={tab}/>
         )}
       </div>
 

@@ -6,7 +6,7 @@ route 前缀 `/api/admin/metrics-registry`（**避与既有 `/api/admin/metrics`
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
@@ -89,3 +89,52 @@ async def admin_delete_metric(metric_id: int, request: Request, admin=Depends(re
     metric_repo.delete_metric(metric_id)
     audit(request, admin, action="metric.delete", resource_type="metric", resource_id=metric_id)
     return {"ok": True}
+
+
+@router.post("/api/admin/metrics-registry/upload")
+async def admin_upload_metrics(file: UploadFile = File(...), request: Request = None,
+                               catalog_id: int = 1, admin=Depends(require_admin)):
+    """v0.8.13 xlsx 批量导入指标（列 name/display/caliber/base_object/date_column/unit/aliases；
+    aliases 逗号分隔 → JSON list）。逐行 create（当前 catalog；默认 #1）；行错不中断、收集返回。"""
+    import json
+    from io import BytesIO
+
+    # v0.8.13 fixup：只收 .xlsx（openpyxl 读不了 legacy BIFF .xls；此前收 .xls 会过闸后死在 load_workbook 给误导性「解析失败」）
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
+    try:
+        from openpyxl import load_workbook
+        rows = list(load_workbook(filename=BytesIO(await file.read()), data_only=True).active.iter_rows(values_only=True))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"解析失败: {str(e)[:200]}")
+    if not rows:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    header = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
+    # v0.8.13 fixup：校验必需表头列 name（否则错文件/无表头会静默返回 {inserted:0, errors:[]} 无诊断）
+    if "name" not in header:
+        raise HTTPException(status_code=400, detail="表头缺少必需列「name」（请使用下载的模板表头）")
+
+    def cell(d, k):
+        v = d.get(k)
+        return str(v).strip() if v is not None else ""
+
+    inserted, errors = 0, []
+    for r in rows[1:]:
+        d = {header[i]: r[i] for i in range(min(len(header), len(r)))}
+        name = cell(d, "name")
+        if not name:
+            continue
+        al = [a.strip() for a in cell(d, "aliases").split(",") if a.strip()]
+        try:
+            metric_repo.create_metric(
+                catalog_id=catalog_id, name=name, display=cell(d, "display"), caliber=cell(d, "caliber"),
+                base_object=cell(d, "base_object"), date_column=cell(d, "date_column"), unit=cell(d, "unit"),
+                aliases=json.dumps(al, ensure_ascii=False) if al else "",
+            )
+            inserted += 1
+        except Exception as e:
+            errors.append(f"{name}: {str(e)[:80]}")
+    if inserted:
+        audit(request, admin, action="metric.create", resource_type="metric",
+              detail={"bulk_import": inserted, "catalog_id": catalog_id})
+    return {"inserted": inserted, "errors": errors[:20]}

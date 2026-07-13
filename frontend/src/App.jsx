@@ -137,6 +137,8 @@ export default function App() {
     'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
     'admin-catalog': 'catalog',
+    // v0.8.12 — BI 设置专属 tab（从 BI 齿轮进；Shell backMode==='bi' 过滤 nav）
+    'admin-bi-directory': 'bi-directory', 'admin-bi-permissions': 'bi-permissions',
   };
   // v0.8.5 ②a：BI 报表模式（独立 BIShell；ASK/BI 切换在 BIShell 顶栏集群，问题①修）
   if (screen === 'bi') return <BIScreen {...commonProps}/>;
@@ -156,9 +158,12 @@ export default function App() {
   if (screen === 'admin-monitors' && user.role === 'admin') return <AdminMonitorsScreen {...commonProps}/>;
   if (adminTabMap[screen] && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab={adminTabMap[screen]}/>;
   if (screen === 'admin' && user.role === 'admin') return <AdminScreen {...commonProps} screen={screen} initialTab="users"/>;
-  // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至「API & 模型」管理面板
+  // v0.2.1 批次2：API key / agent 模型已归口管理员；user-config 与 settings 重定向至管理面板
+  // v0.8.12 C1：设置按模式分栏 —— 从 BI 齿轮进 → BI 设置（目录/权限/da-asst）；从 ASK 进 → 现有「API & 模型」
   if ((screen === 'user-config' || screen === 'settings') && user.role === 'admin')
-    return <AdminScreen {...commonProps} screen="admin-models" initialTab="models"/>;
+    return homeMode === 'bi'
+      ? <AdminScreen {...commonProps} screen="admin-bi-directory" initialTab="bi-directory"/>
+      : <AdminScreen {...commonProps} screen="admin-models" initialTab="models"/>;
   // ASK 问数模式（默认）；ASK/BI 切换在 AppShell topbar 集群（ChatScreen 传 active='chat' + onNavigate）
   return <ChatScreen {...commonProps}/>;
 }

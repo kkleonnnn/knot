@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.9 — ②b.3 BI builder 两项（kk 逐图反馈：列配置收起 / per-页公式行）
+## [Unreleased] - v0.8.13 — admin 批量运维（few-shot/指标批量删除 · 指标 xlsx 上传 · 业务目录 JSON 模板）
+
+> v0.8 收官批（kk「归 v0.8.13」）。admin 侧三项批量运维 + 一轮对抗复核修复。快通道（建 + 自验 + 对抗复核 workflow + CI）。
+>
+> **#1 批量删除**：ASK few-shot + 指标注册表均加「全选 / 反选 / 部分选 + 删除选中」（复用既有单删 DELETE 循环，一次确认）。
+> **#2 指标注册表 xlsx 批量导入**：`GET /api/templates/metrics`（模板 name/display/caliber/base_object/date_column/unit/aliases 7 列 + 2 示例行）+ `POST /api/admin/metrics-registry/upload`（逐行 create_metric，行错不中断、收集返回；预算 gate / 成本记录 / 审计随主链）。admin.router 聚合 46→47。
+> **#3 业务目录 JSON 模板 + 上传**：`GET /api/templates/catalog`（结构化 JSON：tables/lexicon/business_rules/relations/field_labels，形状严格对齐真实契约）+ 前端 FileReader → PUT /api/admin/catalog（复用既有校验）。
+> **对抗复核 fixup（3 维 review→verify workflow · 13 agents · 10 raised → 6 confirmed 全修）**：catalog 模板 lexicon 形状（NL 定义串 → `{业务词:[表全名...]}` list，否则 schema_filter 按字符注册假 target 致路由静默降级）+ tables 形状（→ `{db,table,topics,summary}`）+ relations 补基数；指标上传缺 name 表头 → 400 + 只收 .xlsx；few-shot 批量删除点取消不误清选中 + 单删剔除批量选中集（防表头全选态 desync / 计数虚高）；catalog 上传 FileReader 补 onerror。
+> 闸门：ruff / eslint / build / check_file_sizes / 全量 pytest 1236 passed。
+
+## [Released] - v0.8.12 — BI 设置 + 目录权限 RBAC（per-user × 目录/报表 × 4 权限）+ da-asst 数据分析引擎
+
+> v0.8 ②c 前置 —— BI 模式独立设置面板 + 报表访问控制。⚠️ OOS-1 单租户死线 sustained（RBAC = 单租户内 user×resource，0 tenant_id）。
+>
+> **设置按模式分栏**（C1）：BI 齿轮 → BI 设置（数据源 / 用户 / API&模型 / 报表目录 / 目录权限）；ASK 齿轮 → 现有 admin。
+> **报表目录管理**（C2）：新建 / 重命名 / 删除 / 拖拽排序 + 报表归入目录。
+> **目录权限 RBAC**（C3）：新 `bi_permissions` 表 = **user_id × (folder_id ∨ report_id) × 4 权限**（定时 / 编辑 / 导出 / 分享）；admin 恒全权（不入表、bypass）；default-deny；全 0 权限 → 删授权行。归档报表继承目录授权，未分组报表逐条单独授权。端点强制（require edit/export/share）+ 权限管理 API（GET/PUT `/api/bi/permissions`）。**按用户非角色**（同角色不同部门看不同表）。
+> **BI 工具栏按 perm 显隐**（C4）：编辑/重跑/删除=编辑权、定时=定时权、CSV/Excel=导出权、分享=分享权。
+> **da-asst 数据分析引擎**（C5 + v0.8.10 真接）：第一类分析引擎（旨在取代 presenter 洞察环 + 作 BI 问答助手），独立模型槽（Agent 模型分配第 4 位，用平台 OR key）；BI 右栏只读报表解读 + 成本控制平面（预算 gate + 成本记录 + 审计）。
+
+## [Released] - v0.8.11 — 仪表盘视觉迭代（kk 逐图反馈）
+
+> 仪表盘 KPI / 图表逐项打磨。
+>
+> 单值卡单位后缀（万压缩 + USDT 后缀、去 ¥）· 对比可选 + 趋势有值 + 宽表横滚 + pair 3 列 · 单位 badge / 去近 7 日行 / 恒 2 位小数 · 币种一律 USDT / 环比 2 位 / 取消负值红 / 洞察卡去左边框 · 右栏收起箭头水平左向（« 出竖排）。
+
+## [Released] - v0.8.10 — 仪表盘 12 列组件网格 + da-asst 真接（③ 提前）
+
+> BI 仪表盘 grid baseline + da-asst 首次真接。
+>
+> **仪表盘 12 列组件网格**：TileBuilder 6 类型（KPI / 折线 / 圆盘 / 横条 / 表 / donut）+ 添加组件弹窗 + 侧栏 236 + 逐像素对照修（窄单值卡隐藏类型标签）。
+> **da-asst 真接**（③ 提前）：BI 右栏只读报表解读 + 成本控制平面。
+
+## [Released] - v0.8.9 — ②b.3 BI builder 两项（kk 逐图反馈：列配置收起 / per-页公式行）
 
 > v0.8 ② 延续。kk 两项反馈（26 列真运营日报暴露）：① 字段多→页签拖不动，列配置加「收起」；② 表头↔数据之间插 Excel 式聚合/筛选行。快通道（建 + 自验 + CI）。
 >
