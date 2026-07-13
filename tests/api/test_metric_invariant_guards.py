@@ -97,6 +97,7 @@ def test_every_bi_literal_has_audit_emit():
     assert literals == {
         "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
         "bi_report.analyze",   # v0.8.10 da-asst 解读
+        "bi_report.share",     # v0.8.14 分享快照到 Lark/TG（emit knot/api/bi_share.py）
         "bi_permission.change",  # v0.8.12 RBAC grant 变更
         "report_folder.create", "report_folder.update", "report_folder.delete",
     }, f"BI AuditAction Literal 集合不符；实际 {literals}"

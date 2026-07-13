@@ -66,9 +66,11 @@ def test_auditaction_has_context_violation():
     assert "catalog.switch" in actions  # 结构半 sustained
     assert "config.budget_update" in actions  # v0.6.5.9 修 budget-config 审计崩溃新增
     assert "bi_permission.change" in actions   # v0.8.12 RBAC grant 变更
-    assert len(actions) == 60, (
-        f"AuditAction 应 60 条（51 + v0.8.5 ②a bi_report.*4/report_folder.*3 = +7 → 58；"
-        f"+ v0.8.10 bi_report.analyze → 59；+ v0.8.12 bi_permission.change → 60）；实际 {len(actions)}"
+    assert "bi_report.share" in actions         # v0.8.14 分享出境事件
+    assert len(actions) == 61, (
+        f"AuditAction 应 61 条（51 + v0.8.5 ②a bi_report.*4/report_folder.*3 = +7 → 58；"
+        f"+ v0.8.10 bi_report.analyze → 59；+ v0.8.12 bi_permission.change → 60；"
+        f"+ v0.8.14 bi_report.share → 61；config.im_share_update 待 commit 5 → 62）；实际 {len(actions)}"
     )
 
 
