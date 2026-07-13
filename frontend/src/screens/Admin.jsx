@@ -231,6 +231,13 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); }
     catch (e) { toast(String(e), true); }
   };
+  // v0.8.13 批量删除 few-shot（一次确认 + 循环现有 DELETE）
+  const batchDeleteFewShots = async (ids) => {
+    if (!ids.length || !confirm(`删除选中的 ${ids.length} 个示例？`)) return;
+    let ok = 0;
+    for (const id of ids) { try { await api.del(`/api/few-shots/${id}`); ok += 1; } catch (e) { toast(String(e), true); } }
+    loadAll(); toast(`已删除 ${ok} 个`);
+  };
 
   const savePrompt = async (agent) => {
     setPromptsSaving(s => ({ ...s, [agent]: true }));
@@ -397,6 +404,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
                         fewShots={fewShots}
                         onEditFewShot={(f) => setModal({ type: 'fewshot', data: f })}
                         onDeleteFewShot={deleteFewShot}
+                        onBatchDeleteFewShots={batchDeleteFewShots}
                         prompts={prompts} setPrompts={setPrompts}
                         promptsSaving={promptsSaving} onSavePrompt={savePrompt}/>
         )}

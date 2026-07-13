@@ -16,13 +16,14 @@ const _EMPTY = {
   op: '', left: '', right: '',
 };
 const _DERIVED_OPS = ['divide', 'multiply', 'add', 'subtract'];   // 与后端 _DERIVED_OPS / compile_helpers._OP_SQL 对齐
-const GRID = '1.2fr 1.3fr 1.8fr 0.6fr 0.6fr 70px';
+const GRID = '34px 1.2fr 1.3fr 1.8fr 0.6fr 0.6fr 70px';   // v0.8.13 首列 checkbox
 
 export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, onLogout }) {
   const [metrics, setMetrics] = useState(null);   // null = loading
   const [draft, setDraft] = useState(_EMPTY);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [sel, setSel] = useState(() => new Set());   // v0.8.13 批量删除选中 id
 
   function load() {
     api.get('/api/admin/metrics-registry')
@@ -30,6 +31,22 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
        .catch(e => { toast(`指标加载失败: ${e.message}`, true); setMetrics([]); });
   }
   useEffect(() => { load(); }, []);
+
+  // v0.8.13 多选 + 批量删除（循环现有 DELETE；全选/反选/删除选中）
+  const ids = () => (metrics || []).map(m => m.id);
+  const toggleSel = (id) => setSel(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const selAll = () => setSel(new Set(ids()));
+  const selInvert = () => setSel(s => new Set(ids().filter(id => !s.has(id))));
+  async function batchDelete() {
+    const list = [...sel];
+    if (!list.length || !confirm(`删除选中的 ${list.length} 个指标？此操作不可撤销。`)) return;
+    let ok = 0;
+    for (const id of list) {
+      try { await api.del(`/api/admin/metrics-registry/${id}`); ok += 1; }
+      catch (e) { toast(`删除 #${id} 失败: ${e.message}`, true); }
+    }
+    toast(`已删除 ${ok} 个指标`); setSel(new Set()); load();
+  }
 
   function handleEdit(m) {
     setEditingId(m.id);
@@ -161,13 +178,26 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
             <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: T.muted }}>暂无指标，使用上方表单创建第一个</div>
           ) : (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+              {/* v0.8.13 批量工具条 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
+                <button onClick={selAll} style={{ ...pillBtn(T), padding: '4px 10px' }}>全选</button>
+                <button onClick={selInvert} style={{ ...pillBtn(T), padding: '4px 10px' }}>反选</button>
+                <span style={{ color: T.muted }}>已选 {sel.size}</span>
+                <button onClick={batchDelete} disabled={!sel.size}
+                  style={{ ...pillBtn(T), padding: '4px 10px', marginLeft: 'auto', color: sel.size ? T.error : T.muted, borderColor: sel.size ? T.error : T.border, cursor: sel.size ? 'pointer' : 'default' }}>
+                  删除选中{sel.size ? `（${sel.size}）` : ''}
+                </button>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '9px 16px', ...theadStyle(T) }}>
+                <div><input type="checkbox" checked={metrics.length > 0 && sel.size === metrics.length}
+                  onChange={e => (e.target.checked ? selAll() : setSel(new Set()))} style={{ cursor: 'pointer', accentColor: T.accent }}/></div>
                 <div>指标名</div><div>显示名</div><div>口径</div><div>Catalog</div><div>状态</div><div></div>
               </div>
               {metrics.map((m, i) => (
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '11px 16px',
                   borderBottom: i < metrics.length - 1 ? `1px solid ${T.borderSoft}` : 'none',
                   alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+                  <div><input type="checkbox" checked={sel.has(m.id)} onChange={() => toggleSel(m.id)} style={{ cursor: 'pointer', accentColor: T.accent }}/></div>
                   <div style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                   <div style={{ color: T.subtext, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.display || '—'}</div>
                   <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.caliber}</div>
