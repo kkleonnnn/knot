@@ -232,16 +232,18 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const deleteFewShot = async (id) => {
-    if (!confirm('删除该示例？')) return;
-    try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); }
-    catch (e) { toast(String(e), true); }
+    if (!confirm('删除该示例？')) return false;
+    try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); return true; }
+    catch (e) { toast(String(e), true); return false; }
   };
   // v0.8.13 批量删除 few-shot（一次确认 + 循环现有 DELETE）
+  // v0.8.13 fixup：返回删除数 → 子组件据此清选中集（取消/0 删则保留选中，不误清）
   const batchDeleteFewShots = async (ids) => {
-    if (!ids.length || !confirm(`删除选中的 ${ids.length} 个示例？`)) return;
+    if (!ids.length || !confirm(`删除选中的 ${ids.length} 个示例？`)) return 0;
     let ok = 0;
     for (const id of ids) { try { await api.del(`/api/few-shots/${id}`); ok += 1; } catch (e) { toast(String(e), true); } }
     loadAll(); toast(`已删除 ${ok} 个`);
+    return ok;
   };
 
   const savePrompt = async (agent) => {

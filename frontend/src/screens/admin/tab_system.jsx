@@ -16,6 +16,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
     if (!f) return;
     const rd = new FileReader();
     rd.onload = () => { try { onUploadCatalog(JSON.parse(rd.result)); } catch (e) { toast(`JSON 解析失败：${e.message}`, true); } };
+    rd.onerror = () => toast('文件读取失败', true);   // v0.8.13 fixup：补 read 错误分支（原仅 catch parse 错，read 失败静默无反馈）
     rd.readAsText(f);
   };
   // v0.5.44 — 加第 4 section 表关系（RELATIONS）— 笛卡尔积根因解 (admin UI 替代 gitignored .py)

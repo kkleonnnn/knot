@@ -113,6 +113,8 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
     try {
       await api.del(`/api/admin/metrics-registry/${m.id}`);
       toast('指标已删除');
+      // v0.8.13 fixup：单删后从批量选中集剔除该 id（否则表头全选态 desync + 批量删除重发已删 id 致计数虚高/冗余审计）
+      setSel(s => { const n = new Set(s); n.delete(m.id); return n; });
       load();
     } catch (e) {
       toast(`删除失败: ${e.message}`, true);

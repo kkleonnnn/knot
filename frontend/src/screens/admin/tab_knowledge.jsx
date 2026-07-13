@@ -187,7 +187,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
               <button onClick={fsAll} style={{ ...pillBtn(T), padding: '4px 10px' }}>全选</button>
               <button onClick={fsInvert} style={{ ...pillBtn(T), padding: '4px 10px' }}>反选</button>
               <span style={{ color: T.muted }}>已选 {fsSel.size}</span>
-              <button onClick={async () => { await onBatchDeleteFewShots([...fsSel]); setFsSel(new Set()); }} disabled={!fsSel.size}
+              <button onClick={async () => { const n = await onBatchDeleteFewShots([...fsSel]); if (n) setFsSel(new Set()); }} disabled={!fsSel.size}
                 style={{ ...pillBtn(T), padding: '4px 10px', marginLeft: 'auto', color: fsSel.size ? T.error : T.muted, borderColor: fsSel.size ? T.error : T.border, cursor: fsSel.size ? 'pointer' : 'default' }}>
                 删除选中{fsSel.size ? `（${fsSel.size}）` : ''}
               </button>
@@ -243,7 +243,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                   </div>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
                     <button onClick={() => onEditFewShot(f)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
-                    <button onClick={() => onDeleteFewShot(f.id)} style={iconBtn(T)} title="删除"><I.trash/></button>
+                    <button onClick={async () => { const ok = await onDeleteFewShot(f.id); if (ok) setFsSel(s => { const n = new Set(s); n.delete(f.id); return n; }); }} style={iconBtn(T)} title="删除"><I.trash/></button>
                   </div>
                 </div>
                 {/* SQL block — bgInset + mono + pre */}

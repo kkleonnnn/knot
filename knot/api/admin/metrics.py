@@ -99,7 +99,8 @@ async def admin_upload_metrics(file: UploadFile = File(...), request: Request = 
     import json
     from io import BytesIO
 
-    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+    # v0.8.13 fixup：只收 .xlsx（openpyxl 读不了 legacy BIFF .xls；此前收 .xls 会过闸后死在 load_workbook 给误导性「解析失败」）
+    if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
     try:
         from openpyxl import load_workbook
@@ -109,6 +110,9 @@ async def admin_upload_metrics(file: UploadFile = File(...), request: Request = 
     if not rows:
         raise HTTPException(status_code=400, detail="文件内容为空")
     header = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
+    # v0.8.13 fixup：校验必需表头列 name（否则错文件/无表头会静默返回 {inserted:0, errors:[]} 无诊断）
+    if "name" not in header:
+        raise HTTPException(status_code=400, detail="表头缺少必需列「name」（请使用下载的模板表头）")
 
     def cell(d, k):
         v = d.get(k)
