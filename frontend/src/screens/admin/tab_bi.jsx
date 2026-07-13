@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../api.js';
 import { toast } from '../../utils.jsx';
+import { PermissionMatrix } from './bi_permissions.jsx';   // v0.8.12 C4a 权限矩阵
 
 function Panel({ T, title, desc, children }) {
   return (
@@ -97,13 +98,7 @@ function DirectoryManager({ T }) {
 
 export function TabBI({ T, tab }) {
   if (tab === 'bi-directory') return <DirectoryManager T={T} />;
-  if (tab === 'bi-permissions') {
-    return (
-      <Panel T={T} title="目录访问权限" desc="按角色 × 目录（未分组逐报表）授予 定时 / 编辑 / 导出 / 分享 权限；admin 全权。">
-        <p style={{ fontSize: 12, color: T.muted, marginTop: 14 }}>权限矩阵编辑：C4（后端 RBAC 已就绪）。</p>
-      </Panel>
-    );
-  }
+  if (tab === 'bi-permissions') return <PermissionMatrix T={T} />;
   return (
     <Panel T={T} title="da-asst 数据分析助手" desc="BI 报表解读的模型驱动。留空则复用平台 OpenRouter key + 默认模型。">
       <p style={{ fontSize: 12, color: T.muted, marginTop: 14 }}>可选 API key / 模型设置：C5。</p>

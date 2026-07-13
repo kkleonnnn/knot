@@ -109,6 +109,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 Knowledge + Few-shot 完整 UI
     "frontend/src/screens/admin/tab_system.jsx":   250,
     "frontend/src/screens/admin/tab_bi.jsx":       200,  # v0.8.12 C1 BI 设置（目录/权限/da-asst）；C2/C4/C5 填充
+    "frontend/src/screens/admin/bi_permissions.jsx": 120,  # v0.8.12 C4a 权限矩阵
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 SourceFormModal HTTP type 5 字段
     # Foundation + 基础设施
     "frontend/src/Shared.jsx":                     760,  # v0.6.4.0 UI v2 (TOKENS_V2 + 16 图标 additive)
