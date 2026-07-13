@@ -13,7 +13,7 @@ from knot.models.errors import ConfigMissingError
 from knot.repositories.base import get_conn
 
 # 敏感 setting key 白名单 — 新增 sensitive setting 必须更新此集合（CLAUDE.md 流程红线）
-_SENSITIVE_KEYS = frozenset({"openrouter_api_key", "embedding_api_key", "da_asst_api_key"})  # v0.8.12 C5 da-asst 可选 key
+_SENSITIVE_KEYS = frozenset({"openrouter_api_key", "embedding_api_key"})
 
 
 # ── 通用 KV ────────────────────────────────────────────────────────────

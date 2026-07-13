@@ -36,7 +36,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   // v0.4.5 R-39：记录 GET 返回的 masked 值；保存时若 input 仍等于此值 → 不发送该字段
   const [apiKeysLoaded, setApiKeysLoaded] = useState({ openrouter_api_key: '', embedding_api_key: '' });
   const [apiKeysSaving, setApiKeysSaving] = useState(false);
-  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '' });
+  const [agentCfg, setAgentCfg] = useState({ clarifier: '', sql_planner: '', presenter: '', da_asst: '' });
   const [agentSaving, setAgentSaving] = useState(false);
   const [fewShots, setFewShots] = useState([]);
   const [fsUploading, setFsUploading] = useState(false);
@@ -316,7 +316,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录',
-    'bi-directory': '报表目录', 'bi-permissions': '目录权限', 'bi-daasst': 'da-asst' };   // v0.8.12 C1
+    'bi-directory': '报表目录', 'bi-permissions': '目录权限' };   // v0.8.12（da-asst 移入 API&模型）
 
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };

@@ -18,7 +18,7 @@ import time
 from io import BytesIO
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -349,36 +349,6 @@ async def set_permission(req: PermissionSetRequest, request: Request, admin=Depe
         target = {"report_id": req.report_id}
     audit(request, admin, action="bi_permission.change", resource_type="bi_report",
           resource_id=req.folder_id or req.report_id or 0, detail={"role": req.role, **target, **perms})
-    return {"ok": True}
-
-
-# ── da-asst 可选 key/模型（v0.8.12 C5；留空 → 平台 OpenRouter key + DEFAULT_MODEL）─────────
-
-@router.get("/api/bi/da-asst")
-async def get_da_asst_settings(admin=Depends(require_admin)):
-    """da-asst 专属设置：masked key + 模型（不漏明文）。"""
-    from knot.api._secret import mask_secret
-    from knot.repositories import settings_repo
-    return {
-        "api_key": mask_secret(settings_repo.get_app_setting("da_asst_api_key", "")),
-        "model": settings_repo.get_app_setting("da_asst_model", ""),
-    }
-
-
-@router.put("/api/bi/da-asst")
-async def set_da_asst_settings(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
-    """设 da-asst key/模型：key 走 should_update_secret（空/mask 占位保留原值）+ 加密存；模型明文。"""
-    from knot.api._secret import should_update_secret
-    from knot.repositories import settings_repo
-    if "api_key" in payload:
-        old = settings_repo.get_app_setting("da_asst_api_key", "")
-        should, final = should_update_secret(payload["api_key"], old)
-        if should:
-            settings_repo.set_app_setting("da_asst_api_key", final)
-            audit(request, admin, action=("api_key.set_global" if final else "api_key.clear_global"),
-                  resource_type="api_key", detail={"keys": ["da_asst_api_key"]})
-    if "model" in payload:
-        settings_repo.set_app_setting("da_asst_model", (payload.get("model") or "").strip())
     return {"ok": True}
 
 

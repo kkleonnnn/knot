@@ -81,22 +81,21 @@ export function AppShell({
                 从 ASK 进显 全局项 + ASK/治理全量。互不串（kk）。 */}
             {isAdmin && backMode === 'bi' && (
               <>
-                <SideHeading T={T}>BI 设置</SideHeading>
+                {/* v0.8.12 返工：去标题；全局项(数据源/用户/API&模型) + BI 专属(报表目录/权限)；da-asst 并入 API&模型 */}
                 <SideNavRow T={T} icon={<I.db/>} label="数据源" active={active === 'admin-sources'}
                             onClick={() => onNavigate('admin-sources')}/>
                 <SideNavRow T={T} icon={<I.users/>} label="用户" active={active === 'admin-users'}
                             onClick={() => onNavigate('admin-users')}/>
+                <SideNavRow T={T} icon={<I.zap/>} label="API &amp; 模型" active={active === 'admin-models'}
+                            onClick={() => onNavigate('admin-models')}/>
                 <SideNavRow T={T} icon={<I.catalog/>} label="报表目录" active={active === 'admin-bi-directory'}
                             onClick={() => onNavigate('admin-bi-directory')}/>
                 <SideNavRow T={T} icon={<I.shield/>} label="目录权限" active={active === 'admin-bi-permissions'}
                             onClick={() => onNavigate('admin-bi-permissions')}/>
-                <SideNavRow T={T} icon={<I.spark/>} label="da-asst" active={active === 'admin-bi-daasst'}
-                            onClick={() => onNavigate('admin-bi-daasst')}/>
               </>
             )}
             {isAdmin && backMode !== 'bi' && (
               <>
-                <SideHeading T={T}>管理员</SideHeading>
                 <SideNavRow T={T} icon={<I.db/>} label="数据源" active={active === 'admin-sources'}
                             onClick={() => onNavigate('admin-sources')}/>
                 <SideNavRow T={T} icon={<I.users/>} label="用户" active={active === 'admin-users'}

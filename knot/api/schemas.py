@@ -105,3 +105,4 @@ class AgentModelConfigRequest(BaseModel):
     clarifier: str = ""
     sql_planner: str = ""
     presenter: str = ""
+    da_asst: str = ""      # v0.8.12 返工：da-asst 分析引擎模型（洞察 + BI 问答；留空→默认）

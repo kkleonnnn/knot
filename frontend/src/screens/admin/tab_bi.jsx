@@ -96,38 +96,8 @@ function DirectoryManager({ T }) {
   );
 }
 
-function DaAsstSettings({ T }) {
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('');
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    api.get('/api/bi/da-asst').then((d) => { setApiKey(d.api_key || ''); setModel(d.model || ''); }).catch(() => {});
-  }, []);
-  const save = async () => {
-    setSaving(true);
-    // key 未编辑（mask 占位 ••）→ 后端 should_update_secret 保留原值；明文才更新
-    try { await api.put('/api/bi/da-asst', { api_key: apiKey, model }); toast('已保存'); }
-    catch (e) { toast(String(e.message || e), true); }
-    finally { setSaving(false); }
-  };
-  const fld = { width: '100%', padding: '9px 11px', borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' };
-  const lbl = { fontSize: 12, color: T.subtext, fontWeight: 500, margin: '16px 0 6px' };
-  return (
-    <Panel T={T} title="da-asst 数据分析助手" desc="BI 报表解读的模型驱动。两项均可留空 → 复用平台 OpenRouter key + 默认模型（当前行为）。">
-      <div style={lbl}>模型（可选）</div>
-      <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="留空 = 平台默认（anthropic/claude-haiku-4.5）；可填任意 OpenRouter 模型 key" style={fld} />
-      <div style={lbl}>专属 API Key（可选）</div>
-      <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="留空 = 复用平台 OpenRouter key" autoComplete="off" style={{ ...fld, fontFamily: T.mono }} />
-      <p style={{ fontSize: 11, color: T.muted, margin: '8px 0 0' }}>Key 加密存储、回显打码；不改则保留原值。</p>
-      <button onClick={save} disabled={saving} style={{ marginTop: 18, padding: '9px 20px', borderRadius: 8, border: 'none', background: T.accent, color: T.sendFg, fontSize: 13, fontWeight: 500, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
-        {saving ? '保存中…' : '保存'}
-      </button>
-    </Panel>
-  );
-}
-
 export function TabBI({ T, tab }) {
+  // v0.8.12 返工：da-asst 独立设置 tab 移除 —— da-asst 模型并入「API & 模型」的 Agent 分配（第 4 槽）。
   if (tab === 'bi-directory') return <DirectoryManager T={T} />;
-  if (tab === 'bi-permissions') return <PermissionMatrix T={T} />;
-  return <DaAsstSettings T={T} />;
+  return <PermissionMatrix T={T} />;   // bi-permissions
 }

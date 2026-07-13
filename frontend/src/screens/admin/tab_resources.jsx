@@ -33,12 +33,13 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
 
       {/* R-530 Agent Allocation Card — padding/radius 升级 + 3-col grid 120/1fr/90px */}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>3 个 Agent 模型分配</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>Agent 模型分配</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.55 }}>为每个 agent 指定模型，留空则跟随系统默认（DEFAULT_MODEL）</div>
         {[
           { key: 'clarifier',   label: '理解问题',   hint: '推荐轻量' },
           { key: 'sql_planner', label: '生成 SQL',   hint: '推荐最强' },
           { key: 'presenter',   label: '整理洞察 + 质量检查', hint: '推荐中等' },
+          { key: 'da_asst',     label: 'da-asst 数据分析', hint: 'BI 问答/洞察' },   // v0.8.12 返工：da-asst 引擎模型
         ].map(({ key, label, hint }) => (
           // v0.5.41 — label 列 120 → 160 防 "整理洞察 + 质量检查" 换行；select 列 flex 1（resp 压缩）；hint 列 80 收紧
           <div key={key} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 80px', gap: 12, alignItems: 'center', marginBottom: 10 }}>

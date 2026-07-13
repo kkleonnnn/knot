@@ -59,6 +59,7 @@ async def get_agent_model_config(admin=Depends(require_admin)):
         "clarifier":   config.get("clarifier", ""),
         "sql_planner": config.get("sql_planner", ""),
         "presenter":   config.get("presenter", ""),
+        "da_asst":     config.get("da_asst", ""),
     }
 
 
@@ -68,7 +69,8 @@ async def set_agent_model_config(req: AgentModelConfigRequest, request: Request,
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,
         "presenter":   req.presenter,
+        "da_asst":     req.da_asst,
     })
     audit(request, admin, action="config.agent_models_update", resource_type="agent_model",
-          detail={"clarifier": req.clarifier, "sql_planner": req.sql_planner, "presenter": req.presenter})
+          detail={"clarifier": req.clarifier, "sql_planner": req.sql_planner, "presenter": req.presenter, "da_asst": req.da_asst})
     return {"ok": True}

@@ -137,8 +137,8 @@ export default function App() {
     'admin-sources': 'sources', 'admin-users': 'users', 'admin-models': 'models',
     'admin-knowledge': 'knowledge', 'admin-fewshots': 'fewshots', 'admin-prompts': 'prompts',
     'admin-catalog': 'catalog',
-    // v0.8.12 C1 — BI 设置专属 tab（从 BI 齿轮进；Shell backMode==='bi' 过滤 nav）
-    'admin-bi-directory': 'bi-directory', 'admin-bi-permissions': 'bi-permissions', 'admin-bi-daasst': 'bi-daasst',
+    // v0.8.12 — BI 设置专属 tab（从 BI 齿轮进；Shell backMode==='bi' 过滤 nav）
+    'admin-bi-directory': 'bi-directory', 'admin-bi-permissions': 'bi-permissions',
   };
   // v0.8.5 ②a：BI 报表模式（独立 BIShell；ASK/BI 切换在 BIShell 顶栏集群，问题①修）
   if (screen === 'bi') return <BIScreen {...commonProps}/>;
