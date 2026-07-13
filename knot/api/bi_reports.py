@@ -78,8 +78,8 @@ class ReportAnalyzeRequest(BaseModel):
     history: list[dict] = []                  # 既往对话 [{role, content}]（service 再截 12 轮）
 
 
-class PermissionSetRequest(BaseModel):        # v0.8.12 RBAC：设一条 grant（folder_id / report_id 二选一）
-    role: str
+class PermissionSetRequest(BaseModel):        # v0.8.12 RBAC：设一条 grant（按用户；folder_id / report_id 二选一）
+    user_id: int
     folder_id: int | None = None
     report_id: int | None = None
     can_schedule: bool = False
@@ -342,13 +342,13 @@ async def set_permission(req: PermissionSetRequest, request: Request, admin=Depe
     perms = {"can_schedule": req.can_schedule, "can_edit": req.can_edit,
              "can_export": req.can_export, "can_share": req.can_share}
     if req.folder_id is not None:
-        bi_permission_repo.set_folder_grant(req.role, req.folder_id, perms, admin["id"])
+        bi_permission_repo.set_folder_grant(req.user_id, req.folder_id, perms, admin["id"])
         target = {"folder_id": req.folder_id}
     else:
-        bi_permission_repo.set_report_grant(req.role, req.report_id, perms, admin["id"])
+        bi_permission_repo.set_report_grant(req.user_id, req.report_id, perms, admin["id"])
         target = {"report_id": req.report_id}
     audit(request, admin, action="bi_permission.change", resource_type="bi_report",
-          resource_id=req.folder_id or req.report_id or 0, detail={"role": req.role, **target, **perms})
+          resource_id=req.folder_id or req.report_id or 0, detail={"user_id": req.user_id, **target, **perms})
     return {"ok": True}
 
 

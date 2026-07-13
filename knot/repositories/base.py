@@ -26,6 +26,14 @@ _SCHEMA_SQL = (Path(__file__).parent / "schema.sql").read_text(encoding="utf-8")
 def init_db():
     """启动期建表 + 历史兼容迁移 + seed admin。"""
     conn = get_conn()
+    # v0.8.12 返工：bi_permissions role→user_id（kk 验收：按用户授权，非角色）。旧 role-based 表（未 merge、
+    # 空数据）先 DROP，让下面 schema.sql 以 user_id 重建。**必须在 executescript 前**（否则 CREATE IF NOT EXISTS
+    # 对旧表 no-op）。幂等：已是 user_id（无 role 列）则跳过。
+    _bp = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='bi_permissions'").fetchone()
+    if _bp:
+        _bp_cols = {row[1] for row in conn.execute("PRAGMA table_info(bi_permissions)").fetchall()}
+        if "role" in _bp_cols:
+            conn.execute("DROP TABLE bi_permissions")
     conn.executescript(_SCHEMA_SQL)
 
     # users 表新列兼容（SQLite-safe ALTER）

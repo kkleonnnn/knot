@@ -425,12 +425,12 @@ CREATE TABLE IF NOT EXISTS bi_report_tiles (
 );
 CREATE INDEX IF NOT EXISTS idx_bi_report_tiles_report ON bi_report_tiles(report_id, sort_order);
 
--- v0.8.12：BI 目录/报表权限 RBAC（角色×目录 + 未分组逐报表）。admin 恒全权、不入表（require_admin bypass）。
--- 目标二选一：folder_id（目录级，归档报表继承）或 report_id（报表级，未分组报表逐张授权）；CHECK 恰一非空。
--- soft ref（镜像 report_folders/bi_reports 无硬 FK）；删目录/报表由 service 级联清 grant。单租户内 role×资源（OOS-1，无 tenant_id）。
+-- v0.8.12：BI 目录/报表权限 RBAC（**用户**×目录 + 未分组逐报表；kk 验收：同角色不同部门看不同表 → 按用户）。
+-- admin 恒全权、不入表（require_admin bypass）。目标二选一：folder_id（目录级，归档报表继承）或 report_id
+-- （报表级，未分组逐张）；CHECK 恰一非空。soft ref（无硬 FK）；删用户/目录/报表由 service 级联清 grant。单租户内 user×资源（OOS-1，无 tenant_id）。
 CREATE TABLE IF NOT EXISTS bi_permissions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    role         TEXT    NOT NULL,                       -- 授权角色（当前非 admin = 'analyst'）
+    user_id      INTEGER NOT NULL,                       -- 授权用户（soft ref users；admin 不入表）
     folder_id    INTEGER,                                -- 二选一：目录级（soft ref report_folders）
     report_id    INTEGER,                                -- 二选一：报表级（soft ref bi_reports；未分组用）
     can_schedule INTEGER NOT NULL DEFAULT 0,             -- 定时刷新
@@ -441,5 +441,5 @@ CREATE TABLE IF NOT EXISTS bi_permissions (
     created_by   INTEGER NOT NULL,                       -- admin user id
     CHECK ((folder_id IS NULL) <> (report_id IS NULL))   -- 恰好一个非空
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_folder ON bi_permissions(role, folder_id) WHERE folder_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_report ON bi_permissions(role, report_id) WHERE report_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_folder ON bi_permissions(user_id, folder_id) WHERE folder_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_report ON bi_permissions(user_id, report_id) WHERE report_id IS NOT NULL;

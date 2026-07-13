@@ -20,13 +20,13 @@ def _is_admin(user) -> bool:
 
 
 def effective(user, report: dict) -> dict:
-    """返 {schedule, edit, export, share: bool}。admin 全 True；否则按目录/报表 grant 解析（默认拒）。"""
+    """返 {schedule, edit, export, share: bool}。admin 全 True；否则按**用户**×目录/报表 grant 解析（默认拒）。"""
     if _is_admin(user):
         return {a: True for a in ACTIONS}
-    role = (user or {}).get("role") or ""
+    uid = (user or {}).get("id")
     folder_id = report.get("folder_id")
-    grant = (repo.get_folder_grant(role, folder_id) if folder_id is not None
-             else repo.get_report_grant(role, report["id"]))
+    grant = (repo.get_folder_grant(uid, folder_id) if folder_id is not None
+             else repo.get_report_grant(uid, report["id"]))
     return {a: bool(grant and grant.get(_COL[a])) for a in ACTIONS}
 
 
@@ -46,5 +46,5 @@ def can_folder(user, folder_id, action: str) -> bool:
         return True
     if folder_id is None or action not in ACTIONS:
         return False
-    g = repo.get_folder_grant((user or {}).get("role") or "", folder_id)
+    g = repo.get_folder_grant((user or {}).get("id"), folder_id)
     return bool(g and g.get(_COL[action]))
