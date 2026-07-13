@@ -155,7 +155,8 @@ async def get_report(report_id: int, user=Depends(get_current_user)):
     r = svc.get_report(report_id)
     if not r:
         raise HTTPException(status_code=404, detail="报表不存在")
-    return svc.to_dto(r, _is_admin(user))
+    # v0.8.12 C4b：附当前用户对本报表的 effective 权限 → 前端工具栏按 perm 显隐（后端仍强制，UI 只避免展示会 403 的按钮）
+    return {**svc.to_dto(r, _is_admin(user)), "_perms": perm_svc.effective(user, r)}
 
 
 @router.post("/api/bi/reports/{report_id}/analyze")
