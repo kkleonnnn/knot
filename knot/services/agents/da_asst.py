@@ -89,6 +89,7 @@ async def arun_da_asst(report: dict, question: str, history=None, model_key: str
     """
     # R-106 方案 1：延迟 import 主文件 helpers（与 presenter/clarifier 同模式）
     from knot.config import DEFAULT_MODEL
+    from knot.repositories.settings_repo import get_app_setting
     from knot.services.agents.orchestrator import _allm, _resolve
 
     system = _DA_ASST_SYS + "\n\n===== 报表数据 =====\n" + _context_block(report)
@@ -96,9 +97,11 @@ async def arun_da_asst(report: dict, question: str, history=None, model_key: str
         {"role": "user", "content": (question or "").strip()[:_MAX_QUESTION_CHARS]},
     ]
 
-    # ⚠️ 必须传 DEFAULT_MODEL（非空串）：_resolve("") 落 generic 分支不查 DB OR key（_app_or_key）
-    # → OR-only 部署（key 在 DB / env 空）100% 502。传注册 OR 模型 → 首分支 fallback _app_or_key 读 DB。
-    model_key, key, cfg = _resolve(model_key or DEFAULT_MODEL)
+    # v0.8.12 C5：da-asst 可选专属 model / key（BI 设置配）；留空 → 平台默认（DEFAULT_MODEL + _app_or_key OR key）。
+    # ⚠️ 必须传非空 model（DEFAULT_MODEL 兜底）：_resolve("") 落 generic 分支不查 DB OR key → OR-only 100% 502。
+    da_model = get_app_setting("da_asst_model", "") or ""
+    da_key = get_app_setting("da_asst_api_key", "") or ""   # sensitive → get 自动解密
+    model_key, key, cfg = _resolve(model_key or da_model or DEFAULT_MODEL, openrouter_api_key=da_key)
     text, it, ot, cost = await _allm(
         model_key, key, cfg, system, messages, max_tokens=700, agent_kind="da_asst",
     )

@@ -384,3 +384,21 @@ def test_rbac_grant_cascade_on_report_delete(client, auth_headers):
     assert any(g["report_id"] == rid for g in client.get("/api/bi/permissions", headers=auth_headers).json())
     client.delete(f"/api/bi/reports/{rid}", headers=auth_headers)
     assert not any(g["report_id"] == rid for g in client.get("/api/bi/permissions", headers=auth_headers).json())
+
+
+def test_da_asst_settings_roundtrip(client, auth_headers):
+    """v0.8.12 C5：da-asst key/模型 —— PUT 存（key 加密）→ GET 打码；mask-preserve；analyst 403。"""
+    from knot.repositories.settings_repo import get_app_setting
+    assert client.put("/api/bi/da-asst", json={"model": "anthropic/claude-opus-4.8", "api_key": "sk-secret-123"},
+                      headers=auth_headers).status_code == 200
+    got = client.get("/api/bi/da-asst", headers=auth_headers).json()
+    assert got["model"] == "anthropic/claude-opus-4.8"
+    assert got["api_key"].startswith("•") and got["api_key"].endswith("123")   # 打码
+    assert get_app_setting("da_asst_api_key", "") == "sk-secret-123"                 # 解密回原值（存储加密）
+    # mask-preserve：回传打码值 → key 不变
+    client.put("/api/bi/da-asst", json={"api_key": got["api_key"]}, headers=auth_headers)
+    assert get_app_setting("da_asst_api_key", "") == "sk-secret-123"
+    # analyst 不能读/改 da-asst 设置
+    ah = _analyst_headers(client, auth_headers)
+    assert client.get("/api/bi/da-asst", headers=ah).status_code == 403
+    assert client.put("/api/bi/da-asst", json={"model": "x"}, headers=ah).status_code == 403
