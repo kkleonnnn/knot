@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.14 — UI 视觉升级（玻璃 chrome + 外观预设 + type system + 交互一致性）
+## [Unreleased] - v0.8.15 — BI 报表分享（快照 PNG → Lark / Telegram，完整 v3 · 数据出境）
+
+> 报表/仪表盘截图成 PNG 发到 admin 白名单里的 Lark/TG 群。走完整 v3（Stage 1-3 + 守护者终审 + 落码期对抗复核）。
+> 三重出境控制守「数据不外泄到任意目的地」：① `require_report_perm("share")` 权限门 ② admin 策展投递目标白名单
+> （用户提交 target_id 引白名单行、chat_id 禁自填、服务端逐 id 校验 fail-fast）③ 独立 IM egress allowlist。
+> ⚠️ 版本：原编号 v0.8.14，UI 视觉升级先占 v0.8.14 合并（kk 拍）→ 分享顺延 v0.8.15；后端已 rebase 到 v0.8.14 玻璃基线。
+>
+> **后端**：schema `bi_share_targets`（白名单；OOS-1 无 tenant_id）+ IM 凭据加密存（`_SENSITIVE_KEYS` +lark_app_secret/telegram_bot_token，Fernet）· Lark + Telegram 图片适配器（`im_egress` 硬编 host allowlist；TG sendPhoto，Lark 三步 token→im/v1/images→im/v1/messages content 双重编码）· `bi_share_service` fail-fast 校验 + fan-out（run_in_executor 卸阻塞）· `POST /api/bi/reports/{id}/share` + `GET /api/bi/share/targets`(picker 无 chat_id) · admin `/api/admin/share/{config,targets}` 凭据 mask + 白名单 CRUD · 审计 `bi_report.share` + `config.im_share_update`（count 62）。
+> **前端**：⭐ 手写 `foreignObject`→canvas→PNG 截图引擎（零 npm 依赖；原生 oklch/color-mix；html2canvas 那条死路规避）+ SnapshotDashboard/Table（复用 DashboardWidgets/WideTable 离屏重建，≤50 行，去 chrome）+ 玻璃 ShareModal（多选白名单 + 截图 + 投递）+ tab_bi 分享配置 UI（IM 凭据 + 白名单）+ RBAC D2（DashboardReport isAdmin→canEdit）。
+>
+> **安全承重**：TG token 在 URL → `_mask_token` 全路径脱敏（异常/日志/detail 无裸 token）+ R-62 superset CI（`_SENSITIVE_KEYS ⊆ _PII_BLACKLIST` 动态守护，补此前「声称有实则无」）+ egress guard 逐出站点强制 + Contract 7（adapter 禁 crypto，凭据 repo 解密后明文传入）。守护者 grounded 终审 + 落码期对抗复核（后端 10→1 LOW 修 + 前端链）。live 验证：真仪表盘快照 1200×666 → 97KB PNG 含真 KPI。
+
+## [Released] - v0.8.14 — UI 视觉升级（玻璃 chrome + 外观预设 + type system + 交互一致性）
 
 > 设计侧（Claude Designer × 产品负责人三轮定稿）交付包 knot-ui-v0.9.3 集成（版本收敛回 0.8 阶段 = v0.8.14）。
 > Claude Code 角色 = 实施者（依赖/构建/lint/接数），0 视觉参数改写。基线 v0.8.13。原「四版本位」并入本 PATCH：
