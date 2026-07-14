@@ -14,6 +14,7 @@ import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
 import { AddWidgetModal } from './bi/AddWidgetModal.jsx';
 import { ShareModal } from './bi/ShareModal.jsx';
+import { ScheduleModal } from './bi/ScheduleModal.jsx';
 
 async function download(path, filename) {
   try {
@@ -69,6 +70,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [builder, setBuilder] = useState(null);
   const [addWidget, setAddWidget] = useState(null);   // v0.8.10 §5「添加组件」弹窗（当前仪表盘）
   const [shareReport, setShareReport] = useState(null);   // v0.8.15 分享弹窗
+  const [scheduleReport, setScheduleReport] = useState(null);   // v0.8.17 ②c 定时弹窗
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -153,7 +155,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
                     {/* v0.8.12 C4b：按 perm 显隐（编辑/删除/重跑=edit · 定时=schedule · 导出=export · 分享=share；admin 全权）*/}
                     {can('edit') && <ActBtn T={T} icon="edit" label="编辑" onClick={() => setBuilder(selected)} />}
-                    {can('schedule') && <ActBtn T={T} icon="clock" label="定时" disabled title="调度器即将上线（②c）" />}
+                    {can('schedule') && <ActBtn T={T} icon="clock" label="定时" onClick={() => setScheduleReport(selected)} />}
                     {can('edit') && <ActBtn T={T} icon="refresh" label={busy ? '刷新中…' : '重跑'} primary onClick={refresh} disabled={busy} />}
                     {/* v0.8.9 #3：宽表 + 多页表可导出（dashboard=图表板块拒）。CSV 多页表=当前页（tile_id）；Excel 多页表=多 sheet 全页。*/}
                     {can('export') && (selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv${selected.report_type === 'tabbed' && activeTile ? `?tile_id=${activeTile}` : ''}`, `bi_report_${selected.id}.csv`)} />}
@@ -190,6 +192,9 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
       )}
       {shareReport && (
         <ShareModal T={T} report={shareReport} activeTileId={activeTile} onClose={() => setShareReport(null)} />
+      )}
+      {scheduleReport && (
+        <ScheduleModal T={T} report={scheduleReport} onClose={() => setScheduleReport(null)} />
       )}
       {folderModal && (
         <Modal T={T} onClose={() => setFolderModal(false)} width={420}>

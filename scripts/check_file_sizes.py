@@ -70,7 +70,8 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/Login.jsx":              295,  # v0.6.4.1 UI v2 复刻
     "frontend/src/screens/Enroll.jsx":             256,  # v0.6.5.2 F5 sessionStorage 缓存 helpers
     # BI 模式（v0.8.5 ②a + v0.8.6 ②b）—— 补前端 size-gate 盲区（critic D：bi/ 原零登记 = 不受守护）
-    "frontend/src/screens/BI.jsx":                        210,  # BIScreen 调度（AppShell slots + ActBtn + 模态）
+    "frontend/src/screens/BI.jsx":                        225,  # BIScreen 调度（AppShell slots + ActBtn + 模态；v0.8.17 +定时）
+    "frontend/src/screens/bi/ScheduleModal.jsx":          140,  # v0.8.17 ②c 定时刷新配置弹窗（玻璃；节奏/时刻/fire 台账）
     "frontend/src/RightPanel.jsx":                        60,   # 共享右栏 chrome（BI da-asst ∥ ASK 思考过程）
     "frontend/src/screens/bi/ReportDirectory.jsx":        200,  # 报表目录树 + 搜索
     "frontend/src/screens/bi/ReportBuilderModal.jsx":     200,  # 双类型 builder（宽表覆盖层 / 仪表盘 TileBuilder）
