@@ -21,6 +21,22 @@ export async function captureNodeToPng(node, { scale = 2, background = '#ffffff'
   // 截图前把根节点定位归零，令内容自 (0,0) 铺开（尺寸已由 getBoundingClientRect 量定）。
   if (clone.style) { clone.style.position = 'static'; clone.style.left = '0'; clone.style.top = '0'; clone.style.margin = '0'; }
   clone.querySelectorAll('[data-snapshot-exclude]').forEach((el) => el.remove());
+  // 对抗复核 v0.8.15 #HIGH（kk 报「宽屏折线消失」）：内联 <svg> 用 width/height:100%（sparkline + ECharts 皆然）。
+  // foreignObject→img 栅格化时百分比尺寸不解析 → svg 塌到内在尺寸 → 折线只占局部宽（letterbox/压缩）。
+  // 序列化前把每个 svg 的尺寸冻结成实测 px（读原节点 rect，按文档序映射到 clone；已排除 data-snapshot-exclude 子树对齐）。
+  const keptOrigSvgs = [...node.querySelectorAll('svg')].filter((s) => !s.closest('[data-snapshot-exclude]'));
+  const cloneSvgs = clone.querySelectorAll('svg');
+  keptOrigSvgs.forEach((os, i) => {
+    const cs = cloneSvgs[i];
+    if (!cs) return;
+    const r = os.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      cs.setAttribute('width', String(Math.round(r.width)));
+      cs.setAttribute('height', String(Math.round(r.height)));
+      cs.style.width = Math.round(r.width) + 'px';
+      cs.style.height = Math.round(r.height) + 'px';
+    }
+  });
   const xhtml = new XMLSerializer().serializeToString(clone);
 
   const svg =
