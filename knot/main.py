@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from knot.api import admin, auth, conversations, database, knowledge, query, uploads
 from knot.api import audit as audit_router
 from knot.api import bi_reports as bi_reports_router
+from knot.api import bi_schedule as bi_schedule_router
 from knot.api import bi_share as bi_share_router
 from knot.api import catalog as catalog_router
 from knot.api import exports as exports_router
@@ -231,7 +232,8 @@ for _router in [auth.router, conversations.router, query.router, database.router
                 catalog_router.router, exports_router.router, saved_reports_router.router,
                 audit_router.router, feedback_router.router,
                 frontend_errors_router.router,
-                totp_router.router, bi_reports_router.router, bi_share_router.router]:
+                totp_router.router, bi_reports_router.router, bi_share_router.router,
+                bi_schedule_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"
