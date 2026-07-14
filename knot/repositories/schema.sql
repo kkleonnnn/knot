@@ -456,3 +456,34 @@ CREATE TABLE IF NOT EXISTS bi_share_targets (
     created_at     TEXT    DEFAULT (datetime('now','localtime')),
     created_by     INTEGER NOT NULL
 );
+
+-- v0.8.17 (②c) 报表定时刷新调度器：per-report schedule 配置 + fire 台账。
+-- OOS-1 死线：catalog_id 水平切分，严禁 tenant_id/project_id。触发 = K8s CronJob → POST /api/bi/scheduler/tick
+--   （单外部触发经 K8s Service 只打一个 pod → 应用内零常驻 loop → 无多副本重复 fire）。
+-- cadence 用 interval 枚举非 cron 表达式（避 croniter 新依赖 R-186）。
+CREATE TABLE IF NOT EXISTS bi_report_schedules (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id      INTEGER NOT NULL,                       -- soft ref bi_reports.id
+    catalog_id     INTEGER NOT NULL DEFAULT 1,             -- OOS-1 水平切分非租户
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    cadence        TEXT    NOT NULL DEFAULT 'daily',       -- 'daily' | 'hourly' | 'every_n_hours'
+    interval_hours INTEGER,                                -- every_n_hours 用；daily/hourly 忽略
+    run_at_hhmm    TEXT,                                   -- daily 触发时刻 'HH:MM'（Asia/Shanghai）
+    next_run_at    TEXT,                                   -- 下次触发（localtime 串，tz=Asia/Shanghai 计算）
+    last_fired_at  TEXT,
+    created_by     INTEGER,                                -- schedule 拥有者（授权 + 审计归属）
+    created_at     TEXT    DEFAULT (datetime('now','localtime')),
+    updated_at     TEXT    DEFAULT (datetime('now','localtime')),
+    UNIQUE (report_id)                                     -- v1 一报一 schedule（1:N 顺延）
+);
+-- 触发留痕侧表（append-only；可观测 + fire 佐证）。仿 monitor_trigger_audit。
+CREATE TABLE IF NOT EXISTS bi_report_schedule_fires (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    schedule_id  INTEGER NOT NULL,                         -- soft FK bi_report_schedules
+    report_id    INTEGER NOT NULL,
+    status       TEXT    NOT NULL DEFAULT '',              -- ok | error | no_engine | skipped
+    error        TEXT    DEFAULT '',
+    refresh_seq  INTEGER,
+    fired_at     TEXT    DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_fires ON bi_report_schedule_fires(schedule_id, fired_at);
