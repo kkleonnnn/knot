@@ -25,29 +25,42 @@ def _now() -> datetime:
     return datetime.now(tz) if tz else datetime.now()
 
 
+def _parse_hhmm(run_at_hhmm, default=(8, 0)) -> tuple[int, int]:
+    """'HH:MM' → (hh, mm)；坏/空 → default（08:00）。"""
+    if run_at_hhmm and ":" in str(run_at_hhmm):
+        try:
+            hh, mm = (int(x) for x in str(run_at_hhmm).split(":", 1))
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return hh, mm
+        except Exception:
+            pass
+    return default
+
+
 def compute_next_run(cadence: str, interval_hours=None, run_at_hhmm=None, from_dt: datetime | None = None) -> str:
-    """算下次触发（Asia/Shanghai 墙钟串）：
-    - daily → 下一个 run_at_hhmm（今日该时刻已过→明天；默认 08:00，落在上游 D-1 ETL 之后）
-    - every_n_hours → +N 小时（N≥1）
-    - hourly / 未知 → +1 小时
+    """算下次触发（Asia/Shanghai 墙钟串）。所有节奏都锚在 run_at_hhmm 时刻（kk：每种都要可配时间窗口，
+    不必卡点设置）：
+    - daily → 每天 HH:MM（今日已过→明天）
+    - hourly ≡ 每 1 小时，从 HH:MM 起对齐 → 稳态每小时于 :MM 触发（HH 仅定首次对齐）
+    - every_n_hours → 从 HH:MM 起每 N 小时（如 02:00 起每 6h → 02/08/14/20）
+    默认 08:00（落在上游 D-1 ETL 之后）。next = 首个 > base 的 (anchor + k·step)。
     """
     base = from_dt or _now()
+    hh, mm = _parse_hhmm(run_at_hhmm)
     if cadence == "daily":
-        hh, mm = 8, 0
-        if run_at_hhmm and ":" in str(run_at_hhmm):
-            try:
-                hh, mm = (int(x) for x in str(run_at_hhmm).split(":", 1))
-            except Exception:
-                hh, mm = 8, 0
         cand = base.replace(hour=hh, minute=mm, second=0, microsecond=0)
         if cand <= base:
             cand = cand + timedelta(days=1)
         nxt = cand
-    elif cadence == "every_n_hours":
-        n = max(1, int(interval_hours or 1))
-        nxt = base + timedelta(hours=n)
-    else:  # hourly / fallback
-        nxt = base + timedelta(hours=1)
+    else:                                             # hourly(step=1) | every_n_hours(step=N)，皆锚 HH:MM
+        step = 1 if cadence == "hourly" else max(1, int(interval_hours or 1))
+        anchor = base.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if anchor > base:
+            nxt = anchor                              # 锚点在未来（今日尚未到）→ 首触即锚点
+        else:
+            gap_h = (base - anchor).total_seconds() / 3600.0
+            k = int(gap_h // step) + 1                # 跨到锚点之后第一个整步
+            nxt = anchor + timedelta(hours=k * step)
     return nxt.strftime(_FMT)
 
 

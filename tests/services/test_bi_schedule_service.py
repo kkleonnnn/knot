@@ -12,11 +12,14 @@ from knot.services import bi_schedule_service as S
 
 def test_compute_next_run_cadences():
     d = datetime(2026, 7, 14, 9, 0, 0)
-    assert S.compute_next_run("daily", None, "08:00", d) == "2026-07-15 08:00:00"   # 今日已过→明天
-    assert S.compute_next_run("daily", None, "20:00", d) == "2026-07-14 20:00:00"   # 未过→今天
-    assert S.compute_next_run("hourly", None, None, d) == "2026-07-14 10:00:00"
-    assert S.compute_next_run("every_n_hours", 6, None, d) == "2026-07-14 15:00:00"
-    assert S.compute_next_run("daily", None, "bad", d) == "2026-07-15 08:00:00"     # 坏 hhmm 回退 08:00
+    assert S.compute_next_run("daily", None, "08:00", d) == "2026-07-15 08:00:00"      # 已过→明天
+    assert S.compute_next_run("daily", None, "20:00", d) == "2026-07-14 20:00:00"      # 未过→今天
+    # hourly 锚 :MM（kk：可配分钟，稳态每小时于 :MM 触发，不卡点）
+    assert S.compute_next_run("hourly", None, "08:30", d) == "2026-07-14 09:30:00"     # :30 → 下个 09:30
+    assert S.compute_next_run("hourly", None, "08:00", d) == "2026-07-14 10:00:00"     # :00 → 下个 10:00
+    # every_n_hours 锚 HH:MM 起步：02:00 起每 6h = 02/08/14/20 → base 09:00 后下个 14:00
+    assert S.compute_next_run("every_n_hours", 6, "02:00", d) == "2026-07-14 14:00:00"
+    assert S.compute_next_run("daily", None, "bad", d) == "2026-07-15 08:00:00"        # 坏 hhmm→默认 08:00
 
 
 def test_compute_next_run_tz_none_fallback(monkeypatch):

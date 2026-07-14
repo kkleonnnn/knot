@@ -38,8 +38,7 @@ export function ScheduleModal({ T, report, onClose }) {
   const save = async () => {
     setSaving(true);
     try {
-      const body = { enabled, cadence };
-      if (cadence === 'daily') body.run_at_hhmm = runAt.trim();
+      const body = { enabled, cadence, run_at_hhmm: runAt.trim() };   // 时间锚点适用所有节奏
       if (cadence === 'every_n_hours') body.interval_hours = parseInt(intervalHours, 10) || 1;
       setSched(await api.put(`/api/bi/reports/${report.id}/schedule`, body));
       toast(enabled ? '定时已保存' : '定时已停用');
@@ -61,12 +60,7 @@ export function ScheduleModal({ T, report, onClose }) {
           <span style={{ fontSize: 13, color: T.text }}>启用定时刷新</span>
         </label>
         <Select T={T} label="节奏" value={cadence} onChange={setCadence} options={CADENCE_OPTS} />
-        {cadence === 'daily' && (
-          <>
-            <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>触发时刻（Asia/Shanghai）</div>
-            <input value={runAt} onChange={(e) => setRunAt(e.target.value)} placeholder="08:00" style={{ ...fld, marginBottom: 12 }} />
-          </>
-        )}
+        {/* v0.8.17 kk：每种节奏都配触发时刻锚点（HH:MM）——hourly/每N时不必卡点，稳态对齐到 :分 */}
         {cadence === 'every_n_hours' && (
           <>
             <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>间隔（小时）</div>
@@ -74,6 +68,12 @@ export function ScheduleModal({ T, report, onClose }) {
               placeholder="6" style={{ ...fld, marginBottom: 12 }} />
           </>
         )}
+        <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>
+          {cadence === 'daily' ? '触发时刻（Asia/Shanghai）'
+            : cadence === 'hourly' ? '起始时刻（之后每小时同 :分 触发）'
+              : '起始时刻（之后按间隔递推）'}
+        </div>
+        <input value={runAt} onChange={(e) => setRunAt(e.target.value)} placeholder="08:00" style={{ ...fld, marginBottom: 12 }} />
         <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>
           仅重跑冻结 SQL 刷新快照（不推送、不调 AI）。建议每日在上游数据更新后（如 08:00）触发。
         </div>
