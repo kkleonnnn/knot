@@ -9,7 +9,9 @@ import { orderedCols } from './tiles/tile_data.js';
 const RED = 'oklch(66% 0.20 25)';
 function colLetter(i) { let s = '', n = i + 1; while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); } return s; }
 
-export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 520, roundTop = false }) {
+// computeRows（v0.8.15 #MEDIUM）：覆盖层公式的计算数据源，默认 = 显示 rows；
+//   仅快照场景传全量 rows（显示截 50 行、合计仍算全量）→ 现有调用方不传 = 行为逐字不变。
+export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 520, roundTop = false, computeRows = rows }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
   // 对抗复核 v0.8.9 #5：持久化的 viz_config.overlay 可能被写成非数组（对象）→ `for..of` TypeError 崩整屏。
   // 归一为数组，坏数据静默降级为「无公式行」而非崩溃（后端只在 list 时 cap → 非 list 会漏过）。
@@ -30,7 +32,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
     });
   }, [rows, sort]);
 
-  const { values, errors } = useMemo(() => computeOverlay({ rows, cols, overlay: ovList }), [rows, cols, ovList]);
+  const { values, errors } = useMemo(() => computeOverlay({ rows: computeRows, cols, overlay: ovList }), [computeRows, cols, ovList]);
   const overlayRows = useMemo(() => {
     const byRow = new Map();
     for (const c of ovList) {

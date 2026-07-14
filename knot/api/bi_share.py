@@ -13,12 +13,13 @@ import base64
 import binascii
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from knot.api._audit_helpers import audit
 from knot.api.bi_reports import require_report_perm
 from knot.api.deps import get_current_user
 from knot.repositories import bi_share_target_repo as target_repo
+from knot.services import bi_permission_service as perm_svc
 from knot.services import bi_share_service as share_svc
 
 router = APIRouter()
@@ -27,7 +28,10 @@ router = APIRouter()
 @router.get("/api/bi/share/targets")
 async def list_share_targets_for_picker(user=Depends(get_current_user)):
     """用户分享选择器用：列白名单目标（仅 id/name/platform；**不含 chat_id/凭据**）。
-    任何已认证用户可列（选择器；实际投递由 /share 端点 require_report_perm('share') + 服务端 target_id 校验守）。"""
+    对抗复核 v0.8.15 #LOW：最小权限——仅 admin 或持任一 share 权的用户可枚举（无 share 权返 []，
+    不泄露内部 IM 群名）；实际投递另由 /share 端点 require_report_perm('share') + 服务端 target_id 校验守。"""
+    if not perm_svc.can_share_anything(user):
+        return []
     return [{"id": t["id"], "name": t["name"], "platform": t["platform"]}
             for t in target_repo.list_targets()]
 
@@ -39,7 +43,7 @@ _MAX_TARGETS = 20                       # 单次分享目标数上限
 class ReportShareRequest(BaseModel):
     image_png: str                      # base64 PNG（前端离屏截图）
     target_ids: list[int]
-    caption: str = ""
+    caption: str = Field("", max_length=500)   # #sub-LOW：服务端硬界（前端 maxLength 200；直调 API 亦不放行超长）
 
 
 @router.post("/api/bi/reports/{report_id}/share")

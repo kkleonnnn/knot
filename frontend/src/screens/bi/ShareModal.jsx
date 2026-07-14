@@ -41,6 +41,7 @@ export function ShareModal({ T, report, activeTileId, onClose }) {
     if (!sel.size) { toast('请选择至少一个投递目标', true); return; }
     if (!snapRef.current) return;
     setSending(true);
+    setResults(null);   // #LOW：清上次结果，避免失败重试时残留旧 ✓ 误导
     try {
       const blob = await captureNodeToPng(snapRef.current, { background: lightT.bg });
       const image_png = await blobToBase64(blob);

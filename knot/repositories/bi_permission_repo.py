@@ -19,6 +19,17 @@ def list_all() -> list[dict]:
         conn.close()
 
 
+def user_has_any_share_grant(user_id: int) -> bool:
+    """user 是否对**任一**报表/目录持 share 权（分享选择器门用；单次 LIMIT 1 索引探测）。"""
+    conn = get_conn()
+    try:
+        r = conn.execute("SELECT 1 FROM bi_permissions WHERE user_id=? AND can_share=1 LIMIT 1",
+                         (user_id,)).fetchone()
+        return r is not None
+    finally:
+        conn.close()
+
+
 def get_folder_grant(user_id: int, folder_id: int) -> dict | None:
     conn = get_conn()
     try:

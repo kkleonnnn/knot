@@ -25,10 +25,12 @@ export function SnapshotTable({ T, report, activeTileId }) {
   const capped = rows.slice(0, SNAP_MAX_ROWS);
   return (
     <div style={{ background: T.bg, padding: 20, boxSizing: 'border-box', fontFamily: T.sans, display: 'inline-block' }}>
-      <WideTable T={T} rows={capped} cfg={cfg} overlay={overlay} maxHeight={99999} roundTop />
+      {/* #MEDIUM：显示截 SNAP_MAX_ROWS 行，但覆盖层合计（=SUM 全列等）走 computeRows=全量 rows
+          → 与 live 表体口径一致，不会把 51..N 行当 0 少算，避免向群里播错误合计。 */}
+      <WideTable T={T} rows={capped} computeRows={rows} cfg={cfg} overlay={overlay} maxHeight={99999} roundTop />
       {rows.length > SNAP_MAX_ROWS && (
         <div style={{ fontSize: 11, color: T.muted, marginTop: 8, fontFamily: T.sans }}>
-          共 {rows.length} 行，图中显示前 {SNAP_MAX_ROWS} 行
+          共 {rows.length} 行，图中显示前 {SNAP_MAX_ROWS} 行（合计按全量计）
         </div>
       )}
     </div>
