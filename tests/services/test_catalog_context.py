@@ -68,10 +68,12 @@ def test_auditaction_has_context_violation():
     assert "bi_permission.change" in actions   # v0.8.12 RBAC grant 变更
     assert "bi_report.share" in actions         # v0.8.14 分享出境事件
     assert "config.im_share_update" in actions   # v0.8.14 分享 IM 配置/白名单变更
-    assert len(actions) == 62, (
-        f"AuditAction 应 62 条（51 + v0.8.5 ②a bi_report.*4/report_folder.*3 = +7 → 58；"
+    assert "bi_report.schedule" in actions       # v0.8.17 ②c 定时刷新配置 CRUD
+    assert len(actions) == 63, (
+        f"AuditAction 应 63 条（51 + v0.8.5 ②a bi_report.*4/report_folder.*3 = +7 → 58；"
         f"+ v0.8.10 bi_report.analyze → 59；+ v0.8.12 bi_permission.change → 60；"
-        f"+ v0.8.14 bi_report.share → 61 + config.im_share_update → 62）；实际 {len(actions)}"
+        f"+ v0.8.14 bi_report.share → 61 + config.im_share_update → 62；"
+        f"+ v0.8.17 bi_report.schedule → 63）；实际 {len(actions)}"
     )
 
 

@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from knot.api import admin, auth, conversations, database, knowledge, query, uploads
 from knot.api import audit as audit_router
 from knot.api import bi_reports as bi_reports_router
+from knot.api import bi_schedule as bi_schedule_router
 from knot.api import bi_share as bi_share_router
 from knot.api import catalog as catalog_router
 from knot.api import exports as exports_router
@@ -34,7 +35,7 @@ from knot.repositories import init_db
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.8.16")
+app = FastAPI(title="KNOT", version="0.8.17")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -231,7 +232,8 @@ for _router in [auth.router, conversations.router, query.router, database.router
                 catalog_router.router, exports_router.router, saved_reports_router.router,
                 audit_router.router, feedback_router.router,
                 frontend_errors_router.router,
-                totp_router.router, bi_reports_router.router, bi_share_router.router]:
+                totp_router.router, bi_reports_router.router, bi_share_router.router,
+                bi_schedule_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

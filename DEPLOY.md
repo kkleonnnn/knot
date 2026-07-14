@@ -407,6 +407,60 @@ sleep 10 && docker logs knot | tail -5
 
 ---
 
+## ⏰ BI 报表定时刷新调度器（②c · v0.8.17）
+
+BI 报表的定时刷新由**外部 K8s CronJob 敲钟**（应用内无常驻调度进程 → 多副本天然安全、无重复 fire）。
+
+### 1. 设置调度 token
+
+```bash
+# 生成一个随机 token，写入 .env / K8s secret（与下面 CronJob Header 一致）
+echo "KNOT_SCHEDULER_TOKEN=$(openssl rand -hex 24)" >> .env
+```
+
+> **未设 `KNOT_SCHEDULER_TOKEN` → tick 端点返回 503（调度 disabled）** —— 安全默认，不会误触发。
+
+### 2. K8s CronJob（每 15 分钟敲一次）
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: knot-bi-scheduler-tick
+spec:
+  schedule: "*/15 * * * *"          # 每 15 分钟；tick 内部按各报表 next_run_at 判定是否到期
+  concurrencyPolicy: Forbid          # 不重叠（原子认领也兜底防双打）
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: tick
+              image: curlimages/curl:latest
+              args:
+                - "-sS"
+                - "-X"
+                - "POST"
+                - "-H"
+                - "Authorization: Bearer $(KNOT_SCHEDULER_TOKEN)"
+                - "http://knot-svc:8000/api/bi/scheduler/tick"   # 集群内 Service 名（单外部触发→只打一个 pod）
+              env:
+                - name: KNOT_SCHEDULER_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: knot-secrets
+                      key: KNOT_SCHEDULER_TOKEN
+```
+
+### 3. 报表侧配置
+
+analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / 每小时 / 每 N 小时）+ 触发时刻（Asia/Shanghai）。
+需 `can_schedule` 权限（admin 恒有；analyst 由 admin 在「目录权限」授）。刷新纯重跑冻结 SQL（0 LLM 成本）；
+失败在弹窗 fire 台账可见。**建议每日节奏落在上游数据 ETL 产出之后**（如 08:00 CST，报表本身是 D-1 窗口）。
+
+> 时区：tick 用 Asia/Shanghai 墙钟计算 next_run（非容器 UTC）。CronJob 频率只需 ≤ 最细节奏（每小时→CronJob ≤1h）。
+
 ## 🆘 故障排查
 
 ### 启动失败

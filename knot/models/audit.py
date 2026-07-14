@@ -54,6 +54,7 @@ AuditAction = Literal[
     "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
     "bi_report.analyze",  # v0.8.10 da-asst 只读报表解读（LLM 花费事件 → 归属 + R-BI-8 留痕）
     "bi_report.share",  # v0.8.14 分享报表/仪表盘快照 PNG 到 Lark/TG（数据出境事件 → R-BI-8 留痕；emit knot/api/bi_share.py）
+    "bi_report.schedule",  # v0.8.17 ②c 定时刷新配置 CRUD（emit knot/api/bi_schedule.py；fire 复用 bi_report.refresh trigger=scheduled）
     "bi_permission.change",  # v0.8.12 RBAC：admin 改角色×目录/报表 grant（治理事件）
     "report_folder.create", "report_folder.update", "report_folder.delete",
     # 用户反馈（v0.6.0.3 F-A）

@@ -5,7 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.16 — 修：仪表盘 sparkline 宽屏折线消失（clipping bug）
+## [Unreleased] - v0.8.17 — ②c BI 报表定时刷新调度器（K8s CronJob → tick 端点）
+
+> 完整 Loop Protocol v3（Stage 1 手册 + prestudy + 守护者 grounded 终审 ACCEPT WITH REVISIONS）。
+> 替手动跑 `数据日报.py` 的 refresh 部分：按节奏自动重跑报表冻结 SQL 保鲜快照。**仅刷新 MVP**
+> （定时推 IM 顺延 —— headless 无浏览器截图 PNG）。
+
+### Added
+- **触发架构 = K8s CronJob → `POST /api/bi/scheduler/tick`**（资深拍板）：单外部触发经 K8s Service 只打一个 pod
+  → 应用内**零常驻 loop** → 无多副本重复 fire（避 SQLite 分布式锁的脆弱）。tick 由 `KNOT_SCHEDULER_TOKEN`
+  bearer 守（`secrets.compare_digest` 常量时间比对；**未设 token → 503 disabled** = 合并即安全默认）。
+- **schema**：`bi_report_schedules`（配置；UNIQUE report_id；OOS-1 catalog_id 无 tenant_id；cadence
+  interval 枚举 daily/hourly/every_n_hours **非 cron** 避 croniter 依赖）+ `bi_report_schedule_fires`（append-only 台账）。
+- **`bi_report_schedule_repo`**：含**原子认领 `claim`**（`next_run_at` recompute 与 `WHERE next_run<=now` 门同一 UPDATE，
+  rowcount==1 才 fire → 防重叠 tick 双打）。
+- **`bi_schedule_service`**：`compute_next_run`（Asia/Shanghai `time_resolver._TZ`；`_TZ None` 兜底）+ `run_due` 编排
+  （list_due → claim → `refresh(sentinel {"id":None})` → 分类 ok/no_engine/skipped/error → 记 fire 台账 +
+  **headless** `audit_service.log(actor=None, bi_report.refresh, trigger=scheduled)`）；纯只读刷新 **0 LLM/budget**。
+- **api `bi_schedule.py`**：tick + `GET/PUT/DELETE /api/bi/reports/{id}/schedule`（`require_report_perm("schedule")`
+  激活此前 dormant 的 `can_schedule`）+ `GET .../schedule/fires`（台账 UI 避 monitors 孤儿 triggers 教训）。
+- **前端**：BI.jsx「定时」按钮去死桩接活 + 玻璃 `ScheduleModal`（节奏/触发时刻/next-run/fire 历史；镜像 ShareModal 0 新视觉参数）。
+- audit `bi_report.schedule` Literal（count 62→63）。
+
+### Fixed
+- **守护者 B-1（自主运行数据安全）**：`refresh` SQL 失败时**不再用 `[]` 抹 last-good 快照**——覆盖两分支：
+  wide_table（SQL 错早返不写/不 bump）+ dashboard tile（新增 `update_tile_error` 只记 error 保留 rows）。
+  无人值守下「一次瞬时 SQL 错抹好数据」不可接受。空结果（无 error）仍照常写。
+
+### 运维
+- DEPLOY.md 加 K8s CronJob 配置片段（每 N 分钟 POST tick + `KNOT_SCHEDULER_TOKEN` 设置）。
+
+## [Released] - v0.8.16 — 修：仪表盘 sparkline 宽屏折线消失（clipping bug）
 
 ### Fixed
 - **仪表盘「单值+趋势」(pair) 磁贴 sparkline 在宽屏下折线（及 x 轴日期）被裁掉、看似"消失"**（kk 报）。

@@ -255,6 +255,12 @@ def refresh(report_id: int, admin: dict) -> dict | None:
                 "error": _NO_ENGINE, "refresh_seq": r["refresh_seq"]}
     snap, truncated, elapsed_ms, err = _exec_one(engine, r["sql_text"])
     run_at = _now_iso()
+    if err:
+        # v0.8.17 守护者 B-1：SQL 失败**不覆盖** last-good 快照（不写 rows / 不 bump seq）——
+        # 镜像上方 engine-None 早返。自主定时刷新下「一次瞬时 SQL 错抹好数据」不可接受；
+        # error 经返回值上报（scheduler 记 fire 台账）。注：空结果(snap=[] 且 err="")仍视为合法结果照常写。
+        return {"rows": [], "truncated": False, "last_run_ms": elapsed_ms, "last_run_at": run_at,
+                "error": err, "refresh_seq": r["refresh_seq"]}
     repo.update_last_run(
         report_id, rows_json=json.dumps(snap, ensure_ascii=False, default=str),
         truncated=1 if truncated else 0, elapsed_ms=elapsed_ms, run_at=run_at,
@@ -279,11 +285,15 @@ def _refresh_tiled(report_id: int, engine, report_type: str) -> dict:
     summaries = []
     for t in tile_repo.list_by_report(report_id):
         snap, truncated, elapsed_ms, err = _exec_one(engine, t["sql_text"])
-        tile_repo.update_tile_last_run(
-            t["id"], rows_json=json.dumps(snap, ensure_ascii=False, default=str),
-            truncated=1 if truncated else 0, elapsed_ms=elapsed_ms, run_at=run_at,
-            error=(err or None),
-        )
+        if err:
+            # v0.8.17 守护者 B-1：tile SQL 失败只记 error，**保留该 tile 上次 good rows_json**（不 []-抹）。
+            tile_repo.update_tile_error(t["id"], error=err, run_at=run_at, elapsed_ms=elapsed_ms)
+        else:
+            tile_repo.update_tile_last_run(
+                t["id"], rows_json=json.dumps(snap, ensure_ascii=False, default=str),
+                truncated=1 if truncated else 0, elapsed_ms=elapsed_ms, run_at=run_at,
+                error=None,
+            )
         summaries.append({"tile_id": t["id"], "rows_count": len(snap), "error": err})
     repo.touch_refresh_seq(report_id)      # B-3 报表级 bump-only（不写报表级 rows_json）
     error_count = sum(1 for s in summaries if s["error"])
