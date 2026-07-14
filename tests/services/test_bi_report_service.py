@@ -75,6 +75,37 @@ def test_refresh_missing_report_returns_none(tmp_db_path):
     assert svc.refresh(9999, _ADMIN) is None
 
 
+def test_refresh_wide_table_sql_error_preserves_last_good(tmp_db_path, monkeypatch):
+    """v0.8.17 守护者 B-1：wide_table SQL 失败**不抹** last-good 快照、不 bump（自主定时刷新数据安全）。"""
+    r = svc.create_report(_ADMIN, title="t", sql_text="SELECT 1", data_source_id=7)
+    monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([{"a": 1}], None))
+    svc.refresh(r["id"], _ADMIN)                                   # 先写一次 good
+    good = svc.get_report(r["id"])
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([], "boom SQL error"))
+    out = svc.refresh(r["id"], _ADMIN)                             # 再刷 SQL 失败
+    assert out["error"] == "boom SQL error"
+    saved = svc.get_report(r["id"])
+    assert saved["last_run_rows_json"] == good["last_run_rows_json"]   # last-good 未被 [] 抹
+    assert saved["refresh_seq"] == good["refresh_seq"]                 # 不 bump
+
+
+def test_dashboard_refresh_tile_sql_error_preserves_tile_rows(tmp_db_path, monkeypatch):
+    """v0.8.17 守护者 B-1：engine 在但 tile SQL 失败 → 只记 error、**保留该 tile 上次 good rows**（不 []-抹）。"""
+    from knot.repositories import bi_report_tile_repo as trepo
+    r = svc.create_report(_ADMIN, title="仪表盘", sql_text="SELECT 1", report_type="dashboard",
+                          data_source_id=7, tiles=[{"tile_type": "kpi", "sql_text": "SELECT 1"}])
+    tid = r["tiles"][0]["id"]
+    trepo.update_tile_last_run(tid, rows_json='[{"v":1}]', truncated=0, elapsed_ms=3, run_at="t0", error=None)
+    monkeypatch.setattr(svc.engine_cache, "get_engine_for_source", lambda sid: object())
+    monkeypatch.setattr(svc.db_connector, "execute_query", lambda eng, sql, **kw: ([], "tile boom"))
+    out = svc.refresh(r["id"], _ADMIN)
+    assert out["error_count"] == 1
+    tile = trepo.get_tile(tid)
+    assert tile["last_run_rows_json"] == '[{"v":1}]'              # 上次 good rows 保留
+    assert tile["last_run_error"] == "tile boom"                  # error 记上
+
+
 # ── ②b 仪表盘 tile（diff-by-id / B-1 归属 / B-2 脱敏 / 级联删）─────────────────────
 
 def _dash_with_tiles(tiles):

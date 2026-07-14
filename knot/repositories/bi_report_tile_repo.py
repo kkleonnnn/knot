@@ -99,6 +99,18 @@ def update_tile_last_run(tile_id: int, *, rows_json: str, truncated: int, elapse
     conn.close()
 
 
+def update_tile_error(tile_id: int, *, error: str, run_at: str, elapsed_ms: int = 0) -> None:
+    """v0.8.17 守护者 B-1：tile SQL 失败时只更 error + 时戳，**不动 last_run_rows_json**（保留上次 good 快照）。
+    自主定时刷新下「一次瞬时 SQL 错把该 tile good 数据抹空」不可接受 → SQL 错走本函数而非 update_tile_last_run。"""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE bi_report_tiles SET last_run_error=?, last_run_at=?, last_run_ms=? WHERE id=?",
+        (error, run_at, elapsed_ms, tile_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def delete_tile(tile_id: int) -> None:
     conn = get_conn()
     conn.execute("DELETE FROM bi_report_tiles WHERE id=?", (tile_id,))
