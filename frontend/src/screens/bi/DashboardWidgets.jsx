@@ -108,7 +108,7 @@ function TrendChart({ T, series, dates, fmt, unit, compact }) {
           {!compact && <span style={yLab}>{fmtBig((max + min) / 2, fmt, unit)}</span>}
           <span style={yLab}>{fmtBig(min, fmt, unit)}</span>
         </div>
-        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0 }}>
           <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
             {[60, 150, 240].map((y) => <line key={y} x1="0" y1={y} x2="1000" y2={y} style={{ stroke: T.chartGrid || T.border, strokeWidth: 1, strokeDasharray: '4 5', vectorEffect: 'non-scaling-stroke' }} />)}
             <path d={area} style={{ fill: `color-mix(in oklch, ${c} 13%, transparent)`, stroke: 'none' }} />
@@ -155,7 +155,9 @@ function PairBody({ T, tile }) {
         </div>
         {showCmp && <DeltaRow T={T} delta={delta} cmpLabel={cmpLabel} />}
       </div>
-      <div style={{ flex: 1, minWidth: 0, padding: '10px 12px 8px' }}>
+      {/* v0.8.16 修：右侧必须是 flex column（minHeight:0）—— 否则 TrendChart flex:1 落空、图高由 svg
+          viewBox 比例自算 → 宽 tile 下超 164px 格被裁（折线消失）。对齐 TrendBody 已生效的包法。 */}
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '10px 12px 8px' }}>
         <TrendChart T={T} series={trendSeries} dates={trendDates} fmt={viz.fmt} unit={viz.unit} compact />
       </div>
     </div>
