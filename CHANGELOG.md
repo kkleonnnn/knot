@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.15 — BI 报表分享（快照 PNG → Lark / Telegram，完整 v3 · 数据出境）
+## [Unreleased] - v0.8.16 — 修：仪表盘 sparkline 宽屏折线消失（clipping bug）
+
+### Fixed
+- **仪表盘「单值+趋势」(pair) 磁贴 sparkline 在宽屏下折线（及 x 轴日期）被裁掉、看似"消失"**（kk 报）。
+  - **根因**：`PairBody` 的图表右侧容器是普通 block（非 flex column），`TrendChart` 的 `flex:1` 落空 →
+    `<svg height:100%>` 无确定父高可依 → **按 viewBox 比例(1000:300)自算高度**：窄 tile 高度 ~106 塞得进固定 164px 格；
+    宽 tile（面板收起）自算高 ~147 > 格高 → 底部被卡片 `overflow:hidden` **裁掉 ~31px**（低值平台 + x 轴刻度所在）→ 折线"消失"。
+    横向随宽等比铺开、纵向锁死 164px + svg 等比自胀 = 撑破裁底。
+  - **修**：`PairBody` 图表容器改 `display:flex; flexDirection:column; minHeight:0`（+ 内层 relative 容器 `minHeight:0`），
+    对齐 `TrendBody` 已生效的包法 → 图高改由格子约束（86px），svg 铺满不再自胀。**2 行 style**；
+    **不改 y 轴缩放**（离群尖峰仍按比例、低值贴底即可，但不再被裁没）、不加数据点。
+  - 验证（真机 v0.8.15 基线）：live 面板展开/收起两态 + 离屏快照，宽窄均不裁（chart 88/86px，overflow −28~−30px）；分享功能无回归。
+  - 过程留痕：曾试「加数据点圆点」「稳健裁顶 y 轴」两版，kk 均否 —— 根因是**布局裁剪**非 y 轴缩放；回到最小 bug fix。
+
+## [Released] - v0.8.15 — BI 报表分享（快照 PNG → Lark / Telegram，完整 v3 · 数据出境）
 
 > 报表/仪表盘截图成 PNG 发到 admin 白名单里的 Lark/TG 群。走完整 v3（Stage 1-3 + 守护者终审 + 落码期对抗复核）。
 > 三重出境控制守「数据不外泄到任意目的地」：① `require_report_perm("share")` 权限门 ② admin 策展投递目标白名单
