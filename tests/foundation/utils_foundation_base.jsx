@@ -2,20 +2,112 @@
 // hooks (useTheme/usePersist) + helpers (toast) + components (Modal/ModalHeader/Input/Select/Spinner)
 // 必须共存以维持单一 import 入口。同 Shared.jsx 决议。
 /* eslint-disable react-refresh/only-export-components */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { buildTheme, I, iconBtn } from './Shared.jsx';
 
+// v0.9.0 外观预设 store（cb_appearance: {mode, hue, style}）— 模块级订阅，Shell 外观弹层
+// v0.9.2 mode: 'light'|'dark'|'system'（跟随系统听 matchMedia）；旧 {dark:boolean} / cb_theme 读迁移 + 双写兼容。
+const APPEAR_KEY = 'cb_appearance';
+const appearListeners = new Set();
+const _mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+export function getAppearance() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(APPEAR_KEY) || '{}') || {}; } catch { /* 解析失败保留默认 {} */ }
+  const legacyDark = localStorage.getItem('cb_theme');
+  const mode = ['light', 'dark', 'system'].includes(saved.mode) ? saved.mode
+    : typeof saved.dark === 'boolean' ? (saved.dark ? 'dark' : 'light')   // v0.9.0 旧形状
+    : legacyDark ? (legacyDark === 'dark' ? 'dark' : 'light') : 'dark';
+  return { mode, hue: saved.hue || 'cyan', style: saved.style || 'frosted' };
+}
+
+export function resolveDark(mode) {
+  return mode === 'system' ? !!(_mq && _mq.matches) : mode === 'dark';
+}
+
+export function setAppearance(patch) {
+  const next = { ...getAppearance(), ...patch };
+  try {
+    localStorage.setItem(APPEAR_KEY, JSON.stringify(next));
+    localStorage.setItem('cb_theme', resolveDark(next.mode) ? 'dark' : 'light');  // ErrorBoundary 等旧读点
+  } catch { /* 隐私模式 / 配额 静默降级 */ }
+  appearListeners.forEach(fn => fn(next));
+}
+
+// v0.9.3 — 全局确认框（替代 window.confirm，风格跟随玻璃 chrome）：Promise API + 单例宿主。
+// 用法：if (!await confirmDialog('删除？')) return;  宿主 <ConfirmHost/> 在 main.jsx 挂 App 兄弟节点。
+let _confirmResolve = null;
+const confirmListeners = new Set();
+
+export function confirmDialog(message, { confirmText = '确认', cancelText = '取消' } = {}) {
+  return new Promise(resolve => {
+    if (_confirmResolve) _confirmResolve(false);  // 罕见：叠加请求时取消前一个
+    _confirmResolve = resolve;
+    confirmListeners.forEach(fn => fn({ message, confirmText, cancelText }));
+  });
+}
+
+export function ConfirmHost() {
+  const [T] = useTheme();
+  const [req, setReq] = useState(null);
+  const done = ok => { setReq(null); if (_confirmResolve) { _confirmResolve(ok); _confirmResolve = null; } };
+  useEffect(() => {
+    confirmListeners.add(setReq);
+    return () => confirmListeners.delete(setReq);
+  }, []);
+  useEffect(() => {
+    if (!req) return;
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); done(false); }
+      if (e.key === 'Enter') { e.preventDefault(); done(true); }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [req]);
+  if (!req) return null;
+  const btn = primary => ({
+    padding: '8px 18px', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+    fontWeight: primary ? 500 : 400,
+    background: primary ? T.accent : 'transparent',
+    color: primary ? T.sendFg : T.subtext,
+    border: primary ? 'none' : `1px solid ${T.border}`,
+    boxShadow: primary ? (T.glow || 'none') : 'none',
+  });
+  return (
+    <div onClick={e => e.target === e.currentTarget && done(false)} style={{
+      position: 'fixed', inset: 0, background: 'rgba(14,17,23,0.45)', backdropFilter: 'blur(8px)',
+      display: 'grid', placeItems: 'center', zIndex: 1200,
+    }}>
+      <div style={{
+        width: 380, background: T.content, borderRadius: 16, border: `1px solid ${T.glassBorder || T.border}`,
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        boxShadow: T.panelShadow || '0 24px 60px -20px rgba(0,0,0,0.4)',
+        padding: '22px 22px 18px', display: 'flex', flexDirection: 'column', gap: 18,
+        color: T.text, fontFamily: T.sans,
+      }}>
+        <div style={{ fontSize: 14, lineHeight: 1.65 }}>{req.message}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={() => done(false)} style={btn(false)}>{req.cancelText}</button>
+          <button onClick={() => done(true)} autoFocus style={btn(true)}>{req.confirmText}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function useTheme() {
-  const saved = localStorage.getItem('cb_theme');
-  const [dark, setDark] = useState(saved ? saved === 'dark' : true);
-  const toggle = () => {
-    setDark(d => {
-      const nd = !d;
-      localStorage.setItem('cb_theme', nd ? 'dark' : 'light');
-      return nd;
-    });
-  };
-  return [buildTheme(dark), toggle];
+  const [app, setApp] = useState(getAppearance);
+  const [, bump] = useState(0);
+  useEffect(() => {
+    appearListeners.add(setApp);
+    const onMq = () => bump(n => n + 1);  // mode==='system' 时跟随 OS 切换重算
+    if (_mq) _mq.addEventListener('change', onMq);
+    return () => { appearListeners.delete(setApp); if (_mq) _mq.removeEventListener('change', onMq); };
+  }, []);
+  const dark = resolveDark(app.mode);
+  // toggle 保留给无弹层的屏（Login/Enroll/ForceChangePassword 固定按钮）：翻转当前解析值并退出 system
+  const toggle = () => setAppearance({ mode: resolveDark(getAppearance().mode) ? 'light' : 'dark' });
+  return [buildTheme(dark, app), toggle];
 }
 
 export function usePersist(key, def) {
@@ -46,12 +138,14 @@ export function toast(msg, err = false) {
 export function Modal({ T, onClose, children, width = 480 }) {
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(14,17,23,0.5)', backdropFilter: 'blur(2px)',
+      position: 'fixed', inset: 0, background: 'rgba(14,17,23,0.45)', backdropFilter: 'blur(8px)',
       display: 'grid', placeItems: 'center', zIndex: 1000,
     }} onClick={e => e.target === e.currentTarget && onClose()}>
+      {/* v0.9.0 玻璃弹窗：blur + glassBorder + panelShadow（overlay 已 blur 8，卡内容不透） */}
       <div style={{
-        width, background: T.content, borderRadius: 12, border: `1px solid ${T.border}`,
-        boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)', overflow: 'hidden',
+        width, background: T.content, borderRadius: 16, border: `1px solid ${T.glassBorder || T.border}`,
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        boxShadow: T.panelShadow || '0 24px 60px -20px rgba(0,0,0,0.4)', overflow: 'hidden',
       }}>
         {children}
       </div>
@@ -63,8 +157,8 @@ export function ModalHeader({ T, title, subtitle, onClose }) {
   return (
     <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.border}` }}>
       <div>
-        <div style={{ fontSize: 15, color: T.text, fontWeight: 600 }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ fontSize: 14, color: T.text, fontWeight: 650 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{subtitle}</div>}
       </div>
       <button onClick={onClose} style={iconBtn(T)}><I.x/></button>
     </div>
@@ -79,7 +173,7 @@ export function Input({ T, label, value, onChange, type = 'text', placeholder, m
       {label && (
         <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500, display: 'flex', gap: 4 }}>
           {label}
-          {optional && <span style={{ fontSize: 10, color: T.muted, fontWeight: 400 }}>(可选)</span>}
+          {optional && <span style={{ fontSize: 11, color: T.muted, fontWeight: 400 }}>(可选)</span>}
           {required && <span style={{ color: T.accent }}>*</span>}
         </div>
       )}
