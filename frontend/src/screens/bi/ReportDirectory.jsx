@@ -39,7 +39,7 @@ function ReportRow({ T, report, selected, onSelect, dnd }) {
         {report.title}
       </span>
       {report.last_run_at && (
-        <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>
           {String(report.last_run_at).slice(0, 10)}
         </span>
       )}
@@ -138,7 +138,7 @@ export function ReportDirectory({ T, folders = [], reports = [], selectedId, onS
       </div>
       {/* #1：报表目录 标题行 + 管理入口移到搜索框下方 */}
       <div style={{ padding: '2px 8px 8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>报表目录</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: T.muted, letterSpacing: '0.04em' }}>报表目录</span>
         {canManage && (
           <span style={{ display: 'flex', gap: 4 }}>
             {onNewFolder && (

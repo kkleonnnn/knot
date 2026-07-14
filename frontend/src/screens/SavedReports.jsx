@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { I, iconBtn, SvgPath, pillBtnCompact } from '../Shared.jsx';
-import { toast, Spinner } from '../utils.jsx';
+import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 
@@ -57,7 +57,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
   }
 
   async function handleDelete(id) {
-    if (!confirm('删除该收藏查询？此操作不可恢复（不影响原对话历史）。')) return;
+    if (!await confirmDialog('删除该收藏查询？此操作不可恢复（不影响原对话历史）。')) return;
     try {
       await api.del(`/api/saved-reports/${id}`);
       toast('已删除');
@@ -75,9 +75,9 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
   const sidebarContent = (
     <>
       <div style={{
-        padding: '10px 10px 4px', fontSize: 10, color: T.muted,
-        fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
-      }}>收藏查询 <span style={{ color: T.muted, fontWeight: 600 }}>{reports.length}</span></div>
+        padding: '10px 10px 4px', fontSize: 11, color: T.muted,
+        fontWeight: 500, letterSpacing: '0.02em',
+      }}>收藏查询 <span style={{ color: T.muted, fontWeight: 650 }}>{reports.length}</span></div>
       <div className="cb-sb" style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {reports.map(r => {
           const isActive = r.id === activeId;
@@ -93,7 +93,7 @@ export function SavedReportsScreen({ T, user, onToggleTheme, onNavigate, onLogou
                 <SvgPath d={SAVED_SVG.bookmark} size={14} fill={isActive ? T.accent : 'none'}/>
               </span>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12.5, fontWeight: isActive ? 500 : 400, color: isActive ? T.accent : T.text,
+                <div style={{ fontSize: 13, fontWeight: isActive ? 500 : 400, color: isActive ? T.accent : T.text,
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.35 }}>{r.title || '未命名报表'}</div>
                 <div style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', marginTop: 2 }}>{formatTime(r.updated_at || r.created_at)}</div>
               </div>
@@ -126,8 +126,8 @@ function EmptyView({ T, onBack }) {
         <div style={{ color: T.muted, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
           <SvgPath d={SAVED_SVG.bookmark} size={36}/>
         </div>
-        <div style={{ fontSize: 15, color: T.text, marginBottom: 4 }}>还没有收藏查询</div>
-        <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.6, marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{ fontSize: 14, color: T.text, marginBottom: 4 }}>还没有收藏查询</div>
+        <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
           在对话里点
           <span style={{ display: 'inline-flex', verticalAlign: 'middle', color: T.accent }}>
             <SvgPath d={SAVED_SVG.bookmark} size={14}/>
@@ -220,9 +220,9 @@ function DetailView({ T, report, onChanged }) {
             <input value={titleDraft} onChange={e => setTitleDraft(e.target.value)}
                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6,
                             border: `1px solid ${T.border}`, background: T.content, color: T.text,
-                            fontSize: 22, fontWeight: 600, fontFamily: 'inherit' }}/>
+                            fontSize: 22, fontWeight: 650, fontFamily: 'inherit' }}/>
           ) : (
-            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.3 }}>{report.title}</div>
+            <div style={{ fontSize: 22, fontWeight: 650, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.3 }}>{report.title}</div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 12, color: T.muted, fontFamily: T.mono, letterSpacing: '0.02em', flexWrap: 'wrap' }}>
             <span>intent · <span style={{ color: T.text }}>{report.intent || 'detail'}</span></span>
@@ -306,7 +306,7 @@ function DetailView({ T, report, onChanged }) {
                 <thead>
                   {/* v0.5.38 全站表头底色 brandSoft 8% → T.bg gray（资深反馈"底色改成灰色"；与 admin 屏一致）*/}
                   <tr style={{ background: T.bg }}>
-                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
+                    {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 12, letterSpacing: '0.02em', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -330,13 +330,13 @@ function DetailView({ T, report, onChanged }) {
           padding: '12px 14px',
           borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
           background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
-          borderRadius: 6, fontSize: 12.5, color: T.subtext, lineHeight: 1.6,
+          borderRadius: 6, fontSize: 13, color: T.subtext, lineHeight: 1.6,
         }}>
-          <div style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em',
+          <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em',
                         textTransform: 'uppercase', marginBottom: 4 }}>原始问题</div>
           {report.question || '(无)'}
           {report.pin_note && <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid color-mix(in oklch, ${T.accent} 15%, transparent)` }}>
-            <span style={{ color: T.muted, fontSize: 10, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase' }}>备注 · </span>{report.pin_note}
+            <span style={{ color: T.muted, fontSize: 11, fontWeight: 500, letterSpacing: '0.02em' }}>备注 · </span>{report.pin_note}
           </div>}
         </div>
 
@@ -349,7 +349,7 @@ function DetailView({ T, report, onChanged }) {
             <span style={{ marginLeft: 'auto', color: T.muted, fontSize: 10 }}>注 · 收藏时的快照 SQL</span>
           </summary>
           <pre style={{ margin: 0, padding: '10px 16px 14px', borderTop: `1px solid ${T.border}`,
-                        fontFamily: T.mono, fontSize: 11.5, color: T.codeText,
+                        fontFamily: T.mono, fontSize: 12, color: T.codeText,
                         background: T.codeBg, overflowX: 'auto' }}>{report.sql_text}</pre>
         </details>
       </div>

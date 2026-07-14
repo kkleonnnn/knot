@@ -6,7 +6,7 @@ v0.6.0 起（F5/F15 + R-PA-6 系列立约）：R-67 从"含白名单的兼容期
 
 R-67：knot/ 业务代码不含 bi_agent 字面（0 豁免；commit 3/4/5/6 物理清算 + 转型完成）
 R-70：services/knot/ 强制 → services/agents/，不留 alias
-R-72：FastAPI title=KNOT version=<current>；routes count 下限 >=80 守护（v0.6.0.13 起改下限；实际 flatten=124 @ v0.8.13）
+R-72：FastAPI title=KNOT version=<current>；routes count 下限 >=80 守护（v0.6.0.13 起改下限；实际 flatten=124 @ v0.8.14）
 R-79：grep BI-Agent / bi-agent 字面在 agent prompt / repositories / api 0 命中
 
 ⚠️ 本文件含字面量断言（bi_agent / bi-agent / BI-Agent 是 grep 守护目标），
@@ -128,10 +128,10 @@ def test_R79_no_old_brand_literal_in_business_code():
 # ─── R-72 FastAPI 元数据 + 路由数 ────────────────────────────────────
 
 def test_R72_app_title_and_version():
-    """FastAPI title=KNOT version=0.8.13（v0.5.0 R-72 守护，每 PATCH 同步）。"""
+    """FastAPI title=KNOT version=0.8.14（v0.5.0 R-72 守护，每 PATCH 同步）。"""
     from knot.main import app
     assert app.title == "KNOT", f"title 应改 KNOT；实际：{app.title}"
-    assert app.version == "0.8.13", f"version 应 0.8.13；实际：{app.version}"
+    assert app.version == "0.8.14", f"version 应 0.8.14；实际：{app.version}"
 
 
 def test_R72_routes_count_unchanged():

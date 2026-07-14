@@ -43,7 +43,7 @@ export function ForceChangePasswordScreen({ T, user, onChanged, onToggleTheme })
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', background: T.bg,
+      width: '100vw', height: '100vh', background: T.ambient || T.bg,
       display: 'grid', placeItems: 'center', fontFamily: T.sans, color: T.text,
     }}>
       <button onClick={onToggleTheme} title="切换主题" style={{
@@ -59,9 +59,9 @@ export function ForceChangePasswordScreen({ T, user, onChanged, onToggleTheme })
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <KnotLogo T={T} size={28}/>
-          <span style={{ fontSize: 16, fontWeight: 600, color: T.text }}>KNOT</span>
+          <span style={{ fontSize: 16, fontWeight: 650, color: T.text }}>KNOT</span>
           <span style={{
-            marginLeft: 'auto', fontSize: 10, color: T.warn,
+            marginLeft: 'auto', fontSize: 11, color: T.warn,
             padding: '2px 8px', borderRadius: 4, fontFamily: T.mono, letterSpacing: '0.06em',
             background: `color-mix(in oklch, ${T.warn} 12%, transparent)`,
             border: `1px solid color-mix(in oklch, ${T.warn} 25%, transparent)`,
@@ -69,9 +69,9 @@ export function ForceChangePasswordScreen({ T, user, onChanged, onToggleTheme })
           }}>首次登录</span>
         </div>
 
-        <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 8 }}>请设置新密码</div>
+        <div style={{ fontSize: 19, fontWeight: 650, marginBottom: 8 }}>请设置新密码</div>
         <div style={{
-          fontSize: 12.5, color: T.subtext, lineHeight: 1.55, marginBottom: 22,
+          fontSize: 13, color: T.subtext, lineHeight: 1.55, marginBottom: 22,
           padding: '10px 12px',
           background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
           borderLeft: `3px solid color-mix(in oklch, ${T.accent} 25%, transparent)`,
@@ -104,7 +104,7 @@ export function ForceChangePasswordScreen({ T, user, onChanged, onToggleTheme })
           </div>
           {newPwdHint && (
             <div style={{
-              fontSize: 11.5, marginTop: 4,
+              fontSize: 12, marginTop: 4,
               color: newPwdHint.startsWith('✓') ? T.success : T.warn,
               fontFamily: T.mono,
             }}>{newPwdHint}</div>
@@ -128,13 +128,13 @@ export function ForceChangePasswordScreen({ T, user, onChanged, onToggleTheme })
             width: '100%', marginTop: 22, padding: '11px 14px',
             background: canSubmit ? T.accent : T.border,
             color: canSubmit ? T.sendFg : T.muted,
-            border: 'none', borderRadius: 7, fontSize: 14, fontWeight: 600,
+            border: 'none', borderRadius: 7, fontSize: 14, fontWeight: 650,
             cursor: canSubmit ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
             transition: 'background .2s',
           }}>{loading ? '修改中…' : '修改密码并进入 KNOT'}</button>
         </form>
 
-        <div style={{ marginTop: 18, fontSize: 11.5, color: T.muted, textAlign: 'center', fontFamily: T.mono }}>
+        <div style={{ marginTop: 18, fontSize: 12, color: T.muted, textAlign: 'center', fontFamily: T.mono }}>
           {user?.username && `账户 · ${user.username}`}
         </div>
       </div>

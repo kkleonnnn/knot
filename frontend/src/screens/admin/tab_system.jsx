@@ -62,7 +62,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
       {/* v0.6.2.5 段 4 (A1): 多 catalog 切换选择器 — VRP 视觉延续（Inset 8% + 25% border + SourceTag/pillBtn）*/}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 14, padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>多 Catalog 切换</div>
+          <div style={{ fontSize: 14, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>多 Catalog 切换</div>
           <SourceTag T={T}>active</SourceTag>
           <div style={{ flex: 1 }}/>
           <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>per-user 切换 · query 生效 v0.6.2.6</span>
@@ -77,9 +77,9 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
                 border: `1px solid ${isActive ? `color-mix(in oklch, ${T.accent} 25%, transparent)` : T.border}`,
                 borderRadius: 8,
               }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
-                <span style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono }}>#{c.id}</span>
-                {c.description && <span style={{ fontSize: 11.5, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</span>}
+                <span style={{ fontSize: 13, fontWeight: 650, color: T.text }}>{c.name}</span>
+                <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>#{c.id}</span>
+                {c.description && <span style={{ fontSize: 12, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</span>}
                 <div style={{ flex: 1 }}/>
                 {isActive
                   ? <SourceTag T={T}>当前 active</SourceTag>
@@ -106,7 +106,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
           {/* R-558 Section header — number chip + title + source neutral tag + override chip + actions 右对齐 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: `1px solid ${T.border}` }}>
             <NumChip T={T} num={num}/>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{title}</div>
+            <div style={{ fontSize: 14, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{title}</div>
             {/* v0.5.29 #27 source neutral tag — demo `<Tag tone="neutral">` byte-equal */}
             <SourceTag T={T}>{source}</SourceTag>
             {catalog.overrides?.[key] && <OverrideChip T={T}/>}
@@ -121,7 +121,7 @@ export function TabSystem({ T, catalog, setCatalog, catalogSaving, onSaveCatalog
               </button>
             </div>
           </div>
-          <div style={{ padding: '12px 18px 6px', fontSize: 11.5, color: T.muted, lineHeight: 1.55 }}>{hint}</div>
+          <div style={{ padding: '12px 18px 6px', fontSize: 12, color: T.muted, lineHeight: 1.55 }}>{hint}</div>
           <div style={{ padding: '0 18px 16px' }}>
             <textarea
               value={catalog[key]}

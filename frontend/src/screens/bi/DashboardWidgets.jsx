@@ -57,7 +57,7 @@ export function WidgetCard({ T, title, kind, dot, children }) {
     <div style={{ width: '100%', height: '100%', background: T.content, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '11px 12px 8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{ width: 6, height: 6, borderRadius: 2, flexShrink: 0, background: dot }} />
-        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 650, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         {kind && <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.05em', flexShrink: 0 }}>{kind}</span>}
         <span style={{ display: 'inline-flex', color: T.muted, flexShrink: 0 }} title="拖拽排布">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3" /><circle cx="15" cy="6" r="1.3" /><circle cx="9" cy="12" r="1.3" /><circle cx="15" cy="12" r="1.3" /><circle cx="9" cy="18" r="1.3" /><circle cx="15" cy="18" r="1.3" /></svg>
@@ -69,15 +69,15 @@ export function WidgetCard({ T, title, kind, dot, children }) {
 }
 
 // 窄单值卡（147px）要容纳 大数 + 多字符 USDT badge → 统一 20（保行内一致，不逐卡跳字号）。
-const valueStyle = (T, neg, main) => ({ fontSize: 20, fontWeight: 700, fontFamily: T.mono, letterSpacing: '-0.03em', whiteSpace: 'nowrap', color: neg ? RED : (main ? T.accent : T.text) });
-const deltaStyle = (T, up) => ({ fontSize: 12.5, fontWeight: 600, color: up ? T.success : RED });
+const valueStyle = (T, neg, main) => ({ fontSize: 20, fontWeight: 650, fontFamily: T.mono, letterSpacing: '-0.03em', whiteSpace: 'nowrap', color: neg ? RED : (main ? T.accent : T.text) });
+const deltaStyle = (T, up) => ({ fontSize: 13, fontWeight: 650, color: up ? T.success : RED });
 
 // 币种/货币标记（kk）：有 unit → unit；否则 money → USDT（crypto 平台一律 USDT，不用 ¥）；count/percentage → 无。
 const unitMarker = (viz) => viz.unit || (viz.fmt === 'money' ? 'USDT' : '');
 // 小字号带背景 badge，贴数值右侧（统一 USDT 呈现）
 function UnitBadge({ T, children }) {
   if (!children) return null;
-  return <span style={{ fontSize: 9, fontWeight: 600, fontFamily: T.mono, color: T.subtext, background: T.chipBg, border: `1px solid ${T.borderSoft}`, padding: '2px 4px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}>{children}</span>;
+  return <span style={{ fontSize: 9, fontWeight: 650, fontFamily: T.mono, color: T.subtext, background: T.chipBg, border: `1px solid ${T.borderSoft}`, padding: '2px 4px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}>{children}</span>;
 }
 
 // 对比行（可选）：compare==='none' 时调用方不渲染本行 → 「对比可选」
@@ -186,7 +186,7 @@ function DonutBody({ T, tile }) {
         {slices.map((x, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: CHART_COLORS[i % CHART_COLORS.length] }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.name}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.name}</span>
             <span style={{ fontSize: 12, color: T.subtext, fontFamily: T.mono }}>{fmtBig(x.value, viz.fmt, viz.unit)}</span>
           </div>
         ))}
@@ -224,7 +224,7 @@ function TableBody({ T, tile }) {
   return (
     <div className="cb-sb" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <div style={{ minWidth: minW }}>
-        <div style={{ display: 'grid', gridTemplateColumns: gt, padding: '7px 16px', background: T.bg, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', position: 'sticky', top: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gt, padding: '7px 16px', background: T.bg, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', position: 'sticky', top: 0 }}>
           {cols.map((c, i) => <span key={c} style={cell(i)}>{label(c)}</span>)}
         </div>
         {rows.map((r, ri) => (

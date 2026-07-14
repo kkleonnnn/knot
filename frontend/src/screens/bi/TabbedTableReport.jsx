@@ -33,7 +33,7 @@ export function TabbedTableReport({ T, report, onActiveTile }) {
   const tabStyle = (on) => ({
     padding: '8px 16px', background: on ? T.bg : T.content, border: `1px solid ${T.border}`,
     borderBottom: on ? `1px solid ${T.bg}` : 'none', marginBottom: on ? -1 : 0, borderRadius: '7px 7px 0 0',
-    color: on ? T.accent : T.subtext, fontSize: 12.5, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
+    color: on ? T.accent : T.subtext, fontSize: 13, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
   });
 
   return (

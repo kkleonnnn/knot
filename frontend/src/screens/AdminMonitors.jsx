@@ -3,7 +3,7 @@
 // ⚠️「立即检查」受 KNOT_SEMANTIC_LAYER flag（off → 不 fire，R-SL-77）；webhook 独立 allowlist（R-SL-69）。
 // UI v2 镜像 AdminMetricRegistry（CRUD）。route admin-monitors（避撞 AdminMetrics/MetricRegistry/LogicForm）。
 import { useState, useEffect } from 'react';
-import { toast, Spinner } from '../utils.jsx';
+import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
 import { api } from '../api.js';
@@ -33,7 +33,7 @@ export function AdminMonitorsScreen({ T, user, onToggleTheme, onNavigate, onLogo
                baseline_period: m.baseline_period || '', time_window: m.time_window || '',
                action_type: m.action_type || 'webhook', action_target: m.action_target || '', enabled: m.enabled ?? 1 });
   }
-  function handleReset() { setEditingId(null); setDraft(_EMPTY); }
+  async function handleReset() { setEditingId(null); setDraft(_EMPTY); }
 
   async function handleSave() {
     if (!draft.name.trim() || !draft.metric_name.trim() || !draft.action_target.trim()) {
@@ -47,7 +47,7 @@ export function AdminMonitorsScreen({ T, user, onToggleTheme, onNavigate, onLogo
     } catch (e) { toast(`保存失败: ${e.message}`, true); } finally { setSaving(false); }
   }
   async function handleDelete(m) {
-    if (!confirm(`删除监控「${m.name}」？`)) return;
+    if (!await confirmDialog(`删除监控「${m.name}」？`)) return;
     try { await api.del(`/api/admin/monitors/${m.id}`); toast('监控已删除'); load(); }
     catch (e) { toast(`删除失败: ${e.message}`, true); }
   }
@@ -137,12 +137,12 @@ export function AdminMonitorsScreen({ T, user, onToggleTheme, onNavigate, onLogo
               {monitors.map((m, i) => (
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '11px 16px',
                   borderBottom: i < monitors.length - 1 ? `1px solid ${T.borderSoft}` : 'none',
-                  alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+                  alignItems: 'center', fontSize: 13, opacity: m.enabled ? 1 : 0.55 }}>
                   <div style={{ color: T.text, fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                   <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.metric_name}</div>
                   <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.comparator} {m.threshold}</div>
                   <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11 }}>{m.action_type}</div>
-                  <div style={{ fontSize: 11.5, color: m.enabled ? T.success : T.muted }}>{m.enabled ? '启用' : '禁用'}</div>
+                  <div style={{ fontSize: 12, color: m.enabled ? T.success : T.muted }}>{m.enabled ? '启用' : '禁用'}</div>
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <button onClick={() => handleEdit(m)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
                     <button onClick={() => handleDelete(m)} style={iconBtn(T)} title="删除"><I.x/></button>
@@ -156,7 +156,7 @@ export function AdminMonitorsScreen({ T, user, onToggleTheme, onNavigate, onLogo
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', marginTop: 4,
             borderLeft: `2px solid color-mix(in oklch, ${T.accent} 25%, transparent)`, fontSize: 12, color: T.subtext, lineHeight: 1.55 }}>
             <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
-              color: T.accent, fontSize: 11, fontWeight: 500, fontFamily: T.mono, textTransform: 'uppercase', flexShrink: 0 }}>诚实</span>
+              color: T.accent, fontSize: 11, fontWeight: 500, textTransform: 'uppercase', flexShrink: 0 }}>诚实</span>
             <span>「立即检查」手动触发（无定时）；命中即发 webhook（受 KNOT_SEMANTIC_LAYER flag + 独立 allowlist）。定时主动监控留后续刀。</span>
           </div>
 

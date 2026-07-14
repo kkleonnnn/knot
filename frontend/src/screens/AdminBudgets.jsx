@@ -2,7 +2,7 @@
 // 替代 v0.4.3 multi-scope CRUD UI（后端 multi-scope endpoints 保留向后兼容，但 UI 不暴露）
 // 5 字段 app_settings KV：月度 token 上限 / 单次对话上限 / 告警阈值 / 默认模型 / 限流策略
 import { useState, useEffect } from 'react';
-import { toast, Spinner } from '../utils.jsx';
+import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { pillBtn, FormRow, statLabelStyle, inputStyleMono } from '../Shared.jsx';
 import { api } from '../api.js';
@@ -35,8 +35,8 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
     }
   }
 
-  function handleReset() {
-    if (!confirm('恢复默认配置？当前未保存改动将丢失。')) return;
+  async function handleReset() {
+    if (!await confirmDialog('恢复默认配置？当前未保存改动将丢失。')) return;
     setCfg({
       monthly_token_cap: 500000,
       per_conv_token_cap: 40000,
@@ -65,7 +65,7 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               <div style={{ minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>本月已用 token</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', fontFamily: T.sans, lineHeight: 1, color: T.text }}>
+                  <span style={{ fontSize: 36, fontWeight: 650, letterSpacing: '-0.02em', fontFamily: T.sans, lineHeight: 1, color: T.text }}>
                     {bstats ? bstats.tokens_used.toLocaleString() : '—'}
                   </span>
                   <span style={{ fontSize: 14, color: T.muted }}>
@@ -80,13 +80,13 @@ export function AdminBudgetsScreen({ T, user, onToggleTheme, onNavigate, onLogou
               </div>
               <div style={{ flex: 1, borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>预计花费</div>
-                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.sans, marginTop: 4, color: T.text }}>
+                <div style={{ fontSize: 24, fontWeight: 650, fontFamily: T.sans, marginTop: 4, color: T.text }}>
                   {bstats ? `$ ${bstats.cost_usd.toFixed(4)}` : '—'}
                 </div>
               </div>
               <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: 24, minWidth: 0 }}>
                 <div style={statLabelStyle(T)}>结算日</div>
-                <div style={{ fontSize: 24, fontWeight: 600, fontFamily: T.mono, marginTop: 4, color: T.text }}>{billingDay}</div>
+                <div style={{ fontSize: 24, fontWeight: 650, fontFamily: T.mono, marginTop: 4, color: T.text }}>{billingDay}</div>
               </div>
             </div>
             {/* progress bar — width from usage_pct（demo L78-86 byte-equal）*/}

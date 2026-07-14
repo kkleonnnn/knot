@@ -4,7 +4,7 @@
 //    右上角集群（数据源·N · 主题 · ASK/BI）+ 用户 footer 由 AppShell 统一渲染 → 两模式严格一致（kk 根因修）。
 import { useEffect, useState } from 'react';
 import { AppShell } from '../Shell.jsx';
-import { usePersist, Modal, ModalHeader, Input, toast } from '../utils.jsx';
+import { usePersist, Modal, ModalHeader, Input, toast, confirmDialog } from '../utils.jsx';
 import { api } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
 import { WideTableReport } from './bi/WideTableReport.jsx';
@@ -47,7 +47,7 @@ function ActBtn({ T, icon, iconNode, label, onClick, primary, disabled, danger, 
     <button onClick={onClick} disabled={disabled} title={title}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, fontSize: 13,
         border: primary ? 'none' : `1px solid ${T.border}`, fontFamily: 'inherit', cursor: disabled ? 'default' : 'pointer',
         background: primary ? T.accent : (!disabled && hover ? T.hover : 'transparent'),
         color: primary ? T.sendFg : (danger ? T.warn : T.subtext), opacity: disabled ? 0.5 : 1,
@@ -105,7 +105,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   };
   const del = async () => {
     if (!selected) return;
-    if (!window.confirm(`删除报表「${selected.title}」？`)) return;
+    if (!await confirmDialog(`删除报表「${selected.title}」？`)) return;
     try { await api.del(`/api/bi/reports/${selected.id}`); toast('已删除'); setSelectedId(null); loadLists(); }
     catch (e) { toast(`删除失败：${e.message || e}`, true); }
   };
@@ -194,7 +194,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
           </div>
           <div style={{ padding: '14px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button onClick={() => setFolderModal(false)} style={{ padding: '8px 16px', borderRadius: 7, border: `1px solid ${T.border}`, background: 'transparent', color: T.subtext, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>取消</button>
-            <button onClick={saveFolder} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: T.accent, color: T.sendFg, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600 }}>创建</button>
+            <button onClick={saveFolder} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: T.accent, color: T.sendFg, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 650 }}>创建</button>
           </div>
         </Modal>
       )}

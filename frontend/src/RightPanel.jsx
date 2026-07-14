@@ -26,7 +26,7 @@ export function RightPanel({ T, title, headerTrailing, children }) {
       background: T.sidebar, display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <div style={{ padding: '14px 18px', flexShrink: 0, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{title}</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: T.text }}>{title}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           {headerTrailing}
           <button onClick={() => setCollapsed(true)} title="收起面板"

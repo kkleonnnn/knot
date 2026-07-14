@@ -80,7 +80,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
 
   // error banner → TOKENS_V2.err（§9.4a 27°→25° VRP 演进 ack；停用 ad-hoc 红）
   const errBox = {
-    fontSize: 12.5, padding: '8px 12px', borderRadius: 6,
+    fontSize: 13, padding: '8px 12px', borderRadius: 6,
     color: TOKENS_V2.err,
     background: `color-mix(in oklch, ${TOKENS_V2.err} 12%, transparent)`,
     border: `1px solid color-mix(in oklch, ${TOKENS_V2.err} 25%, transparent)`,
@@ -96,7 +96,8 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
       position: 'relative', overflow: 'hidden',
       // v0.6.4.1.1 修：去 artboard 写死 radial-gradient(at 22% 18%)（宽 viewport farthest-corner ellipse 胀开/偏移破 VRP）；
       // 回归 v0.5.7 标准 — 实底 fluid + 绿光由 motif 自身锚定（element-anchored，不随 viewport 偏移）
-      background: T.chipBg,
+      // v0.9.0 玻璃 chrome：ambient 环境色接管页底（element-anchored motif 不受影响）
+      background: T.ambient || T.chipBg,
     }}>
       {/* 主题切换按钮 — fixed 到 viewport 右上 */}
       <button onClick={onToggleTheme} style={{
@@ -124,10 +125,10 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
 
         {/* 左下 headline + desc */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 13, color: T.accent, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: T.accent, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 14 }}>
             Knowledge · Nexus · Objective · Trace
           </div>
-          <div style={{ fontSize: 38, fontWeight: 600, color: T.text, lineHeight: 1.2, letterSpacing: '-0.03em' }}>
+          <div style={{ fontSize: 38, fontWeight: 650, color: T.text, lineHeight: 1.2, letterSpacing: '-0.03em' }}>
             复杂结于此，洞察始于此
           </div>
           <div style={{ fontSize: 14, color: T.subtext, marginTop: 18, lineHeight: 1.7, maxWidth: 480 }}>
@@ -145,18 +146,19 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
         {/* 浮动 card — 两 step 共享同容器 maxWidth 440（Q2 防抖）*/}
         <div style={{
           width: '100%', maxWidth: 440,
-          border: `1px solid ${T.border}`, borderRadius: 20,
+          border: `1px solid ${T.glassBorder || T.border}`, borderRadius: 20,
           background: T.content,
+          backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
           padding: '52px 52px',
           boxShadow: T.dark
             ? '0 1px 2px rgba(0,0,0,0.4), 0 20px 48px rgba(0,0,0,0.55)'
             : '0 1px 2px rgba(15,30,45,0.04), 0 20px 48px rgba(15,30,45,0.10)',
         }}>
           <div style={{ marginBottom: 36 }}>
-            <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 10 }}>
               {step === 'login' ? 'sign in' : 'verify'}
             </div>
-            <div style={{ fontSize: 28, fontWeight: 600, color: T.text, letterSpacing: '-0.025em' }}>
+            <div style={{ fontSize: 28, fontWeight: 650, color: T.text, letterSpacing: '-0.025em' }}>
               {step === 'login' ? '欢迎回来' : '验证身份'}
             </div>
             <div style={{ fontSize: 13, color: T.subtext, marginTop: 6 }}>

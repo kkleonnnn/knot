@@ -19,7 +19,7 @@ export function TableTile({ T, tile }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: T.sans }}>
           <thead>
             <tr>{cols.map((c, i) => (
-              <th key={c} title={desc(c) || undefined} style={{ padding: '9px 12px', textAlign: i === 0 ? 'left' : 'right', fontSize: 10.5, fontFamily: T.mono, color: T.muted, fontWeight: 500, letterSpacing: '0.03em', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{label(c)}</th>
+              <th key={c} title={desc(c) || undefined} style={{ padding: '9px 12px', textAlign: i === 0 ? 'left' : 'right', fontSize: 11, fontFamily: T.mono, color: T.muted, fontWeight: 500, letterSpacing: '0.03em', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{label(c)}</th>
             ))}</tr>
           </thead>
           <tbody>

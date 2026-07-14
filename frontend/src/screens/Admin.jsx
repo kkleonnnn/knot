@@ -11,7 +11,7 @@
 // 4 文件总数不变。
 import { useState, useEffect, useRef } from 'react';
 import { I, pillBtn } from '../Shared.jsx';
-import { toast, Spinner } from '../utils.jsx';
+import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 import { TabAccess } from './admin/tab_access.jsx';
@@ -128,22 +128,22 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const deleteKbDoc = async (id, name) => {
-    if (!confirm(`删除「${name}」？`)) return;
+    if (!await confirmDialog(`删除「${name}」？`)) return;
     try { await api.del(`/api/knowledge/${id}`); loadAll(); toast('已删除'); }
     catch (e) { toast(String(e), true); }
   };
 
   const deleteUser = async (id) => {
-    if (!confirm('停用该账号？')) return;
+    if (!await confirmDialog('停用该账号？')) return;
     try { await api.del(`/api/admin/users/${id}`); loadAll(); toast('已停用'); } catch (e) { toast(String(e), true); }
   };
   const deleteSrc = async (id) => {
-    if (!confirm('删除该数据源？')) return;
+    if (!await confirmDialog('删除该数据源？')) return;
     try { await api.del(`/api/admin/datasources/${id}`); loadAll(); toast('已删除'); } catch (e) { toast(String(e), true); }
   };
   // v0.6.2.0 R-PB-B1-5：admin 重置 user TOTP（高危 — bump_token_version 触发该用户旧 JWT 失效）
   const resetTotp = async (u) => {
-    if (!confirm(`重置 ${u.username} 的 TOTP？该用户旧 JWT 立即失效，必须重新 enroll`)) return;
+    if (!await confirmDialog(`重置 ${u.username} 的 TOTP？该用户旧 JWT 立即失效，必须重新 enroll`)) return;
     try {
       await api.totp.reset(u.id);
       loadAll();
@@ -232,14 +232,14 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const deleteFewShot = async (id) => {
-    if (!confirm('删除该示例？')) return false;
+    if (!await confirmDialog('删除该示例？')) return false;
     try { await api.del(`/api/few-shots/${id}`); loadAll(); toast('已删除'); return true; }
     catch (e) { toast(String(e), true); return false; }
   };
   // v0.8.13 批量删除 few-shot（一次确认 + 循环现有 DELETE）
   // v0.8.13 fixup：返回删除数 → 子组件据此清选中集（取消/0 删则保留选中，不误清）
   const batchDeleteFewShots = async (ids) => {
-    if (!ids.length || !confirm(`删除选中的 ${ids.length} 个示例？`)) return 0;
+    if (!ids.length || !await confirmDialog(`删除选中的 ${ids.length} 个示例？`)) return 0;
     let ok = 0;
     for (const id of ids) { try { await api.del(`/api/few-shots/${id}`); ok += 1; } catch (e) { toast(String(e), true); } }
     loadAll(); toast(`已删除 ${ok} 个`);
@@ -301,7 +301,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const resetCatalogField = async (field) => {
-    if (!confirm(`清空 DB 覆盖，回退到默认（${field}）？`)) return;
+    if (!await confirmDialog(`清空 DB 覆盖，回退到默认（${field}）？`)) return;
     try {
       const r = await api.post('/api/admin/catalog/reset', { fields: [field] });
       toast(`${field} 已恢复默认（来源：${r.source}）`);
@@ -324,7 +324,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     catch (e) { toast(String(e), true); }
   };
   const deleteCatalog = async (id) => {
-    if (!confirm('删除该 catalog？（默认 catalog 不可删）')) return;
+    if (!await confirmDialog('删除该 catalog？（默认 catalog 不可删）')) return;
     try { await api.del(`/api/admin/catalogs/${id}`); toast('已删除 catalog'); reloadCatalogs(); }
     catch (e) { toast(String(e), true); }
   };
@@ -335,7 +335,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
     const [c, bg] = map[role] || [T.muted, T.hover];
-    return <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 999, background: bg, color: c, fontWeight: 600 }}>{role}</span>;
+    return <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: bg, color: c, fontWeight: 650 }}>{role}</span>;
   };
 
   return (

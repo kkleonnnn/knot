@@ -11,7 +11,7 @@ const _LF_FIELDS = ['metrics', 'dimensions', 'filters', 'time', 'order_by', 'lim
 
 function _parse(j) { try { return JSON.parse(j || '{}'); } catch { return {}; } }
 function _fmt(v) { return v === undefined ? '—' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); }
-function _lbl(T) { return { fontSize: 10.5, color: T.muted, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }; }
+function _lbl(T) { return { fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 3 }; }
 function _pre(T) { return { margin: 0, padding: 8, background: T.codeBg, borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 11, fontFamily: T.mono, color: T.codeText, overflow: 'auto', maxHeight: 160, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }; }
 
 function _kindTag(T, v) {
@@ -64,8 +64,8 @@ export function LogicFormHistory({ T, auditId }) {
             background: sel.includes(i) ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent' }}>
             <span style={{ fontFamily: T.mono, fontSize: 11, color: T.subtext }}>{v.is_corrected ? '修正' : '原始'}</span>
             {_kindTag(T, v)}
-            {v.restored_from_audit_id ? <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>采纳自 #{v.restored_from_audit_id}</span> : null}
-            <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginLeft: 'auto' }}>{v.created_at}</span>
+            {v.restored_from_audit_id ? <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted }}>采纳自 #{v.restored_from_audit_id}</span> : null}
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, marginLeft: 'auto' }}>{v.created_at}</span>
             <button onClick={e => handleAdopt(v.audit_id, e)} disabled={restoring === v.audit_id}
                     style={{ ...pillBtn(T, false), padding: '3px 8px', fontSize: 10.5 }}>
               {restoring === v.audit_id ? '…' : '标记采纳此版本'}

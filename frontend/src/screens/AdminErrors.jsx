@@ -44,19 +44,19 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
         {/* KPI 行 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>错误总数</div>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{total}</div>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>错误总数</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{total}</div>
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>独立 Hash</div>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{topHashes.length}</div>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>独立 Hash</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{topHashes.length}</div>
           </div>
         </div>
 
         {/* Top hashes */}
         {topHashes.length > 0 && (
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ padding: '10px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>高频错误（Top 10）</div>
+            <div style={{ padding: '10px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', borderBottom: `1px solid ${T.border}` }}>高频错误（Top 10）</div>
             {topHashes.map((h, i) => (
               <div key={h.error_hash} style={{ padding: '10px 16px', borderBottom: i < topHashes.length - 1 ? `1px solid ${T.borderSoft}` : 'none', display: 'flex', gap: 12, alignItems: 'center', fontSize: 12 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, width: 80 }}>{h.error_hash}</span>
@@ -70,7 +70,7 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
 
         {/* Recent errors list */}
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 90px', padding: '9px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.muted, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 90px', padding: '9px 16px', background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', borderBottom: `1px solid ${T.border}` }}>
             <div>时间</div><div>用户</div><div>错误</div><div style={{ textAlign: 'right' }}>Hash</div>
           </div>
           {loading ? (
@@ -78,11 +78,11 @@ export function AdminErrorsScreen({ T, user, onToggleTheme, onNavigate, onLogout
           ) : items.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: T.muted }}>暂无错误记录</div>
           ) : items.map((it, i) => (
-            <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 90px', padding: '11px 16px', borderBottom: i < items.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5, minWidth: 0 }}>
+            <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 90px', padding: '11px 16px', borderBottom: i < items.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 13, minWidth: 0 }}>
               <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{_relTime(it.created_at)}</div>
-              <div style={{ color: T.subtext, fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.username || '<anon>'}</div>
+              <div style={{ color: T.subtext, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.username || '<anon>'}</div>
               <div style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{it.message}</div>
-              <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, textAlign: 'right' }}>{it.error_hash || '—'}</div>
+              <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, textAlign: 'right' }}>{it.error_hash || '—'}</div>
             </div>
           ))}
         </div>

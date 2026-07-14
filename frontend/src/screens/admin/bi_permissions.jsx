@@ -13,7 +13,7 @@ function PermRow({ T, label, sub, grant, onToggle }) {
     <div style={{ display: 'grid', gridTemplateColumns: GT, alignItems: 'center', padding: '9px 12px', borderTop: `1px solid ${T.borderSoft}` }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-        {sub && <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{sub}</div>}
       </div>
       {PERMS.map(([p]) => (
         <div key={p} style={{ textAlign: 'center' }}>
@@ -26,7 +26,7 @@ function PermRow({ T, label, sub, grant, onToggle }) {
 }
 
 function Head({ T, children }) {
-  return <div style={{ fontSize: 11.5, fontWeight: 600, color: T.subtext, margin: '18px 0 2px', padding: '0 12px' }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 650, color: T.subtext, margin: '18px 0 2px', padding: '0 12px' }}>{children}</div>;
 }
 
 export function PermissionMatrix({ T }) {
@@ -70,8 +70,8 @@ export function PermissionMatrix({ T }) {
   const ungrouped = reports.filter((r) => r.folder_id == null);
   return (
     <div style={{ maxWidth: 760 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, color: T.text, margin: '0 0 4px' }}>目录访问权限</h2>
-      <p style={{ fontSize: 12.5, color: T.subtext, margin: '0 0 14px', lineHeight: 1.6 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 650, color: T.text, margin: '0 0 4px' }}>目录访问权限</h2>
+      <p style={{ fontSize: 13, color: T.subtext, margin: '0 0 14px', lineHeight: 1.6 }}>
         选一个用户 → 授予其 目录（内含报表继承）/ 未分组报表（逐张）的 定时 / 编辑 / 导出 / 分享 权限。admin 恒全权。
       </p>
       {users.length === 0

@@ -137,23 +137,25 @@ def test_foundation_additive_only(live_path: Path, base_path: Path):
     )
 
 
-# ─── R-PB-SH-3 — buildTheme 26 keys（25 设计 token + dark）─────────────────
+# ─── R-PB-SH-3 — buildTheme 38 keys（v0.8.14 玻璃 chrome + type system 升级 re-baseline）─────
 
-def test_R_PB_SH_3_buildtheme_26_keys():
-    """buildTheme 返回对象 = 26 个 runtime key（25 设计 token + 1 dark 布尔透传）。
+def test_R_PB_SH_3_buildtheme_38_keys():
+    """buildTheme 返回对象 = 38 个 runtime key。
 
-    资深 2026-06-12 口径锁定：node 实测 Object.keys(buildTheme(true)).length===26。
-    CLAUDE.md/header「25 字段」= 25 设计 token（正确，不含 dark）。
+    v0.6.2.3 口径 26（25 token + dark）→ **v0.8.14 UI 交付包 sanctioned 演进 re-baseline**：
+    +玻璃 chrome 8（hue/styleName/ambient/blur/glassBorder/panelShadow/glow/chartColors）
+    +type system 4（fs/fw/ls/nums）= 38。签名 buildTheme(dark, {hue, style})，dark 透传保留。
+    （同 v0.6.4.0 UI v2 / v0.7.48 foundation 演进 re-baseline 仪式；设计侧三轮定稿。）
     """
     blocks = _named_blocks(_SHARED.read_text(encoding="utf-8"))
     assert "buildTheme" in blocks, "Shared.jsx 必须含 buildTheme"
     body = blocks["buildTheme"]
     # return 对象顶层键：4 空格缩进的 `key:` 或 `key,`（shorthand dark,）
     keys = re.findall(r"^    ([A-Za-z_$][\w$]*)\s*[:,]", body, re.MULTILINE)
-    assert len(keys) == 26, (
-        f"R-PB-SH-3 违规：buildTheme 应 26 keys（25 token + dark），实际 {len(keys)}：{keys}"
+    assert len(keys) == 38, (
+        f"R-PB-SH-3 违规：buildTheme 应 38 keys（26 + 玻璃 8 + type 4），实际 {len(keys)}：{keys}"
     )
-    assert "dark" in keys, "buildTheme 必须含 dark 透传字段（line 55 shorthand）"
+    assert "dark" in keys, "buildTheme 必须含 dark 透传字段"
 
 
 # ─── R-PB-SH-4 — I icon dict 37 names（v0.6.4.0 +16=54 → v0.7.48 死码清扫 −17）───

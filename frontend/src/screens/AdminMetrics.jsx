@@ -102,7 +102,7 @@ export function AdminMetricsScreen({ T, user, onToggleTheme, onNavigate, onLogou
             <TagChip T={T}>指标定义</TagChip>
           </div>
           {rules.map((r, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 12.5, lineHeight: 1.55, color: T.text }}>
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55, color: T.text }}>
               <TagChip T={T}>{r.tag}</TagChip>
               <div style={{ flex: 1, minWidth: 0 }}>{r.body}</div>
             </div>

@@ -21,7 +21,7 @@ export function AuditRetentionBar({ T, relPurgeText, retention, setRetention, pu
              style={{ width: 70, padding: '4px 8px', border: `1px solid ${T.border}`, borderRadius: 6, background: T.content, color: T.text, fontFamily: T.mono, fontSize: 12 }}/>
       <span style={{ fontSize: 12, color: T.muted }}>天</span>
       <button onClick={onPurge} disabled={purging}
-              style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.border}`, background: T.content, color: T.text, fontSize: 12.5, cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.5 : 1, fontFamily: 'inherit' }}>
+              style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.border}`, background: T.content, color: T.text, fontSize: 13, cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.5 : 1, fontFamily: 'inherit' }}>
         {purging ? '清理中…' : '立即清理'}
       </button>
     </div>

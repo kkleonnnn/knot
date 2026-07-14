@@ -53,7 +53,7 @@ export class AppErrorBoundary extends Component {
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          <div style={{ fontSize: 17, fontWeight: 600, color: T.text, marginBottom: 8 }}>页面遇到错误</div>
+          <div style={{ fontSize: 17, fontWeight: 650, color: T.text, marginBottom: 8 }}>页面遇到错误</div>
           <div style={{ fontSize: 13, color: T.subtext, lineHeight: 1.6, marginBottom: 20 }}>
             界面渲染出现异常，已自动记录。刷新页面通常即可恢复。
           </div>
@@ -82,7 +82,7 @@ export class ResultBlockErrorBoundary extends Component {
     // inline 降级卡（仿 ErrorBanner 风格；崩溃隔离单 msg，siblings + composer 存活）
     return (
       <div style={{ padding: '10px 14px', borderRadius: 10, background: T.card,
-                    border: `1px solid ${err}`, color: err, fontSize: 12.5,
+                    border: `1px solid ${err}`, color: err, fontSize: 13,
                     fontFamily: T.sans, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={err}
              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>

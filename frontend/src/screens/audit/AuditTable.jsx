@@ -52,21 +52,21 @@ export function AuditTable({ T, items, loading, onOpenDrawer }) {
         return (
           <div key={row.id} style={{
             display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.3fr 2fr 0.7fr 0.6fr 60px',
-            padding: '11px 18px', alignItems: 'center', fontSize: 12.5,
+            padding: '11px 18px', alignItems: 'center', fontSize: 13,
             borderBottom: i === items.length - 1 ? 'none' : `1px solid ${T.borderSoft}`,
           }}>
-            <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.created_at}</span>
+            <span style={{ fontFamily: T.mono, fontSize: 12, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.created_at}</span>
             {/* R-410 Avatar 22 brandSoft + role chip mono */}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
               <Avatar T={T}>{displayInitial}</Avatar>
               <span style={{ fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-              {row.actor_role && <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, textTransform: 'uppercase', flexShrink: 0 }}>{row.actor_role}</span>}
+              {row.actor_role && <span style={{ fontSize: 11, color: T.muted, fontWeight: 500, textTransform: 'uppercase', flexShrink: 0 }}>{row.actor_role}</span>}
             </span>
             {/* R-411/R-426 ActionChip — color-mix 12% bg + padding 2px 8px + radius 4 + fontWeight 500 */}
             <span style={{ minWidth: 0, overflow: 'hidden' }}>
               <ActionChip T={T} action={row.action}/>
             </span>
-            <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: T.mono, fontSize: 12, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {row.resource_type}{row.resource_id ? `:${row.resource_id}` : ''}
             </span>
             <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.client_ip || '-'}</span>

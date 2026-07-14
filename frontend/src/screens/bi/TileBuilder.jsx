@@ -55,7 +55,7 @@ export function TileBuilder({ T, tiles, onChange, tableOnly = false }) {
               )}
               <input value={t.title || ''} onChange={(e) => upd(i, { title: e.target.value })} placeholder={tableOnly ? '页签名（日汇总 / 周汇总…）' : '组件标题'} style={{ ...fld, flex: 1 }} />
               {/* v0.8.10：仪表盘组件 w×h 由类型固定（同类尺寸一致 §5）→ 不再手选占列 */}
-              <button onClick={() => rm(i)} title={tableOnly ? '删除页' : '删除组件'} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
+              <button onClick={() => rm(i)} title={tableOnly ? '删除页' : '删除组件'} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>×</button>
             </div>
             <textarea value={t.sql_text || ''} onChange={(e) => upd(i, { sql_text: e.target.value })} rows={2} spellCheck={false}
               placeholder="SELECT ...（只读；存前校验）"

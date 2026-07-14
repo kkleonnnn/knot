@@ -11,7 +11,8 @@ export function ModeToggle({ T, active, onNavigate }) {
     border: 'none', cursor: 'pointer',
     background: on ? T.accent : (hover === key ? T.hover : 'transparent'),  // 未激活 hover → 淡底
     color: on ? T.sendFg : T.subtext,
-    transition: 'background 120ms ease',
+    boxShadow: on ? (T.glow || 'none') : 'none',  // v0.9.0 aurora 风格→激活段 accent glow；frosted 'none'
+    transition: 'background 120ms ease, box-shadow 120ms ease',
   });
   return (
     <div style={{

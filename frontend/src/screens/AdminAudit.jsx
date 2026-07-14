@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { I, pillBtn } from '../Shared.jsx';
-import { toast } from '../utils.jsx';
+import { toast, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { api } from '../api.js';
 import { AuditStatGrid } from './audit/AuditStatGrid.jsx';
@@ -68,7 +68,7 @@ export function AdminAuditScreen({ T, user, onToggleTheme, onNavigate, onLogout 
 
   const triggerPurge = async () => {
     if (purging) return;
-    if (!confirm('确认立即清理超过 retention 期的审计日志？此操作含自动备份。')) return;
+    if (!await confirmDialog('确认立即清理超过 retention 期的审计日志？此操作含自动备份。')) return;
     setPurging(true);
     try {
       const r = await api.post('/api/admin/audit/purge', {});

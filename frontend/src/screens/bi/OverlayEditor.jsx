@@ -5,7 +5,7 @@
 import { colLetter } from './tiles/tile_data.js';
 
 export function OverlayEditor({ T, tile, viz, overlay = [], onChange }) {
-  const fld = { padding: '4px 6px', borderRadius: 5, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 11.5, fontFamily: T.sans };
+  const fld = { padding: '4px 6px', borderRadius: 5, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: T.sans };
   const cfg = viz.columns || {};
 
   let cols = [];
@@ -25,10 +25,10 @@ export function OverlayEditor({ T, tile, viz, overlay = [], onChange }) {
     <div style={{ marginTop: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
         <span style={{ fontSize: 11, color: T.muted }}>公式行单元格（插在表头↔数据之间；文本 / Excel 式公式）{dataRows ? ` · 数据 ${dataRows} 行` : ''}</span>
-        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '2px 8px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>+ 单元格</button>
+        <button onClick={add} style={{ border: `1px solid ${T.border}`, background: 'transparent', color: T.accent, borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>+ 单元格</button>
       </div>
       {legend.length > 0 && (
-        <div className="cb-sb" style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, marginBottom: 6, whiteSpace: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
+        <div className="cb-sb" style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, marginBottom: 6, whiteSpace: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
           {legend.join('  ·  ')}
         </div>
       )}
@@ -47,7 +47,7 @@ export function OverlayEditor({ T, tile, viz, overlay = [], onChange }) {
         </div>
       ))}
       {overlay.length > 0 && (
-        <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>支持 SUM/SUMIF/AVG/COUNT/MIN/MAX + 算术；A1 引用数据行（列字母见上）。</div>
+        <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>支持 SUM/SUMIF/AVG/COUNT/MIN/MAX + 算术；A1 引用数据行（列字母见上）。</div>
       )}
     </div>
   );

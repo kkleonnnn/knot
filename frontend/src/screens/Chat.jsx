@@ -246,7 +246,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
         borderRadius: 6, cursor: 'pointer',
         background: isActive ? `color-mix(in oklch, ${T.accent} 8%, transparent)` : 'transparent',
         border: isActive ? `1px solid color-mix(in oklch, ${T.accent} 25%, transparent)` : '1px solid transparent',
-        color: isActive ? T.text : T.subtext, fontSize: 12.5,
+        color: isActive ? T.text : T.subtext, fontSize: 13,
         fontWeight: isActive ? 500 : 400,
       }}>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '未命名对话'}</span>
@@ -273,7 +273,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
         <button onClick={() => onNavigate('saved-reports')} style={{
           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
           padding: '8px 14px', borderRadius: 8, background: 'transparent',
-          color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 12.5,
+          color: T.subtext, border: 'none', fontFamily: 'inherit', fontSize: 13,
           cursor: 'pointer',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>

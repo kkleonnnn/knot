@@ -42,7 +42,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
 
   // v0.5.38 — PeriodTab 字体统一（fontFamily inherit T.sans + fontSize 12.5 + 与 Audit CSV button 一致风格）
   const periodTabs = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontFamily: 'inherit', color: T.muted }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontFamily: 'inherit', color: T.muted }}>
       <span style={{ marginRight: 4 }}>时段</span>
       {['7d', '30d', '90d'].map(p => (
         <PeriodTab key={p} T={T} label={p} active={period === p} onClick={() => setPeriod(p)}/>
@@ -88,7 +88,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                     <polyline points="3 17 9 11 13 15 21 7"/>
                     <polyline points="14 7 21 7 21 14"/>
                   </svg>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>每日自纠正次数趋势</div>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: T.text }}>每日自纠正次数趋势</div>
                   <div style={{ flex: 1 }}/>
                   <TagChip T={T}>{PERIOD_LABELS[period]}</TagChip>
                 </div>
@@ -113,7 +113,7 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                     <circle cx="12" cy="8" r="6"/>
                     <path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/>
                   </svg>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>高频自纠正用户</div>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: T.text }}>高频自纠正用户</div>
                   <TagChip T={T}>top {stats.top_users.length}</TagChip>
                 </div>
                 {stats.top_users.length === 0 ? (
@@ -139,21 +139,21 @@ export function AdminRecoveryScreen({ T, user, onToggleTheme, onNavigate, onLogo
                       return (
                         <div key={u.user_id} style={{
                           display: 'grid', gridTemplateColumns: '64px 1.4fr 1fr 1fr 1fr',
-                          padding: '11px 18px', alignItems: 'center', fontSize: 12.5,
+                          padding: '11px 18px', alignItems: 'center', fontSize: 13,
                           borderBottom: i === stats.top_users.length - 1 ? 'none' : `1px solid ${T.borderSoft}`,
                         }}>
                           {/* R-479 rank # mono T.accent fontWeight 600 */}
-                          <span style={{ fontFamily: T.mono, color: T.accent, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
+                          <span style={{ fontFamily: T.mono, color: T.accent, fontWeight: 650 }}>{String(i + 1).padStart(2, '0')}</span>
                           {/* R-479 Avatar 22 brandSoft 8% (R-480 闭环本文件第二处命中) + username + id mono muted */}
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
                             <Avatar T={T}>{(u.username || 'U').charAt(0).toUpperCase()}</Avatar>
                             <span style={{ fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</span>
-                            <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>id={u.user_id}</span>
+                            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>id={u.user_id}</span>
                           </span>
                           <span style={{ fontFamily: T.mono, color: T.text }}>{u.count}</span>
                           <span style={{ fontFamily: T.mono, color: T.text }}>{u.msg_count}</span>
                           {/* R-493 rate NaN 守护 + accent color 强调 */}
-                          <span style={{ fontFamily: T.mono, color: T.accent, fontWeight: 600 }}>{rate}</span>
+                          <span style={{ fontFamily: T.mono, color: T.accent, fontWeight: 650 }}>{rate}</span>
                         </div>
                       );
                     })}

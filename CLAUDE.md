@@ -188,7 +188,7 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 **内容**：Phase B 及之后所有 PATCH（含 v0.6.2.0 TOTP enroll / v0.7.x 5 层语义等）
 涉及 UI 改动时，必须严守 v0.5.x 锁定的视觉设计语言：
-- OKLCH 单色系统（buildTheme 25 设计 token；+dark 透传 = 26 runtime keys — v0.6.2.3 口径锁定）
+- OKLCH 单色系统（buildTheme(dark,{hue,style}) **38 runtime keys** — v0.8.14 玻璃 chrome + type system 升级 re-baseline；原 v0.6.2.3 口径 26）
 - I icon library（37 names — v0.6.4.0 +16=54 后 v0.7.48 死码清扫 −17）
 - brandSoft 8% inset + borderLeft 3px 25% 设计语言铁律
 - HarmonyOS Sans SC / PingFang SC / JetBrains Mono 字体
@@ -216,16 +216,21 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 - **Demo 设计稿**：`/Users/kk/Documents/knot_ui_demo/v0.5/artboards/*.jsx`（设计代理，**不进产品**）
 - **产品屏**：`frontend/src/screens/*.jsx`
 - **共享 Foundation**（v0.5.6 + v0.5.7 落地）：
-  - `Shared.jsx` — buildTheme(dark) 25 设计 token (含 dark 透传 = 26 runtime keys) + I 38 icons + iconBtn/pillBtn + CHART_COLORS 8 色 + LineChart/BarChart/PieChart/TypingDots + KnotMark/KnotWordmark/KnotLogo + **v0.6.2.3 整合 14 helper → 26 exports；v0.6.2.4 drift 调和再整合 12（PeriodTab/TagChip/statLabelStyle 参数化 + Avatar/theadStyle + inputStyleField/inputStyleMono + ghostBtnStyle/primaryBtnStyle/pageBtnStyle + FilledChip/pillBtnCompact）→ 38 exports 段 3 收官**
+  - `Shared.jsx` — buildTheme(dark,{hue,style}) **38 runtime keys**（v0.8.14 玻璃 chrome + type system；原 26 = 25 token + dark，+玻璃 8 + type 4） + I 38 icons + iconBtn/pillBtn + CHART_COLORS 8 色 + LineChart/BarChart/PieChart/TypingDots + KnotMark/KnotWordmark/KnotLogo + **v0.6.2.3 整合 14 helper → 26 exports；v0.6.2.4 drift 调和再整合 12（PeriodTab/TagChip/statLabelStyle 参数化 + Avatar/theadStyle + inputStyleField/inputStyleMono + ghostBtnStyle/primaryBtnStyle/pageBtnStyle + FilledChip/pillBtnCompact）→ 38 exports 段 3 收官**
   - `utils.jsx` — Modal/ModalHeader/Input/Select/Spinner/toast/useTheme/usePersist
   - `decor/NarrativeMotif.jsx` — 原子 motif SVG（React.memo + OKLCH color-mix tint）
 
-### 设计系统（v0.5.6 锁定，严禁扩展）
+### 设计系统（v0.5.6 立 · v0.8.14 玻璃 chrome + type system 升级，设计侧三轮定稿）
 
-- **色彩**：OKLCH 单一色空间 — brand 195° / success 145° / warn 85° / error 27° / chart 8 色 hue 45° 均匀分布
-- **字体**：HarmonyOS Sans SC / PingFang SC / Inter（sans）+ JetBrains Mono / Geist Mono（mono）
-- **图标**：I 37 names viewBox 24×24 stroke 1.6（v0.6.4.0 +16=54 后 v0.7.48 死码清扫 −17；Logo 用 KnotMark viewBox 100×100，语义不同）
-- **OKLCH fallback**：R-165 fallback（:root fallback vars + `@supports not`）原在 `frontend/src/App.css`，但该文件从未被 import → **未进产物**（v0.7.47 死码清扫删 App.css；index.css 仅 3 行 reset，视觉靠各屏 inline fontFamily 撑）。真正折进 index.css 履行 R-165 留 v0.8 前端硬化
+> ⚠️ v0.8.14 UI 交付包扩展了设计系统（buildTheme 加签名 + 玻璃 tokens + 外观预设 + 自托管字体 + 字阶 tokens）。**原「严禁扩展 buildTheme 25 字段」铁律已被 v0.8.14 版本位取代**（详 CHANGELOG v0.8.14 + Shared.jsx 头注释）；单色铁律 / brandSoft 8% + borderLeft 25% / 语义色仍守。
+
+- **色彩**：OKLCH 单一色空间 — brand/accent 195°（外观预设可换 hue：cyan 195°/violet/emerald/amber，同 L/C 只换 hue，单色铁律保持）/ success 145° / warn 85° / error 27° / chart 8 色。
+- **玻璃 chrome（v0.8.14）**：`buildTheme(dark, {hue, style})`（旧签名兼容）— style ∈ frosted(雾面·克制) / aurora(极光·多彩)；新 tokens ambient（页底环境色渐变）/ blur（backdrop-filter）/ glassBorder（高光描边）/ panelShadow（inset 高光）/ glow（aurora 发光）/ chartColors。结构色转半透明 rgba + backdrop-blur。外观 store = `utils.getAppearance/setAppearance`（localStorage `cb_appearance`，旧 `cb_theme` 迁移+双写；入口 Shell 顶栏「外观」弹层）。
+- **字体（v0.8.14 自托管 fontsource，main.jsx import）**：Inter Variable（拉丁/数字，栈首）→ MiSans VF（预留槽位）→ Noto Sans SC（中文，unicode-range 分包）；mono = JetBrains Mono Variable，**仅数字/SQL/ID/时间戳**（中文标签一律 sans）。**消除此前 Windows 雅黑回退**。
+- **字阶铁律（v0.8.14）**：`T.fs` caption 11/label 12/body 13/reading 14/title 16/kpi 22（hero 28/34 仅空态）；`T.fw` 400/500/650（900 仅 KNOT 标）；`T.ls` mono 0.02em/display -0.02em/body -0.003em；全局 tabular-nums。新代码禁手写 0.5px 步进字号 + 600/700/800 字重。
+- **图标**：I 37 names viewBox 24×24 stroke 1.6（Logo 用 KnotMark viewBox 100×100，语义不同）。
+- **交互一致性（v0.8.14）**：`window.confirm` 全废 → `utils.confirmDialog`（Promise API）+ ConfirmHost 玻璃确认框（Enter 确认/Esc 取消）；新代码禁用 window.confirm。ECharts 图内文字显式指定字体（轴刻度 mono / 图例+tooltip sans）。
+- **OKLCH fallback**：R-165（:root fallback + `@supports not`）仍未折进 index.css；⚠️ v0.8.14 视觉已重写，需重估是否仍适用（backlog）。
 
 ### 视觉模型（v0.5.7 验证；v0.6.4.1.1 立约强化）
 

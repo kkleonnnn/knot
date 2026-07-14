@@ -190,11 +190,11 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
           // v0.6.1.4 OVERRIDE #4: HTTP API form
           <>
             <Input T={T} label="Base URL" value={form.http_base_url} onChange={v => set('http_base_url', v)} required placeholder="https://api.example.com" mono/>
-            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>API 根地址（不带 path）；K8s 内部部署用 service 域名</div>
+            <div style={{ fontSize: 12, color: T.muted, marginTop: -6, marginBottom: 8 }}>API 根地址（不带 path）；K8s 内部部署用 service 域名</div>
 
             <Input T={T} label="Auth Header 字段名" value={form.http_auth_header} onChange={v => set('http_auth_header', v)} required placeholder="key 或 Authorization" mono/>
             <Input T={T} label="Auth Header 值" value={form.http_auth_value} onChange={v => set('http_auth_value', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
-            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6, marginBottom: 8 }}>Fernet 加密入库；显示为 ••••last4</div>
+            <div style={{ fontSize: 12, color: T.muted, marginTop: -6, marginBottom: 8 }}>Fernet 加密入库；显示为 ••••last4</div>
 
             {/* v0.6.1.4 fix: 删 "允许的 Host 白名单" 字段 — 当前 http_planner.py 仅消费
                 KNOT_HTTP_ALLOWED_HOSTS env（注释明示 "demo MVP" + "v0.6.1.5 可加 per-source"）；
@@ -210,12 +210,12 @@ export function SourceFormModal({ T, data, onClose, onSave }) {
             <Input T={T} label="User" value={form.db_user} onChange={v => set('db_user', v)} required placeholder="root" mono/>
             <Input T={T} label="Password" value={form.db_password} onChange={v => set('db_password', v)} type="password" placeholder={isEdit ? '留空不修改' : '••••••••'} optional={isEdit}/>
             <Input T={T} label="Database" value={form.db_database} onChange={v => set('db_database', v)} required placeholder="knot_demo 或 demo_dwd,demo_ads" mono/>
-            <div style={{ fontSize: 11.5, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
+            <div style={{ fontSize: 12, color: T.muted, marginTop: -6 }}>多个库用英文逗号分隔，查询时可跨库使用 库名.表名</div>
           </>
         )}
         {/* R-302.5 emoji 业务豁免 sustained — ✓/✗ 是 testResult 业务状态指示器 */}
         {testResult && (
-          <div style={{ padding: '8px 12px', borderRadius: 6, background: testResult.connected ? T.successSoft : T.accentSoft, color: testResult.connected ? T.success : T.accent, fontSize: 12.5, marginBottom: 12, marginTop: 8 }}>
+          <div style={{ padding: '8px 12px', borderRadius: 6, background: testResult.connected ? T.successSoft : T.accentSoft, color: testResult.connected ? T.success : T.accent, fontSize: 13, marginBottom: 12, marginTop: 8 }}>
             {testResult.connected ? '✓ ' : '✗ '}{testResult.message}
           </div>
         )}

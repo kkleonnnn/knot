@@ -116,7 +116,7 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
               <div key={item.id} onClick={() => setOpenItem(item)} style={{
                 display: 'grid', gridTemplateColumns: gridCols, gap: 0, alignItems: 'center',
                 padding: '10px 14px', borderBottom: `1px solid ${T.borderSoft}`,
-                fontSize: 12.5, cursor: 'pointer',
+                fontSize: 13, cursor: 'pointer',
               }}>
                 <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden' }}>{item.created_at}</div>
                 <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.text }}>
@@ -159,8 +159,8 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
             <DetailRow T={T} k="对话" v={`#${openItem.conversation_id} ${openItem.conversation_title || ''}`}/>
             {openItem.sql_text && (
               <div>
-                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SQL</div>
-                <pre style={{ margin: 0, padding: 10, background: T.codeBg, borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 11.5, fontFamily: T.mono, color: T.codeText, overflow: 'auto', maxHeight: 200 }}>{openItem.sql_text}</pre>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 500, letterSpacing: '0.02em' }}>SQL</div>
+                <pre style={{ margin: 0, padding: 10, background: T.codeBg, borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 12, fontFamily: T.mono, color: T.codeText, overflow: 'auto', maxHeight: 200 }}>{openItem.sql_text}</pre>
               </div>
             )}
             {openItem.explanation && <DetailRow T={T} k="洞察" v={openItem.explanation}/>}
@@ -177,7 +177,7 @@ export function AdminQueryHistoryScreen({ T, user, onToggleTheme, onNavigate, on
 function DetailRow({ T, k, v, kind }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</div>
+      <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 500, letterSpacing: '0.02em' }}>{k}</div>
       <div style={{ fontSize: 13, color: kind === 'warn' ? T.warn : T.text, lineHeight: 1.55, wordBreak: 'break-word' }}>{v}</div>
     </div>
   );

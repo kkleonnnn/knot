@@ -20,8 +20,8 @@ export function DonutTile({ T, tile }) {
           {slices.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span style={{ width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: T.subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              <span style={{ fontSize: 12.5, color: T.text, fontFamily: T.mono }}>{s.value.toLocaleString()}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: T.mono }}>{s.value.toLocaleString()}</span>
             </div>
           ))}
         </div>

@@ -66,7 +66,7 @@ function DetailJsonView({ T, detail }) {
         ? <span key={i} style={{
             background: `color-mix(in oklch, ${T.warn} 20%, transparent)`,
             color: T.warn,
-            padding: '0 4px', borderRadius: 3, fontWeight: 600,
+            padding: '0 4px', borderRadius: 3, fontWeight: 650,
             cursor: 'help',
           }} title="敏感字段已脱敏">{p}</span>
         : <span key={i}>{p}</span>)}

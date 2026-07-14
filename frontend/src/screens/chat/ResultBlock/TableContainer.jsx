@@ -52,7 +52,7 @@ export function TableContainer({ T, rows, cols, labelCols, numericCols, columnLa
             <thead>
               {/* v0.5.38 全站表头底色 brandSoft 8% → T.bg gray sustained */}
               <tr style={{ background: T.bg }}>
-                {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontFamily: T.mono, fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{columnLabels[c] || c}</th>)}
+                {cols.map(c => <th key={c} style={{ padding: '8px 12px', textAlign: 'left', color: T.muted, fontWeight: 500, fontSize: 12, letterSpacing: '0.02em', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' }}>{columnLabels[c] || c}</th>)}
               </tr>
             </thead>
             <tbody>

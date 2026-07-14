@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.13 — admin 批量运维（few-shot/指标批量删除 · 指标 xlsx 上传 · 业务目录 JSON 模板）
+## [Unreleased] - v0.8.14 — UI 视觉升级（玻璃 chrome + 外观预设 + type system + 交互一致性）
+
+> 设计侧（Claude Designer × 产品负责人三轮定稿）交付包 knot-ui-v0.9.3 集成（版本收敛回 0.8 阶段 = v0.8.14）。
+> Claude Code 角色 = 实施者（依赖/构建/lint/接数），0 视觉参数改写。基线 v0.8.13。原「四版本位」并入本 PATCH：
+>
+> **玻璃 chrome + 外观预设**：`buildTheme(dark)` → `buildTheme(dark, {hue, style})`（旧签名兼容）；新 tokens ambient/blur/glassBorder/panelShadow/glow/chartColors/hue/styleName；结构色转半透明 rgba + backdrop-blur 玻璃层；Shell 面板 radius 14→18。外观预设 = 风格 frosted/aurora × 主题色 cyan/violet/emerald/amber（OKLCH 同 L/C 换 hue，单色铁律保持）× 模式，入口 Shell 顶栏「外观」弹层；store = utils getAppearance/setAppearance（cb_appearance，旧 cb_theme 迁移+双写）。
+> **type system**：真字体自托管（fontsource：Inter Variable / Noto Sans SC 400·500·700 unicode-range 分包 / JetBrains Mono Variable；main.jsx import）——此前零字体、Windows 回退雅黑，本版消除；新 tokens T.fs（caption 11/label 12/body 13/reading 14/title 16/kpi 22）/ T.fw（400/500/650）/ T.ls / T.nums tabular-nums；全库字阶字重 codemod（62 文件）；mono 收敛（仅数字/SQL/ID/时间戳，中文标签一律 sans）。
+> **外观弹层收口**：顶栏独立深浅按钮删除；弹层「模式」= 浅色/深色/跟随系统（system 监听 matchMedia 实时切换）；onToggleTheme 保留给无弹层屏（Login/Enroll/ForceChangePassword）。
+> **交互一致性**：window.confirm 全废（18 处/8 文件）→ utils.confirmDialog（Promise API）+ ConfirmHost 玻璃确认框（Enter 确认/Esc 取消/点遮罩取消）；ECharts 图内文字显式指定字体（轴刻度 mono / 图例+tooltip sans，canvas 不继承 CSS）。
+>
+> **实施留痕**：`npm i` +3 fontsource 依赖；`npm run build` ✓；eslint 0 problem（修 3 err + 1 warn，均代码卫生 0 视觉/行为改动：ThinkingCard 重复 fontWeight key 保留 last-wins 值 / utils getAppearance 冗余 catch / ConfirmHost done 提前 + 删失效 disable）；vitest 59 passed；live 冒烟 0 console error + 外观三轴即时生效持久 + 字体 woff2 200。铁律未动：brandSoft 8% + borderLeft 25%（洞察卡）/ 涨跌红绿 / success 145°·warn 85° 语义色 / ErrorBoundary 旧签名实底 bulletproof / T.bg 实底（表头/代码块/sticky 防透字）。
+
+## [Released] - v0.8.13 — admin 批量运维（few-shot/指标批量删除 · 指标 xlsx 上传 · 业务目录 JSON 模板）
 
 > v0.8 收官批（kk「归 v0.8.13」）。admin 侧三项批量运维 + 一轮对抗复核修复。快通道（建 + 自验 + 对抗复核 workflow + CI）。
 >

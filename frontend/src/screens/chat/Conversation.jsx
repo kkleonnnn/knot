@@ -41,7 +41,7 @@ export function ChatConversation({ T, user, messages, scrollRef, loading, questi
             </div>
           ))}
         </div>
-        <div style={{ padding: '10px 28px 18px', background: `linear-gradient(to top, ${T.content} 80%, ${T.content}00)` }}>
+        <div style={{ padding: '10px 28px 18px', background: `linear-gradient(to top, ${T.content} 70%, transparent)` }}>
           <div style={{ maxWidth: 800, margin: '0 auto' }}>
             <Composer T={T} value={question} onChange={setQuestion} loading={loading}
                       onSubmit={onSubmit} onKeyDown={onKeyDown}
