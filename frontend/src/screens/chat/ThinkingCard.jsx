@@ -9,7 +9,7 @@ export function ThinkingCard({ T, agentEvents = [] }) {
   const label = lastStart ? AGENT_LABELS[lastStart.agent] || lastStart.label : '正在思考';
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '13px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.subtext }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.subtext }}>
         <TypingDots color={T.accent}/>
         <span>{agentEvents.length > 0 ? `${label}…` : '正在生成 SQL…'}</span>
       </div>
@@ -96,7 +96,7 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
     // #4：chrome（宽 320 / 表头 / » 收起键）走共享 RightPanel；此处只出「思考过程」内容 + STEPS trailing
     <RightPanel T={T} title="思考过程" headerTrailing={
       <span style={{
-        fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em',
+        fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>{doneCount}/{AGENTS.length} STEPS</span>
     }>
@@ -120,7 +120,7 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
             {/* v0.6.4.5 UI v2 (b): header 行 = chip + name + status icon（status marginLeft auto）；label 下沉独立一行 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <LetterChip T={T} letter={letter}/>
-              <span style={{ fontSize: 10, fontFamily: T.mono, color: T.muted,
+              <span style={{ fontSize: 11, fontFamily: T.mono, color: T.muted,
                              letterSpacing: '0.08em', textTransform: 'uppercase' }}>{name}</span>
               <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>
                 {isDone     && <DoneCheck T={T}/>}
@@ -129,17 +129,17 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
               </span>
             </div>
             {/* v0.6.4.5 UI v2 (b): title 独立一行 13/600（artboard L331 两行卡片）*/}
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginTop: 6, marginBottom: output || (isThinking && key === 'sql_planner') ? 8 : 0 }}>{label}</div>
+            <div style={{ fontSize: 13, fontWeight: 650, color: T.text, marginTop: 6, marginBottom: output || (isThinking && key === 'sql_planner') ? 8 : 0 }}>{label}</div>
 
             {key === 'clarifier' && isDone && output?.refined_question && (
-              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
+              <div style={{ fontSize: 12, color: T.subtext, lineHeight: 1.55 }}>
                 {/* v0.6.1.4 fix: HTTP path 下 clarifier refined_question 常带 SQL-flavored 幻觉
                     （"持仓记录表"/"数据暂不可查"等），同 approach 一并隐藏；只显「已识别为外部 API 查询」标签 */}
                 {_shouldHideClarifierApproach(sqlPlannerOutput) ? (
                   <div style={{ color: T.muted, fontSize: 10.5 }}>已识别为外部 API 查询</div>
                 ) : (
                   <>
-                    <div style={{ color: T.muted, fontSize: 10.5, marginBottom: 2 }}>精确问题</div>
+                    <div style={{ color: T.muted, fontSize: 11, marginBottom: 2 }}>精确问题</div>
                     <div style={{ color: T.text }}>{output.refined_question}</div>
                     {output?.approach &&
                       <div style={{ color: T.muted, marginTop: 4, fontSize: 10.5 }}>{output.approach}</div>}
@@ -154,9 +154,9 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
                   const text = (s?.thought ? s.thought.slice(0, 120) : s?.action) || '';
                   const truncated = s?.thought && s.thought.length > 120;
                   return (
-                    <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11.5, color: T.muted, lineHeight: 1.55 }}>
+                    <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: T.muted, lineHeight: 1.55 }}>
                       {s?.step > 0 && <span style={{
-                        flexShrink: 0, fontSize: 10, fontFamily: T.mono, color: T.accent, fontWeight: 600,
+                        flexShrink: 0, fontSize: 11, fontFamily: T.mono, color: T.accent, fontWeight: 650,
                         padding: '0 5px', height: 16, display: 'inline-flex', alignItems: 'center',
                         background: T.accentSoft, borderRadius: 3,
                       }}>S{s.step}</span>}
@@ -168,10 +168,10 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
             )}
 
             {key === 'presenter' && isDone && output?.insight && (
-              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: T.subtext, lineHeight: 1.5 }}>
                 {output?.confidence && output.confidence !== 'high' && (
                   <span style={{
-                    fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4, marginRight: 6,
+                    fontSize: 11, fontWeight: 650, padding: '1px 5px', borderRadius: 4, marginRight: 6,
                     background: output.confidence === 'medium'
                       ? `color-mix(in oklch, ${T.warn} 13%, transparent)` : T.accentSoft,
                     color: output.confidence === 'medium' ? T.warn : T.accent,
@@ -183,14 +183,14 @@ export function AgentThinkingPanel({ T, events, visible, user }) {
 
             {/* v0.5.39 — Trace 4th step body：前端从 SQL + presenter confidence 推导（demo thinking.jsx L268-271 风格）*/}
             {key === 'trace' && isDone && traceInfo && (
-              <div style={{ fontSize: 11.5, color: T.subtext, lineHeight: 1.55 }}>
+              <div style={{ fontSize: 12, color: T.subtext, lineHeight: 1.55 }}>
                 <span style={{
-                  fontSize: 10.5, fontWeight: 600, padding: '1px 5px', borderRadius: 4, marginRight: 6,
+                  fontSize: 11, padding: '1px 5px', borderRadius: 4, marginRight: 6,
                   background: traceInfo.confidence === 'low' ? `color-mix(in oklch, ${T.warn} 13%, transparent)`
                               : traceInfo.confidence === 'medium' ? `color-mix(in oklch, ${T.warn} 13%, transparent)`
                               : `color-mix(in oklch, ${T.success} 13%, transparent)`,
                   color: traceInfo.confidence === 'high' ? T.success : T.warn,
-                  textTransform: 'uppercase', fontFamily: T.mono, letterSpacing: '0.02em',
+                  fontWeight: 500, letterSpacing: '0.02em',
                 }}>{traceInfo.confidence === 'high' ? '可信度高' : traceInfo.confidence === 'medium' ? '可信度中' : '可信度低'}</span>
                 {traceInfo.text}
               </div>

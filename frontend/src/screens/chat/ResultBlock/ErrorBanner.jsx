@@ -31,7 +31,7 @@ export function ErrorBanner({ T, error, error_kind, user_message, is_retryable, 
     <div style={{
       padding: '10px 14px', borderRadius: 10,
       background: errMeta.bg, border: `1px solid ${errMeta.color}`,
-      color: errMeta.color, fontSize: 12.5,
+      color: errMeta.color, fontSize: 13,
       display: 'flex', alignItems: 'flex-start', gap: 10,
     }}>
       <span style={{ fontSize: 16, lineHeight: 1.2 }}>{errMeta.icon}</span>

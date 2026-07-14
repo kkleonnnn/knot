@@ -158,7 +158,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
         <div title="确定性语义编译（LogicForm）— 非 LLM 生成"
           style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px',
             borderRadius: 999, background: `color-mix(in oklch, ${T.accent} 10%, transparent)`,
-            color: T.accent, fontSize: 10.5, fontFamily: T.mono, letterSpacing: '0.04em' }}>确定性编译</div>
+            color: T.accent, fontSize: 11, fontFamily: T.mono, letterSpacing: '0.04em' }}>确定性编译</div>
       )}
       {showBudgetBanner && (
         <BudgetBanner T={T} budget_status={budget_status} budget_meta={budget_meta} onDismiss={handleBudgetDismiss}/>
@@ -231,7 +231,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
         <div style={{ background: T.codeBg, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <div onClick={() => setSqlOpen(!sqlOpen)} style={{
             cursor: 'pointer', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,
-            color: T.subtext, fontSize: 12.5,
+            color: T.subtext, fontSize: 13,
           }}>
             <I.sql/>
             <span style={{ fontFamily: T.mono, color: T.text }}>{'<>'}</span>
@@ -260,7 +260,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
 
       {/* v0.4.2 per-agent cost 分桶 chip（R-302 emoji → svg；R-301 hex 兜底 → T.bg） */}
       {agent_costs && Object.values(agent_costs).some(b => b && (b.cost > 0 || b.tokens > 0)) && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10.5, fontFamily: T.mono }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, fontFamily: T.mono }}>
           {Object.entries(agent_costs)
             .filter(([, b]) => b && (b.cost > 0 || b.tokens > 0))
             .map(([kind, b]) => (

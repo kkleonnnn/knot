@@ -17,7 +17,7 @@ export function InsightCard({ T, insight }) {
         <SvgPath d={INFO_PATH} size={14}/>
       </span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 11, fontFamily: T.mono, color: T.accent, fontWeight: 600,
+        <div style={{ fontSize: 11, fontFamily: T.mono, color: T.accent, fontWeight: 650,
                       letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>OBSERVATION</div>
         <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{insight}</div>
       </div>

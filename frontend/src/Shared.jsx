@@ -1,5 +1,7 @@
 // v0.6.2.3 R-365 退役：Shared.jsx 自 v0.5.6 冻结后首次受准修改（additive-only）；12→26 exports（+14 整合 helper）
-// Foundation 契约（v0.5.6 R-158 + v0.6.2.3 修正）：buildTheme 25 设计 token（+dark 透传 = 26 runtime keys）+
+// v0.9.0 受准扩录（外观预设）：buildTheme(dark, {hue, style}) 旧签名兼容；+8 玻璃 tokens（ambient/blur/glassBorder/
+// panelShadow/glow/chartColors/hue/styleName）25→33；+ACCENT_HUES export。R-158 契约版本升至 v0.9.0。
+// Foundation 契约（v0.5.6 R-158 + v0.6.2.3 修正）：buildTheme 设计 token +
 // I 38 icons（v0.6.0.3 +thumbsUp/Down）+ 5 charts — helpers (I dict / buildTheme / iconBtn) 与 components (KnotMark/Logo/Charts)
 // 必须共存以维持单一 import 入口。fast refresh 暖代价 = 单文件改动整文件 reload，可接受。
 /* eslint-disable react-refresh/only-export-components */
@@ -72,7 +74,7 @@ export function KpiCard({ T, label, value, unit, hint, accent }) {
       <div style={{ fontSize: 12, color: T.muted, letterSpacing: '0.01em' }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <div style={{
-          fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em',
+          fontSize: 34, fontWeight: 650, letterSpacing: '-0.02em',
           color: accent ? T.accent : T.text,
           fontFamily: T.sans, lineHeight: 1.05,
           transition: 'color 0.2s',
@@ -101,7 +103,7 @@ export function NumChip({ T, num }) {
       width: 22, height: 22, borderRadius: 5,
       background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
       color: T.accent,
-      fontSize: 11, fontFamily: T.mono, fontWeight: 600,
+      fontSize: 11, fontFamily: T.mono, fontWeight: 650,
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       letterSpacing: '0.04em', flexShrink: 0,
     }}>{num}</span>
@@ -114,8 +116,8 @@ export function OverrideChip({ T }) {
       padding: '2px 8px', borderRadius: 999,
       background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
       color: T.accent,
-      fontSize: 10.5, fontWeight: 600,
-      fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.02em',
+      fontSize: 11, fontWeight: 650,
+      letterSpacing: '0.02em',
     }}>DB 覆盖中</span>
   );
 }
@@ -125,8 +127,8 @@ export function SourceTag({ T, children }) {
     <span style={{
       padding: '2px 8px', borderRadius: 4,
       background: T.bg, color: T.subtext,
-      fontSize: 10.5, fontWeight: 500,
-      fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.04em',
+      fontSize: 11, fontWeight: 500,
+      letterSpacing: '0.02em',
       border: `1px solid ${T.border}`,
     }}>{children}</span>
   );
@@ -140,7 +142,7 @@ export function FileIcon({ T, type }) {
       background: isPdf ? `color-mix(in oklch, ${T.warn} 12%, transparent)` : `color-mix(in oklch, ${T.accent} 8%, transparent)`,
       color: isPdf ? T.warn : T.accent,
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 9, fontWeight: 700, fontFamily: T.mono, letterSpacing: '0.04em',
+      fontSize: 9, fontWeight: 650, fontFamily: T.mono, letterSpacing: '0.04em',
       flexShrink: 0,
     }}>{(type || 'doc').toUpperCase()}</span>
   );
@@ -152,7 +154,7 @@ export function LetterChip({ T, letter }) {
       width: 22, height: 22, borderRadius: 5,
       background: T.accent, color: T.sendFg,
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 11, fontWeight: 800,
+      fontSize: 11, fontWeight: 650,
       fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       flexShrink: 0,
     }}>{letter}</span>
@@ -190,7 +192,7 @@ export function FormRow({ T, label, hint, children, last }) {
 export function FilterField({ T, label, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
-      <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>{label}</span>
       {children}
     </div>
   );
@@ -205,13 +207,13 @@ export function statCardStyle(T) {
 }
 
 export function statValueStyle(T) {
-  return { fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono, letterSpacing: '-0.02em' };
+  return { fontSize: 22, fontWeight: 650, color: T.muted, fontFamily: T.mono, letterSpacing: '-0.02em' };
 }
 
 export function preStyle(T) {
   return {
     background: T.bg, padding: 12, borderRadius: 6,
-    fontSize: 11.5, fontFamily: T.mono, color: T.text,
+    fontSize: 12, fontFamily: T.mono, color: T.text,
     overflow: 'auto', maxHeight: '50vh',
     whiteSpace: 'pre-wrap', wordBreak: 'break-word',
     border: `1px solid ${T.border}`, margin: 0,
@@ -247,7 +249,7 @@ export function TagChip({ T, children, kind = 'accent' }) {
   );
 }
 
-export const statLabelStyle = (T, fontSize = 11) => ({ fontSize, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' });
+export const statLabelStyle = (T, fontSize = 11) => ({ fontSize, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' });
 
 // v0.6.2.4 commit 3 (R-PB-SH-17 / NRP-SH-2) — Avatar 从 3 屏真 avatar 提取
 // AST 三条件（width+height+initial+brandSoft）：AdminAudit/AdminRecovery byte-equal + tab_access lineHeight drift；
@@ -257,7 +259,7 @@ export function Avatar({ T, children, size = 22, fontSize = 10.5, lineHeight }) 
     width: size, height: size, borderRadius: '50%',
     background: `color-mix(in oklch, ${T.accent} 8%, transparent)`,
     color: T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize, fontWeight: 600, flexShrink: 0,
+    fontSize, fontWeight: 650, flexShrink: 0,
   };
   if (lineHeight != null) style.lineHeight = lineHeight;
   return <span style={style}>{children}</span>;
@@ -314,7 +316,7 @@ export function pageBtnStyle(T, disabled) {
     background: 'transparent',
     color: disabled ? T.muted : T.text,
     cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: 'inherit', fontSize: 12.5,
+    fontFamily: 'inherit', fontSize: 13,
     opacity: disabled ? 0.5 : 1,
   };
 }
@@ -324,7 +326,7 @@ export function pageBtnStyle(T, disabled) {
 export function FilledChip({ T, value }) {
   return (
     <span style={{
-      fontSize: 10,
+      fontSize: 11,
       color: value ? T.success : T.muted,
       fontFamily: T.mono,
       letterSpacing: '0.06em',
@@ -336,7 +338,7 @@ export function FilledChip({ T, value }) {
 export function pillBtnCompact(T, primary = false) {
   return {
     display: 'inline-flex', alignItems: 'center', gap: 4,
-    padding: '6px 12px', borderRadius: 6, fontSize: 12.5,
+    padding: '6px 12px', borderRadius: 6, fontSize: 13,
     border: `1px solid ${primary ? T.accent : T.border}`,
     background: primary ? T.accent : 'transparent',
     color: primary ? T.sendFg : T.text,
@@ -344,37 +346,79 @@ export function pillBtnCompact(T, primary = false) {
   };
 }
 
-export function buildTheme(dark) {
+// v0.9.0 外观预设 — 主题色四选（OKLCH 同 L/C 只换 hue，铁律「单色空间」保持：任一时刻仍是单 hue accent）
+export const ACCENT_HUES = {
+  cyan:    { h: 195, label: '青' },
+  violet:  { h: 292, label: '紫' },
+  emerald: { h: 165, label: '翡翠' },
+  amber:   { h: 85,  label: '琥珀' },
+};
+
+export function buildTheme(dark, app = {}) {
   // v0.5.6 Claude Design — OKLCH 设计 tokens
-  // brand: electric cyan 195°（signal, insight, decision）；R-167 语义色远离 brand
-  const brand = dark ? 'oklch(72% 0.17 195)' : 'oklch(58% 0.17 195)';  // brand[400] / brand[600]
+  // v0.9.0 玻璃 chrome：buildTheme(dark, {hue, style})；旧签名 buildTheme(dark) 完全兼容（= cyan + frosted）。
+  //   style 'frosted'（雾面·克制）/ 'aurora'（极光·多彩）→ ambient 环境色 / glow / 图表 palette 三处分流；
+  //   面板结构色转半透明 rgba（配合 Shell backdrop-blur 玻璃层；R-313 rgba 豁免延续）。
+  const hueName = ACCENT_HUES[app.hue] ? app.hue : 'cyan';
+  const h = ACCENT_HUES[hueName].h;
+  const aurora = app.style === 'aurora';
+  const brand = dark ? `oklch(72% 0.17 ${h})` : `oklch(58% 0.17 ${h})`;  // brand[400] / brand[600]
+  // ambient 页面底色：frosted 双 blob 低彩度；aurora 三 blob 跟随 accent（±30° 邻近 hue，非多 hue accent）
+  const ambient = dark
+    ? (aurora
+      ? `radial-gradient(800px 550px at 15% -8%, oklch(26% 0.07 ${h} / 0.55), transparent 60%), radial-gradient(900px 650px at 105% 25%, oklch(23% 0.06 ${h - 30} / 0.5), transparent 62%), radial-gradient(1000px 700px at 50% 125%, oklch(22% 0.06 ${h + 30} / 0.45), transparent 65%), #070609`
+      : `radial-gradient(900px 600px at 15% -10%, oklch(26% 0.045 ${h + 15} / 0.55), transparent 60%), radial-gradient(1100px 700px at 100% 115%, oklch(22% 0.05 ${h - 5} / 0.5), transparent 65%), #06090c`)
+    : (aurora
+      ? `radial-gradient(800px 550px at 15% -5%, oklch(94% 0.045 ${h} / 0.9), transparent 60%), radial-gradient(900px 650px at 100% 15%, oklch(94% 0.04 ${h - 30} / 0.8), transparent 62%), radial-gradient(1000px 700px at 55% 120%, oklch(95% 0.035 ${h + 30} / 0.7), transparent 65%), #f4f4f8`
+      : `radial-gradient(900px 600px at 12% -8%, oklch(96% 0.022 ${h} / 0.9), transparent 60%), radial-gradient(1000px 700px at 105% 110%, oklch(96% 0.015 ${h + 40} / 0.8), transparent 60%), #f3f6f8`);
+  // 图表 palette：frosted = 既有 CHART_COLORS；aurora = 以 accent 为锚的 45° 均布（同 L/C，R-169 结构不变）
+  const chartColors = aurora
+    ? [0, 45, 90, 135, 180, 225, 270, 315].map(o => `oklch(${dark ? '68%' : '62%'} 0.17 ${(h + o) % 360})`)
+    : CHART_COLORS;
+  _activeChartColors = chartColors;
   return {
     dark,
-    bg:          dark ? '#080a0e' : '#fafbfc',                            // ink[950] / ink[25]
-    content:     dark ? '#11151b' : '#ffffff',                            // ink[900] / ink[0]
-    sidebar:     dark ? '#11151b' : '#f5f7f9',                            // ink[900] / ink[50]
+    hue: hueName,
+    styleName: aurora ? 'aurora' : 'frosted',
+    bg:          dark ? '#080a0e' : '#fafbfc',                            // ink[950] / ink[25]（solid 兜底；页面底请用 ambient）
+    content:     dark ? 'rgba(17,22,29,0.62)' : 'rgba(255,255,255,0.66)', // 玻璃主面板（Shell 加 backdrop-blur）
+    sidebar:     dark ? 'rgba(20,26,34,0.5)' : 'rgba(248,250,252,0.5)',   // 玻璃侧栏
     border:      dark ? 'rgba(255,255,255,0.08)' : '#dde2e8',             // ink[200]
     borderSoft:  dark ? 'rgba(255,255,255,0.05)' : '#eef1f4',             // ink[100]
     text:        dark ? '#e8edf3' : '#11151b',                            // ink[900]
     subtext:     dark ? '#8c97a4' : '#475260',                            // ink[600]
     muted:       dark ? '#5d6773' : '#6b7684',                            // ink[500]
     accent:      brand,
-    accentSoft:  dark ? 'oklch(66% 0.18 195 / 0.14)' : 'oklch(97% 0.02 195)',  // brand[50]
+    accentSoft:  dark ? `oklch(66% 0.18 ${h} / 0.14)` : `oklch(97% 0.02 ${h})`,  // brand[50]
     success:     'oklch(72% 0.16 155)',                                   // v0.6.4 UI v2 翠绿 155°（145→155 微调；successSoft 同步保自洽）
     successSoft: dark ? 'oklch(72% 0.16 155 / 0.16)' : 'oklch(72% 0.16 155 / 0.10)',
     warn:        'oklch(78% 0.16 75)',                                    // v0.6.4 UI v2 琥珀 75°（85→75 + L82→78）
     hover:       dark ? 'rgba(255,255,255,0.04)' : '#eef1f4',             // ink[100]
-    card:        dark ? '#11151b' : '#ffffff',
-    codeBg:      dark ? '#1c2129' : '#f5f7f9',                            // ink[800] / ink[50]
+    card:        dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.72)',  // 玻璃卡片（原 ink[900]/ink[0] solid）
+    codeBg:      dark ? 'rgba(255,255,255,0.06)' : 'rgba(15,30,45,0.05)',
     codeText:    dark ? '#e8edf3' : '#11151b',
-    inputBg:     dark ? '#11151b' : '#ffffff',
+    inputBg:     dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.78)',
     inputBorder: dark ? 'rgba(255,255,255,0.10)' : '#dde2e8',
-    chipBg:      dark ? '#1c2129' : '#f5f7f9',                            // ink[800] / ink[50]
+    chipBg:      dark ? 'rgba(255,255,255,0.06)' : 'rgba(15,30,45,0.045)',
     chipBorder:  dark ? 'rgba(255,255,255,0.08)' : '#dde2e8',
     sendBg:      brand,
     sendFg:      dark ? '#080a0e' : '#ffffff',                            // ink[950] / white
-    sans:        '"HarmonyOS Sans SC", "PingFang SC", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-    mono:        '"JetBrains Mono", "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace',
+    // ═ v0.9.0 玻璃 chrome tokens ═
+    ambient,                                                              // 页面底（Shell root / Login）
+    blur:        aurora ? 'blur(36px) saturate(1.6)' : 'blur(28px) saturate(1.5)',   // backdrop-filter 值
+    glassBorder: dark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.75)',         // 玻璃高光描边
+    panelShadow: dark ? '0 18px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)'
+                      : '0 12px 40px rgba(15,30,45,0.09), inset 0 1px 0 rgba(255,255,255,0.9)',
+    glow:        aurora ? (dark ? `0 0 18px oklch(72% 0.17 ${h} / 0.35)` : `0 4px 14px oklch(58% 0.17 ${h} / 0.28)`) : 'none',
+    chartColors,                                                          // 当前生效图表 palette（charts 默认参数同步读 _activeChartColors）
+    // ═ v0.9.1 type tokens（字阶/字重/字距收敛；codemod 全库对齐） ═
+    fs:          { caption: 11, label: 12, body: 13, reading: 14, title: 16, kpi: 22 },  // hero 28/34 仅空态手写
+    fw:          { normal: 400, medium: 500, strong: 650 },               // 900 仅 KNOT 标
+    ls:          { mono: '0.02em', display: '-0.02em', body: '-0.003em' },
+    nums:        'tabular-nums',                                          // fontVariantNumeric：表格/KPI/趋势
+    // Inter 在前：拉丁/数字用 Inter，CJK 落 MiSans VF（若自托）→ Noto Sans SC；mono 末尾补 CJK 回退防雅黑
+    sans:        '"Inter Variable", "Inter", "MiSans VF", "Noto Sans SC", "HarmonyOS Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    mono:        '"JetBrains Mono Variable", "JetBrains Mono", "Geist Mono", "SF Mono", ui-monospace, Menlo, "Noto Sans SC", "PingFang SC", monospace',
   };
 }
 
@@ -397,7 +441,7 @@ export const iconBtn = (T) => ({
 
 export const pillBtn = (T, primary = false) => ({
   display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '6px 11px', borderRadius: 8, fontSize: 12.5,
+  padding: '6px 11px', borderRadius: 8, fontSize: 13,
   background: primary ? T.accent : 'transparent',
   color: primary ? T.sendFg : T.subtext,
   border: primary ? 'none' : `1px solid ${T.border}`,
@@ -419,10 +463,17 @@ export const CHART_COLORS = [
   'oklch(65% 0.18 150)',  // emerald 150°
 ];
 
+// v0.9.0 — 当前外观生效的图表 palette（buildTheme 侧写；charts 默认参数在调用时读到最新值）
+let _activeChartColors = CHART_COLORS;
+
+// v0.9.3 — ECharts canvas 文字不继承 CSS，需显式指定；轴标签/刻度 = mono（日期/数字），图例 = sans（可含中文系列名）
+const EC_MONO = '"JetBrains Mono Variable", "JetBrains Mono", Menlo, monospace';
+const EC_SANS = '"Inter Variable", "Inter", "MiSans VF", "Noto Sans SC", "PingFang SC", sans-serif';
+
 const EC_TOOLTIP = {
   backgroundColor: 'rgba(20,25,35,0.92)',
   borderColor: 'rgba(255,255,255,0.1)',
-  textStyle: { color: '#e0e0e0', fontSize: 12 },
+  textStyle: { color: '#e0e0e0', fontSize: 12, fontFamily: EC_SANS },
   confine: true,
 };
 
@@ -432,7 +483,7 @@ const fmtNum = v =>
   Math.abs(v) >= 1e3 ? `${(v/1e3).toFixed(0)}K` :
   typeof v === 'number' ? v.toLocaleString() : v;
 
-export function LineChart({ data, height = 220, stroke = 'oklch(58% 0.17 195)', colors = CHART_COLORS,
+export function LineChart({ data, height = 220, stroke = 'oklch(58% 0.17 195)', colors = _activeChartColors,
                            fill = true, labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
   const elRef = useRef(null);
   const ec    = useRef(null);
@@ -455,18 +506,18 @@ export function LineChart({ data, height = 220, stroke = 'oklch(58% 0.17 195)', 
       grid: { top: multi ? 36 : 12, right: 12, bottom: 28, left: 16, containLabel: true },
       tooltip: { ...EC_TOOLTIP, trigger: 'axis',
         formatter: ps => ps.map(p => `${p.marker}${p.seriesName}: <b>${fmtNum(p.value)}</b>`).join('<br/>') },
-      legend: multi ? { top: 4, textStyle: { color: labelColor, fontSize: 11 }, itemWidth: 12, itemHeight: 8 } : { show: false },
+      legend: multi ? { top: 4, textStyle: { color: labelColor, fontSize: 11, fontFamily: EC_SANS }, itemWidth: 12, itemHeight: 8 } : { show: false },
       xAxis: {
         type: 'category',
         data: data.map(d => String(d[xKey])),
         boundaryGap: false,
-        axisLabel: { color: labelColor, fontSize: 10, hideOverlap: true },
+        axisLabel: { color: labelColor, fontSize: 11, hideOverlap: true, fontFamily: EC_MONO },
         axisLine: { lineStyle: { color: gridColor } },
         axisTick: { show: false },
       },
       yAxis: {
         type: 'value',
-        axisLabel: { color: labelColor, fontSize: 10, formatter: fmtNum },
+        axisLabel: { color: labelColor, fontSize: 11, formatter: fmtNum, fontFamily: EC_MONO },
         splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
         axisLine: { show: false }, axisTick: { show: false },
       },
@@ -484,13 +535,13 @@ export function LineChart({ data, height = 220, stroke = 'oklch(58% 0.17 195)', 
         };
       }),
     }, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 默认 CHART_COLORS 常量；调用方不传时识引用稳定
-  }, [data, stroke, fill, labelColor, gridColor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 用 join 键接入 deps（v0.9.0 外观切换需重绘；数组引用每渲染新建，join 保稳定）
+  }, [data, stroke, fill, labelColor, gridColor, colors.join(',')]);
 
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }
 
-export function BarChart({ data, height = 220, color = 'oklch(58% 0.17 195)', colors = CHART_COLORS,
+export function BarChart({ data, height = 220, color = 'oklch(58% 0.17 195)', colors = _activeChartColors,
                           labelColor = '#8a8d93', gridColor = 'rgba(0,0,0,0.06)' }) {
   const elRef = useRef(null);
   const ec    = useRef(null);
@@ -513,17 +564,17 @@ export function BarChart({ data, height = 220, color = 'oklch(58% 0.17 195)', co
       grid: { top: multi ? 36 : 12, right: 12, bottom: 48, left: 16, containLabel: true },
       tooltip: { ...EC_TOOLTIP, trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: ps => ps.map(p => `${p.marker}${p.seriesName}: <b>${fmtNum(p.value)}</b>`).join('<br/>') },
-      legend: multi ? { top: 4, textStyle: { color: labelColor, fontSize: 11 }, itemWidth: 12, itemHeight: 8 } : { show: false },
+      legend: multi ? { top: 4, textStyle: { color: labelColor, fontSize: 11, fontFamily: EC_SANS }, itemWidth: 12, itemHeight: 8 } : { show: false },
       xAxis: {
         type: 'category',
         data: data.map(d => String(d[xKey])),
-        axisLabel: { color: labelColor, fontSize: 10, interval: 0, rotate: data.length > 8 ? 35 : 0 },
+        axisLabel: { color: labelColor, fontSize: 11, interval: 0, rotate: data.length > 8 ? 35 : 0, fontFamily: EC_MONO },
         axisLine: { lineStyle: { color: gridColor } },
         axisTick: { show: false },
       },
       yAxis: {
         type: 'value',
-        axisLabel: { color: labelColor, fontSize: 10, formatter: fmtNum },
+        axisLabel: { color: labelColor, fontSize: 11, formatter: fmtNum, fontFamily: EC_MONO },
         splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
         axisLine: { show: false }, axisTick: { show: false },
       },
@@ -535,13 +586,13 @@ export function BarChart({ data, height = 220, color = 'oklch(58% 0.17 195)', co
         barMaxWidth: 40,
       })),
     }, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 默认 CHART_COLORS 常量；调用方不传时识引用稳定
-  }, [data, color, labelColor, gridColor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 用 join 键接入 deps（v0.9.0 外观切换需重绘）
+  }, [data, color, labelColor, gridColor, colors.join(',')]);
 
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }
 
-export function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor = '#8a8d93' }) {
+export function PieChart({ data, height = 220, colors = _activeChartColors, labelColor = '#8a8d93' }) {
   const elRef = useRef(null);
   const ec    = useRef(null);
 
@@ -568,7 +619,7 @@ export function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor
         formatter: p => `${p.marker}${p.name}: <b>${fmtNum(p.value)}</b> (${p.percent}%)` },
       legend: {
         orient: 'vertical', right: 8, top: 'middle',
-        textStyle: { color: labelColor, fontSize: 11 },
+        textStyle: { color: labelColor, fontSize: 11, fontFamily: EC_SANS },
         icon: 'roundRect', itemWidth: 9, itemHeight: 9,
         formatter: n => n.length > 12 ? n.slice(0, 12) + '…' : n,
       },
@@ -585,8 +636,8 @@ export function PieChart({ data, height = 220, colors = CHART_COLORS, labelColor
         emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.3)' }, focus: 'self' },
       }],
     }, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 默认 CHART_COLORS 常量；调用方不传时识引用稳定
-  }, [data, labelColor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors 用 join 键接入 deps（v0.9.0 外观切换需重绘）
+  }, [data, labelColor, colors.join(',')]);
 
   return <div ref={elRef} style={{ width: '100%', height }} />;
 }

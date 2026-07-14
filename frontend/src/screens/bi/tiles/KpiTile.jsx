@@ -12,7 +12,7 @@ export function KpiTile({ T, tile }) {
   return (
     <Card T={T} title={tile.title}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-        <span style={{ fontSize: 26, fontWeight: 700, color: viz.main ? T.accent : T.text, fontFamily: T.mono }}>{fmtValue(val, viz.unit)}</span>
+        <span style={{ fontSize: 26, fontWeight: 650, color: viz.main ? T.accent : T.text, fontFamily: T.mono }}>{fmtValue(val, viz.unit)}</span>
         {viz.suffix && <span style={{ fontSize: 13, color: T.muted }}>{viz.suffix}</span>}
       </div>
       {viz.hint && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>{viz.hint}</div>}

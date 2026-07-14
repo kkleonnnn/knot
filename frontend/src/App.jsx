@@ -105,7 +105,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{ width: '100vw', height: '100vh', display: 'grid', placeItems: 'center', background: T.bg }}>
+      <div style={{ width: '100vw', height: '100vh', display: 'grid', placeItems: 'center', background: T.ambient || T.bg }}>
         <Spinner size={28} color={T.accent}/>
       </div>
     );

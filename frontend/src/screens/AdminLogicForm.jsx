@@ -13,11 +13,11 @@ function _parseLF(json) {
 }
 
 function _lbl(T) {
-  return { fontSize: 11, color: T.muted, marginBottom: 4, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.06em' };
+  return { fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 500, letterSpacing: '0.02em' };
 }
 function _pre(T) {
   return { margin: 0, padding: 10, background: T.codeBg, borderRadius: 6, border: `1px solid ${T.border}`,
-           fontSize: 11.5, fontFamily: T.mono, color: T.codeText, overflow: 'auto', maxHeight: 240,
+           fontSize: 12, fontFamily: T.mono, color: T.codeText, overflow: 'auto', maxHeight: 240,
            whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 }
 
@@ -109,13 +109,13 @@ export function AdminLogicFormScreen({ T, user, onToggleTheme, onNavigate, onLog
           <div style={{ background: T.content, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: gridCols, padding: '10px 14px',
               borderBottom: `1px solid ${T.border}`, background: insetBg, fontSize: 11, color: T.subtext,
-              fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
+              fontWeight: 500, letterSpacing: '0.02em' }}>
               <div>时间</div><div>问题</div><div>路径</div><div>Catalog</div>
             </div>
             {rows.map(r => (
               <div key={r.id} onClick={() => openRow(r)} style={{ display: 'grid', gridTemplateColumns: gridCols,
                 alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${T.borderSoft}`,
-                fontSize: 12.5, cursor: 'pointer' }}>
+                fontSize: 13, cursor: 'pointer' }}>
                 <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden' }}>{r.created_at}</div>
                 <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.text }}>
                   {r.question || `#msg ${r.message_id}`}

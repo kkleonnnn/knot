@@ -40,11 +40,12 @@ export function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
           </button>
         </div>
       )}
-      {/* Step 2/3/7: 背景 T.content + padding 16 + width 100% + focus-within border/shadow */}
+      {/* Step 2/3/7: 背景 T.content + padding 16 + width 100% + focus-within border/shadow；v0.9.0 玻璃（blur + radius 16） */}
       <div style={{
         background: T.content,
         border: `1px solid ${isFocused ? T.accentSoft : T.inputBorder}`,
-        borderRadius: 14, padding: 16, width: '100%',
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        borderRadius: 16, padding: 16, width: '100%',
         boxShadow: isFocused ? focusShadow : baseShadow,
         transition: 'border-color 200ms, box-shadow 200ms',
         display: 'flex', flexDirection: 'column', gap: 12,
@@ -87,9 +88,10 @@ export function Composer({ T, value, onChange, loading, onSubmit, onKeyDown,
             width: 32, height: 32, borderRadius: 8, border: 'none',
             background: disabled ? T.muted : T.sendBg, color: T.sendFg,
             opacity: disabled ? 0.5 : 1,
+            boxShadow: disabled ? 'none' : (T.glow || 'none'),  // v0.9.0 aurora → 发送键 glow
             display: 'grid', placeItems: 'center',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            transition: 'opacity 150ms, background 150ms',
+            transition: 'opacity 150ms, background 150ms, box-shadow 150ms',
           }}>
             {loading ? <Spinner size={12} color={T.sendFg}/> : <I.send/>}
           </button>

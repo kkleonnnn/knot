@@ -12,7 +12,7 @@ function Bubble({ T, role, error, children }) {
   return (
     <div style={{ display: 'flex', justifyContent: me ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
       <div style={{
-        maxWidth: '86%', padding: '9px 12px', borderRadius: 12, fontSize: 12.5, lineHeight: 1.6,
+        maxWidth: '86%', padding: '9px 12px', borderRadius: 12, fontSize: 13, lineHeight: 1.6,
         whiteSpace: 'pre-wrap',
         background: me ? T.accent : T.chipBg, color: me ? T.sendFg : (error ? T.error : T.text),
         border: me ? 'none' : `1px solid ${error ? T.error : T.border}`,
@@ -94,9 +94,9 @@ export function SkillPanel({ T, report }) {
         <div style={{ background: T.content, border: `1px solid ${T.inputBorder}`, borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
           <textarea ref={taRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} rows={1}
             placeholder="追问这份报表…" disabled={sending}
-            style={{ width: '100%', minHeight: 22, maxHeight: 100, resize: 'none', background: 'transparent', border: 'none', outline: 'none', color: T.text, fontSize: 12.5, fontFamily: 'inherit', lineHeight: 1.55, padding: 0 }} />
+            style={{ width: '100%', minHeight: 22, maxHeight: 100, resize: 'none', background: 'transparent', border: 'none', outline: 'none', color: T.text, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.55, padding: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.mono, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.muted }}>
+            <span style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, letterSpacing: '0.02em', color: T.muted }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.accent, flexShrink: 0 }} />
               仅解读 · 不改写报表
             </span>

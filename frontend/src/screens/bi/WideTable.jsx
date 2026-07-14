@@ -50,7 +50,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
   const thStyle = (i) => ({
     position: 'sticky', top: 0, zIndex: i === 0 ? 4 : 3, background: T.bg,
     padding: '9px 14px', textAlign: i === 0 ? 'left' : 'right', color: T.muted, fontFamily: T.mono,
-    fontWeight: 500, fontSize: 10.5, letterSpacing: '0.03em', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
+    fontWeight: 500, fontSize: 11, letterSpacing: '0.03em', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
     borderBottom: `1px solid ${T.border}`, ...(i === 0 ? { left: 0, borderRight: `1px solid ${T.border}` } : {}),
   });
   const tdStyle = (c, i, v) => {
@@ -58,7 +58,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
     if (i === 0) return { ...base, position: 'sticky', left: 0, zIndex: 1, background: T.content, borderRight: `1px solid ${T.border}` };
     if (isConditional(c)) {
       const pos = Number(v) >= 0;
-      return { ...base, fontWeight: 600, color: pos ? T.success : RED, background: pos ? 'color-mix(in oklch, ' + T.success + ' 12%, transparent)' : 'color-mix(in oklch, ' + RED + ' 12%, transparent)' };
+      return { ...base, fontWeight: 650, color: pos ? T.success : RED, background: pos ? 'color-mix(in oklch, ' + T.success + ' 12%, transparent)' : 'color-mix(in oklch, ' + RED + ' 12%, transparent)' };
     }
     return base;
   };
@@ -84,7 +84,7 @@ export function WideTable({ T, rows = [], cfg = {}, overlay = [], maxHeight = 52
               {cols.map((c, i) => {
                 const v = cells[colLetter(i)];
                 const warn = typeof v === 'string' && v.startsWith('⚠');
-                return <td key={c} style={{ ...tdStyle(c, i, v), position: 'sticky', top: 34 + ri * 34, zIndex: i === 0 ? 3 : 2, fontWeight: 600, background: ovBg, color: warn ? T.warn : T.text }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
+                return <td key={c} style={{ ...tdStyle(c, i, v), position: 'sticky', top: 34 + ri * 34, zIndex: i === 0 ? 3 : 2, fontWeight: 650, background: ovBg, color: warn ? T.warn : T.text }}>{v === undefined ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v))}</td>;
               })}
             </tr>
           ))}

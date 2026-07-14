@@ -6,7 +6,7 @@ import { CHART_COLORS } from '../../../Shared.jsx';
 export function Card({ T, title, children, style }) {
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, ...style }}>
-      {title && <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 12 }}>{title}</div>}
+      {title && <div style={{ fontSize: 13, fontWeight: 650, color: T.text, marginBottom: 12 }}>{title}</div>}
       {children}
     </div>
   );
@@ -30,7 +30,7 @@ export function Donut({ T, slices, big, sub }) {
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center' }}>
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: T.text }}>{big}</div>
+          <div style={{ fontSize: 24, fontWeight: 650, color: T.text }}>{big}</div>
           <div style={{ fontSize: 11, color: T.muted }}>{sub}</div>
         </div>
       </div>

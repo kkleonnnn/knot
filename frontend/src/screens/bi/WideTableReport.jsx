@@ -17,7 +17,7 @@ export function WideTableReport({ T, report }) {
   const tabStyle = (on) => ({
     padding: '8px 16px', background: on ? T.bg : T.content, border: `1px solid ${T.border}`,
     borderBottom: on ? `1px solid ${T.bg}` : 'none', marginBottom: on ? -1 : 0, borderRadius: '7px 7px 0 0',
-    color: on ? T.accent : T.subtext, fontSize: 12.5, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
+    color: on ? T.accent : T.subtext, fontSize: 13, fontFamily: T.sans, cursor: 'pointer', fontWeight: on ? 600 : 500,
   });
 
   // 空报表（未跑）不显示装饰页签，只出「暂无数据」—— 保 ②a 抽 WideTable 前行为（复核 minor 修）

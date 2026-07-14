@@ -11,7 +11,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* R-527/R-528 API Keys Card — padding 16→20 + radius 10→12 + header 14/600/-0.01em + desc 1.55 */}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>API Key（应用级）</div>
+        <div style={{ fontSize: 14, fontWeight: 650, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>API Key（应用级）</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.55 }}>所有用户共用 · OpenRouter 用于 LLM、Embedding 用于知识库向量检索（默认 text-embedding-3-small，未填则降级关键词匹配）</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <Input T={T} label="OpenRouter API Key" value={apiKeys.openrouter_api_key}
@@ -33,7 +33,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
 
       {/* R-530 Agent Allocation Card — padding/radius 升级 + 3-col grid 120/1fr/90px */}
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>Agent 模型分配</div>
+        <div style={{ fontSize: 14, fontWeight: 650, color: T.text, letterSpacing: '-0.01em', marginBottom: 4 }}>Agent 模型分配</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.55 }}>为每个 agent 指定模型，留空则跟随系统默认（DEFAULT_MODEL）</div>
         {[
           { key: 'clarifier',   label: '理解问题',   hint: '推荐轻量' },
@@ -83,11 +83,11 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
           <div>名称</div><div>提供方</div><div>Model ID</div><div>单价(入/出)</div><div>上下文</div><div>状态</div><div></div>
         </div>
         {models.map((m, i) => (
-          <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px', padding: '11px 16px', borderBottom: i < models.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+          <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 1.4fr 1fr 0.8fr 0.7fr 100px', padding: '11px 16px', borderBottom: i < models.length - 1 ? `1px solid ${T.borderSoft}` : 'none', alignItems: 'center', fontSize: 13, opacity: m.enabled ? 1 : 0.55 }}>
             <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               <span style={{ color: T.text, fontWeight: 500 }}>{m.name}</span>
               {/* R-534 默认 chip 保 T.accentSoft byte-equal（D6 保守） */}
-              {m.is_default ? <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 600 }}>默认</span> : null}
+              {m.is_default ? <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 3, background: T.accentSoft, color: T.accent, fontWeight: 650 }}>默认</span> : null}
             </div>
             <div style={{ color: T.subtext, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.provider}</div>
             {/* R-546 Model ID Mono 守护 — 技术元数据识别度 */}
@@ -102,7 +102,7 @@ export function TabResources({ T, models, apiKeys, setApiKeys, apiKeysSaving, on
                 : '—'}
             </div>
             {/* R-535 状态文字 byte-equal */}
-            <div style={{ fontSize: 11.5, color: m.enabled ? T.success : T.muted, minWidth: 0 }}>{m.enabled ? '启用' : '禁用'}</div>
+            <div style={{ fontSize: 12, color: m.enabled ? T.success : T.muted, minWidth: 0 }}>{m.enabled ? '启用' : '禁用'}</div>
             <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
               <button onClick={() => onSetDefaultModel(m.id)} style={iconBtn(T)} title="设为默认"><I.check/></button>
               <button onClick={() => onToggleModel(m.id)} style={iconBtn(T)} title="启用/禁用"><I.zap/></button>

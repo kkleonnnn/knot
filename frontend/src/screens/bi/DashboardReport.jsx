@@ -37,7 +37,7 @@ export function DashboardReport({ T, report, isAdmin = false, onAddWidget }) {
             <button onClick={onAddWidget} title="添加组件"
               style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 9, background: 'transparent', border: `1px dashed ${T.border}`, borderRadius: 12, color: T.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-              <span style={{ fontSize: 12.5, fontWeight: 500 }}>添加组件</span>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>添加组件</span>
             </button>
           </div>
         )}

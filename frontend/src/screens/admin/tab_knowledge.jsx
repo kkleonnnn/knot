@@ -53,20 +53,20 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
           {/* v0.5.35 stats — demo knowledge.jsx L58-75 byte-equal（4-grid） */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>文档数</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, fontFamily: T.mono, letterSpacing: '-0.02em', marginTop: 4 }}>{knowledgeDocs.length}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>文档数</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.text, fontFamily: T.mono, letterSpacing: '-0.02em', marginTop: 4 }}>{knowledgeDocs.length}</div>
             </div>
             <div title="后端文件大小字段对接中 (v0.5.38)" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>总大小</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.muted, fontFamily: T.mono, marginTop: 4 }}>—</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>总大小</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.muted, fontFamily: T.mono, marginTop: 4 }}>—</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>索引状态</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.accent, fontFamily: T.mono, marginTop: 4 }}>{indexedCount} / {knowledgeDocs.length}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>索引状态</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.accent, fontFamily: T.mono, marginTop: 4 }}>{indexedCount} / {knowledgeDocs.length}</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase' }}>上次更新</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginTop: 4 }}>{lastUpdate}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>上次更新</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.text, marginTop: 4 }}>{lastUpdate}</div>
             </div>
           </div>
 
@@ -93,7 +93,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
               <I.dl width="20" height="20" style={{ transform: 'rotate(180deg)' }}/>
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>拖拽文件到这里上传</div>
+              <div style={{ fontSize: 14, fontWeight: 650, color: T.text }}>拖拽文件到这里上传</div>
               <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>支持 .md / .pdf / .txt · 单文件 ≤ 10 MB · 上传后自动切块、向量化并加入检索</div>
             </div>
           </div>
@@ -117,13 +117,13 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                     <FileIcon T={T} type={ext}/>
                     <div style={{ color: T.text, fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</div>
                     <div style={{ minWidth: 0 }}>
-                      <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, fontSize: 10.5, fontFamily: T.mono, textTransform: 'uppercase' }}>{ext}</span>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, fontSize: 11, fontWeight: 500, textTransform: 'uppercase' }}>{ext}</span>
                     </div>
                     <div title="后端文件大小字段对接中 (v0.5.38)" style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0 }}>—</div>
-                    <div style={{ color: T.muted, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_relativeTime(d.created_at)}</div>
-                    <div title={`${d.chunk_count || 0} 分块`} style={{ color: T.text, fontFamily: T.mono, fontSize: 11.5, textAlign: 'right', minWidth: 0 }}>{d.chunk_count || 0}</div>
+                    <div style={{ color: T.muted, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_relativeTime(d.created_at)}</div>
+                    <div title={`${d.chunk_count || 0} 分块`} style={{ color: T.text, fontFamily: T.mono, fontSize: 12, textAlign: 'right', minWidth: 0 }}>{d.chunk_count || 0}</div>
                     <div style={{ minWidth: 0 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: isIndexed ? T.success : T.warn }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: isIndexed ? T.success : T.warn }}>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }}/>
                         {isIndexed ? '已索引' : '待索引'}
                       </span>
@@ -165,14 +165,14 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
                 <span style={{ color: T.muted }}>共</span>
-                <span style={{ fontFamily: T.mono, fontWeight: 600, color: T.text }}>{fewShots.length}</span>
+                <span style={{ fontFamily: T.mono, fontWeight: 650, color: T.text }}>{fewShots.length}</span>
                 <span style={{ color: T.muted }}>条示例</span>
                 <div style={{ flex: 1 }}/>
                 {types.map(tg => (
                   <span key={tg} style={{
                     padding: '2px 8px', borderRadius: 4,
                     background: T.bg, color: T.subtext,
-                    fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+                    fontSize: 11, fontWeight: 500, fontFamily: T.mono,
                     textTransform: 'uppercase', letterSpacing: '0.04em',
                     border: `1px solid ${T.border}`,
                   }}>{tg}</span>
@@ -216,10 +216,10 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                     </svg>
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.question}</div>
+                    <div style={{ fontSize: 13, fontWeight: 650, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.question}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>fs.{f.id}</span>
-                      <span style={{ fontSize: 10, color: T.muted }}>·</span>
+                      <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted }}>fs.{f.id}</span>
+                      <span style={{ fontSize: 11, color: T.muted }}>·</span>
                       <span style={{ fontSize: 11, color: f.is_active ? T.success : T.muted }}>{f.is_active ? '启用中' : '已停用'}</span>
                     </div>
                   </div>
@@ -228,7 +228,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                     <span style={{
                       padding: '2px 8px', borderRadius: 4,
                       background: T.bg, color: T.subtext,
-                      fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+                      fontSize: 11, fontWeight: 500, fontFamily: T.mono,
                       textTransform: 'uppercase', letterSpacing: '0.04em',
                       border: `1px solid ${T.border}`,
                     }}>{f.type}</span>
@@ -239,7 +239,7 @@ export function TabKnowledge({ T, tab, loading, knowledgeDocs, onDeleteKbDoc, on
                       <path d="M3 20h18M4 16l5-6 4 3 7-8"/>
                     </svg>
                     <span style={{ fontFamily: T.mono }}>—</span>
-                    <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em' }}>HITS</span>
+                    <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em' }}>HITS</span>
                   </div>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
                     <button onClick={() => onEditFewShot(f)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
@@ -312,7 +312,7 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
                 background: isActive ? T.accent : T.bg,
                 color: isActive ? T.sendFg : T.muted,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, fontFamily: T.mono, letterSpacing: '0.04em',
+                fontSize: 11, fontWeight: 650, fontFamily: T.mono, letterSpacing: '0.04em',
               }}>{a.letter}</span>
               <span style={{ fontWeight: isActive ? 600 : 500, fontFamily: T.mono, fontSize: 12 }}>{a.key}</span>
               <span style={{ fontSize: 11, color: T.muted }}>· {a.desc}</span>
@@ -329,7 +329,7 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 18px', borderBottom: `1px solid ${T.border}`,
-            fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase',
+            fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em',
           }}>
             <I.pencil width="12" height="12"/>
             <span>SYSTEM PROMPT · {active.key}</span>
@@ -337,13 +337,13 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
             <span style={{
               padding: '2px 8px', borderRadius: 4,
               background: `color-mix(in oklch, ${T.accent} 12%, transparent)`,
-              color: T.accent, fontSize: 10.5, fontWeight: 500, fontFamily: T.mono,
+              color: T.accent, fontSize: 11, fontWeight: 500, fontFamily: T.mono,
               textTransform: 'uppercase', letterSpacing: '0.02em',
             }}>v current</span>
             <div style={{ flex: 1 }}/>
             <span style={{ textTransform: 'none', letterSpacing: 0, fontSize: 11, color: T.muted }}>~{estTokens} tokens</span>
             <button onClick={() => onSavePrompt(activeKey)} disabled={promptsSaving[activeKey]}
-                    style={{ ...pillBtn(T, true), padding: '4px 10px', fontSize: 11.5, textTransform: 'none', letterSpacing: 0 }}>
+                    style={{ ...pillBtn(T, true), padding: '4px 10px', fontSize: 12, textTransform: 'none', letterSpacing: 0 }}>
               {promptsSaving[activeKey] ? <><Spinner size={10} color={T.sendFg}/> 保存中</> : '保存'}
             </button>
           </div>
@@ -355,7 +355,7 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
             style={{
               flex: 1, minHeight: 360, resize: 'none',
               padding: '18px 20px',
-              fontFamily: T.mono, fontSize: 12.5, lineHeight: 1.7,
+              fontFamily: T.mono, fontSize: 13, lineHeight: 1.7,
               color: T.text, background: T.bg,
               border: 'none', outline: 'none',
               whiteSpace: 'pre',
@@ -373,7 +373,7 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
         }}>
           {/* 注入变量 (demo L138-153 byte-equal) */}
           <div>
-            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 10 }}>
               注入变量
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -384,7 +384,7 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
                   background: T.bg, borderRadius: 6,
                   border: `1px solid ${T.border}`,
                 }}>
-                  <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, fontWeight: 500 }}>{v.name}</span>
+                  <span style={{ fontFamily: T.mono, fontSize: 12, color: T.accent, fontWeight: 500 }}>{v.name}</span>
                   <span style={{ fontSize: 11, color: T.muted, lineHeight: 1.4 }}>{v.desc}</span>
                 </div>
               ))}
@@ -393,11 +393,11 @@ function PromptsView({ T, prompts, setPrompts, promptsSaving, onSavePrompt }) {
 
           {/* 版本历史 (demo L155-180) — 真版本历史推 v0.5.38 后端 prompts.version_log */}
           <div>
-            <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 10 }}>
               版本历史
             </div>
             <div style={{
-              fontSize: 11.5, color: T.muted, lineHeight: 1.5,
+              fontSize: 12, color: T.muted, lineHeight: 1.5,
               padding: '10px 12px', background: T.bg,
               borderRadius: 6, border: `1px solid ${T.border}`,
             }}>

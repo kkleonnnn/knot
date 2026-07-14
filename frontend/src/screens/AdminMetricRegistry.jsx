@@ -4,7 +4,7 @@
 // pillBtn/FormRow/inputStyleMono/theadStyle）。CRUD → /api/admin/metrics-registry（C2 端点）。
 // OOS-1：metric.catalog_id 水平切分（默认 1）；lineage v0.7.16 激活为派生定义 {op,left,right}（占比/人均）。
 import { useState, useEffect, useRef } from 'react';
-import { toast, Spinner } from '../utils.jsx';
+import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
 import { api } from '../api.js';
@@ -39,7 +39,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
   const selInvert = () => setSel(s => new Set(ids().filter(id => !s.has(id))));
   async function batchDelete() {
     const list = [...sel];
-    if (!list.length || !confirm(`删除选中的 ${list.length} 个指标？此操作不可撤销。`)) return;
+    if (!list.length || !await confirmDialog(`删除选中的 ${list.length} 个指标？此操作不可撤销。`)) return;
     let ok = 0;
     for (const id of list) {
       try { await api.del(`/api/admin/metrics-registry/${id}`); ok += 1; }
@@ -83,7 +83,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
       op, left, right,
     });
   }
-  function handleReset() { setEditingId(null); setDraft(_EMPTY); }
+  async function handleReset() { setEditingId(null); setDraft(_EMPTY); }
 
   async function handleSave() {
     const isDerived = draft.op && draft.left.trim() && draft.right.trim();   // op+左右 齐 → 派生
@@ -109,7 +109,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
   }
 
   async function handleDelete(m) {
-    if (!confirm(`删除指标「${m.name}」？此操作不可撤销。`)) return;
+    if (!await confirmDialog(`删除指标「${m.name}」？此操作不可撤销。`)) return;
     try {
       await api.del(`/api/admin/metrics-registry/${m.id}`);
       toast('指标已删除');
@@ -231,13 +231,13 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
               {metrics.map((m, i) => (
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '11px 16px',
                   borderBottom: i < metrics.length - 1 ? `1px solid ${T.borderSoft}` : 'none',
-                  alignItems: 'center', fontSize: 12.5, opacity: m.enabled ? 1 : 0.55 }}>
+                  alignItems: 'center', fontSize: 13, opacity: m.enabled ? 1 : 0.55 }}>
                   <div><input type="checkbox" checked={sel.has(m.id)} onChange={() => toggleSel(m.id)} style={{ cursor: 'pointer', accentColor: T.accent }}/></div>
-                  <div style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                  <div style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                   <div style={{ color: T.subtext, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.display || '—'}</div>
                   <div style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.caliber}</div>
                   <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11 }}>#{m.catalog_id}</div>
-                  <div style={{ fontSize: 11.5, color: m.enabled ? T.success : T.muted, minWidth: 0 }}>{m.enabled ? '启用' : '禁用'}</div>
+                  <div style={{ fontSize: 12, color: m.enabled ? T.success : T.muted, minWidth: 0 }}>{m.enabled ? '启用' : '禁用'}</div>
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <button onClick={() => handleEdit(m)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
                     <button onClick={() => handleDelete(m)} style={iconBtn(T)} title="删除"><I.x/></button>

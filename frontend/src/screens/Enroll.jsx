@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { I, KnotLogo, TOKENS_V2 } from '../Shared.jsx';
-import { Spinner, toast } from '../utils.jsx';
+import { Spinner, toast, confirmDialog } from '../utils.jsx';
 import { api } from '../api.js';
 
 // v0.6.5.2 F5：enroll secret/QR 缓存在 sessionStorage（tab 关即清，符合 totp.py:71 不持久化意图）。
@@ -99,24 +99,21 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
     setDownloaded(true);
   };
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!downloaded) {
       toast('必须先下载 recovery codes 才能完成');
       return;
     }
-    if (!confirm_window('已妥善保存 recovery codes? 完成后将进入 KNOT')) return;
+    if (!await confirmDialog('已妥善保存 recovery codes? 完成后将进入 KNOT')) return;
     onEnrolled();
   };
-
-  // 安全的 window.confirm wrapper（避免 ESLint no-restricted-globals）
-  function confirm_window(msg) { return window.confirm(msg); }
 
   return (
     <div style={{
       width: '100vw', height: '100vh',
       color: T.text, fontFamily: T.sans, fontSize: 13.5,
       display: 'grid', placeItems: 'center',
-      background: T.bg, position: 'relative', overflow: 'auto',
+      background: T.ambient || T.bg, position: 'relative', overflow: 'auto',
     }}>
       <button onClick={onToggleTheme} style={{
         position: 'fixed', top: 20, right: 22, zIndex: 3,
@@ -128,14 +125,14 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
       <div style={{ width: '100%', maxWidth: 460, padding: '40px 32px' }}>
         <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 12 }}>
           <KnotLogo T={T} size={22}/>
-          <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' }}>
             {['enroll', 'verify', 'backup', 'confirm'][step - 1]} · step {step}/4
           </span>
         </div>
 
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text }}>启用双因素认证 (2FA)</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text }}>启用双因素认证 (2FA)</div>
             <div style={{ fontSize: 13, color: T.subtext, lineHeight: 1.7 }}>
               用 Google Authenticator / Authy / 1Password 等 APP 扫描下方二维码（或手动输入 secret）：
             </div>
@@ -154,7 +151,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             <button onClick={() => setStep(2)} disabled={!qrDataurl} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
               background: qrDataurl ? T.accent : T.muted, color: T.sendFg,
-              fontSize: 14, fontWeight: 600, cursor: qrDataurl ? 'pointer' : 'not-allowed',
+              fontSize: 14, fontWeight: 650, cursor: qrDataurl ? 'pointer' : 'not-allowed',
             }}>下一步 — 输入动态码</button>
             <button onClick={handleLogoutWithClear} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none',
@@ -166,7 +163,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
 
         {step === 2 && (
           <form onSubmit={submitCode} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text }}>输入 6 位动态码</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text }}>输入 6 位动态码</div>
             <div style={{ fontSize: 13, color: T.subtext, lineHeight: 1.7 }}>
               在认证 APP 中查看当前 6 位码（每 30 秒刷新一次）
             </div>
@@ -181,7 +178,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             <button type="submit" disabled={loading || code.length < 6} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
               background: (loading || code.length < 6) ? T.muted : T.accent, color: T.sendFg,
-              fontSize: 14, fontWeight: 600, cursor: (loading || code.length < 6) ? 'not-allowed' : 'pointer',
+              fontSize: 14, fontWeight: 650, cursor: (loading || code.length < 6) ? 'not-allowed' : 'pointer',
             }}>{loading ? <><Spinner size={14} color={T.sendFg}/> 验证中…</> : '验证 + 继续'}</button>
             <button type="button" onClick={() => setStep(1)} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none', cursor: 'pointer', padding: 4,
@@ -191,7 +188,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
 
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text }}>保存 Recovery Codes</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text }}>保存 Recovery Codes</div>
             <div style={{
               fontSize: 13, padding: '10px 14px', borderRadius: 8,
               background: `color-mix(in oklch, ${T.warn} 13%, transparent)`,
@@ -210,27 +207,27 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
             <button onClick={downloadRecoveryCodes} style={{
               padding: '13px 14px', border: `1px solid ${T.accent}`, borderRadius: 8,
               background: downloaded ? `color-mix(in oklch, ${T.accent} 12%, transparent)` : T.content,
-              color: T.accent, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              color: T.accent, fontSize: 14, fontWeight: 650, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>{downloaded ? <>✓ 已下载（点击重新下载）</> : <>下载 recovery codes 文件</>}</button>
             <button onClick={() => setStep(4)} disabled={!downloaded} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
               background: downloaded ? T.accent : T.muted, color: T.sendFg,
-              fontSize: 14, fontWeight: 600, cursor: downloaded ? 'pointer' : 'not-allowed',
+              fontSize: 14, fontWeight: 650, cursor: downloaded ? 'pointer' : 'not-allowed',
             }}>下一步</button>
           </div>
         )}
 
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ fontSize: 22, fontWeight: 600, color: T.text }}>确认完成</div>
+            <div style={{ fontSize: 22, fontWeight: 650, color: T.text }}>确认完成</div>
             <div style={{ fontSize: 13, color: T.subtext, lineHeight: 1.7 }}>
               下次登录时除账号密码外，还需输入认证 APP 显示的动态码。<br/>
               手机丢失？使用 recovery code（已下载文件）登录。
             </div>
             <button onClick={confirm} style={{
               padding: '13px 14px', border: 'none', borderRadius: 8,
-              background: T.accent, color: T.sendFg, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              background: T.accent, color: T.sendFg, fontSize: 14, fontWeight: 650, cursor: 'pointer',
             }}>完成 — 进入 KNOT</button>
             <button onClick={() => setStep(3)} style={{
               fontSize: 13, color: T.subtext, background: 'transparent', border: 'none',
@@ -246,7 +243,7 @@ export function EnrollScreen({ T, user, onEnrolled, onLogout, onToggleTheme }) {
 function ErrorBanner({ T: _T, msg }) {
   return (
     <div style={{
-      fontSize: 12.5, padding: '8px 12px', borderRadius: 6,
+      fontSize: 13, padding: '8px 12px', borderRadius: 6,
       color: TOKENS_V2.err,
       background: `color-mix(in oklch, ${TOKENS_V2.err} 12%, transparent)`,
       border: `1px solid color-mix(in oklch, ${TOKENS_V2.err} 25%, transparent)`,

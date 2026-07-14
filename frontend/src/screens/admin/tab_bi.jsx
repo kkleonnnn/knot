@@ -3,14 +3,14 @@
 // C2：目录 新建 / 重命名(行内) / 删除 / 拖拽排序（后端 folders CRUD + reorder 已就绪，require_admin）。
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../api.js';
-import { toast } from '../../utils.jsx';
+import { toast, confirmDialog } from '../../utils.jsx';
 import { PermissionMatrix } from './bi_permissions.jsx';   // v0.8.12 C4a 权限矩阵
 
 function Panel({ T, title, desc, children }) {
   return (
     <div style={{ maxWidth: 760 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, color: T.text, margin: '0 0 4px' }}>{title}</h2>
-      {desc && <p style={{ fontSize: 12.5, color: T.subtext, margin: '0 0 18px', lineHeight: 1.6 }}>{desc}</p>}
+      <h2 style={{ fontSize: 16, fontWeight: 650, color: T.text, margin: '0 0 4px' }}>{title}</h2>
+      {desc && <p style={{ fontSize: 13, color: T.subtext, margin: '0 0 18px', lineHeight: 1.6 }}>{desc}</p>}
       {children}
     </div>
   );
@@ -29,8 +29,8 @@ function FolderRow({ T, folder, onRename, onDelete, dnd }) {
         onBlur={() => { if (name.trim() && name !== folder.name) onRename(folder.id, name.trim()); else setName(folder.name); }}
         onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') { setName(folder.name); e.target.blur(); } }}
         style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', padding: '2px 0' }} />
-      {folder.parent_id != null && <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>子目录</span>}
-      <button onClick={() => onDelete(folder.id)} title="删除目录" style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>×</button>
+      {folder.parent_id != null && <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, flexShrink: 0 }}>子目录</span>}
+      <button onClick={() => onDelete(folder.id)} title="删除目录" style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>×</button>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function DirectoryManager({ T }) {
     catch (e) { toast(String(e.message || e), true); reload(); }
   };
   const del = async (id) => {
-    if (!confirm('删除该目录？内含报表将移到「未分组」、子目录升为顶层。')) return;
+    if (!await confirmDialog('删除该目录？内含报表将移到「未分组」、子目录升为顶层。')) return;
     try { await api.del(`/api/bi/folders/${id}`); reload(); toast('已删除'); }
     catch (e) { toast(String(e.message || e), true); }
   };

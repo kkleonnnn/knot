@@ -77,7 +77,7 @@ export function AddWidgetModal({ T, report, onClose, onSaved }) {
         <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>SQL（只读；存前校验）</div>
         <textarea value={sql} onChange={(e) => setSql(e.target.value)} rows={4} spellCheck={false}
           placeholder={'SELECT sta_date, reg_user_num\nFROM ohx_ads.ads_operation_report_daily\nORDER BY sta_date DESC LIMIT 8'}
-          style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8, padding: '9px 11px', fontSize: 12.5, color: T.text, fontFamily: T.mono, resize: 'vertical' }} />
+          style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8, padding: '9px 11px', fontSize: 13, color: T.text, fontFamily: T.mono, resize: 'vertical' }} />
         <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>列映射（值列/日期列等）添加后在「编辑」里细调。</div>
       </div>
       <div style={{ padding: '14px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>

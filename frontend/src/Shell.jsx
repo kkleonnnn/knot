@@ -1,4 +1,6 @@
-import { I, KnotLogo, iconBtn } from './Shared.jsx';
+import { useState } from 'react';
+import { I, KnotLogo, iconBtn, ACCENT_HUES } from './Shared.jsx';
+import { getAppearance, setAppearance } from './utils.jsx';
 import { APP_VERSION } from './version.js';
 import { ModeToggle } from './screens/bi/ModeToggle.jsx';  // v0.8.5 ②a — 右上角 ASK/BI 集群（两模式一致）  // v0.6.4.11 task #44 — 前端版本单一真相源（不再硬编）
 
@@ -12,13 +14,18 @@ export function AppShell({
   showConnectionPill = false, connectionOk = true,
   connectedCount = null,  // v0.5.38 — 数据源已连接数（null 不显示 N）
   homeMode,               // v0.8.5 ②a — 子屏「返回」目标（chat / bi）；不传则回落读持久化
+  // onToggleTheme v0.9.2 后 Shell 内不再使用（模式入弹层）；留位防调用方破缺（App.jsx 仍传）
+  // eslint-disable-next-line no-unused-vars
   onToggleTheme, onNavigate, onLogout,
   children,
 }) {
   const isAdmin = user && user.role === 'admin';
   const initials = user ? (user.display_name || user.username || '?').slice(0, 2).toUpperCase() : '?';
+  // v0.9.0 外观弹层开关（风格/主题色/模式 — setAppearance 即时生效）
+  const [showAppearance, setShowAppearance] = useState(false);
   // v0.6.4.2 UI v2 — floating inset 面板 chrome（R-313 rgba 豁免 — boxShadow；dark 无阴影）
-  const panelShadow = T.dark ? 'none' : '0 1px 3px rgba(15,30,45,0.04)';
+  // v0.9.0 — 玻璃 chrome：panelShadow 归 token（含 inset 高光），旧主题回退保留
+  const panelShadow = T.panelShadow || (T.dark ? 'none' : '0 1px 3px rgba(15,30,45,0.04)');
   // v0.8.5 ②a —「返回」目标 = 来时的顶层模式：优先 prop，回落读 App 写入的持久化 cb_home_mode
   // （子屏 AdminScreen/SavedReports 等不透传 prop → 靠持久化，从 BI 进设置返回 BI 而非硬回 chat）
   const backMode = homeMode || (() => {
@@ -29,14 +36,16 @@ export function AppShell({
   return (
     <div style={{
       width: '100vw', height: '100vh', display: 'flex', gap: 10, padding: 10,
-      background: T.bg, color: T.text, fontFamily: T.sans,
+      background: T.ambient || T.bg, color: T.text, fontFamily: T.sans,
       fontSize: 13.5, overflow: 'hidden', letterSpacing: '-0.003em', lineHeight: 1.5,
+      fontVariantNumeric: T.nums,  // v0.9.1 全局 tabular-nums：表格/KPI/趋势数字等宽对齐
     }}>
-      {/* ═══ Sidebar — v0.6.4.2 floating inset 面板（radius 14 + 全 border + boxShadow） ═══ */}
+      {/* ═══ Sidebar — v0.9.0 玻璃浮窗（radius 18 + backdrop-blur + 高光描边 + panelShadow token） ═══ */}
       <aside style={{
         width: 236, flexShrink: 0,
-        background: T.sidebar, border: `1px solid ${T.border}`,
-        borderRadius: 14, overflow: 'hidden', boxShadow: panelShadow,
+        background: T.sidebar, border: `1px solid ${T.glassBorder || T.border}`,
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        borderRadius: 18, overflow: 'hidden', boxShadow: panelShadow,
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand 区 — R-199 KnotLogo（R-186 抗诱惑解禁仅限 Shell 一处 R-199.5）
@@ -155,13 +164,13 @@ export function AppShell({
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
             background: T.accent, color: T.sendFg,
-            display: 'grid', placeItems: 'center', fontSize: 11.5, fontWeight: 600, flexShrink: 0,
+            display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 650, flexShrink: 0,
           }}>{initials}</div>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.2, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.display_name || user?.username}
             </span>
-            <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               {user?.role}
             </span>
           </div>
@@ -172,11 +181,12 @@ export function AppShell({
         </div>
       </aside>
 
-      {/* ═══ Main — v0.6.4.2 floating inset 面板（radius 14 + 全 border + boxShadow） ═══ */}
+      {/* ═══ Main — v0.9.0 玻璃浮窗（radius 18 + backdrop-blur + 高光描边 + panelShadow token） ═══ */}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
-        background: T.content, border: `1px solid ${T.border}`,
-        borderRadius: 14, overflow: 'hidden', boxShadow: panelShadow,
+        background: T.content, border: `1px solid ${T.glassBorder || T.border}`,
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        borderRadius: 18, overflow: 'hidden', boxShadow: panelShadow,
       }}>
         <header style={{
           height: 56, flexShrink: 0, padding: '0 24px',
@@ -202,9 +212,20 @@ export function AppShell({
               </span>
             )}
             {topbarTrailing}
-            <button onClick={onToggleTheme} style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${T.border}` }} title="切换主题">
-              {T.dark ? <I.sun/> : <I.moon/>}
-            </button>
+            {/* v0.9.0 外观弹层：风格（雾面/极光）× 主题色（4 色）× 浅深模式 */}
+            <span style={{ position: 'relative', display: 'inline-flex' }}>
+              <button onClick={() => setShowAppearance(s => !s)} title="外观"
+                style={{ ...iconBtn(T), width: 30, height: 30, border: `1px solid ${showAppearance ? T.accent : T.border}`, color: showAppearance ? T.accent : T.subtext }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="9"/>
+                  <circle cx="12" cy="7.5" r="1.3" fill="currentColor" stroke="none"/>
+                  <circle cx="8" cy="12" r="1.3" fill="currentColor" stroke="none"/>
+                  <circle cx="15.5" cy="13.5" r="1.3" fill="currentColor" stroke="none"/>
+                </svg>
+              </button>
+              {showAppearance && <AppearancePopover T={T} onClose={() => setShowAppearance(false)}/>}
+            </span>
+            {/* v0.9.2 顶栏独立深浅 switch 剔除（与弹层「模式」重复）；onToggleTheme prop 保留给 Login/Enroll/FCP 无弹层屏 */}
             {/* v0.8.5 ②a：ASK/BI 模式切换（chat + bi 两模式共用同一 Shell topbar 集群；admin 屏不渲染 → byte-equal 不变）*/}
             {(active === 'chat' || active === 'bi') && onNavigate && <ModeToggle T={T} active={active} onNavigate={onNavigate}/>}
           </div>
@@ -217,12 +238,96 @@ export function AppShell({
   );
 }
 
+// v0.9.0 外观弹层：风格（frosted 雾面 / aurora 极光）× 主题色（ACCENT_HUES 4 色）× 浅深模式。
+// setAppearance 写 cb_appearance + 通知 useTheme 订阅者 → 全局即时生效；选项点击不关闭（活预览）。
+function AppearancePopover({ T, onClose }) {
+  const cur = getAppearance();
+  const label = { fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em' };
+  const frostedPrev = T.dark
+    ? 'radial-gradient(70px 40px at 20% 0%, oklch(24% 0.04 210 / 0.7), transparent 70%), #0a0d11'
+    : 'radial-gradient(70px 40px at 20% 0%, oklch(96% 0.02 195), transparent 70%), #f3f6f8';
+  const auroraPrev = T.dark
+    ? 'radial-gradient(60px 36px at 15% 10%, oklch(30% 0.09 292 / 0.85), transparent 70%), radial-gradient(60px 36px at 90% 30%, oklch(26% 0.08 250 / 0.75), transparent 70%), radial-gradient(70px 40px at 50% 110%, oklch(26% 0.07 325 / 0.65), transparent 70%), #0a070d'
+    : 'radial-gradient(60px 36px at 15% 10%, oklch(90% 0.07 292 / 0.9), transparent 70%), radial-gradient(60px 36px at 90% 30%, oklch(91% 0.06 245 / 0.8), transparent 70%), radial-gradient(70px 40px at 50% 110%, oklch(92% 0.06 165 / 0.7), transparent 70%), #f4f3f8';
+  const styleTile = (key, name, preview) => {
+    const on = cur.style === key;
+    return (
+      <button key={key} onClick={() => setAppearance({ style: key })} style={{
+        borderRadius: 12, padding: on ? 4 : 5, display: 'flex', flexDirection: 'column', gap: 5,
+        cursor: 'pointer', textAlign: 'left', background: T.card, fontFamily: 'inherit',
+        border: on ? `2px solid ${T.accent}` : `1px solid ${T.border}`,
+        boxShadow: on ? `0 0 0 3px color-mix(in oklch, ${T.accent} 14%, transparent)` : 'none',
+      }}>
+        <span style={{ height: 44, borderRadius: 8, border: `1px solid ${T.borderSoft}`, background: preview, display: 'block' }}/>
+        <span style={{ fontSize: 12, fontWeight: on ? 600 : 400, color: on ? T.text : T.subtext, padding: '0 3px 2px' }}>{name}</span>
+      </button>
+    );
+  };
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }}/>
+      <div style={{
+        position: 'absolute', top: 38, right: 0, width: 288, zIndex: 999,
+        borderRadius: 16, background: T.content, border: `1px solid ${T.glassBorder || T.border}`,
+        backdropFilter: T.blur, WebkitBackdropFilter: T.blur,
+        boxShadow: T.panelShadow, padding: 14,
+        display: 'flex', flexDirection: 'column', gap: 13, cursor: 'default',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span style={{ fontSize: 13, fontWeight: 650, color: T.text }}>外观</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: T.mono, color: T.muted }}>仅影响本人 · 即时生效</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={label}>风格</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {styleTile('frosted', '雾面 · 克制', frostedPrev)}
+            {styleTile('aurora', '极光 · 多彩', auroraPrev)}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={label}>主题色</span>
+          <div style={{ display: 'flex', gap: 10, padding: 2, alignItems: 'center' }}>
+            {Object.entries(ACCENT_HUES).map(([key, def]) => {
+              const on = cur.hue === key;
+              const c = `oklch(${T.dark ? '72%' : '58%'} 0.17 ${def.h})`;
+              return (
+                <button key={key} onClick={() => setAppearance({ hue: key })} title={def.label} style={{
+                  width: 24, height: 24, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+                  background: c,
+                  boxShadow: on ? `0 0 0 2px ${T.dark ? '#11151b' : '#ffffff'}, 0 0 0 4px ${c}` : 'none',
+                }}/>
+              );
+            })}
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: T.mono, color: T.muted }}>OKLCH 同亮度</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={label}>模式</span>
+          <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 10, border: `1px solid ${T.border}`, background: T.card }}>
+            {[['light', '浅色'], ['dark', '深色'], ['system', '跟随系统']].map(([m, name]) => {
+              const on = cur.mode === m;
+              return (
+                <button key={m} onClick={() => setAppearance({ mode: m })} style={{
+                  flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 12, fontWeight: on ? 500 : 400,
+                  background: on ? T.accent : 'transparent', color: on ? T.sendFg : T.subtext,
+                  boxShadow: on ? (T.glow || 'none') : 'none',
+                }}>{name}</button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function SideHeading({ T, children }) {
   // R-204: 字体改 T.mono（与 Login "SIGN IN" mono 风格统一）
   return (
     <div style={{
-      padding: '14px 20px 6px', fontSize: 10, color: T.muted,
-      fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase',
+      padding: '14px 20px 6px', fontSize: 11, color: T.muted,
+      fontWeight: 500, letterSpacing: '0.02em',
     }}>{children}</div>
   );
 }

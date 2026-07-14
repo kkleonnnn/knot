@@ -39,9 +39,9 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
                 <Avatar T={T} lineHeight={1}>{(u.display_name || u.username || '?').slice(0, 1).toUpperCase()}</Avatar>
                 <span style={{ color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.display_name || u.username}</span>
               </div>
-              <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</div>
+              <div style={{ color: T.subtext, fontFamily: T.mono, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</div>
               <div style={{ minWidth: 0 }}>{roleChip(u.role)}</div>
-              <div style={{ fontSize: 11.5, color: u.is_active ? T.success : T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.is_active ? '正常' : '已停用'}</div>
+              <div style={{ fontSize: 12, color: u.is_active ? T.success : T.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.is_active ? '正常' : '已停用'}</div>
               <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                 <button onClick={() => onEditUser(u)} style={iconBtn(T)} title="编辑"><I.pencil/></button>
                 {/* v0.6.2.0 R-PB-B1-5：admin 重置 TOTP（高危 — bump_token_version 触发用户旧 JWT 失效；audit_log INSERT）*/}
@@ -63,21 +63,21 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
               已连接 value 走 T.success 绿色 tone='ok'（demo s.tone==='ok'?T.ok:t.text） */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>已连接</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.success, letterSpacing: '-0.01em' }}>{sources.length}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>已连接</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.success, letterSpacing: '-0.01em' }}>{sources.length}</div>
             </div>
             {/* v0.5.40 — 真数据 from /api/admin/datasources-stats */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总 schema</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_schemas : '—'}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>总 schema</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_schemas : '—'}</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>总表数</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_tables : '—'}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>总表数</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? dsStats.total_tables : '—'}</div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>上次心跳</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? _heartbeatRelative(dsStats.last_heartbeat) : '—'}</div>
+              <div style={{ fontSize: 11, color: T.muted, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>上次心跳</div>
+              <div style={{ fontSize: 22, fontWeight: 650, color: T.text, letterSpacing: '-0.01em' }}>{dsStats ? _heartbeatRelative(dsStats.last_heartbeat) : '—'}</div>
             </div>
           </div>
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -98,10 +98,10 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
                   <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: `color-mix(in oklch, ${T.accent} 8%, transparent)`, color: T.accent, fontSize: 11, letterSpacing: '0.02em', fontFamily: T.mono }}>{s.db_type || 'doris'}</span>
                 </div>
                 <div title={s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`} style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`}</div>
-                <div title="后端数据对接中 (v0.6+)" style={{ color: T.muted, fontFamily: T.mono, fontSize: 11.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>—</div>
+                <div title="后端数据对接中 (v0.6+)" style={{ color: T.muted, fontFamily: T.mono, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>—</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: s.status === 'online' ? T.success : T.warn, minWidth: 0, overflow: 'hidden' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.status === 'online' ? T.success : T.warn, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.status === 'online' ? '正常' : '异常'}</span>
+                  <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.status === 'online' ? '正常' : '异常'}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                   <button onClick={() => onEditSource(s)} style={iconBtn(T)} title="编辑"><I.pencil/></button>

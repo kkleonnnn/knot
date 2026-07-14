@@ -32,7 +32,7 @@ export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, o
           knot · ready
         </div>
         <h1 style={{
-          fontSize: 36, fontWeight: 600, color: T.text,
+          fontSize: 36, fontWeight: 650, color: T.text,
           letterSpacing: '-0.035em', lineHeight: 1.15,
           margin: 0, textAlign: 'center',
           wordBreak: 'keep-all', maxWidth: 640,
@@ -77,7 +77,7 @@ export function ChatEmpty({ T, user, question, setQuestion, loading, onSubmit, o
         </div>
         {/* v0.6.1 R-PA-PB-1：窄场景宣告 — 简要 hint，详 README §能做不能做 */}
         <div style={{
-          marginTop: 6, fontSize: 10.5, color: T.muted, opacity: 0.7,
+          marginTop: 6, fontSize: 11, color: T.muted, opacity: 0.7,
           letterSpacing: '0.02em',
         }}>
           当前支持 SELECT 类查询 · 复杂归因 / 跨域分析 / 动作触发等场景见 README

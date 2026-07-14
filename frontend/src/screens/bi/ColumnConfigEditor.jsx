@@ -7,7 +7,7 @@
 import { colLetter } from './tiles/tile_data.js';
 
 export function ColumnConfigEditor({ T, tile, viz, onChange }) {
-  const fld = { padding: '4px 6px', borderRadius: 5, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 11.5, fontFamily: T.sans };
+  const fld = { padding: '4px 6px', borderRadius: 5, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: T.sans };
   const cfg = viz.columns || {};
 
   let snapCols = [];
@@ -36,7 +36,7 @@ export function ColumnConfigEditor({ T, tile, viz, onChange }) {
         return (
           <div key={col} style={{ display: 'flex', gap: 5, marginBottom: 4, alignItems: 'center' }}>
             <span title={`列 ${colLetter(idx)} · ${col}`} style={{ width: 96, flexShrink: 0, fontSize: 11, color: T.subtext, fontFamily: T.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <span style={{ color: T.accent, fontWeight: 600 }}>{colLetter(idx)}</span> {col}
+              <span style={{ color: T.accent, fontWeight: 650 }}>{colLetter(idx)}</span> {col}
             </span>
             <input value={c.label || ''} onChange={(e) => updCol(col, { label: e.target.value })} placeholder="表头名" style={{ ...fld, flex: 1, minWidth: 0 }} />
             <input value={c.desc || ''} onChange={(e) => updCol(col, { desc: e.target.value })} placeholder="口径(hover)" style={{ ...fld, flex: 1.4, minWidth: 0 }} />

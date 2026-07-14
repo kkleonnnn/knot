@@ -15,7 +15,7 @@ export function BudgetBanner({ T, budget_status, budget_meta, onDismiss }) {
         : `color-mix(in oklch, ${T.warn} 13%, transparent)`,
       border: `1px solid ${budget_status === 'block' ? T.accent : T.warn}`,
       color: budget_status === 'block' ? T.accent : T.warn,
-      fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 10,
+      fontSize: 13, display: 'flex', alignItems: 'center', gap: 10,
     }}>
       <SvgPath d={budget_status === 'block' ? SHIELD_PATH : TRIANGLE_PATH} size={16}/>
       <span style={{ flex: 1 }}>

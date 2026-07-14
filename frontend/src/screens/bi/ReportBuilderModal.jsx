@@ -93,7 +93,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
             placeholder={'SELECT dt AS 日期, coin AS 币种, bal AS 余额\nFROM dwd_daily\nORDER BY dt DESC'}
             style={{
               width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7,
-              padding: '9px 11px', fontSize: 12.5, color: T.text, fontFamily: T.mono, resize: 'vertical',
+              padding: '9px 11px', fontSize: 13, color: T.text, fontFamily: T.mono, resize: 'vertical',
             }} />
         </div>
         )}
@@ -131,7 +131,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
             <div style={{ fontSize: 12, color: T.subtext, marginBottom: 5, fontWeight: 500 }}>洞察（底部 AI 生成位；可留空）</div>
             <textarea value={insight} onChange={(e) => setInsight(e.target.value)} rows={2} spellCheck={false}
               placeholder="一句话结论（展示在仪表盘底部洞察卡）"
-              style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '9px 11px', fontSize: 12.5, color: T.text, fontFamily: T.sans, resize: 'vertical' }} />
+              style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: T.text, fontFamily: T.sans, resize: 'vertical' }} />
           </div>
           )}
         </>
@@ -139,7 +139,7 @@ export function ReportBuilderModal({ T, editing, folders = [], dataSources = [],
       </div>
       <div style={{ padding: '14px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
         <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, border: `1px solid ${T.border}`, background: 'transparent', color: T.subtext, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>取消</button>
-        <button onClick={save} disabled={saving} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: T.accent, color: T.sendFg, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
+        <button onClick={save} disabled={saving} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: T.accent, color: T.sendFg, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 650, opacity: saving ? 0.6 : 1 }}>
           {saving ? '保存中…' : (editing ? '保存' : '创建')}
         </button>
       </div>

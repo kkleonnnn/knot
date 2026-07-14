@@ -24,12 +24,12 @@ function _SingleMetric({ T, rows, cols, numericCols, columnLabels = {}, columnFo
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
       {labelCol && r[labelCol] !== undefined && (
-        <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 6, letterSpacing: '0.04em',
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, letterSpacing: '0.04em',
                       textTransform: 'uppercase' }}>
           {columnLabels[labelCol] || labelCol}: {String(r[labelCol])}
         </div>
       )}
-      <div style={{ fontSize: 48, fontWeight: 600, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>
+      <div style={{ fontSize: 48, fontWeight: 650, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>
         {fmtValue(r[valueCol], columnFormats[valueCol])}
       </div>
       <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{columnLabels[valueCol] || valueCol}</div>
@@ -46,7 +46,7 @@ function _MultiStatGrid({ T, rows, cols, numericCols, columnLabels = {}, columnF
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
       {labelCol && r[labelCol] !== undefined && (
-        <div style={{ fontSize: 11.5, color: T.muted, marginBottom: 14, letterSpacing: '0.04em',
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, letterSpacing: '0.04em',
                       textTransform: 'uppercase' }}>
           {columnLabels[labelCol] || labelCol}: {String(r[labelCol])}
         </div>
@@ -54,10 +54,10 @@ function _MultiStatGrid({ T, rows, cols, numericCols, columnLabels = {}, columnF
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
         {numericCols.map(c => (
           <div key={c}>
-            <div style={{ fontSize: 28, fontWeight: 600, color: T.text, fontFamily: T.mono, lineHeight: 1.15 }}>
+            <div style={{ fontSize: 28, fontWeight: 650, color: T.text, fontFamily: T.mono, lineHeight: 1.15 }}>
               {fmtValue(r[c], columnFormats[c])}
             </div>
-            <div style={{ fontSize: 11.5, color: T.muted, marginTop: 4, letterSpacing: '0.04em',
+            <div style={{ fontSize: 12, color: T.muted, marginTop: 4, letterSpacing: '0.04em',
                           textTransform: 'uppercase' }}>{columnLabels[c] || c}</div>
           </div>
         ))}
