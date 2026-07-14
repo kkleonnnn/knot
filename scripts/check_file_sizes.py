@@ -46,7 +46,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/chat/ChatEmpty.jsx":     100,
     "frontend/src/screens/chat/Conversation.jsx":  250,
     "frontend/src/screens/chat/ThinkingCard.jsx":  240,  # v0.6.1.4 220→240 (HTTP path Trace 分支)
-    "frontend/src/screens/chat/Composer.jsx":      100,
+    "frontend/src/screens/chat/Composer.jsx":      115,  # v0.8.14 UI：输入框玻璃 + 发送键 glow + radius 16 →102
     # ResultBlock 6 子组件（v0.6.0.2）+ FeedbackBar（v0.6.0.3）
     "frontend/src/screens/chat/ResultBlock/MetricCard.jsx":      80,  # v0.6.2.2 复合 metric 多值网格
     "frontend/src/screens/chat/ResultBlock/TableContainer.jsx":  100,
@@ -114,9 +114,9 @@ EXPLICIT_LIMITS = {
     # Foundation + 基础设施
     "frontend/src/Shared.jsx":                     760,  # v0.6.4.0 UI v2 (TOKENS_V2 + 16 图标 additive)
     "frontend/src/primitives.jsx":                 150,  # v0.6.4.0 UI v2 (Btn/Tag 独立文件)
-    "frontend/src/utils.jsx":                      200,  # v0.6.2.3 Foundation 纳管
+    "frontend/src/utils.jsx":                      235,  # v0.6.2.3 Foundation 纳管；v0.8.14 UI +外观 store(getAppearance/setAppearance/useTheme)+Modal 玻璃化+confirmDialog/ConfirmHost →215
     "frontend/src/decor/NarrativeMotif.jsx":       120,
-    "frontend/src/Shell.jsx":                      260,  # v0.7.7 +指标监控；v0.8.5 ②a +ModeToggle+backMode →233；v0.8.12 C1 +BI 设置 nav 分栏（backMode==='bi' 分支）→250（headroom 10）
+    "frontend/src/Shell.jsx":                      375,  # v0.7.7 +指标监控；v0.8.5 ②a +ModeToggle+backMode →233；v0.8.12 C1 +BI 设置 nav 分栏 →250；v0.8.14 UI +AppearancePopover(约 100 行)+玻璃面板+顶栏外观按钮 →354（headroom 21）
     "frontend/src/error_reporter.js":              120,  # v0.6.0.4 throttle/dedupe
     "frontend/src/ErrorBoundary.jsx":              120,  # v0.7.33 B1.1 App+ResultBlock error boundary
     # 杂项（非 knot 后端，不被 auto-discover 覆盖）
