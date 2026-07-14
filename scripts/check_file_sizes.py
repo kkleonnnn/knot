@@ -86,6 +86,11 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/bi/AddWidgetModal.jsx":         100,  # v0.8.10 §5 添加组件弹窗（6 类型 chip + 指标 + 周期 + SQL）  # v0.8.10 §5 6 组件 + 卡头（基准还原）  # ②b tiles[] 分发渲染
     "frontend/src/screens/bi/ModeToggle.jsx":             60,   # ASK/BI 分段 pill
     "frontend/src/screens/bi/InsightCard.jsx":            50,
+    # v0.8.15 分享（截图引擎 + 离屏快照重建 + 玻璃弹窗）
+    "frontend/src/screens/bi/snapshot.js":                90,   # foreignObject→canvas→PNG 序列化器（零依赖）
+    "frontend/src/screens/bi/SnapshotDashboard.jsx":      60,   # 仪表盘离屏快照重建（复用 DashboardWidget noGrip）
+    "frontend/src/screens/bi/SnapshotTable.jsx":          60,   # 宽表/tabbed 当前页离屏快照重建（复用 WideTable ≤50 行）
+    "frontend/src/screens/bi/ShareModal.jsx":             160,  # 玻璃分享弹窗（多选白名单 + 截图 + POST）
     "frontend/src/screens/bi/formula.js":                 400,  # ⭐ 安全承重（零 eval 求值器 R-BI-11）；guards 增长 ACK
     "frontend/src/screens/bi/formula.test.js":            220,  # 公式对抗/正确性单测
     "frontend/src/screens/bi/tiles/_shared.jsx":          100,  # Card/Donut/TileState 共享件
@@ -108,7 +113,7 @@ EXPLICIT_LIMITS = {
     "frontend/src/screens/admin/tab_resources.jsx": 250,
     "frontend/src/screens/admin/tab_knowledge.jsx": 440,  # v0.5.35/36 Knowledge + Few-shot 完整 UI
     "frontend/src/screens/admin/tab_system.jsx":   250,
-    "frontend/src/screens/admin/tab_bi.jsx":       200,  # v0.8.12 C1 BI 设置（目录/权限/da-asst）；C2/C4/C5 填充
+    "frontend/src/screens/admin/tab_bi.jsx":       245,  # v0.8.12 C1 BI 设置（目录/权限）；v0.8.15 +分享配置（IM 凭据 + 白名单 CRUD）→225
     "frontend/src/screens/admin/bi_permissions.jsx": 120,  # v0.8.12 C4a 权限矩阵
     "frontend/src/screens/admin/modals.jsx":       320,  # v0.6.1.4 SourceFormModal HTTP type 5 字段
     # Foundation + 基础设施

@@ -39,6 +39,14 @@ def can(user, report: dict, action: str) -> bool:
     return effective(user, report).get(action, False)
 
 
+def can_share_anything(user) -> bool:
+    """user 是否对任意报表/目录持 share 权（分享选择器 GET /api/bi/share/targets 门）。
+    admin 恒 True；否则单次索引探测。用于收敛「任何登录用户可枚举投递目标名」的最小权限缺口。"""
+    if _is_admin(user):
+        return True
+    return repo.user_has_any_share_grant((user or {}).get("id"))
+
+
 def can_folder(user, folder_id, action: str) -> bool:
     """user 对某目录是否有 action 权限（create_report 归档建报表用）。admin 恒 True；
     未分组（folder_id None）非 admin → False（无 report_id 可授，未分组建报表仅 admin）。"""

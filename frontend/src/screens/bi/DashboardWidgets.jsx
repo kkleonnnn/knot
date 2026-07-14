@@ -52,16 +52,18 @@ function statOf(tile) {
 const deltaStr = (d) => (d == null ? '—' : `${d >= 0 ? '▲' : '▼'}${(Math.abs(d) * 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
 
 // ── 统一卡头 + 外壳 ─────────────────────────────────────────────────────────────
-export function WidgetCard({ T, title, kind, dot, children }) {
+export function WidgetCard({ T, title, kind, dot, children, noGrip = false }) {
   return (
     <div style={{ width: '100%', height: '100%', background: T.content, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '11px 12px 8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{ width: 6, height: 6, borderRadius: 2, flexShrink: 0, background: dot }} />
         <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 650, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         {kind && <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: '0.05em', flexShrink: 0 }}>{kind}</span>}
+        {!noGrip && (  /* v0.8.15 分享：快照重建节点省拖拽 grip（截图 chrome 过滤） */
         <span style={{ display: 'inline-flex', color: T.muted, flexShrink: 0 }} title="拖拽排布">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3" /><circle cx="15" cy="6" r="1.3" /><circle cx="9" cy="12" r="1.3" /><circle cx="15" cy="12" r="1.3" /><circle cx="9" cy="18" r="1.3" /><circle cx="15" cy="18" r="1.3" /></svg>
         </span>
+        )}
       </div>
       {children}
     </div>
@@ -239,12 +241,12 @@ function TableBody({ T, tile }) {
 
 const BODIES = { stat: StatBody, pair: PairBody, trend: TrendBody, donut: DonutBody, bars: BarsBody, table: TableBody };
 
-export function DashboardWidget({ T, tile, index }) {
+export function DashboardWidget({ T, tile, index, noGrip = false }) {
   const meta = WIDGET_META[tile.tile_type] || WIDGET_META.stat;
   const Body = BODIES[tile.tile_type] || StatBody;
   const { error } = parseTile(tile);
   return (
-    <WidgetCard T={T} title={tile.title} kind={meta.w >= 6 ? meta.kind : null} dot={dotColor(index)}>
+    <WidgetCard T={T} title={tile.title} kind={meta.w >= 6 ? meta.kind : null} dot={dotColor(index)} noGrip={noGrip}>
       {error
         ? <div style={{ flex: 1, display: 'grid', placeItems: 'center', fontSize: 12, color: RED, padding: 12 }}>⚠ {error}</div>
         : <Body T={T} tile={tile} />}

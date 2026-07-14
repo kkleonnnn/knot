@@ -330,7 +330,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
   };
 
   const TAB_TITLES = { users: '用户', sources: '数据源', models: 'API & 模型', knowledge: '知识库', fewshots: 'Few-shot 示例', prompts: 'Prompt 模板', catalog: '业务目录',
-    'bi-directory': '报表目录', 'bi-permissions': '目录权限' };   // v0.8.12（da-asst 移入 API&模型）
+    'bi-directory': '报表目录', 'bi-permissions': '目录权限', 'bi-share': '分享' };   // v0.8.12（da-asst 移入 API&模型）；v0.8.15 +分享
 
   const roleChip = (role) => {
     const map = { admin: ['#FF4B4B', 'rgba(255,75,75,0.12)'], analyst: ['#2B7FFF', 'rgba(43,127,255,0.12)'] };
@@ -429,7 +429,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
         )}
 
         {/* v0.8.12 C1 — BI 设置专属 tab（从 BI 齿轮进；自包含 fetch） */}
-        {(tab === 'bi-directory' || tab === 'bi-permissions' || tab === 'bi-daasst') && (
+        {(tab === 'bi-directory' || tab === 'bi-permissions' || tab === 'bi-daasst' || tab === 'bi-share') && (
           <TabBI T={T} tab={tab}/>
         )}
       </div>

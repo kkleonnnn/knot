@@ -27,6 +27,7 @@ AuditAction = Literal[
     "config.agent_models_update", "config.prompt_update",
     "config.catalog_update", "config.few_shots_change",
     "config.budget_update",  # v0.6.5.9 修 admin.py budget-config 审计调用崩溃（原裸字符串错位 TypeError）
+    "config.im_share_update",  # v0.8.14 分享 IM 凭据 + 投递目标白名单变更（emit knot/api/admin/share.py）
     # v0.6.2.5 段 4 (A1): 多 catalog 切换（per-user active catalog；AuditAction 38→39）
     "catalog.switch",
     # v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离第②层 assert 失败（async race 漂移；39→40）
@@ -52,6 +53,7 @@ AuditAction = Literal[
     # emit 在 knot/api/bi_reports.py；per-literal guard = tests/api/test_metric_invariant_guards.py
     "bi_report.create", "bi_report.update", "bi_report.delete", "bi_report.refresh",
     "bi_report.analyze",  # v0.8.10 da-asst 只读报表解读（LLM 花费事件 → 归属 + R-BI-8 留痕）
+    "bi_report.share",  # v0.8.14 分享报表/仪表盘快照 PNG 到 Lark/TG（数据出境事件 → R-BI-8 留痕；emit knot/api/bi_share.py）
     "bi_permission.change",  # v0.8.12 RBAC：admin 改角色×目录/报表 grant（治理事件）
     "report_folder.create", "report_folder.update", "report_folder.delete",
     # 用户反馈（v0.6.0.3 F-A）
@@ -71,6 +73,8 @@ AuditResourceType = Literal[
     "saved_report", "audit",
     # v0.8.5 (②a) BI 模式
     "bi_report", "report_folder",
+    # v0.8.14 分享 IM 凭据 + 投递目标白名单
+    "share_target",
     # v0.6.0.3 F-A: 反馈关联 message
     "message",
 ]

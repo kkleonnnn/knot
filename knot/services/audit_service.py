@@ -36,6 +36,10 @@ _PII_BLACKLIST = frozenset({
     # 加 totp_secret 时漏同步本黑名单（破 R-62）。补 totp_secret + recovery_code（兜底资产）+ secret（通用）。
     # 守护测试断言 _PII_BLACKLIST ⊇ _USER_ENCRYPTED_COLS 防未来再漏。
     "totp_secret", "recovery_code", "secret",
+    # v0.8.14 分享 IM 凭据（R-BI-SHARE-2）：加进 settings_repo._SENSITIVE_KEYS 必同步此处。
+    # ⚠️ _scrub 精确键匹配 → 通用 "secret" 不 substring 命中 "lark_app_secret"，须显式列出。
+    # superset CI test_R62_pii_superset_of_sensitive_keys 强制（漏一即红）。
+    "lark_app_secret", "telegram_bot_token",
 })
 
 _REDACTED = "••••redacted••••"

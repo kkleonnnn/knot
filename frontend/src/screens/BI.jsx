@@ -13,6 +13,7 @@ import { TabbedTableReport } from './bi/TabbedTableReport.jsx';
 import { SkillPanel } from './bi/SkillPanel.jsx';
 import { ReportBuilderModal } from './bi/ReportBuilderModal.jsx';
 import { AddWidgetModal } from './bi/AddWidgetModal.jsx';
+import { ShareModal } from './bi/ShareModal.jsx';
 
 async function download(path, filename) {
   try {
@@ -67,6 +68,7 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
   const [selected, setSelected] = useState(null);
   const [builder, setBuilder] = useState(null);
   const [addWidget, setAddWidget] = useState(null);   // v0.8.10 §5「添加组件」弹窗（当前仪表盘）
+  const [shareReport, setShareReport] = useState(null);   // v0.8.15 分享弹窗
   const [folderModal, setFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -156,11 +158,11 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
                     {/* v0.8.9 #3：宽表 + 多页表可导出（dashboard=图表板块拒）。CSV 多页表=当前页（tile_id）；Excel 多页表=多 sheet 全页。*/}
                     {can('export') && (selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="csv" label="CSV" onClick={() => download(`/api/bi/reports/${selected.id}/export.csv${selected.report_type === 'tabbed' && activeTile ? `?tile_id=${activeTile}` : ''}`, `bi_report_${selected.id}.csv`)} />}
                     {can('export') && (selected.report_type === 'wide_table' || selected.report_type === 'tabbed') && <ActBtn T={T} icon="excel" label="Excel" onClick={() => download(`/api/bi/reports/${selected.id}/export.xlsx`, `bi_report_${selected.id}.xlsx`)} />}
-                    {can('share') && <ActBtn T={T} iconNode={SHARE_ICON} label="分享" title="分享报表（即将上线）" onClick={() => toast('分享功能即将上线')} />}
+                    {can('share') && <ActBtn T={T} iconNode={SHARE_ICON} label="分享" onClick={() => setShareReport(selected)} />}
                     {can('edit') && <ActBtn T={T} icon="trash" label="删除" danger onClick={del} />}
                   </div>
                   {selected.report_type === 'dashboard'
-                    ? <DashboardReport T={T} report={selected} isAdmin={isAdmin} onAddWidget={() => setAddWidget(selected)} />
+                    ? <DashboardReport T={T} report={selected} canEdit={can('edit')} onAddWidget={() => setAddWidget(selected)} />
                     : selected.report_type === 'tabbed'
                       ? <TabbedTableReport T={T} report={selected} onActiveTile={setActiveTile} />
                       : <WideTableReport T={T} report={selected} />}
@@ -185,6 +187,9 @@ export function BIScreen({ T, user, onToggleTheme, onNavigate, onLogout, dbOk, s
       {addWidget && (
         <AddWidgetModal T={T} report={addWidget}
           onClose={() => setAddWidget(null)} onSaved={() => { if (selected) loadSelected(selected.id); }} />
+      )}
+      {shareReport && (
+        <ShareModal T={T} report={shareReport} activeTileId={activeTile} onClose={() => setShareReport(null)} />
       )}
       {folderModal && (
         <Modal T={T} onClose={() => setFolderModal(false)} width={420}>

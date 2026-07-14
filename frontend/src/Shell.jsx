@@ -101,6 +101,10 @@ export function AppShell({
                             onClick={() => onNavigate('admin-bi-directory')}/>
                 <SideNavRow T={T} icon={<I.shield/>} label="目录权限" active={active === 'admin-bi-permissions'}
                             onClick={() => onNavigate('admin-bi-permissions')}/>
+                {/* v0.8.15 分享设置（IM 凭据 + 投递目标白名单）；share glyph 复用 BI.jsx 同款、sized 15 匹配 nav */}
+                <SideNavRow T={T} label="分享" active={active === 'admin-bi-share'}
+                            onClick={() => onNavigate('admin-bi-share')}
+                            icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>}/>
               </>
             )}
             {isAdmin && backMode !== 'bi' && (

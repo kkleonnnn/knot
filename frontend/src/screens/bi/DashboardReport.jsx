@@ -6,17 +6,18 @@ import { InsightCard } from './InsightCard.jsx';
 import { DashboardWidget } from './DashboardWidgets.jsx';
 import { WIDGET_META } from './tiles/tile_data.js';
 
-export function DashboardReport({ T, report, isAdmin = false, onAddWidget }) {
+// v0.8.15 分享 D2：门控从 isAdmin → canEdit（= admin ∨ 被授 can_edit），与工具栏「编辑」按钮一致。
+export function DashboardReport({ T, report, canEdit = false, onAddWidget }) {
   const cfg = useMemo(() => { try { return JSON.parse(report.dashboard_config || '{}'); } catch { return {}; } }, [report.dashboard_config]);
   const tiles = useMemo(
     () => [...(report.tiles || [])].sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id)),
     [report.tiles],
   );
 
-  if (!tiles.length && !isAdmin) {
+  if (!tiles.length && !canEdit) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: T.muted, fontSize: 13 }}>
-        该仪表盘暂无组件 —— admin 点「编辑」添加。
+        该仪表盘暂无组件 —— 点「编辑」添加。
       </div>
     );
   }
@@ -32,7 +33,7 @@ export function DashboardReport({ T, report, isAdmin = false, onAddWidget }) {
             </div>
           );
         })}
-        {isAdmin && (
+        {canEdit && (
           <div style={{ gridColumn: 'span 3', gridRow: 'span 1', minWidth: 0 }}>
             <button onClick={onAddWidget} title="添加组件"
               style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 9, background: 'transparent', border: `1px dashed ${T.border}`, borderRadius: 12, color: T.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
