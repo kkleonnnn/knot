@@ -17,9 +17,19 @@ from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
 from knot.api.bi_reports import require_report_perm
+from knot.api.deps import get_current_user
+from knot.repositories import bi_share_target_repo as target_repo
 from knot.services import bi_share_service as share_svc
 
 router = APIRouter()
+
+
+@router.get("/api/bi/share/targets")
+async def list_share_targets_for_picker(user=Depends(get_current_user)):
+    """用户分享选择器用：列白名单目标（仅 id/name/platform；**不含 chat_id/凭据**）。
+    任何已认证用户可列（选择器；实际投递由 /share 端点 require_report_perm('share') + 服务端 target_id 校验守）。"""
+    return [{"id": t["id"], "name": t["name"], "platform": t["platform"]}
+            for t in target_repo.list_targets()]
 
 _MAX_PNG_BYTES = 8 * 1024 * 1024        # 快照 PNG 原始上限 8MB（TG/Lark 各 10MB，留裕量）
 _MAX_BODY_BYTES = 12 * 1024 * 1024      # 请求体声明上限（base64 膨胀 ~33% + JSON 开销）
