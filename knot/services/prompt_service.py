@@ -13,8 +13,8 @@ import re
 
 _PROMPT_DIR = pathlib.Path(__file__).resolve().parents[1] / "prompts"
 
-# v0.6.0 F2.8 — 3 agents 与 knot/prompts/*.md 文件映射
-_DEFAULT_PROMPT_AGENTS = ("sql_planner", "clarifier", "presenter")
+# v0.6.0 F2.8 — agents 与 knot/prompts/*.md 文件映射（v0.8.18 ③ +da_asst）
+_DEFAULT_PROMPT_AGENTS = ("sql_planner", "clarifier", "presenter", "da_asst")
 
 
 def _safe_format(template: str, mapping: dict) -> str:
