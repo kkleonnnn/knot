@@ -34,3 +34,8 @@ Frontend (JavaScript):
   - React (MIT) — https://github.com/facebook/react
   - Vite (MIT) — https://github.com/vitejs/vite
   - ECharts (Apache-2.0) — https://github.com/apache/echarts
+
+Embedded content (vendored):
+  - da-asst 决策应答原则 (7 应答原则) — knot/prompts/da_asst.md 内嵌自
+    https://github.com/kkleonnnn/da-asst (commit b8543a1) 的「决策应答原则-可粘贴提示词.md」，
+    受该库 LICENSE-CONTENT 约束（同作者 kk；v0.8.18 ③ 仅内嵌 7 应答原则行为核心，未内嵌通用知识包/reference）。
