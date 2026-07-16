@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.18 — ③ da-asst 洞察嵌入（system prompt .md 化 + 真嵌入 · presenter 分析纪律对齐）
+## [Unreleased] - v0.8.19 — 整体审核收口 19a：上传问数隔离 + uuid 表名 + 存量 P1 修（走完整 v3 · 守护者 Stage 3 major-revise 整合）
+
+> v0.8→v0.9 MINOR 滚动整体审核（三方独立意见 + 资深仲裁）后的「地基夯平」收口 PATCH 首刀（19a）。
+> 完整 Loop Protocol v3：Stage 1 草案 → Codex Stage 2 → 守护者 Stage 3 终审（major-revise，5 blocking must-fix）→ 执行者整合。
+> 本刀 = F1（上传隔离）+ F5（uuid 表名）+ 顺带修既存 P1；19b（F2/F4/F6a/F7/F8）为 v0.8.20。
+> 完整审核归档见 `docs/plans/v0.8-to-v0.9-overall-review-opinions.md` + `docs/plans/v0.8.19-overall-review-closeout.md`。
+
+### Fixed
+- **⭐ 既存 P1（上传功能 100% 坏，与 F1/F5 无关）**：`load_rows_to_sqlite`（`doris.py`）在 SQLAlchemy 2.x 下用 `text()` + `?` 占位 + 标量 list 被当 executemany 要求 list-of-dicts → **任何用户上传任何 CSV/Excel 都 500**（`List argument must consist only of dictionaries`）。改**命名参数 `:pN` + list-of-dicts executemany**。此前无测覆盖 INSERT 路径 → 静默坏；本 PATCH F5 E2E 测撞出（资深拍板保留在 19a）。
+- **F1 上传问数隔离（HIGH · 守护者 must-fix #1）**：上传数据表从主库 `knot.db` 迁往**独立 `uploads.db`** → 上传 NL 生成的 SQL 物理上无法 `SELECT users / app_settings / audit_log`（只读闸 `_is_safe_sql` 挡写不挡跨表读，故靠库边界 fail-closed 隔离）。`file_uploads` 元数据仍留 knot.db。**退役旧 `_migrate_uploads_db_once`**（把 uploads.db 吞回主库，与隔离方向相反 → 若不退役会每次启动把隔离后的 uploads.db 再吞回，守护者对抗复核 catch）；新 `_migrate_uploads_to_isolated_db_once` 迁存量 t_*（备份 + 逐表行数校验 + 校验通过才删主库侧 + 失败保 last-good + 幂等）。
+- **F5 上传表名唯一（MEDIUM）**：表名绑 `t_<uuid>`（非文件名）→ 同名文件跨用户/同用户均不 DROP-覆盖；文件名只留 `file_uploads.filename` 元数据。
+- **删除清物理表**：`DELETE /api/uploads/{id}` 原仅删元数据行 → 补 `drop_sqlite_table` 清 uploads.db 物理表（不留孤儿）。
+
+### Tests
+- `tests/repositories/test_upload_isolation.py`（3）：引擎脱主库 guard · 存量迁移行数保留 · **退役迁移不吞回**。
+- `tests/integration/test_upload_isolation.py`（2）：同名文件不覆盖 E2E（uuid） · 删除清物理表。
+
+### 版本
+- 4 源点 0.8.18→0.8.19（main.py / version.js / README banner / test_rename_smoke）；顺带订正 R-72 路由数注释 124→**143**（守护者 must-fix #5，因 bump 必动该行）。**注**：README/CLAUDE 其余 doc drift + F8 全量归 19b。
+
+## [Released] - v0.8.18 — ③ da-asst 洞察嵌入（system prompt .md 化 + 真嵌入 · presenter 分析纪律对齐）
 
 > 完整 Loop Protocol v3（Stage 1 手册 LOCKED + 守护者 grounded 终审 ACCEPT WITH REVISIONS + 快通道执行）。
 > BI 右栏「数据分析」助手 da-asst 从 inline stub 升为**与 3-agent 对齐的一等 prompt**：.md 化 + seed DB + admin 可覆盖；

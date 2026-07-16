@@ -1,6 +1,6 @@
 import csv
 import io
-import re
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -62,7 +62,9 @@ async def upload_file(file: UploadFile = File(...), user=Depends(get_current_use
     if not headers:
         raise HTTPException(status_code=400, detail="文件为空或格式错误")
 
-    table_name = "t_" + re.sub(r"[^\w]", "_", Path(fname).stem)[:32]
+    # v0.8.19a F5：表名绑 uuid 唯一（非文件名）→ 同名文件跨用户/同用户均不互相 DROP-覆盖；
+    # 原文件名只留 file_uploads.filename 元数据（守护者 Stage 3：加 user 前缀仍会同用户同名覆盖）。
+    table_name = "t_" + uuid.uuid4().hex
     ok, err = db_connector.load_rows_to_sqlite(_upload_engine, table_name, headers, rows)
     if not ok:
         raise HTTPException(status_code=500, detail=f"写入失败: {err}")
@@ -86,4 +88,6 @@ async def delete_upload(upload_id: int, user=Depends(get_current_user)):
     if not rec or rec["user_id"] != user["id"]:
         raise HTTPException(status_code=404)
     upload_repo.delete_file_upload(upload_id)
+    # v0.8.19a F1：同步清 uploads.db 的物理表（原仅删元数据行 → 孤儿 t_* 表堆积 + 表名 uuid 后不复用）
+    db_connector.drop_sqlite_table(_upload_engine, rec["table_name"])
     return {"ok": True}

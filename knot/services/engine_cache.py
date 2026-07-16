@@ -10,11 +10,13 @@ from knot.adapters.db import doris as db_connector
 from knot.core.logging_setup import logger
 from knot.repositories import data_source_repo
 
-# v0.2.4: uploads.db 已合并入 主 SQLite；上传表与业务表共用一个 SQLite 文件。
-# 老 uploads.db 的迁移在 base.init_db() 一次性完成（幂等）。
-# v0.6.0 单源化：主 DB 路径 knot/data/knot.db（v0.5.0 startup rename migration 已撤回 — 详 CHANGELOG）。
-_KNOT_DB = Path(__file__).parent.parent / "data" / "knot.db"
-_upload_engine = db_connector.create_sqlite_engine(str(_KNOT_DB))
+# v0.8.19a F1（上传问数隔离）：上传数据表住**独立** uploads.db，与业务主库 knot.db 物理隔离
+# —— 上传问数 NL 生成的 SQL 只能触达上传表，物理上无法 SELECT users/app_settings/audit_log 等主库表
+# （fail-closed 隔离，非 prompt 级提示；只读闸 _is_safe_sql 挡写不挡跨表读，故靠库边界隔离）。
+# file_uploads 元数据行仍留 knot.db（upload_repo 走 get_conn）。uploads.db 派生自 SQLITE_DB_PATH 同目录，
+# 存量 t_* 迁移见 base._migrate_uploads_to_isolated_db_once（旧 v0.2.4 吞回迁移已退役）。
+_UPLOADS_DB = Path(cfg.SQLITE_DB_PATH).parent / "uploads.db"
+_upload_engine = db_connector.create_sqlite_engine(str(_UPLOADS_DB))
 
 
 # ── 跨连接组多源派发引擎 ──────────────────────────────────────────────────────

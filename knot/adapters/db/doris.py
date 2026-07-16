@@ -218,22 +218,39 @@ def load_rows_to_sqlite(engine, table_name: str, headers: list, rows: list) -> t
         with engine.connect() as conn:
             conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS "{table_name}"'))
             conn.execute(sqlalchemy.text(f'CREATE TABLE "{table_name}" ({col_defs})'))
-            for row in rows:
-                vals = []
-                for i, v in enumerate(row):
-                    if v in (None, ""):
-                        vals.append(None)
-                    elif types[i] == "REAL":
-                        try:
-                            vals.append(float(v))
-                        except (ValueError, TypeError):
-                            vals.append(None)
-                    else:
-                        vals.append(str(v))
-                placeholders = ", ".join("?" * len(safe))
-                conn.execute(sqlalchemy.text(
-                    f'INSERT INTO "{table_name}" VALUES ({placeholders})'
-                ), vals)
+            if rows:
+                # v0.8.19a 修既存 P1（上传功能 100% 坏）：SQLAlchemy 2.x text() 须用**命名参数**；
+                # 旧 `?` + 标量 list 被当 executemany 要求 list-of-dicts → "List argument must
+                # consist only of dictionaries" 500。改命名占位 :pN + list-of-dicts 一次 executemany。
+                named = ", ".join(f":p{i}" for i in range(len(safe)))
+                stmt = sqlalchemy.text(f'INSERT INTO "{table_name}" VALUES ({named})')
+                params = []
+                for row in rows:
+                    d = {}
+                    for i in range(len(safe)):
+                        v = row[i] if i < len(row) else None
+                        if v in (None, ""):
+                            d[f"p{i}"] = None
+                        elif types[i] == "REAL":
+                            try:
+                                d[f"p{i}"] = float(v)
+                            except (ValueError, TypeError):
+                                d[f"p{i}"] = None
+                        else:
+                            d[f"p{i}"] = str(v)
+                    params.append(d)
+                conn.execute(stmt, params)
+            conn.commit()
+        return True, ""
+    except Exception as e:
+        return False, str(e)[:300]
+
+
+def drop_sqlite_table(engine, table_name: str) -> tuple:
+    """v0.8.19a：删上传表物理数据（delete_upload 清元数据行时同步清 uploads.db 的 t_* 表，避免孤儿表）。"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS "{table_name}"'))
             conn.commit()
         return True, ""
     except Exception as e:

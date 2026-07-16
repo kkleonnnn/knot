@@ -26,9 +26,10 @@ BACKEND_ACK = {
     "knot/api/query.py":                   541,  # SSE 协议样板不可消除（v0.5.2 R-94）+ v0.7.x →537；v0.8.2 B6.4 +raw_question →539；v0.8.3 B6.5-Q36 +presenter 喂 params 注释 539→540→541（headroom 1）
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
-    "knot/adapters/db/doris.py":           373,  # v0.7.42 B2.2 +DORIS_READ_TIMEOUT 344→345；v0.8.0 B6.1 +_has_top_level_limit AST auto-LIMIT（§1.9 安全承重）345→364→366；v0.8.5 ②a D7 +public is_safe_sql wrapper 366→373（headroom 0，config-only）
+    "knot/adapters/db/doris.py":           392,  # v0.8.0 B6.1 +auto-LIMIT；v0.8.5 ②a +is_safe_sql wrapper →373；v0.8.19a +drop_sqlite_table（删上传表清理）+ load_rows_to_sqlite 命名参数修（既存 P1）373→390（headroom 2）
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
-    "knot/services/engine_cache.py":       337,  # 暂冻结当前行数
+    "knot/services/engine_cache.py":       340,  # 暂冻结；v0.8.19a F1 上传隔离 _upload_engine 改指独立 uploads.db 注释 337→339（config-only）
+    "knot/repositories/base.py":           365,  # v0.8.19a F1 +_migrate_uploads_to_isolated_db_once（存量 t_* 迁 uploads.db，安全迁移 71 行）290→361（headroom 4）→ ⚠️ 迁移逻辑单调增长，v0.9 前应拆 migrations.py（整体审核已列）
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
