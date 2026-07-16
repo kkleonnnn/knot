@@ -27,7 +27,7 @@ def test_F2_fallback_reexecute_failure_marks_not_success(monkeypatch):
         sql_planner, "_call_llm",
         lambda *a, **k: ("Thought: t\nAction: execute_sql\nAction Input: SELECT boom FROM t", 10, 5),
     )
-    res = sql_planner.run_sql_agent("q", "## t\n- boom INT", engine=object(), max_steps=1)
+    res = sql_planner.run_sql_agent("q", "## t\n- boom INT", engine=object(), max_steps=1, openrouter_api_key="sk-or-test")
     assert res.success is False, "fallback 重执行失败应 success=False（守护者 must-fix #2 闭合残留）"
     assert res.error, "final_error 应非空（承载 fallback 的 exec_err）"
 
@@ -40,7 +40,7 @@ def test_F2_clean_success_still_true(monkeypatch):
         sql_planner, "_call_llm",
         lambda *a, **k: ("Thought: done\nAction: final_answer\nAction Input: SELECT x FROM t", 10, 5),
     )
-    res = sql_planner.run_sql_agent("q", "## t\n- x INT", engine=object(), max_steps=2)
+    res = sql_planner.run_sql_agent("q", "## t\n- x INT", engine=object(), max_steps=2, openrouter_api_key="sk-or-test")
     assert res.success is True and not res.error
 
 
@@ -67,7 +67,7 @@ def test_F2_stale_error_cleared_by_later_final(monkeypatch):
         return ("Thought: done\nAction: final_answer\nAction Input: SELECT x FROM t", 10, 5)
 
     monkeypatch.setattr(sql_planner, "_call_llm", fake_llm)
-    res = sql_planner.run_sql_agent("q", "## t\n- x INT", engine=object(), max_steps=3)
+    res = sql_planner.run_sql_agent("q", "## t\n- x INT", engine=object(), max_steps=3, openrouter_api_key="sk-or-test")
     assert res.success is True and not res.error, "后续 __FINAL__ 干净成功须清 fallback 设的 stale final_error"
 
 
