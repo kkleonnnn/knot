@@ -225,8 +225,11 @@ def init_db():
         )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")
 
-    # v0.2.4: uploads.db 一次性合并入主 DB（幂等）
-    _migrate_uploads_db_once(conn)
+    # v0.8.19a F1（上传问数隔离）：存量上传表 t_* 从主库 knot.db 迁往**独立** uploads.db
+    # （逆 v0.2.4 合并，仅数据表；元数据 file_uploads 留主库）。⚠️ 旧 _migrate_uploads_db_once
+    # （把 uploads.db 吞回主库）已**退役、不再调用**——若重新接线会把隔离后的 uploads.db 再吞回主库
+    # （守护者 Stage 3 F1 catch）。
+    _migrate_uploads_to_isolated_db_once(conn)
 
     # v0.6.5.4 OR-only 孤儿清理（幂等 · 同步 DML 非 create_task — 不重蹈 v0.6.5.3 startup race）：
     # cfg.MODELS 删 6 直连 + 死 OR 后，现存 model_settings 行若引用被删 key（admin 曾启用/设默认）
@@ -252,8 +255,76 @@ def init_db():
     conn.close()
 
 
+def _migrate_uploads_to_isolated_db_once(conn):
+    """v0.8.19a F1：把主库 knot.db 里已注册的上传表 t_* 迁往独立 uploads.db（隔离上传问数引擎）。
+
+    安全：先备份主库 → ATTACH uploads.db → 逐表 CREATE AS SELECT + 行数校验 → **校验通过才 DROP 主库侧**
+    （任一表失败 → 保留主库该表不删 = last-good）。
+    幂等：只迁 file_uploads 登记且**仍在主库**的表；已迁走的（主库无）自然跳过 → 无存量时 no-op。
+    """
+    uploads_db = Path(SQLITE_DB_PATH).parent / "uploads.db"
+    try:
+        regd = [r[0] for r in conn.execute("SELECT table_name FROM file_uploads").fetchall()]
+    except sqlite3.OperationalError:
+        return  # file_uploads 尚未建（init 顺序）——无存量可迁
+    main_tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+    }
+    to_move = [t for t in regd if t in main_tables]
+    if not to_move:
+        return  # 存量上传表均已迁走 / fresh 部署 → no-op（幂等）
+
+    # 首迁前备份主库（WAL checkpoint 后 copy，best-effort；真正安全靠下方逐表校验+保 last-good）
+    try:
+        import shutil
+        bak = Path(SQLITE_DB_PATH).with_suffix(".db.pre-upload-isolation.bak")
+        if not bak.exists():
+            try:
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+            except sqlite3.OperationalError:
+                pass
+            shutil.copy2(SQLITE_DB_PATH, bak)
+    except OSError as e:
+        logger.warning(f"[migration] upload-isolation 备份跳过（不阻断，靠逐表校验兜底）: {e}")
+
+    moved, failed = 0, 0
+    try:
+        conn.execute(f"ATTACH DATABASE '{uploads_db.as_posix()}' AS up")
+        for tbl in to_move:
+            try:
+                src_n = conn.execute(f'SELECT COUNT(*) FROM main."{tbl}"').fetchone()[0]
+                conn.execute(f'DROP TABLE IF EXISTS up."{tbl}"')
+                conn.execute(f'CREATE TABLE up."{tbl}" AS SELECT * FROM main."{tbl}"')
+                dst_n = conn.execute(f'SELECT COUNT(*) FROM up."{tbl}"').fetchone()[0]
+                if src_n != dst_n:  # 校验不过 → 弃 uploads 侧、保主库 last-good
+                    logger.error(f"[migration] upload-isolation 行数不符 {tbl}: {src_n}!={dst_n}，保主库副本")
+                    conn.execute(f'DROP TABLE IF EXISTS up."{tbl}"')
+                    failed += 1
+                    continue
+                conn.execute(f'DROP TABLE main."{tbl}"')  # 校验通过才删主库侧
+                moved += 1
+            except Exception as e:
+                logger.exception(f"[migration] upload-isolation 表 {tbl} 失败，保主库副本: {e}")
+                failed += 1
+        conn.execute("DETACH DATABASE up")
+        conn.commit()
+        if moved or failed:
+            logger.info(f"[migration] uploads t_* 隔离到 uploads.db: moved={moved}, failed={failed}")
+    except Exception as e:
+        try:
+            conn.execute("DETACH DATABASE up")
+        except sqlite3.OperationalError:
+            pass
+        logger.exception(f"[migration] upload-isolation 中止: {e}")
+
+
+# ⚠️ v0.8.19a 退役：本函数把老 uploads.db 吞回主库，与 F1 隔离方向相反 —— **已从 init_db 移除调用**
+# （见 _migrate_uploads_to_isolated_db_once）。**严禁重新接线**：会把隔离后的 uploads.db 再吞回主库
+# （守护者 Stage 3 F1 catch）。保留函数体仅为 test_migration_observability 历史覆盖。
 def _migrate_uploads_db_once(conn):
-    """把老 uploads.db 里的所有用户上传表搬到主库；完成后改名 .merged 防再次执行。"""
+    """[RETIRED v0.8.19a] 把老 uploads.db 里的所有用户上传表搬到主库；完成后改名 .merged 防再次执行。"""
     old = Path(SQLITE_DB_PATH).parent / "uploads.db"
     if not old.exists():
         return
