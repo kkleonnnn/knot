@@ -212,13 +212,14 @@ def init_db():
 
     # Seed admin（v0.3.1：通过 bcrypt 直接哈希避免 repos→services 反向依赖）
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+        import secrets
+
         import bcrypt
 
         from knot.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
         # v0.8.20 F7（R-LP-v3-EX-3-1）：seed admin 初始口令 —— env KNOT_INITIAL_ADMIN_PASSWORD 优先，
         # 无则**随机强口令** + 一次性日志打印。消除「跨部署同一已知 admin123 + 首启竞态」（攻击者抢先
         # 首登→白名单内改密+enroll 夺 admin）。must_change_password=1 仍保留（首登强制改）。
-        import secrets
         _env_pwd = os.environ.get("KNOT_INITIAL_ADMIN_PASSWORD", "").strip()
         _init_pwd = _env_pwd or secrets.token_urlsafe(12)
         seed_pwd = bcrypt.hashpw(_init_pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
