@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.20 — 整体审核收口 19b：use_agent 源头修 / 2 SSRF / SSE 记账 / default-admin 竞态 / echarts XSS
+## [Unreleased] - v0.8.21 — admin 取数体验：数据源探测与列表解耦（数据源/用户页 >1min → 秒开）
+
+> 独立体验 PATCH（快通道 · 资深 announce）。修 kk 亲述痛点：数据源页 + 用户页每次加载卡 >1min、返回对话再回来又重载。
+> 根因（整体审核取数诊断的最严重表现）：`admin_list_datasources` 每次加载对每个源**实时建连探测、零缓存**；dev 有个 VPN 私网源（10.5.184.127）不可达 → TCP 卡 ~1min；用户页 `Promise.all([users, datasources])` 被同一探测拖住。
+
+### Fixed
+- **数据源列表探测与列表解耦**（`api/admin/datasources.py`）：`admin_list_datasources` 不再内联探测 —— 即时返元数据 + `status` 取模块级 TTL 缓存（`_DS_STATUS_CACHE`，无/过期→`"checking"`）。真探测移到**新 `GET /api/admin/datasources/status`**（并发探测 + 写缓存 + 返 `{id: status}`），前端**异步调、不阻塞列表渲染**。→ 含不可达源，列表逻辑实测 **2.5ms 秒返**（旧 ~1min）。`_test_source`/`_http_base_url` 由 nested 提模块级。
+- **前端**（`Admin.jsx` + `tab_access.jsx`）：数据源 tab 列表秒返后**异步拉 `/status`** 合并健康状态；新增 `"checking"` 态渲染「检测中」（muted）。**用户页无需改** —— 后端解耦后其 `datasources` fetch 已秒返（仍需给 UserFormModal 提供源列表）。
+
+### Tests
+- `tests/integration/test_v0821_admin_fetch.py`（3）：列表**不内联探测**（`_test_source` 0 调用 + status='checking'）· `/status` 探测并写缓存 · 列表+status 仍 admin-only。
+
+### 版本
+- 4 源点 0.8.20→0.8.21（+新路由 → flatten 143→144）+ CHANGELOG。
+- **注**：取数体验诊断里的 R1（api.js 全局 SWR 缓存，治「返回对话再回来重载」的秒出）本 PATCH **未含** —— 解耦已使重载变快（秒级非分钟），R1 是进一步「秒出旧数据」polish，留后续可选。
+
+## [Released] - v0.8.20 — 整体审核收口 19b：use_agent 源头修 / 2 SSRF / SSE 记账 / default-admin 竞态 / echarts XSS
 
 > v0.8.19 整体审核收口 PATCH 第二刀（19b）。scope（F2/F4/F6a/F7/F8-min）随 v0.8.19 Stage 1 手册已过 Codex Stage 2 + 守护者 Stage 3（must-fix 已定）→ 按既有 Stage 3 实施 → 守护者 Stage 4 final-diff（资深决策 A：全 19b 直接实施）。
 > defer 独立：F3（busy_timeout 已 ≈5000ms，实测锁类型后对症修）· F6b（da_asst 成本 → agent_kind 三源合一 Occam chore）· CLAUDE 关键路径表大修 · base.py→migrations.py 拆（v0.9 前）。

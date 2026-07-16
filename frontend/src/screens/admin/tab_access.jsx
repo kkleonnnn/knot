@@ -99,9 +99,9 @@ export function TabAccess({ T, tab, users, sources, loading, onEditUser, onDelet
                 </div>
                 <div title={s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`} style={{ color: T.muted, fontFamily: T.mono, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.db_type === 'http' ? (s.base_url || '—') : `${s.db_host}:${s.db_port}/${s.db_database}`}</div>
                 <div title="后端数据对接中 (v0.6+)" style={{ color: T.muted, fontFamily: T.mono, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>—</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: s.status === 'online' ? T.success : T.warn, minWidth: 0, overflow: 'hidden' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.status === 'online' ? T.success : T.warn, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.status === 'online' ? '正常' : '异常'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: s.status === 'online' ? T.success : s.status === 'checking' ? T.muted : T.warn, minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.status === 'online' ? T.success : s.status === 'checking' ? T.muted : T.warn, flexShrink: 0 }}/>
+                  <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.status === 'online' ? '正常' : s.status === 'checking' ? '检测中' : '异常'}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                   <button onClick={() => onEditSource(s)} style={iconBtn(T)} title="编辑"><I.pencil/></button>

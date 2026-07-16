@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,69 +34,79 @@ def _assert_http_base_url_allowed(db_type, http_config) -> None:
 _DS_STATS_CACHE: dict = {"data": None, "ts": 0.0}
 _DS_STATS_TTL_SEC = 300
 
+# v0.8.21 体验：数据源健康探测结果缓存（{source_id: (status, ts)}）—— 列表端点不再内联阻塞探测
+# （不可达源 TCP 可卡分钟级），status 取缓存 / "checking"；真探测走独立 /status 端点（前端异步调）。
+_DS_STATUS_CACHE: dict = {}
+_DS_STATUS_TTL_SEC = 300
+
 router = APIRouter()
+
+
+def _test_source(s):
+    # v0.6.1.4 OVERRIDE #4: db_type='http' — base_url HEAD 5s probe；其他走 SQL ping。
+    # v0.8.21：由列表内联移到模块级 + 独立 /status 端点调（前端异步，不阻塞列表渲染）。
+    if s.get("db_type") == "http":
+        try:
+            import json as _json
+
+            import requests as _rq
+            cfg_str = s.get("http_config") or ""
+            if not cfg_str:
+                return "error"
+            obj = _json.loads(cfg_str)
+            base_url = (obj.get("base_url") or "").rstrip("/")
+            if not base_url:
+                return "error"
+            # v0.8.20 F4（SSRF）：探测前过 egress allowlist（原 HEAD 绕过 KNOT_HTTP_ALLOWED_HOSTS
+            # → 存进去的内网 base_url 每次列表加载即被 HEAD 探测）；不在白名单不探测。
+            from knot.adapters.http.url_allowlist import is_url_allowed
+            if not is_url_allowed(base_url):
+                return "error"
+            # HEAD 比 GET 快（不下载 body）；任何 HTTP 响应（含 4xx/405/5xx）= server alive
+            # 仅 Timeout / ConnectionError = 真的不可达
+            _rq.head(base_url, timeout=5, allow_redirects=False)
+            return "online"
+        except _rq.Timeout:
+            return "error"
+        except _rq.ConnectionError:
+            return "error"
+        except Exception:
+            # JSON 解析失败 / 其他异常 → 保守 error
+            return "error"
+    try:
+        engine = db_connector.create_engine(
+            s["db_host"], s["db_port"], s["db_user"], s["db_password"], s["db_database"]
+        )
+        ok, _ = db_connector.test_connection(engine)
+        return "online" if ok else "error"
+    except Exception:
+        return "error"
+
+
+# v0.6.1.4 OVERRIDE #4: HTTP type 解 http_config 抽 base_url 供前端展示（不漏 auth_value）
+def _http_base_url(s):
+    if s.get("db_type") != "http":
+        return ""
+    try:
+        import json as _json
+        obj = _json.loads(s.get("http_config") or "")
+        return obj.get("base_url") or ""
+    except Exception:
+        return ""
+
+
+def _cached_status(sid) -> str:
+    """v0.8.21：取缓存健康状态；无 / 过期 → "checking"（前端异步 /status 更新）。"""
+    v = _DS_STATUS_CACHE.get(sid)
+    return v[0] if (v and (time.time() - v[1]) < _DS_STATUS_TTL_SEC) else "checking"
 
 
 @router.get("/api/admin/datasources")
 async def admin_list_datasources(admin=Depends(require_admin)):
+    # v0.8.21 体验：**列表不阻塞探测** —— 原每次加载对每个源实时建连（不可达源 TCP 可卡分钟级 →
+    # 数据源/用户页各卡 >1min）。改：即时返元数据 + status 取缓存（无/过期→"checking"）；真探测
+    # 由前端异步调 GET /status 更新。→ 页面秒开，源挂了也不拖。
     sources = data_source_repo.list_datasources()
-
-    def _test_source(s):
-        # v0.6.1.4 OVERRIDE #4: db_type='http' — base_url HEAD 5s probe；其他走 SQL ping
-        if s.get("db_type") == "http":
-            try:
-                import json as _json
-
-                import requests as _rq
-                cfg_str = s.get("http_config") or ""
-                if not cfg_str:
-                    return "error"
-                obj = _json.loads(cfg_str)
-                base_url = (obj.get("base_url") or "").rstrip("/")
-                if not base_url:
-                    return "error"
-                # v0.8.20 F4（SSRF）：探测前过 egress allowlist（原 HEAD 绕过 KNOT_HTTP_ALLOWED_HOSTS
-                # → 存进去的内网 base_url 每次列表加载即被 HEAD 探测）；不在白名单不探测。
-                from knot.adapters.http.url_allowlist import is_url_allowed
-                if not is_url_allowed(base_url):
-                    return "error"
-                # HEAD 比 GET 快（不下载 body）；任何 HTTP 响应（含 4xx/405/5xx）= server alive
-                # 仅 Timeout / ConnectionError = 真的不可达
-                _rq.head(base_url, timeout=5, allow_redirects=False)
-                return "online"
-            except _rq.Timeout:
-                return "error"
-            except _rq.ConnectionError:
-                return "error"
-            except Exception:
-                # JSON 解析失败 / 其他异常 → 保守 error
-                return "error"
-        try:
-            engine = db_connector.create_engine(
-                s["db_host"], s["db_port"], s["db_user"], s["db_password"], s["db_database"]
-            )
-            ok, _ = db_connector.test_connection(engine)
-            return "online" if ok else "error"
-        except Exception:
-            return "error"
-
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor() as pool:
-        statuses = await asyncio.gather(
-            *[loop.run_in_executor(pool, _test_source, s) for s in sources]
-        )
-
-    # v0.6.1.4 OVERRIDE #4: HTTP type 解 http_config 抽 base_url 供前端展示（不漏 auth_value）
-    def _http_base_url(s):
-        if s.get("db_type") != "http":
-            return ""
-        try:
-            import json as _json
-            obj = _json.loads(s.get("http_config") or "")
-            return obj.get("base_url") or ""
-        except Exception:
-            return ""
-
     return [
         {
             "id": s["id"], "name": s["name"],
@@ -105,10 +116,27 @@ async def admin_list_datasources(admin=Depends(require_admin)):
             "db_database": s["db_database"],
             "base_url": _http_base_url(s),  # v0.6.1.4: HTTP 展示用
             "is_active": s["is_active"], "created_at": s["created_at"],
-            "status": status,
+            "status": _cached_status(s["id"]),
         }
-        for s, status in zip(sources, statuses)
+        for s in sources
     ]
+
+
+@router.get("/api/admin/datasources/status")
+async def admin_datasources_status(admin=Depends(require_admin)):
+    # v0.8.21：实时探测所有源（并发；可能慢，前端异步调不阻塞列表）+ 写缓存 → 返 {id: status}。
+    sources = data_source_repo.list_datasources()
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        statuses = await asyncio.gather(
+            *[loop.run_in_executor(pool, _test_source, s) for s in sources]
+        )
+    now = time.time()
+    result = {}
+    for s, st in zip(sources, statuses):
+        _DS_STATUS_CACHE[s["id"]] = (st, now)
+        result[s["id"]] = st
+    return result
 
 
 @router.post("/api/admin/datasources")
