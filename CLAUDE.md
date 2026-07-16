@@ -169,6 +169,21 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 **升级机制**：≥3 PATCH 未兑现的承诺 → 自动升级红线 R-LP-v3-EX-3-X（X 为承诺序号）；后续 PATCH 强制守护。
 
+#### R-LP-v3-EX-3-1：default-admin 弱口令债正式红线（v0.8→v0.9 整体审核 2026-07-16 立约 · 承诺序号 1）
+
+**触发**：`knot/repositories/base.py` 自标「default admin/admin123 是 1.0 公测前必清的安全债」，自 v0.6.0 seed 起承诺推迟至今**远超 R-LP-v3-EX-3「≥3 PATCH 未兑现」阈值** → 升级为正式红线（本条为承诺序号 1 首例）。
+
+**grounded 事实**（v0.8→v0.9 整体审核对抗验证 C1 校准 —— **撤回**远古守护者被证伪的「服务端零强制 / 纯前端」论证）：
+- 全新部署 seed `admin/admin123`（`base.py:214-225`，bcrypt，role=admin，must_change_password=1，已知公开值）。
+- 强制改密**服务端有硬门**（`deps.py:135-136` must_change_password=1 非 `/api/auth/*` 端点 403 + `deps.py:141-148` TOTP-required 第二门）——**非「纯前端」**。
+- **真实残留风险 = 已知默认口令 + 首启竞态窗口**：seed admin 无 TOTP，login 返完整 token（`auth.py:38-48`）；攻击者若抢在合法 admin 前首次登录，可经白名单内 `/api/auth/change-password`（旧口令=已知 admin123）+ `/api/totp/*` enroll 自己的 TOTP 夺 admin。多租户下同一已知默认口令跨部署放大。
+
+**守护义务**：
+- **1.0 公测前必须清除 default admin seed**（或强制首启改密 + enroll 闭合竞态窗口才放行）——后续 PATCH 强制守护，不得再推迟。
+- v0.8.19（b）先加首启竞态缓解：seed 时 env `KNOT_INITIAL_ADMIN_PASSWORD` 优先，无则随机强口令 + 一次性日志打印，替代硬编 `admin123`；配 reset 脚本 + 同步清 README / DEPLOY.md admin123 footprint。
+
+**违反代价**：破 R-LP-v3-EX-3-1 = 已知弱口令带进公测 / 多租户 = 账户接管面；必须返做。
+
 #### R-PB-GOV-1：工期指导性预估非硬承诺纪律（v0.6.2.0-pre-governance 立约）
 
 **触发**：v0.5 守护者第 11 次 active 整合 Stage 2 工期重估 4.5-6.5 月 → 5-7 月时，资深架构师拒绝硬性工期承诺 + 立约（2026-05-25 决策 β2）。
