@@ -65,7 +65,13 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     setTabLoading(true);
     try {
       if (tab === 'users') { const [d, s] = await Promise.all([api.get('/api/admin/users'), api.get('/api/admin/datasources')]); setUsers(d); setSources(s); }
-      if (tab === 'sources') { const d = await api.get('/api/admin/datasources'); setSources(d); }
+      if (tab === 'sources') {
+        // v0.8.21 体验：列表秒返（status='checking'）；健康探测异步拉 /status 更新（不阻塞渲染，源不可达也秒开）
+        const d = await api.get('/api/admin/datasources'); setSources(d);
+        api.get('/api/admin/datasources/status')
+          .then(st => setSources(prev => prev.map(s => ({ ...s, status: st[s.id] ?? s.status }))))
+          .catch(() => {});
+      }
       if (tab === 'models') {
         const [d, ks, ac] = await Promise.all([
           api.get('/api/admin/models'),
