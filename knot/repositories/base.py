@@ -215,14 +215,25 @@ def init_db():
         import bcrypt
 
         from knot.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
-        seed_pwd = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
-        # v0.6.0.20: seed admin 必须改密（must_change_password=1）— 默认密码 admin123 是已知公开值
-        # 首登 login → must_change_password=1 → 前端 ForceChangePassword 模态 → POST /api/auth/change-password → 0
+        # v0.8.20 F7（R-LP-v3-EX-3-1）：seed admin 初始口令 —— env KNOT_INITIAL_ADMIN_PASSWORD 优先，
+        # 无则**随机强口令** + 一次性日志打印。消除「跨部署同一已知 admin123 + 首启竞态」（攻击者抢先
+        # 首登→白名单内改密+enroll 夺 admin）。must_change_password=1 仍保留（首登强制改）。
+        import secrets
+        _env_pwd = os.environ.get("KNOT_INITIAL_ADMIN_PASSWORD", "").strip()
+        _init_pwd = _env_pwd or secrets.token_urlsafe(12)
+        seed_pwd = bcrypt.hashpw(_init_pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         conn.execute(
             "INSERT INTO users (username, password_hash, display_name, role, doris_host, doris_port, must_change_password) "
             "VALUES (?, ?, '管理员', 'admin', ?, ?, 1)",
             ("admin", seed_pwd, DEFAULT_DB_HOST, DEFAULT_DB_PORT),
         )
+        if _env_pwd:
+            logger.info("seed admin 初始口令来自 KNOT_INITIAL_ADMIN_PASSWORD（首登须改密 must_change_password=1）")
+        else:
+            logger.warning(
+                f"🔑 seed admin 随机初始口令（仅此一次打印）：admin / {_init_pwd} —— 立即登录改密；"
+                f"生产建议用 KNOT_INITIAL_ADMIN_PASSWORD 指定。"
+            )
         conn.execute("INSERT INTO semantic_layer (content) VALUES ('')")
 
     # v0.8.19a F1（上传问数隔离）：存量上传表 t_* 从主库 knot.db 迁往**独立** uploads.db

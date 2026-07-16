@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.7.36 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.8.20 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -32,7 +32,7 @@ KNOT 涉及 3 类"密钥"，分属不同角色——**别搞混**：
             应用从 .env 读取，启动
                        ↓
         ╔══════════════════════════════════════╗
-        ║  浏览器：admin / admin123 登录       ║
+        ║  浏览器：admin + 初始口令(见日志)登录 ║
         ║  → 进设置 → 改密码 + 改用户名         ║  ← 这是 admin 的事
         ╚══════════════════════════════════════╝
                        ↓
@@ -256,7 +256,7 @@ sleep 10 && docker logs knot | tail -10
 #   "Uvicorn running on http://0.0.0.0:8000"
 ```
 
-浏览器访问 `http://<server-ip>:8000` → 用 `admin / admin123` 登录。
+浏览器访问 `http://<server-ip>:8000` → 用 `admin` + 初始口令登录（v0.8.20：设 KNOT_INITIAL_ADMIN_PASSWORD 则用之，未设则首启随机生成打印在日志一次 `docker logs knot | grep "seed admin"`）。
 
 ---
 
@@ -271,10 +271,10 @@ sleep 10 && docker logs knot | tail -10
 
 ### 2. 首次登录立即改密码 🔑
 
-- 默认账号：**admin / admin123**（写在源代码 `knot/repositories/base.py:94`）
-- 任何能访问 8000 端口的人都能 admin/admin123 登录
-- **必做**：登录后进「设置」→ 个人 → 改密码 + 改用户名（不叫 admin，防字典爆破）
-- 改完用新账号验证旧 admin123 已失效
+- **admin 初始口令（v0.8.20 F7 起）**：seed 逻辑在 `knot/repositories/base.py:213`（原文档误引 `:94`）—— 设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；**未设则首启随机强口令 + 日志打印一次**（`docker logs knot | grep "seed admin"`）。**不再有跨部署同一 admin123**（旧硬编默认已废，R-LP-v3-EX-3-1）。
+- 首登 `must_change_password=1` 强制改密（服务端硬门：改密前只能调 `/api/auth/*`）。
+- **必做**：登录后改密码 + 改用户名（不叫 admin，防字典爆破）；口令遗失 → `python -m knot.scripts.reset_admin_password`。
+- 首启竞态提醒：随机口令仅在日志一次性可见，**部署后尽快首登占位**（防他人抢先首登）。
 
 ### 3. 公网部署必加 HTTPS 反向代理
 
@@ -337,7 +337,7 @@ export KNOT_TOTP_BYPASS_ADMIN=true
 
 **首次部署 checklist**：
 
-1. `admin / admin123` 登录 → **强制改密** → **强制 Enroll**（Authenticator 扫码 + 存 10 个恢复码）
+1. `admin` + 初始口令（见启动日志 / KNOT_INITIAL_ADMIN_PASSWORD）登录 → **强制改密** → **强制 Enroll**（Authenticator 扫码 + 存 10 个恢复码）
 2. 验证 enrolled admin 登录 → 输入 6 位码后进业务屏
 3. （可选）邀其他用户：各自首登强制 enroll
 
@@ -516,8 +516,8 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 - admin 登录密码 — 必存
 - OpenRouter API Key — 已经在 OR 后台，可不存
 
-### Q5: 默认 admin123 多久必须改？
-**部署完 5 分钟内**改完。R-PA-5 内测期 4 周内全员检查 admin 账号是否还在 admin123（v0.6.1.0+ 会加强制改密 middleware）。
+### Q5: admin 初始口令怎么拿 / 多久必须改？
+v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之，未设则首启随机生成、**在启动日志打印一次**（`docker logs knot | grep "seed admin"`）。**部署后尽快首登**（must_change_password 强制改密 + 强制 enroll）；随机口令仅一次可见，遗失用 `python -m knot.scripts.reset_admin_password` 重置。
 
 ---
 

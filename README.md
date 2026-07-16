@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 
 > 40 秒产品演示 · v0.6 · 1920×1080 · 3.3 MB · 由 [HyperFrames](https://hyperframes.heygen.com) 渲染
 
-> **当前版本** v0.8.19 · **上传问数隔离 + 存量 bug 修**（整体审核收口 19a）：上传 CSV/Excel 问数引擎**脱离主库 knot.db → 独立 uploads.db**（NL 生成 SQL 物理无法读 users/app_settings/audit_log，fail-closed 隔离）+ 退役旧「吞回主库」迁移（防隔离被逆转）+ 上传表名绑 uuid（同名文件不互相覆盖）+ 删除清物理表；**顺带修既存 P1**：`load_rows_to_sqlite` SQLAlchemy 2.x 参数绑定 bug（上传功能此前 100% 报错）。<br>**上版** v0.8.18 **③ da-asst 洞察嵌入**（da-asst system prompt .md 化 + 真嵌入 6 铁律 + 7 应答原则 seed；presenter 对齐分析纪律）· v0.8.17 **②c BI 报表定时刷新调度器**（K8s CronJob → tick 端点 + 原子认领 + `can_schedule` RBAC + fire 台账）。<br>**更早** v0.8.16 修 sparkline 宽屏折线消失（clipping bug）· v0.8.15 **BI 报表分享**（快照 PNG → Lark / Telegram，三重出境控制 + ⭐手写 foreignObject 截图引擎）· v0.8.14 **UI 视觉升级**（玻璃 chrome + 外观预设 雾面/极光 × 青/紫/翡翠/琥珀 + 自托管字体 Inter/Noto Sans SC/JetBrains Mono + 玻璃确认框）。<br>**更早** v0.8.13 admin 批量运维 · v0.8.12 **BI 设置 + 目录权限 RBAC**：BI 模式独立设置面板（数据源 / 用户 / API&模型 / 报表目录 / 目录权限）；新 `bi_permissions` = **按用户 × 目录/报表 × 4 权限**（定时 / 编辑 / 导出 / 分享，admin 恒全权，default-deny）—— 单租户内 user×resource（⚠️ OOS-1 死线 sustained，0 tenant_id）；da-asst 升为**第一类数据分析引擎**（独立模型槽 + BI 右栏只读报表解读 + 成本控制平面）。<br>**更早** v0.8.10~.11 **BI 仪表盘 12 列组件网格 builder**（6 类型 tile：KPI / 折线 / 圆盘 / 横条 / 表 / donut + 拖拽占列 + 冻结快照）+ 逐图视觉打磨。<br>**更早** v0.8.5~.9 **BI / ASK 双模**（共用 `<AppShell>` + 分段 ModeToggle + 共享 RightPanel；报表模式 = 仪表盘 tile / 多页 tabbed 报表 / 宽表 + 零 eval `formula.js` 覆盖层公式）· v0.7.x **5 层语义层 + LogicForm**（指标注册表 → NL→LogicForm→SQL 编译 → 混合路由；`KNOT_SEMANTIC_LAYER` flag 默认 off，待填真实 corpus + eval-live 达标后开）。
+> **当前版本** v0.8.20 · **整体审核收口 19b**：use_agent 成功公式源头修（含 fallback 残留 + 锁竞态复合）· 两个 SSRF（db/test → require_admin + datasources egress allowlist）· SSE 中断成本落账（防已发生花费漏账）· **default-admin 弱口令债**（seed 初始口令 env 优先/无则随机 + 首启竞态缓解 · R-LP-v3-EX-3-1）· echarts 6.1 XSS 修 + 文档 drift 清。<br>**上版** v0.8.19 **上传问数隔离 + 存量 P1 修**（引擎脱主库 → 独立 uploads.db · 退役吞回迁移 · uuid 表名 · 修 load_rows_to_sqlite SQLAlchemy 2.x bug 使上传功能恢复可用）· v0.8.18 **③ da-asst 洞察嵌入** · v0.8.17 **②c BI 报表定时刷新调度器**。<br>**更早** v0.8.16 修 sparkline 宽屏折线消失（clipping bug）· v0.8.15 **BI 报表分享**（快照 PNG → Lark / Telegram，三重出境控制 + ⭐手写 foreignObject 截图引擎）· v0.8.14 **UI 视觉升级**（玻璃 chrome + 外观预设 雾面/极光 × 青/紫/翡翠/琥珀 + 自托管字体 Inter/Noto Sans SC/JetBrains Mono + 玻璃确认框）。<br>**更早** v0.8.13 admin 批量运维 · v0.8.12 **BI 设置 + 目录权限 RBAC**：BI 模式独立设置面板（数据源 / 用户 / API&模型 / 报表目录 / 目录权限）；新 `bi_permissions` = **按用户 × 目录/报表 × 4 权限**（定时 / 编辑 / 导出 / 分享，admin 恒全权，default-deny）—— 单租户内 user×resource（⚠️ OOS-1 死线 sustained，0 tenant_id）；da-asst 升为**第一类数据分析引擎**（独立模型槽 + BI 右栏只读报表解读 + 成本控制平面）。<br>**更早** v0.8.10~.11 **BI 仪表盘 12 列组件网格 builder**（6 类型 tile：KPI / 折线 / 圆盘 / 横条 / 表 / donut + 拖拽占列 + 冻结快照）+ 逐图视觉打磨。<br>**更早** v0.8.5~.9 **BI / ASK 双模**（共用 `<AppShell>` + 分段 ModeToggle + 共享 RightPanel；报表模式 = 仪表盘 tile / 多页 tabbed 报表 / 宽表 + 零 eval `formula.js` 覆盖层公式）· v0.7.x **5 层语义层 + LogicForm**（指标注册表 → NL→LogicForm→SQL 编译 → 混合路由；`KNOT_SEMANTIC_LAYER` flag 默认 off，待填真实 corpus + eval-live 达标后开）。
 
 ## 文档导航
 
@@ -59,7 +59,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 - **归因分析**（"为什么下降"）— 5 层语义中**事件 + 规则层未建**
 - **跨业务域聚合**（不同 catalog 跨域分析）— **对象语义层跨对象聚合仍窄**（维度派生续做）
 - **主动数据合理性反检**（"这个数对吗"）— 语义层有编译期 guard，**主动校验段未建**
-- **动作触发**（通知 / 工单 / 审批 / 写回）— **动作语义层未建**（v1.x+）；BI 报表定时刷新调度器（②c）在建
+- **动作触发**（通知 / 工单 / 审批 / 写回）— **动作语义层未建**（v1.x+）；BI 报表定时刷新调度器（②c）已交付 v0.8.17（仅刷新 MVP，定时推 IM 顺延）
 - **多租户隔离 / SSO** — OOS-1（单租户死线）/ OOS-2；BI RBAC 已建但**限单租户内 user × resource，0 tenant_id**
 - **国际化 i18n** — v1.x+ 公测准备
 - **大规模向量 / RAG / 多模态** — 不在 knot 范围（Doris/SelectDB 4.0 这类是 DB 厂商课题）
@@ -144,10 +144,10 @@ docker logs knot | tail -10
 ### 6. 浏览器首次操作（5 分钟）
 
 1. `http://<server-ip>:8000` → Login 屏出现
-2. 默认账号 **`admin` / `admin123`** 登录 — ⚠️ **首次登录立即改密码**（个人设置 / admin 后台用户管理）
+2. **admin 初始口令**（v0.8.20 起）：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；未设则**首次启动随机生成并打印在日志一次**（`docker logs knot | grep "seed admin"`）。用 `admin` + 该口令登录 — ⚠️ **首登强制改密**（must_change_password=1）。遗失可 `python -m knot.scripts.reset_admin_password` 重置。
    - 🛡️ **v0.6.5.0 起 2FA 默认强制**：改密后即被引导**绑定 TOTP**（Authenticator 扫码 + 存恢复码；含 admin，无豁免）。快速评估可设 `KNOT_TOTP_REQUIRED=false` 关闭（详 [DEPLOY](DEPLOY.md) §5）。
 3. 「API & 模型」tab：填 LLM provider key（与 .env 一致或独立）+ 给 3 个 agent 选模型
-4. 「数据源」tab：配置 1 个业务库（Doris / MySQL / ClickHouse / SQLite local 测试用）
+4. 「数据源」tab：配置 1 个业务库（Doris / MySQL / HTTP 数据源；db_type ∈ doris|mysql|http）
 5. 回 Chat 屏提问 — 看到 SQL + 图表 + 洞察
 
 ### 7. 内测期硬约束（仅 2 条 — 不可推迟）

@@ -36,6 +36,11 @@ os.environ.setdefault("KNOT_TOTP_REQUIRED", "false")
 # 模块级 setdefault（hook 在 startup event 读 env；须 main import 前 / 首个 TestClient 前设）。
 os.environ.setdefault("KNOT_SKIP_STARTUP_AUTO_PURGE", "1")
 
+# v0.8.20 F7（R-LP-v3-EX-3-1）：seed admin 初始口令 —— 生产无 env 时随机生成（防跨部署同一 admin123）。
+# 测试须确定性 admin/admin123（大量 fixture/用例 login admin123）→ 模块级 pin（同 import-timing：
+# main.py 模块级 init_db 在 import 时 seed）。测「随机/env」seed 行为的用例自设 env 覆盖。
+os.environ.setdefault("KNOT_INITIAL_ADMIN_PASSWORD", "admin123")
+
 
 def _reset_module_level_caches():
     """v0.6.5.3 flaky 修：清三类模块级可变缓存（跨测试 state 泄露根因 class）。

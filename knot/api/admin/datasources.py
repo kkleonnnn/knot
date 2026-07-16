@@ -4,13 +4,30 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot.adapters.db import doris as db_connector
 from knot.api._audit_helpers import audit
 from knot.api.deps import require_admin
 from knot.api.schemas import DataSourceRequest, UpdateDataSourceRequest
 from knot.repositories import data_source_repo
+
+
+def _assert_http_base_url_allowed(db_type, http_config) -> None:
+    """v0.8.20 F4（SSRF）：存 http 数据源前校验 base_url 过 egress allowlist —— 与 executor.py:97
+    单一守卫对齐，防 admin UI 存任意内网 endpoint（url_allowlist docstring 明示的威胁模型）。
+    非 http / 无 base_url / 非法 JSON → 放行（下游处理）；base_url 不在 allowlist → 400。"""
+    if db_type != "http" or not http_config:
+        return
+    import json as _json
+
+    from knot.adapters.http.url_allowlist import is_url_allowed
+    try:
+        base_url = (_json.loads(http_config).get("base_url") or "").rstrip("/")
+    except (ValueError, TypeError):
+        return
+    if base_url and not is_url_allowed(base_url):
+        raise HTTPException(status_code=400, detail="base_url host 不在 KNOT_HTTP_ALLOWED_HOSTS 内（egress 白名单）")
 
 # v0.6.1.3 — DataSources Hero stats 5min 模块级缓存（避免每次切 tab 都打远程 DB）
 _DS_STATS_CACHE: dict = {"data": None, "ts": 0.0}
@@ -36,6 +53,11 @@ async def admin_list_datasources(admin=Depends(require_admin)):
                 obj = _json.loads(cfg_str)
                 base_url = (obj.get("base_url") or "").rstrip("/")
                 if not base_url:
+                    return "error"
+                # v0.8.20 F4（SSRF）：探测前过 egress allowlist（原 HEAD 绕过 KNOT_HTTP_ALLOWED_HOSTS
+                # → 存进去的内网 base_url 每次列表加载即被 HEAD 探测）；不在白名单不探测。
+                from knot.adapters.http.url_allowlist import is_url_allowed
+                if not is_url_allowed(base_url):
                     return "error"
                 # HEAD 比 GET 快（不下载 body）；任何 HTTP 响应（含 4xx/405/5xx）= server alive
                 # 仅 Timeout / ConnectionError = 真的不可达
@@ -91,6 +113,7 @@ async def admin_list_datasources(admin=Depends(require_admin)):
 
 @router.post("/api/admin/datasources")
 async def admin_create_datasource(req: DataSourceRequest, request: Request, admin=Depends(require_admin)):
+    _assert_http_base_url_allowed(req.db_type, req.http_config)  # v0.8.20 F4：存前校验 egress allowlist
     sid = data_source_repo.create_datasource(
         user_id=admin["id"], name=req.name, description=req.description,
         db_host=req.db_host, db_port=req.db_port, db_user=req.db_user,
@@ -134,6 +157,8 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
                 kwargs["http_config"] = _json.dumps(new_obj, ensure_ascii=False)
         except Exception:
             pass  # JSON 解析失败 → 透传由 repo 决定
+    if "http_config" in kwargs:  # v0.8.20 F4：更新写入前校验 base_url egress allowlist（http 源）
+        _assert_http_base_url_allowed("http", kwargs["http_config"])
     if kwargs:
         data_source_repo.update_datasource(source_id, **kwargs)
     audit(request, admin, action="datasource.update", resource_type="datasource",

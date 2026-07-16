@@ -20,7 +20,7 @@ def test_deploy_md_has_required_sections():
         "一键部署",
         "部署必读",
         "KNOT_MASTER_KEY",     # 终身密钥提醒
-        "admin / admin123",    # 默认账号提醒
+        "KNOT_INITIAL_ADMIN_PASSWORD",  # v0.8.20 F7：seed admin 初始口令（废旧硬编 admin123 默认，R-LP-v3-EX-3-1）
         "升级流程",
         "故障排查",
         "JWT_SECRET",          # 安全配置
