@@ -38,6 +38,32 @@ def test_F2_clean_success_still_true(monkeypatch):
     assert res.success is True and not res.error
 
 
+def test_F2_stale_error_cleared_by_later_final(monkeypatch):
+    """守护者 Stage 4 补：无 stale 回归 —— 某步 fallback 失败设 final_error 后，后续 __FINAL__ 干净成功
+    须**清 stale** → success=True。naive「仅 fallback 补 final_error、__FINAL__ 不清」会误判 False；
+    本测正是守精修（两执行点均 `final_error = exec_err or ""`）的回归。"""
+    ex = {"n": 0}
+
+    def fake_execute(engine, sql):
+        ex["n"] += 1
+        if ex["n"] == 2:               # step1 fallback re-execute → 失败（设 final_error=stale）
+            return [], "transient boom"
+        return [{"x": 1}], ""          # call1 _run_tool 成功 / call3 __FINAL__ 成功
+
+    monkeypatch.setattr(sql_planner.db_connector, "execute_query", fake_execute)
+    llm = {"n": 0}
+
+    def fake_llm(*a, **k):
+        llm["n"] += 1
+        if llm["n"] == 1:              # step1：execute_sql → 触发 fallback（call2 失败设 stale）
+            return ("Thought: t\nAction: execute_sql\nAction Input: SELECT x FROM t", 10, 5)
+        return ("Thought: done\nAction: final_answer\nAction Input: SELECT x FROM t", 10, 5)
+
+    monkeypatch.setattr(sql_planner, "_call_llm", fake_llm)
+    res = sql_planner.run_sql_agent("q", "## t\n- x INT", engine=object(), max_steps=3)
+    assert res.success is True and not res.error, "后续 __FINAL__ 干净成功须清 fallback 设的 stale final_error"
+
+
 def _seed_fresh_db(monkeypatch):
     from knot.repositories import base as base_mod
     fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_f7_")
