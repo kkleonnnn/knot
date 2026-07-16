@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.19 — 整体审核收口 19a：上传问数隔离 + uuid 表名 + 存量 P1 修（走完整 v3 · 守护者 Stage 3 major-revise 整合）
+## [Unreleased] - v0.8.20 — 整体审核收口 19b：use_agent 源头修 / 2 SSRF / SSE 记账 / default-admin 竞态 / echarts XSS
+
+> v0.8.19 整体审核收口 PATCH 第二刀（19b）。scope（F2/F4/F6a/F7/F8-min）随 v0.8.19 Stage 1 手册已过 Codex Stage 2 + 守护者 Stage 3（must-fix 已定）→ 按既有 Stage 3 实施 → 守护者 Stage 4 final-diff（资深决策 A：全 19b 直接实施）。
+> defer 独立：F3（busy_timeout 已 ≈5000ms，实测锁类型后对症修）· F6b（da_asst 成本 → agent_kind 三源合一 Occam chore）· CLAUDE 关键路径表大修 · base.py→migrations.py 拆（v0.9 前）。
+
+### Fixed
+- **F2 use_agent 成功公式源头修（守护者 must-fix #2）**：`sql_planner.py` 删恒真第二子句（`final_rows is not None` 恒 True）→ `success = bool(final_sql and not final_error)`；**且闭合残留** —— 两个 execute 点（`__FINAL__` `:156` + fallback re-execute `:191`）均改 `final_error = exec_err or ""`（成功清 stale / 失败设），使 fallback 路径的 DB 错也进 final_error（否则末步走 fallback + max_steps 耗尽仍误判 success=True；与锁竞态复合）。sync + async 双胞胎一致。**grounded 精修**：naive「仅 fallback 补 final_error」会引 stale 回归（后续 __FINAL__ 成功不清 → 误 False）→ 改「两点均反映末次执行」。
+- **F4 两个 SSRF**：① `database.py` `POST /api/db/test` `get_current_user` → **`require_admin`**（低权 analyst 不再能盲扫内网；对齐 datasources CRUD 信任级）· ② `admin/datasources.py` `_test_source` HTTP HEAD 前 + create/update 存 http_config 前均过 `is_url_allowed`/`check_url_allowed`（对齐 `executor.py:97` 单一守卫，堵 url_allowlist 自身威胁模型的绕过路径）。
+- **F6a SSE 中断成本落账（守护者 must-fix #4 F6a）**：`query.py` `generate()` 的 `except KnotError`/`except Exception` 分支补 `_flush_interrupt_cost()` —— 有累计成本时 `aggregate_agent_costs` → `update_user_usage`（防 clarifier/sql_planner 已烧 token/cost 在异常时全丢 → 月度用量/预算欠计，R-17 聚合一致性）。guard cost/tok>0 防 pre-LLM 早退虚假记账。**F6b（da_asst 进 messages 桶）已否决**（3 重复源+硬编列+已双账+语义错配）。
+- **F7 default-admin 弱口令债缓解（R-LP-v3-EX-3-1）**：`base.py` seed admin 初始口令 —— env `KNOT_INITIAL_ADMIN_PASSWORD` 优先，无则**随机强口令**（`secrets.token_urlsafe`）+ 一次性日志打印，替代硬编 `admin123`（消除跨部署同一已知口令 + 首启竞态放大）；`must_change_password=1` 保留。新 `knot/scripts/reset_admin_password.py` 重置脚本。测试经 conftest 模块级 pin `KNOT_INITIAL_ADMIN_PASSWORD=admin123` 保确定性。
+- **F8-min echarts XSS + doc drift**：`echarts ^6.0.0→^6.1.0`（GHSA-fgmj-fm8m-jvvx，`npm audit` 0 漏洞）+ static rebuild；README（调度器已交付 / 数据源 db_type / admin 初始口令流程）· `.env.example`（补 `OPENROUTER_API_KEY` + v0.7/v0.8 env + `KNOT_INITIAL_ADMIN_PASSWORD`）· DEPLOY（版本 v0.7.36→0.8.20 + admin123 全流程改写 + `base.py:94`→`:213` stale ref）。
+
+### Tests
+- F2 fallback-path 失败测（非仅 __FINAL__） + F4 db/test 非 admin 403 + datasources allowlist 拒 + F6a 中断落账/pre-LLM 不虚记 + F7 env/随机 seed。
+
+### 版本
+- 4 源点 0.8.19→0.8.20（main.py / version.js / README banner / test_rename_smoke）+ CHANGELOG。路由数仍 143（F4/F6a/F7 无新端点）。
+
+## [Released] - v0.8.19 — 整体审核收口 19a：上传问数隔离 + uuid 表名 + 存量 P1 修（走完整 v3 · 守护者 Stage 3 major-revise 整合）
 
 > v0.8→v0.9 MINOR 滚动整体审核（三方独立意见 + 资深仲裁）后的「地基夯平」收口 PATCH 首刀（19a）。
 > 完整 Loop Protocol v3：Stage 1 草案 → Codex Stage 2 → 守护者 Stage 3 终审（major-revise，5 blocking must-fix）→ 执行者整合。

@@ -155,8 +155,7 @@ def run_sql_agent(
             # v0.6.0-hotfix R-PA-10：CTE (WITH...) 也是可执行查询；详 _is_executable_query
             if _is_executable_query(final_sql):
                 final_rows, exec_err = db_connector.execute_query(engine, final_sql)
-                if exec_err:
-                    final_error = exec_err
+                final_error = exec_err or ""  # v0.8.20 F2：反映本次执行状态（清 stale；守护者 must-fix #2 无回归）
             break
 
         # v0.5.1 R-91：cartesian 拒收 — 计数 + ≥3 次强制终止；否则继续反馈 LLM 重生成
@@ -186,6 +185,7 @@ def run_sql_agent(
         if action == "execute_sql" and observation.startswith("查询成功"):
             final_sql = _strip_sql(action_input)
             final_rows, exec_err = db_connector.execute_query(engine, final_sql)
+            final_error = exec_err or ""  # v0.8.20 F2：fallback 也落 final_error（守护者 must-fix #2 闭合残留；成功清 stale）
             if not exec_err:
                 break
             observation = f"重新执行失败: {exec_err}"
@@ -193,7 +193,7 @@ def run_sql_agent(
         messages.append({"role": "assistant", "content": raw_text})
         messages.append({"role": "user", "content": f"Observation: {observation}"})
 
-    success = bool(final_sql and not final_error) or bool(final_sql and final_rows is not None)
+    success = bool(final_sql and not final_error)  # v0.8.20 F2：删恒真第二子句（final_rows 恒非 None）；final_error 反映末次执行
 
     return AgentResult(
         success=success,
@@ -310,8 +310,7 @@ async def arun_sql_agent(
             # v0.6.0-hotfix R-PA-10：CTE (WITH...) 也是可执行查询；详 _is_executable_query
             if _is_executable_query(final_sql):
                 final_rows, exec_err = db_connector.execute_query(engine, final_sql)
-                if exec_err:
-                    final_error = exec_err
+                final_error = exec_err or ""  # v0.8.20 F2：反映本次执行状态（清 stale；守护者 must-fix #2 无回归）
             break
 
         # v0.5.1 R-91：cartesian 拒收 — 计数 + ≥3 次强制终止；否则继续反馈 LLM 重生成
@@ -340,6 +339,7 @@ async def arun_sql_agent(
         if action == "execute_sql" and observation.startswith("查询成功"):
             final_sql = _strip_sql(action_input)
             final_rows, exec_err = db_connector.execute_query(engine, final_sql)
+            final_error = exec_err or ""  # v0.8.20 F2：fallback 也落 final_error（守护者 must-fix #2 闭合残留；成功清 stale）
             if not exec_err:
                 break
             observation = f"重新执行失败: {exec_err}"
@@ -347,7 +347,7 @@ async def arun_sql_agent(
         messages.append({"role": "assistant", "content": raw_text})
         messages.append({"role": "user", "content": f"Observation: {observation}"})
 
-    success = bool(final_sql and not final_error) or bool(final_sql and final_rows is not None)
+    success = bool(final_sql and not final_error)  # v0.8.20 F2：删恒真第二子句（final_rows 恒非 None）；final_error 反映末次执行
 
     return AgentResult(
         success=success,

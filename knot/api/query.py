@@ -214,6 +214,20 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
                 scrub_query_payload(event, alias_map)
             return f"data: {json.dumps(event, ensure_ascii=False, default=_default)}\n\n"
 
+        def _flush_interrupt_cost():
+            # v0.8.20 F6a：SSE 中途抛异常时，把**已发生**的 agent 花费落账 —— 否则 clarifier/sql_planner
+            # 已烧的 token/cost 在 except 分支全丢（月度用量/预算欠计，破 R-17 聚合一致性）。仅在有累计
+            # 成本时记（guard cost/tok>0），避免 pre-LLM 早退产生虚假记账。buckets 只留合并 tokens →
+            # update_user_usage 内 input+output 求和，故 (total_tok, 0) 与真值等价。
+            try:
+                total_cost, total_tok = cost_service.aggregate_agent_costs(agent_buckets)
+                if total_cost > 0 or total_tok > 0:
+                    user_repo.update_user_usage(
+                        user["id"], total_tok, 0, total_cost, int((time.time() - t0) * 1000),
+                    )
+            except Exception:
+                logger.exception("query-stream F6a 中断落账失败")
+
         try:
             # v0.6.2.6 隔离三层①：generate() 内重捕获 per-user active catalog（保 ContextVar 落在
             # generator 执行上下文 — handler L167 已为 schema_filter set；本处保 clarifier/sql_planner 链）
@@ -529,9 +543,11 @@ async def query_stream(conv_id: int, req: QueryRequest, user=Depends(get_current
             await asyncio.sleep(0)
         except KnotError as e:
             logger.warning(f"query-stream KnotError: {type(e).__name__}: {str(e)[:200]}")
+            _flush_interrupt_cost()  # v0.8.20 F6a：落已发生花费
             yield emit({"type": "error", **error_translator.to_response(e)})
         except Exception as _exc:
             logger.exception(f"query-stream pipeline failed: {_exc}")
+            _flush_interrupt_cost()  # v0.8.20 F6a：落已发生花费
             yield emit({"type": "error", **error_translator.to_response_unknown(_exc)})
 
     return StreamingResponse(

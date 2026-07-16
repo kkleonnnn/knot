@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from knot.adapters.db import doris as db_connector
-from knot.api.deps import get_current_user
+from knot.api.deps import get_current_user, require_admin
 from knot.api.schemas import DataSourceRequest
 from knot.services.engine_cache import get_user_databases, get_user_engine
 
@@ -30,8 +30,10 @@ async def get_db_schema(user=Depends(get_current_user)):
     return {"tables": db_connector.get_schema_structured(engine, databases=databases)}
 
 
+# v0.8.20 F4（SSRF）：db/test 用 db_host/db_port 建任意连接 = 内网探测面。收紧 get_current_user
+# → require_admin（对齐 datasources CRUD 的 admin-only 信任级；低权 analyst 不再能盲扫内网）。
 @router.post("/api/db/test")
-async def test_db_connection(req: DataSourceRequest, user=Depends(get_current_user)):
+async def test_db_connection(req: DataSourceRequest, admin=Depends(require_admin)):
     try:
         engine = db_connector.create_engine(
             req.db_host, req.db_port, req.db_user, req.db_password, req.db_database
