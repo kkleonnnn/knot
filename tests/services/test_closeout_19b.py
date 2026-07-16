@@ -7,17 +7,22 @@ import bcrypt
 from knot.services.agents import sql_planner
 
 
+# F2 测隔离掉 _run_tool 的 catalog 全局态依赖（cartesian/fan-out 守护）—— F2 逻辑在 run_sql_agent
+# 循环（success 公式 + final_error 生命周期），非 _run_tool。mock _run_tool 使测试对全局态确定性
+# （CI full-suite 前序测污染 catalog globals 曾致 flaky）。execute_query 仍控实际执行结果。
+def _mock_run_tool(monkeypatch):
+    monkeypatch.setattr(
+        sql_planner, "_run_tool",
+        lambda action, ai, engine, schema: ("查询成功，共 1 行" if action == "execute_sql"
+                                            else "__FINAL__:" + ai),
+    )
+
+
 def test_F2_fallback_reexecute_failure_marks_not_success(monkeypatch):
     """守护者 must-fix #2：末步走 fallback re-execute 失败 + max_steps 耗尽 → success=False（非旧恒真 True）。"""
-    calls = {"n": 0}
-
-    def fake_execute(engine, sql):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return [{"x": 1}], ""            # _run_tool 首次执行成功 → observation "查询成功"
-        return [], "Unknown column 'boom'"   # fallback 重执行失败（:187）
-
-    monkeypatch.setattr(sql_planner.db_connector, "execute_query", fake_execute)
+    _mock_run_tool(monkeypatch)
+    # fallback re-execute（:187）失败 → final_error 落 exec_err
+    monkeypatch.setattr(sql_planner.db_connector, "execute_query", lambda e, s: ([], "Unknown column 'boom'"))
     monkeypatch.setattr(
         sql_planner, "_call_llm",
         lambda *a, **k: ("Thought: t\nAction: execute_sql\nAction Input: SELECT boom FROM t", 10, 5),
@@ -29,6 +34,7 @@ def test_F2_fallback_reexecute_failure_marks_not_success(monkeypatch):
 
 def test_F2_clean_success_still_true(monkeypatch):
     """无回归：__FINAL__ 干净执行 → success=True（final_error 清空，第二子句删除不误杀）。"""
+    _mock_run_tool(monkeypatch)
     monkeypatch.setattr(sql_planner.db_connector, "execute_query", lambda e, s: ([{"x": 1}], ""))
     monkeypatch.setattr(
         sql_planner, "_call_llm",
@@ -42,20 +48,21 @@ def test_F2_stale_error_cleared_by_later_final(monkeypatch):
     """守护者 Stage 4 补：无 stale 回归 —— 某步 fallback 失败设 final_error 后，后续 __FINAL__ 干净成功
     须**清 stale** → success=True。naive「仅 fallback 补 final_error、__FINAL__ 不清」会误判 False；
     本测正是守精修（两执行点均 `final_error = exec_err or ""`）的回归。"""
+    _mock_run_tool(monkeypatch)
     ex = {"n": 0}
 
     def fake_execute(engine, sql):
         ex["n"] += 1
-        if ex["n"] == 2:               # step1 fallback re-execute → 失败（设 final_error=stale）
+        if ex["n"] == 1:               # step1 fallback re-execute → 失败（设 stale final_error）
             return [], "transient boom"
-        return [{"x": 1}], ""          # call1 _run_tool 成功 / call3 __FINAL__ 成功
+        return [{"x": 1}], ""          # step2 __FINAL__ execute → 成功（须清 stale）
 
     monkeypatch.setattr(sql_planner.db_connector, "execute_query", fake_execute)
     llm = {"n": 0}
 
     def fake_llm(*a, **k):
         llm["n"] += 1
-        if llm["n"] == 1:              # step1：execute_sql → 触发 fallback（call2 失败设 stale）
+        if llm["n"] == 1:              # step1：execute_sql → 触发 fallback（call1 失败设 stale）
             return ("Thought: t\nAction: execute_sql\nAction Input: SELECT x FROM t", 10, 5)
         return ("Thought: done\nAction: final_answer\nAction Input: SELECT x FROM t", 10, 5)
 
