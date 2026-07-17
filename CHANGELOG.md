@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.21 — admin 取数体验：数据源探测与列表解耦（数据源/用户页 >1min → 秒开）
+## [Unreleased] - v0.8.22 — base.py → migrations.py 拆分（纯重构 chore · v0.9 多租户物理前置）
+
+> 独立纯重构 chore PATCH（快通道 · 资深 2026-07-17 explicit 授权 · 0 行为改）。兑现 R-LP-v3-EX-3 承诺登记（`check_file_sizes.py` 明示「v0.9 前拆 migrations.py」）。
+> 动因：base.py 373/376 headroom 仅 3 行；v0.9.0 `get_conn` 双层库解析必动 base.py → 不拆必爆 size-gate。
+
+### Changed
+- **`knot/repositories/base.py` 373 → 84 行**：`init_db` 的历史兼容迁移块拆入新 `knot/repositories/migrations.py`（344 行）。base.py 保留 `get_conn` / `_SCHEMA_SQL` / `init_db` 编排 / seed admin。
+- **新 `knot/repositories/migrations.py`**：三段迁移入口 `run_pre_schema_migrations` / `run_post_schema_migrations` / `run_startup_cleanup`（对齐 init_db 现执行序：pre → executescript → post → seed admin → 上传库隔离迁移 → cleanup，**逐块 byte-equal 保序**）+ 2 个上传库迁移函数（`_migrate_uploads_to_isolated_db_once` 活跃 / `_migrate_uploads_db_once` RETIRED）。base.py 再导出这 2 函数 → 既有 `base.<fn>` 引用（tests / engine_cache 注释）0 破。
+- 迁移函数内 4 处 `SQLITE_DB_PATH` 读取改为**调用期反读** `base.SQLITE_DB_PATH`（`from knot.repositories import base as _b`）——保 base 顶层 import migrations 无环 + 兼容测试 monkeypatch `base.SQLITE_DB_PATH`。R-LP-v3-EX-3-1 grounded 引文锚点（「1.0 公测前必清的安全债」自标）随 must_change_password 列注释搬至 migrations，seed admin 承重代码仍留 base.py。
+- `scripts/check_file_sizes.py`：移除 base.py ACK（84 ≤300 auto-caught）；新增 migrations.py ACK（344，~300 行迁移代码 inherent）。
+
+### Tests
+- `tests/repositories/test_migration_observability.py`：logger monkeypatch 目标 `base` → `migrations`（函数 logger 归属随搬迁）；`SQLITE_DB_PATH` monkeypatch + 调用点经再导出 + 调用期反读保持 `base`（唯一改动测试文件）。其余测试 0 改（含 test_upload_isolation，经再导出 + 方案 a 保 monkeypatch 语义）。
+- 全套件 1310 passed / 114 skipped / 0 failed；byte-equal 逐块 diff（5 块 code 全等）。
+
+## [Released] - v0.8.21 — admin 取数体验：数据源探测与列表解耦（数据源/用户页 >1min → 秒开）
 
 > 独立体验 PATCH（快通道 · 资深 announce）。修 kk 亲述痛点：数据源页 + 用户页每次加载卡 >1min、返回对话再回来又重载。
 > 根因（整体审核取数诊断的最严重表现）：`admin_list_datasources` 每次加载对每个源**实时建连探测、零缓存**；dev 有个 VPN 私网源（10.5.184.127）不可达 → TCP 卡 ~1min；用户页 `Promise.all([users, datasources])` 被同一探测拖住。

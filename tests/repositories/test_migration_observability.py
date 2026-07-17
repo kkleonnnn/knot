@@ -25,14 +25,15 @@ class _LoggerSpy:
 def test_migrate_uploads_error_path_logs_exception(tmp_path, monkeypatch):
     """畸形 uploads.db → except 分支走 logger.exception + fail-soft 不 raise。"""
     from knot.repositories import base as base_mod
+    from knot.repositories import migrations as migrations_mod  # v0.8.22：函数已搬 migrations
 
     db_path = tmp_path / "knot.db"
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", str(db_path))  # 函数调用期反读 base.SQLITE_DB_PATH
     # 非法 sqlite 文件：ATTACH 后读 up.sqlite_master 必失败 → except 分支
     (tmp_path / "uploads.db").write_text("not a sqlite database")
 
     spy = _LoggerSpy()
-    monkeypatch.setattr(base_mod, "logger", spy)
+    monkeypatch.setattr(migrations_mod, "logger", spy)  # v0.8.22：函数 logger 归属 migrations 模块
 
     conn = sqlite3.connect(str(db_path))
     base_mod._migrate_uploads_db_once(conn)  # fail-soft：不 raise
@@ -45,9 +46,10 @@ def test_migrate_uploads_error_path_logs_exception(tmp_path, monkeypatch):
 def test_migrate_uploads_success_path_logs_info(tmp_path, monkeypatch):
     """合法 uploads.db 含一张表 → 搬迁成功走 logger.info(moved=1)。"""
     from knot.repositories import base as base_mod
+    from knot.repositories import migrations as migrations_mod  # v0.8.22：函数已搬 migrations
 
     db_path = tmp_path / "knot.db"
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", str(db_path))  # 函数调用期反读 base.SQLITE_DB_PATH
     up = sqlite3.connect(str(tmp_path / "uploads.db"))
     up.execute("CREATE TABLE up_user_1 (a INT)")
     up.execute("INSERT INTO up_user_1 VALUES (1)")
@@ -55,7 +57,7 @@ def test_migrate_uploads_success_path_logs_info(tmp_path, monkeypatch):
     up.close()
 
     spy = _LoggerSpy()
-    monkeypatch.setattr(base_mod, "logger", spy)
+    monkeypatch.setattr(migrations_mod, "logger", spy)  # v0.8.22：函数 logger 归属 migrations 模块
 
     conn = sqlite3.connect(str(db_path))
     base_mod._migrate_uploads_db_once(conn)
