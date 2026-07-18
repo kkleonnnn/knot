@@ -29,7 +29,8 @@ BACKEND_ACK = {
     "knot/adapters/db/doris.py":           392,  # v0.8.0 B6.1 +auto-LIMIT；v0.8.5 ②a +is_safe_sql wrapper →373；v0.8.19a +drop_sqlite_table（删上传表清理）+ load_rows_to_sqlite 命名参数修（既存 P1）373→390（headroom 2）
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       340,  # 暂冻结；v0.8.19a F1 上传隔离 _upload_engine 改指独立 uploads.db 注释 337→339（config-only）
-    "knot/repositories/base.py":           376,  # v0.8.19a F1 +迁移 →361；v0.8.20 F7 seed env/随机口令 +日志 361→372（headroom 4）→ ⚠️ v0.9 前拆 migrations.py（整体审核已列，承诺登记）
+    # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）
+    "knot/repositories/migrations.py":     344,  # v0.8.22 从 base.py 拆出的历史迁移块（~300 行迁移代码 inherent，逐块 byte-equal）；R-LP-v3-EX-3 承诺兑现
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
