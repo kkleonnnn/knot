@@ -25,6 +25,8 @@ from tests.eval._semantic_eval import (
     eval_time_ctx,
     load_semantic_corpus,
     rates,
+    resolve_business_rules,
+    resolve_eval_model,
 )
 
 _REQUIRES_KEY = pytest.mark.skipif(
@@ -33,7 +35,9 @@ _REQUIRES_KEY = pytest.mark.skipif(
 )
 
 _CATALOG, _CASES = load_semantic_corpus()
-_MODEL = os.getenv("EVAL_MODEL", "anthropic/claude-haiku-4.5")
+# 保真度（2026-07-18）：模型 = 生产 sql_planner（非 haiku 默认）+ 带 business_rules；否则假回归。
+_MODEL = resolve_eval_model()[0]
+_BUSINESS_RULES = resolve_business_rules(_CATALOG)[0]
 
 # 门禁阈值（守护者 §E-1 护栏 b：假域留 buffer，稳 ≥95% 再 assert ≥90%）
 _HIT_RATE_GATE = 0.90
@@ -43,6 +47,7 @@ _MISJUDGE_GATE = 0   # 误判=0 硬安全线（守护者 §E-1 护栏 c）
 async def _parse_one(question: str, metrics: list[dict]):
     res = await parser.parse_to_logicform(
         question, metrics, model_key=_MODEL, openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
+        business_rules=_BUSINESS_RULES,  # 生产同参（query_steps.py:235）
     )
     return res.get("logicform")
 
