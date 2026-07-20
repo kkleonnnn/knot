@@ -14,6 +14,21 @@ AI 驱动的 BI 助手：自然语言 → SQL → 图表。
 3. 只改被要求的部分
 4. 给验收标准，别给步骤
 
+### 🔬 R-STORM：执行者多视角策展方法论（kk 2026-07-18 立 · 准则之一）
+
+> **来源**：Stanford OVAL **STORM / Co-STORM**（[github.com/stanford-oval/storm](https://github.com/stanford-oval/storm)）—— LLM 知识策展系统：多视角提问（先调研发现视角再据视角生成问题）+ 检索接地 + 模拟对话迭代追问 + **moderator 主动生成发人深省的问题** + **mind map 共享概念空间** + 人在环 turn 管理 + 高度模块化。
+> **性质**：kk 立为 **KNOT 执行者迭代项目过程中的工作方法论准则**（**不是产品特性**——是「执行者怎么干活」）。落在 Loop Protocol v3（三阶段评审）+ R-137（无单点可信）**之内**，不替代它们，是它们的方法论内核。
+
+**六条执行者实践**（STORM 概念 → KNOT 执行者怎么做）：
+1. **多视角提问代替单次推理**（perspective-guided questions）：设计 / 排查 / 决策前，扇出多条**独立视角/lens**（对抗证伪员、分维度审计 agent、diverse-lens verify），而非单 shot 结论。
+2. **检索接地，永不凭记忆断言**（retrieval-grounded）：每条主张先 grounded 到 `file:line` / DB / 命令输出再断言；记忆 / 文档 / 历史审计只是**线索，用前必验**（呼应记忆系统「验证再断言」+ 版本锚点重核）。
+3. **模拟对话迭代精炼**（simulated conversation）：理解经结构化往返精炼 —— grounded 盘点 → 草案 → 对抗自核 → Stage 2/3 → 追问补漏，**非一稿定论**。
+4. **moderator 主动追问缺口**（thought-provoking questions）：执行者兼任 moderator，主动生成「**还缺什么**」—— 哪个 modality 没跑 / 哪条主张没验 / 哪个失败模式没人查（completeness critic）；把**重塑判断的问题**问出来，而非只答被问的。
+5. **mind map 共享概念空间**（shared conceptual space）：维护分层可信知识结构（memory + `docs/plans` + CHANGELOG）与 kk 共享；保持 live 不 drift。
+6. **人在环 turn 管理**（human-in-the-loop）：战略 / 口径 / 不可逆分叉交 kk steer（moderator 提问、human 拍板）；执行者不擅自定战略或业务口径。
+
+**违反代价**：破 R-STORM = 单点推理 / 凭记忆断言 / 一稿定论 / 漏问缺口 → **假结论 / 假回归**。实证：2026-07-18 语义 eval「6 类系统性回归」实为 eval 模型错配（haiku vs 生产 sonnet-4.6）+ business_rules 缺参的**假象**，正是靠「多视角对比表 + grounded 查注册表/模型配置」才破案 —— 单看 eval 数字必误判语义层坏了。
+
 ### ⚠️ 迭代循环协议 (Loop Protocol) — v3
 
 **严禁在未走完三阶段评审的情况下编写任何业务代码。**
