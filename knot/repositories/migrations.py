@@ -199,6 +199,19 @@ def run_post_schema_migrations(conn):
             ),
         )
 
+    # v0.8.24 治存量：删源未级联的历史悬空（幂等 · **无条件**运行——在下方 backfill 的 COUNT==0
+    # guard 之外，才能治「已存在的非空 DB」如本地/内测服）。COUNT 护栏：data_sources 空时不清，
+    # 防 v0.9 per-tenant bootstrap 瞬时空态把 NOT IN(空) 判全 TRUE → mass-wipe。
+    if conn.execute("SELECT COUNT(*) FROM data_sources").fetchone()[0] > 0:
+        conn.execute("UPDATE users SET default_source_id=NULL "
+                     "WHERE default_source_id IS NOT NULL "
+                     "AND default_source_id NOT IN (SELECT id FROM data_sources)")
+        conn.execute("DELETE FROM user_sources "
+                     "WHERE source_id NOT IN (SELECT id FROM data_sources)")
+        conn.execute("UPDATE bi_reports SET data_source_id=NULL "
+                     "WHERE data_source_id IS NOT NULL "
+                     "AND data_source_id NOT IN (SELECT id FROM data_sources)")
+
     # default_source_id → user_sources（一次性，user_sources 为空时执行）
     if conn.execute("SELECT COUNT(*) FROM user_sources").fetchone()[0] == 0:
         conn.execute("""
