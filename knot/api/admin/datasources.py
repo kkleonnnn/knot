@@ -197,6 +197,8 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
 @router.delete("/api/admin/datasources/{source_id}")
 async def admin_delete_datasource(source_id: int, request: Request, admin=Depends(require_admin)):
     data_source_repo.delete_datasource(source_id)
+    from knot.services.engine_cache import invalidate_all_engine_cache
+    invalidate_all_engine_cache()  # v0.8.24 R2：删源撤权，覆盖 (uid,group) + ("source",id) 两 cache 命名空间
     audit(request, admin, action="datasource.delete", resource_type="datasource",
           resource_id=source_id)
     return {"ok": True}

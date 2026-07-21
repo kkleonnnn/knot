@@ -62,7 +62,10 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Reque
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in ("password", "source_ids")}
     if "default_source_id" in req.__fields_set__:
-        kwargs["default_source_id"] = req.default_source_id
+        dsid = req.default_source_id
+        if dsid is not None and not data_source_repo.datasource_exists(dsid):
+            raise HTTPException(status_code=400, detail="指定的默认数据源不存在")
+        kwargs["default_source_id"] = dsid
     if req.password:
         kwargs["password_hash"] = auth_service.hash_password(req.password)
     # v0.4.5 R-39：敏感字段 PATCH 空值/mask 占位 → 保留原值（不清空）
@@ -75,6 +78,9 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Reque
     if kwargs:
         user_repo.update_user(user_id, **kwargs)
     if "source_ids" in req.__fields_set__:
+        for sid in (req.source_ids or []):
+            if not data_source_repo.datasource_exists(sid):
+                raise HTTPException(status_code=400, detail="指定的数据源不存在")
         data_source_repo.set_user_sources(user_id, req.source_ids or [])
     invalidate_engine_cache(user_id)
     # 区分子动作：role_change / password_reset / generic update
