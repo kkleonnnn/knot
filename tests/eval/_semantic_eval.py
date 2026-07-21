@@ -59,7 +59,52 @@ def eval_time_ctx() -> SimpleNamespace:
         last_7_days_to_latest=("2026-06-15", "2026-06-21"),
         today=("2026-06-21", "2026-06-21"),
         yesterday=("2026-06-20", "2026-06-20"),
+        # v0.9 前语义激活收官：补真 OHX 语料用到的窗（last_month 10 案 / last_week / last_year）——
+        # additive，2026-06-21 锚点一致；否则 eval 跑到这些窗 AttributeError 崩。
+        last_month=("2026-05-01", "2026-05-31"),
+        last_week=("2026-06-08", "2026-06-14"),
+        last_year=("2025-01-01", "2025-12-31"),
+        this_year=("2026-01-01", "2026-12-31"),  # 整年（≠ this_year_to_latest 至今）
     )
+
+
+# ── eval 保真度：模型 + business_rules 解析（committed 测 + scripts 共用单一真相源）──
+# 2026-07-18 教训：eval 用 haiku（默认）+ 不传 business_rules → 假回归（生产 parser = sonnet-4.6 + 带 rules）。
+# 所有 eval 入口须用生产同款模型/参数，否则边缘能力（率派生/outer/自由 filter）被测成假失败。
+def resolve_eval_model(cli_model: str | None = None) -> tuple[str, str]:
+    """→ (model, source)。cli > env EVAL_MODEL > 生产 agent_model_config.sql_planner(DB best-effort) > haiku 兜底。"""
+    import json
+    import os
+    if cli_model:
+        return cli_model, "cli"
+    env_m = os.getenv("EVAL_MODEL", "").strip()
+    if env_m:
+        return env_m, "env EVAL_MODEL"
+    try:  # best-effort：真部署下取生产模型；CI/无 DB 时静默兜底 haiku
+        from knot.repositories.settings_repo import get_app_setting
+        prod = (json.loads(get_app_setting("agent_model_config", "") or "{}").get("sql_planner") or "").strip()
+        if prod:
+            return prod, "生产 agent_model_config.sql_planner"
+    except Exception:
+        pass
+    return "anthropic/claude-haiku-4.5", "兜底默认"
+
+
+def resolve_business_rules(catalog: dict) -> tuple[str, str]:
+    """→ (business_rules, source)。corpus catalog 自包含优先 → catalog_loader(生产同源) → 空。
+
+    生产 parser 调用带 business_rules（query_steps.py，v0.7.19 库表时效路由）；eval 须同参。
+    """
+    br = (catalog.get("business_rules") or "").strip()
+    if br:
+        return br, "corpus catalog.business_rules"
+    try:
+        from knot.services.agents import catalog as _cl
+        if (_cl.BUSINESS_RULES or "").strip():
+            return _cl.BUSINESS_RULES, "catalog_loader.BUSINESS_RULES"
+    except Exception:
+        pass
+    return "", "（无）"
 
 
 def expected_canonicals(case: dict) -> set[str]:

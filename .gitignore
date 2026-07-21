@@ -23,6 +23,7 @@ knot/services/few_shots.yaml
 tests/eval/cases.yaml
 tests/eval/fake_schema.txt
 tests/eval/semantic_cases.yaml
+tests/eval/semantic_cases.candidate.yaml
 
 # IDE
 .idea/
