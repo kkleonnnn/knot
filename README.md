@@ -50,7 +50,7 @@ https://github.com/user-attachments/assets/008c1ba2-aea8-4f71-9f2a-e3c5c17e3ea3
 - **目录权限 RBAC**：按用户 × 目录/报表 × 4 权限（定时 / 编辑 / 导出 / 分享）；admin 恒全权、default-deny
 - **da-asst 数据分析引擎**：BI 右栏只读报表解读（独立模型槽 + 成本控制平面 + 审计）
 
-**语义层**（v0.7 · `KNOT_SEMANTIC_LAYER` flag，默认 off）
+**语义层**（v0.7 · `KNOT_SEMANTIC_LAYER` flag · **激活门达标已启用**：eval-live 命中 ≥90%∧误判 0 + 真环境双证达标；代码默认仍 off，生产/本地设 `env=true` 开）
 
 - **指标注册表** + **NL → LogicForm → SQL 编译**（编译七刀）+ **混合路由**（语义命中走 LogicForm，未命中回退 3-agent SQL）；flag 未开时全走 ASK 3-agent 链
 
