@@ -17,6 +17,7 @@ import { AdminMetricRegistryScreen } from './screens/AdminMetricRegistry.jsx';
 import { AdminLogicFormScreen } from './screens/AdminLogicForm.jsx';
 import { AdminMonitorsScreen } from './screens/AdminMonitors.jsx';
 import { AdminQueryHistoryScreen } from './screens/AdminQueryHistory.jsx';
+import { connectedCountForBadge } from './connection_badge.js';  // v0.8.23 — 徽标 checking-gated 计数
 
 // v0.6.5.0 R-2FA-5：403 totp_enroll_required 共享判定 — 覆盖 mount me() + 所有 post-login
 // prefetch catch（强制 2FA 默认 on 后，未 enroll 用户任一受保护端点都会 403 → 须跳 Enroll，非静默吞）
@@ -73,8 +74,11 @@ export default function App() {
     api.get('/api/db/status').then(d => setDbOk(d.connected)).catch((e) => { onErr(e); setDbOk(false); });
     if (user.role === 'admin') {
       // v0.6.1.4 fix: endpoint is /api/admin/datasources not /api/admin/sources
+      // v0.8.23 fix: 徽标计数走 connectedCountForBadge（checking-gated）—— 冷启 _DS_STATUS_CACHE 空→
+      // 全 status='checking'→null→Chat/BI 回落 dbOk?1:0（消假 0）；暖缓存真 0（全 error/空列表，无
+      // checking）→保留 0（不谎报 1）。纯客户端，不调 /status，不重引 v0.8.21 逐页探测。见 connection_badge.js。
       api.get('/api/admin/datasources')
-         .then(ds => setSourceCount(Array.isArray(ds) ? ds.filter(s => s.status === 'online').length : 1))
+         .then(ds => setSourceCount(connectedCountForBadge(ds)))
          .catch(onErr);
     }
   }, [user?.id]);

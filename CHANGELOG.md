@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.22 — base.py → migrations.py 拆分（纯重构 chore · v0.9 多租户物理前置）
+## [Unreleased] - v0.8.23 — 数据源徽标冷启假「0 已连接」修复（cosmetic · checking-gated 计数）
+
+> 修 v0.8.21「探测与列表解耦」引入的 UI 回归。走完整 Loop Protocol v3 三阶段（Stage 1 执行者 + Stage 2 Codex 初审 6 catch + Stage 3 守护者=v0.8.21 回归作者 minor-revise → 放行）。
+
+### Fixed
+- **数据源徽标冷启假「0 已连接」**：v0.8.21 后列表端点不再内联探测、`status` 取 `_DS_STATUS_CACHE`（冷/过期返 `"checking"`）；而 `App.jsx` 徽标取数路径（登录时 prefetch，早于任何 tab 打开）从不预热该缓存 → 冷启全 `checking` → `filter(status==='online').length=0` → 顶栏显「0 已连接」，与绿点（`/api/db/status` 实时连通）自相矛盾。
+- **修法 = checking-gated 计数**：抽纯函数 `connectedCountForBadge(ds)`（新 `frontend/src/connection_badge.js`）—— `online>0→N`（暖缓存透传）· `online=0 且有 checking→null`（未探测=未知，回落 Chat/BI `dbOk?1:0` 保守展示，消假 0）· `online=0 且无 checking→0`（暖缓存全 error/空列表=真 0，诚实保留，不谎报 1）· 非数组→1（原 fallback）。**四态真值表仅一格改动**：`online=0 且有 checking` 从旧「谎报确定 0」改「诚实 null」，其余三格与旧 `.filter().length` 逐字等价。
+- 纯客户端 falsy 逻辑，**0 新增网络调用**，不碰 `/status` / list 探测行为 → 不重引 v0.8.21「逐页阻塞探测」红线；后端 0 改动。
+
+### Tests
+- **新 `frontend/src/connection_badge.test.js`**（vitest · 6 态）：全 checking→null · **全 error→0**（核心回归测：守 `||null` 反向假阳性不复发）· 空列表→0 · 混合 checking+error→null · online>0→真实 N · 非数组→1。
+
+### Notes
+- **backlog**：徽标两个不同源信号（`dbOk` 绿点走 `get_user_engine` vs 计数走 admin 探测缓存）并列 → 未来 UX 调和（守护者 G1）；`admin.default_source_id` 悬空引用完整性校验（另挂 task）。
+- **未升** `/status` 真探测计数（runner-up）：对 cosmetic over-engineering（每 admin session 一次 ~5s 后台探测 + 1→N 闪动）；留待多源真实计数成硬需求（多业务库 / v0.9 多租户）。
+
+## [Released] - v0.8.22 — base.py → migrations.py 拆分（纯重构 chore · v0.9 多租户物理前置）
 
 > 独立纯重构 chore PATCH（快通道 · 资深 2026-07-17 explicit 授权 · 0 行为改）。兑现 R-LP-v3-EX-3 承诺登记（`check_file_sizes.py` 明示「v0.9 前拆 migrations.py」）。
 > 动因：base.py 373/376 headroom 仅 3 行；v0.9.0 `get_conn` 双层库解析必动 base.py → 不拆必爆 size-gate。
