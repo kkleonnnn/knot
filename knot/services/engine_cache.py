@@ -331,6 +331,13 @@ def invalidate_engine_cache(user_id: int):
         _engine_cache.pop(k, None)
 
 
+def invalidate_all_engine_cache():
+    """v0.8.24 R2：清全部引擎缓存 —— (uid,group_key) 用户组 + ("source",id) 单源两命名空间。
+    删源必调：group_key=host:port:user 不含 db 列表，同组多 db 删其一 → key 不变 → 旧合并 engine
+    含被删 schema 存活 ≤TTL；且 invalidate_engine_cache(uid) 清不掉 ("source",id)（k[0]=="source"）。"""
+    _engine_cache.clear()
+
+
 def get_user_databases(user_id: int):
     """返回当前 user 主连接组的 databases 列表（供 schema 接口等使用）。"""
     for key, val in _engine_cache.items():

@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.23 — 数据源徽标冷启假「0 已连接」修复（cosmetic · checking-gated 计数）
+## [Unreleased] - v0.8.24 — data_source 删除级联清理 + 悬空 default_source_id / user_sources / bi_reports 治愈
+
+> 数据完整性 bug fix chore。走完整 Loop Protocol v3（Stage 1 执行者 + Stage 2 Codex major-revise 6 catch + Stage 3 守护者 major-revise → 放行）。堆叠于 v0.8.23（#245）。
+
+### Fixed
+- **删数据源不级联 → 留悬空引用**（根因）：`admin_delete_datasource` → `data_source_repo.delete_datasource` 原只 `DELETE FROM data_sources`；DB 无 FK / 全仓无 `PRAGMA foreign_keys` 兜底 → `users.default_source_id` / `user_sources` / `bi_reports.data_source_id` 全部留悬空。live 复现：admin.default_source_id=2 + user_sources(1,2) 悬空。
+- **Fix1 代码级 ON DELETE 级联**（`data_source_repo.delete_datasource`）：单事务内清 `user_sources` 行 + `users.default_source_id=NULL` + `bi_reports.data_source_id=NULL` + 删主行；try/except rollback + finally close 保原子。**`saved_reports` 故意不清**（schema.sql R-S7：dangling 是预期）。
+- **Fix2 幂等治存量迁移**（`migrations.run_post_schema_migrations`）：无条件（在 backfill 的 COUNT==0 guard 之外）清三表历史悬空，治已存在的非空 DB（本地/内测服）；`if COUNT(data_sources)>0` 护栏防 v0.9 per-tenant bootstrap 瞬时空态 `NOT IN(空)` 判全 TRUE 的 mass-wipe。置于 backfill 之前。
+- **Fix3 admin 写侧存在性校验**（`admin_update_user`）：`default_source_id` **+ `source_ids`（user_sources 主写入口）** 双入口校验非法 id → 400，堵「删源清完再编辑用户又造悬空」；用 decrypt-free `datasource_exists`（避 `get_datasource` 对坏加密列 raise `ConfigMissingError` → 写校验 500）。
+- **Fix4 删源撤引擎缓存**（`engine_cache.invalidate_all_engine_cache`，api 层调）：`group_key=host:port:user` 不含 db 列表 → 同组多 db 删其一 key 不变 → 旧合并 engine 含被删 schema 存活 ≤TTL；且 `("source",id)` 命名空间 `invalidate_engine_cache(uid)` 清不掉（k[0]=="source"）→ **全清**覆盖两命名空间。
+
+### Tests
+- 新 `tests/repositories/test_default_source_cascade.py`（7）+ `tests/integration/test_default_source_cascade_api.py`（3）：级联清三表 · 事务原子回滚 · `datasource_exists` · 迁移治存量+幂等 · **空集不 wipe** · admin PUT 拒非法 default_source_id / source_ids · 删源全清 cache 两命名空间。
+
+### Deferred (backlog)
+- read-side 解析健壮化（engine_cache 悬空告警）→ v0.9 per-tenant engine 解析重写随带；`bi_reports` 写侧校验（触白名单外）；`bi_share_targets` 悬空（inert，NULL 会改分享 scope）；catalog 硬编 `source_id=3`（gitignored JSON，级联触不到）；saved_report pin 口径。
+
+## [Released] - v0.8.23 — 数据源徽标冷启假「0 已连接」修复（cosmetic · checking-gated 计数）
 
 > 修 v0.8.21「探测与列表解耦」引入的 UI 回归。走完整 Loop Protocol v3 三阶段（Stage 1 执行者 + Stage 2 Codex 初审 6 catch + Stage 3 守护者=v0.8.21 回归作者 minor-revise → 放行）。
 

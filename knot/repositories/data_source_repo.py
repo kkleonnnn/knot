@@ -84,9 +84,27 @@ def update_datasource(source_id: int, **kwargs):
 
 def delete_datasource(source_id: int):
     conn = get_conn()
-    conn.execute("DELETE FROM data_sources WHERE id=?", (source_id,))
-    conn.commit()
+    try:
+        # v0.8.24 cascade：无 FK/无 PRAGMA foreign_keys → 代码补 ON DELETE 语义清引用防悬空。
+        # saved_reports 故意不清（schema.sql R-S7：dangling 是预期）；bi_share_targets 见 plan §8。
+        conn.execute("DELETE FROM user_sources WHERE source_id=?", (source_id,))
+        conn.execute("UPDATE users SET default_source_id=NULL WHERE default_source_id=?", (source_id,))
+        conn.execute("UPDATE bi_reports SET data_source_id=NULL WHERE data_source_id=?", (source_id,))
+        conn.execute("DELETE FROM data_sources WHERE id=?", (source_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def datasource_exists(source_id: int) -> bool:
+    """v0.8.24：仅查行存在，不 decrypt（避免 get_datasource 对坏加密列 raise ConfigMissingError → 写校验 500）。"""
+    conn = get_conn()
+    row = conn.execute("SELECT 1 FROM data_sources WHERE id=?", (source_id,)).fetchone()
     conn.close()
+    return row is not None
 
 
 # ── user ↔ data source 关联 ────────────────────────────────────────────
