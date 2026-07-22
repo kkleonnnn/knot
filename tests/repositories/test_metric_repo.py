@@ -1,7 +1,7 @@
 """tests/repositories/test_metric_repo — v0.7.0 C1 指标注册表地基守护测试（TDD）。
 
 覆盖：
-- OOS-1 死线：metrics 表 0 tenant_id/project_id（15 列契约 — v0.7.17 +date_column）+ create/update 拒 tenant_id/project_id 注入
+- OOS-1v2（租户库内禁列）：metrics 表 0 tenant_id/project_id（15 列契约 — v0.7.17 +date_column）+ create/update 拒 tenant_id/project_id 注入
 - metric_repo CRUD（create/get/list/update/delete）+ name+caliber 必填
 - per-catalog name 唯一（UNIQUE(catalog_id, name)）+ 不同 catalog 同名 OK + list_metrics(catalog_id) 过滤
 - lineage v0.7.16 激活：结构化派生定义 {op∈白名单,left,right} 形状校验（`_validate_lineage`）；
@@ -17,14 +17,14 @@ from knot.repositories import metric_repo
 from knot.repositories.base import get_conn
 
 
-# ─── OOS-1 死线：0 tenant_id/project_id ──────────────────────────────
+# ─── OOS-1v2（租户库内禁列）：0 tenant_id/project_id ──────────────────────────────
 
 def test_metrics_schema_no_tenant(tmp_db_path):
     conn = get_conn()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(metrics)").fetchall()}
     conn.close()
     assert "tenant_id" not in cols and "project_id" not in cols, (
-        "OOS-1 死线：metrics 严禁 tenant_id/project_id（catalog_id = 水平切分非租户）"
+        "OOS-1v2（租户库内禁列）：metrics 严禁 tenant_id/project_id（catalog_id = 水平切分非租户）"
     )
     assert cols == {
         "id", "catalog_id", "name", "display", "aliases", "caliber", "base_object",

@@ -5,7 +5,7 @@
   无 token 401/403 + 非 admin 403 + **R-SL-6 正向 carrier**（default-on + 未 enroll admin →
   403 totp_enroll_required）—— 把 2FA 继承转成**命名守护**（§4.5 同址而生，不靠「假设未来不偏移」）。
 - 审计接线：create/update/delete 各落对应 AuditAction Literal（metric.create/update/delete）。
-- OOS-1 死线（API 层）：MetricCreate/Update Pydantic 模型结构性 0 tenant_id/project_id 字段
+- OOS-1v2（租户库内禁列）（API 层）：MetricCreate/Update Pydantic 模型结构性 0 tenant_id/project_id 字段
   （+ repo 层 `_reject_forbidden` 死锁双层；见 test_metric_repo）。
 """
 from knot.repositories import audit_repo
@@ -77,7 +77,7 @@ def test_metric_crud_and_audit(client, auth_headers):
     # get
     g = client.get(f"/api/admin/metrics-registry/{mid}", headers=auth_headers)
     assert g.status_code == 200 and g.json()["name"] == "gmv"
-    assert g.json()["catalog_id"] == 1  # OOS-1 默认归属
+    assert g.json()["catalog_id"] == 1  # OOS-1v2 默认归属
 
     # list
     lst = client.get("/api/admin/metrics-registry", headers=auth_headers)
@@ -102,7 +102,7 @@ def test_get_missing_metric_404(client, auth_headers):
     assert r.status_code == 404
 
 
-# ─── OOS-1 死线（API 层结构性）──────────────────────────────────────
+# ─── OOS-1v2（租户库内禁列）（API 层结构性）──────────────────────────────────────
 
 def test_request_schemas_have_no_tenant_fields():
     """MetricCreate/Update Pydantic 模型结构性 0 tenant_id/project_id（API 层不可注入）。"""
@@ -110,7 +110,7 @@ def test_request_schemas_have_no_tenant_fields():
     for model in (MetricCreateRequest, MetricUpdateRequest):
         fields = set(model.model_fields)
         assert "tenant_id" not in fields and "project_id" not in fields, (
-            f"OOS-1 死线：{model.__name__} 严禁 tenant_id/project_id 字段"
+            f"OOS-1v2（租户库内禁列）：{model.__name__} 严禁 tenant_id/project_id 字段"
         )
 
 

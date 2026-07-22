@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
     totp_last_used_at TEXT,                              -- 最近一次验证成功时间（5 次/月 警报基线）
     -- v0.6.2.0 R-PB-B1-13 JWT 吊销真空期防御（reset/change_password 时 +1 → 旧 JWT 失效）
     token_version     INTEGER NOT NULL DEFAULT 1,
-    -- v0.6.2.5 段 4 (A1): 每用户 active catalog（per-user 切换 — R-PB-A1-1 OOS-1 死线：
+    -- v0.6.2.5 段 4 (A1): 每用户 active catalog（per-user 切换 — R-PB-A1-1 OOS-1v2（租户库内禁列）：
     -- catalog_id = 语义层水平切分 ≠ 租户隔离；NULL → 兜底 catalog id=1）
     active_catalog_id INTEGER,
     created_at     TEXT    DEFAULT (datetime('now','localtime'))
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 
 -- v0.6.2.5 段 4 (A1): single-tenant 多 catalog 切换
--- ⚠️ OOS-1 死线（R-PB-A1-1 守护者强化）：严禁 tenant_id / project_id 列 —
+-- ⚠️ OOS-1v2（租户库内禁列）（R-PB-A1-1 守护者强化）：严禁 tenant_id / project_id 列 —
 --    catalog_id = 语义层水平切分（admin/user 切 active catalog）≠ 租户数据隔离；
 --    数据库连接共享（engine_cache key 不动）→ 非多租户隔离架构。真多租户隔离推 v1.x+。
 -- 取代 app_settings 4-key 全局单例（catalog.tables/lexicon/business_rules/relations）；
@@ -172,13 +172,13 @@ CREATE TABLE IF NOT EXISTS catalogs (
 );
 
 -- v0.7.0 C1 语义层第一刀：指标注册表（单一真源指标定义）
--- ⚠️ OOS-1 死线 sustained：metric 归 catalog_id（语义层水平切分）；严禁 tenant_id / project_id 列。
+-- ⚠️ OOS-1v2 sustained（租户库内禁列 · 隔离靠 per-tenant 文件边界）：metric 归 catalog_id（语义层水平切分）；严禁 tenant_id / project_id 列。
 --    catalog_id = 逻辑外键（soft ref → catalogs(id)，无 enforced FK；与 users.active_catalog_id /
 --    audit_log.catalog_id 同为裸 INTEGER，项目未启 PRAGMA foreign_keys）。
 -- lineage：v0.7.16 激活为结构化派生定义 JSON object {op,left,right}（占比/人均 metric÷metric）；单层 deps 编译校验，嵌套 DFS 留后续。
 CREATE TABLE IF NOT EXISTS metrics (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    catalog_id         INTEGER NOT NULL DEFAULT 1,  -- soft ref catalogs(id)；OOS-1 水平切分非租户
+    catalog_id         INTEGER NOT NULL DEFAULT 1,  -- soft ref catalogs(id)；OOS-1v2 水平切分非租户
     name               TEXT    NOT NULL,            -- 唯一标识（per catalog_id 唯一）
     display            TEXT    DEFAULT '',           -- 中文展示名
     aliases            TEXT    DEFAULT '',           -- JSON list（v0.7.1+ 喂 LEXICON / clarifier）
@@ -200,11 +200,11 @@ CREATE INDEX IF NOT EXISTS idx_metrics_catalog ON metrics(catalog_id);
 -- v0.7.3 语义层 LogicForm 审计侧表（message_id 软 FK；messages 0 ALTER — 守护者侧表裁定）。
 -- 仅语义路径 / near-miss 行（多数 message 是 LLM 路径 → 本表小，不恶化 messages R-S6 ≥24 列）。
 -- ⚠️ R-SL-40：catalog_id = LogicForm 解析时 active catalog（messages 无 catalog_id；catalog 是 ContextVar
---    临时解析从不落 message → 审计渲染 / 修正 re-run 须存当时 catalog）。OOS-1 soft ref，0 tenant_id。
+--    临时解析从不落 message → 审计渲染 / 修正 re-run 须存当时 catalog）。OOS-1v2 soft ref，0 tenant_id。
 CREATE TABLE IF NOT EXISTS semantic_query_audit (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id           INTEGER NOT NULL,            -- soft FK → messages(id)
-    catalog_id           INTEGER NOT NULL DEFAULT 1,  -- R-SL-40 解析时 active catalog（OOS-1 soft ref）
+    catalog_id           INTEGER NOT NULL DEFAULT 1,  -- R-SL-40 解析时 active catalog（OOS-1v2 soft ref）
     logicform_json       TEXT    DEFAULT '',          -- canonical_json（命中）；near-miss 也存（诊断）
     compile_error_reason TEXT    DEFAULT '',          -- near-miss CompileError 原因；命中为空
     is_corrected         INTEGER DEFAULT 0,           -- admin 修正产生的行标 1（F4）
@@ -335,11 +335,11 @@ CREATE INDEX IF NOT EXISTS idx_feedback_message ON message_feedback(message_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_score_time ON message_feedback(score, created_at);
 
 -- v0.7.7 事件/规则/动作三层 vertical slice（semantic_monitors = 事件+规则+动作合一 MVP，D2）
--- ⚠️ OOS-1 死线：catalog_id = 语义层水平切分（per-catalog），严禁 tenant_id/project_id。
+-- ⚠️ OOS-1v2（租户库内禁列）：catalog_id = 语义层水平切分（per-catalog），严禁 tenant_id/project_id。
 -- 事件 = metric_name + comparator + threshold + time_window；规则 = enabled + 触发；动作 = action_type/target。
 CREATE TABLE IF NOT EXISTS semantic_monitors (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    catalog_id      INTEGER NOT NULL DEFAULT 1,            -- OOS-1 水平切分非租户
+    catalog_id      INTEGER NOT NULL DEFAULT 1,            -- OOS-1v2 水平切分非租户
     name            TEXT    NOT NULL,                      -- admin 可读名
     metric_name     TEXT    NOT NULL,                      -- 引用 metrics.name（监控哪个指标）
     comparator      TEXT    NOT NULL,                      -- gt|lt|gte|lte|eq（阈值）/ pct_change_gt|pct_change_lt（环比异动）
@@ -358,7 +358,7 @@ CREATE TABLE IF NOT EXISTS semantic_monitors (
 CREATE TABLE IF NOT EXISTS monitor_trigger_audit (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     monitor_id    INTEGER NOT NULL,                        -- soft FK semantic_monitors
-    catalog_id    INTEGER NOT NULL DEFAULT 1,              -- OOS-1
+    catalog_id    INTEGER NOT NULL DEFAULT 1,              -- OOS-1v2
     metric_value  REAL,                                    -- 评估 metric 标量值（NULL = skip 无值）
     hit           INTEGER DEFAULT 0,                       -- 1 = 命中触发
     status        TEXT    DEFAULT '',                      -- fired | no_hit | skipped（engine None / compile fail）
@@ -386,7 +386,7 @@ CREATE TABLE IF NOT EXISTS bi_reports (
     title               TEXT    NOT NULL,
     folder_id           INTEGER,                              -- soft ref → report_folders；NULL = 未归档
     sort_order          INTEGER NOT NULL DEFAULT 0,
-    data_source_id      INTEGER,                              -- 绑业务库（OOS-1；refresh 解析 engine）
+    data_source_id      INTEGER,                              -- 绑业务库（OOS-1v2；refresh 解析 engine）
     sql_text            TEXT    NOT NULL,                     -- admin 直写、过 doris.is_safe_sql 只读闸（R-BI-5/D7）
     column_config       TEXT,                                 -- JSON 列级：{col:{label,format,frozen,conditional,width}}
     overlay_config      TEXT,                                 -- JSON 单元格/行级：[{row_index,col,kind,value}]
@@ -427,7 +427,7 @@ CREATE INDEX IF NOT EXISTS idx_bi_report_tiles_report ON bi_report_tiles(report_
 
 -- v0.8.12：BI 目录/报表权限 RBAC（**用户**×目录 + 未分组逐报表；kk 验收：同角色不同部门看不同表 → 按用户）。
 -- admin 恒全权、不入表（require_admin bypass）。目标二选一：folder_id（目录级，归档报表继承）或 report_id
--- （报表级，未分组逐张）；CHECK 恰一非空。soft ref（无硬 FK）；删用户/目录/报表由 service 级联清 grant。单租户内 user×资源（OOS-1，无 tenant_id）。
+-- （报表级，未分组逐张）；CHECK 恰一非空。soft ref（无硬 FK）；删用户/目录/报表由 service 级联清 grant。单租户内 user×资源（OOS-1v2，无 tenant_id）。
 CREATE TABLE IF NOT EXISTS bi_permissions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id      INTEGER NOT NULL,                       -- 授权用户（soft ref users；admin 不入表）
@@ -445,26 +445,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_folder ON bi_permissions(user_id, 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bi_perm_report ON bi_permissions(user_id, report_id) WHERE report_id IS NOT NULL;
 
 -- v0.8.14 分享投递目标白名单（admin 策展；用户分享时提交 target_id 引本表行，chat_id 禁用户自填）。
--- OOS-1：绑 data_source_id（可空=全局），严禁 tenant_id。chat_id 非机密可明文；IM 凭据走 app_settings 加密。
+-- OOS-1v2：绑 data_source_id（可空=全局），严禁 tenant_id。chat_id 非机密可明文；IM 凭据走 app_settings 加密。
 CREATE TABLE IF NOT EXISTS bi_share_targets (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     name           TEXT    NOT NULL,                       -- 展示名（如「运营大群」）
     platform       TEXT    NOT NULL,                       -- 'lark' | 'tg'
     chat_id        TEXT    NOT NULL,                        -- TG chat_id / Lark receive_id（chat_id 维度）
     region         TEXT,                                    -- Lark：'feishu'(open.feishu.cn) | 'lark'(open.larksuite.com)；TG 留空
-    data_source_id INTEGER,                                 -- OOS-1 绑业务库（可空=全局），严禁 tenant_id
+    data_source_id INTEGER,                                 -- OOS-1v2 绑业务库（可空=全局），严禁 tenant_id
     created_at     TEXT    DEFAULT (datetime('now','localtime')),
     created_by     INTEGER NOT NULL
 );
 
 -- v0.8.17 (②c) 报表定时刷新调度器：per-report schedule 配置 + fire 台账。
--- OOS-1 死线：catalog_id 水平切分，严禁 tenant_id/project_id。触发 = K8s CronJob → POST /api/bi/scheduler/tick
+-- OOS-1v2（租户库内禁列）：catalog_id 水平切分，严禁 tenant_id/project_id。触发 = K8s CronJob → POST /api/bi/scheduler/tick
 --   （单外部触发经 K8s Service 只打一个 pod → 应用内零常驻 loop → 无多副本重复 fire）。
 -- cadence 用 interval 枚举非 cron 表达式（避 croniter 新依赖 R-186）。
 CREATE TABLE IF NOT EXISTS bi_report_schedules (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     report_id      INTEGER NOT NULL,                       -- soft ref bi_reports.id
-    catalog_id     INTEGER NOT NULL DEFAULT 1,             -- OOS-1 水平切分非租户
+    catalog_id     INTEGER NOT NULL DEFAULT 1,             -- OOS-1v2 水平切分非租户
     enabled        INTEGER NOT NULL DEFAULT 1,
     cadence        TEXT    NOT NULL DEFAULT 'daily',       -- 'daily' | 'hourly' | 'every_n_hours'
     interval_hours INTEGER,                                -- every_n_hours 用；daily/hourly 忽略

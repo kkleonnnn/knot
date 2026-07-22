@@ -5,7 +5,7 @@
 - 归档报表（folder_id 非空）→ 继承所属目录的角色 grant。
 - 未分组报表（folder_id 空）→ 该报表自己的角色 grant。
 - 无 grant → 默认拒（除 admin）。
-4 动作：schedule（定时）/ edit（增改删+重跑）/ export（导出）/ share（分享）。单租户内 role×资源（OOS-1，无 tenant_id）。
+4 动作：schedule（定时）/ edit（增改删+重跑）/ export（导出）/ share（分享）。单租户内 role×资源（OOS-1v2，无 tenant_id）。
 """
 from __future__ import annotations
 

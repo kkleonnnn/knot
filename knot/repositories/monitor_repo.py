@@ -1,6 +1,6 @@
 """monitor_repo — semantic_monitors + monitor_trigger_audit CRUD（v0.7.7 C1 — 事件/规则/动作三层）。
 
-⚠️ OOS-1 死线 sustained：catalog_id = 语义层水平切分（per-catalog monitor 命名空间）≠ 租户隔离。
+⚠️ OOS-1v2 sustained（租户库内禁列 · 隔离靠 per-tenant 文件边界）：catalog_id = 语义层水平切分（per-catalog monitor 命名空间）≠ 租户隔离。
    `_UPDATABLE` 白名单 + `_reject_forbidden` 拒 tenant_id/project_id 注入。
 镜像 metric_repo（get_conn / close / MetadataError / `_COLS` / `_UPDATABLE` / dict 返回）。
 事件+规则+动作合一单表（D2 MVP）；trigger_audit append-only 留痕（R-SL-75 每 check 一行）。
@@ -25,7 +25,7 @@ _TRIGGER_COLS = "id, monitor_id, catalog_id, metric_value, hit, status, detail, 
 def _reject_forbidden(fields: dict) -> None:
     bad = [k for k in fields if k in _FORBIDDEN]
     if bad:
-        raise MetadataError(f"OOS-1 死线：monitor 严禁 {bad}（catalog_id 水平切分非租户隔离）")
+        raise MetadataError(f"OOS-1v2（租户库内禁列）：monitor 严禁 {bad}（catalog_id 水平切分非租户隔离）")
 
 
 def create_monitor(catalog_id: int = 1, **fields) -> int:
@@ -50,7 +50,7 @@ def create_monitor(catalog_id: int = 1, **fields) -> int:
 
 
 def list_monitors(catalog_id: int | None = None, enabled_only: bool = False) -> list[dict]:
-    """monitors（按 id 升序）；catalog_id 给定则仅该 catalog（OOS-1 隔离）；enabled_only → 仅启用。"""
+    """monitors（按 id 升序）；catalog_id 给定则仅该 catalog（OOS-1v2 隔离）；enabled_only → 仅启用。"""
     conn = get_conn()
     try:
         where, params = [], []

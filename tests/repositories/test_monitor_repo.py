@@ -1,6 +1,6 @@
 """tests/repositories/test_monitor_repo.py — v0.7.7 C1 semantic_monitors CRUD + 触发留痕守护。
 
-OOS-1 死线（0 tenant_id/project_id）+ catalog 隔离 + CRUD + trigger append-only（R-SL-67/75）。
+OOS-1v2（租户库内禁列）（0 tenant_id/project_id）+ catalog 隔离 + CRUD + trigger append-only（R-SL-67/75）。
 """
 import sqlite3
 
@@ -22,7 +22,7 @@ def test_schema_no_tenant_and_has_catalog_id(tmp_db_path):
     conn = sqlite3.connect(tmp_db_path)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(semantic_monitors)").fetchall()}
     conn.close()
-    assert "tenant_id" not in cols and "project_id" not in cols          # OOS-1 死线
+    assert "tenant_id" not in cols and "project_id" not in cols          # OOS-1v2（租户库内禁列）
     assert {"catalog_id", "metric_name", "comparator", "threshold", "action_target"} <= cols
 
 
@@ -41,14 +41,14 @@ def test_create_list_get_update_delete(tmp_db_path):
 def test_catalog_isolation(tmp_db_path):
     mr.create_monitor(catalog_id=1, **_mk(name="a"))
     mr.create_monitor(catalog_id=2, **_mk(name="b"))
-    assert len(mr.list_monitors(catalog_id=1)) == 1                       # OOS-1 隔离
+    assert len(mr.list_monitors(catalog_id=1)) == 1                       # OOS-1v2 隔离
     assert len(mr.list_monitors(catalog_id=2)) == 1
     assert len(mr.list_monitors()) == 2                                   # None → 全部
 
 
 def test_oos1_reject_tenant(tmp_db_path):
     with pytest.raises(MetadataError):
-        mr.create_monitor(catalog_id=1, tenant_id=5, **_mk())            # OOS-1 死锁
+        mr.create_monitor(catalog_id=1, tenant_id=5, **_mk())            # OOS-1v2 死锁
 
 
 def test_required_fields(tmp_db_path):

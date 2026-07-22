@@ -1,6 +1,6 @@
 """metric_repo — metrics 表 CRUD（v0.7.0 C1 — 指标注册表地基）。
 
-⚠️ OOS-1 死线 sustained：本仓 0 tenant_id / project_id 逻辑 —
+⚠️ OOS-1v2 sustained（租户库内禁列 · 隔离靠 per-tenant 文件边界）：本仓 0 tenant_id / project_id 逻辑 —
    metric.catalog_id = 语义层水平切分（per-catalog 指标命名空间）≠ 租户数据隔离。
    数据库连接共享 → 非多租户隔离架构。真多租户隔离推 v1.x+。
    `_UPDATABLE` 白名单 + `_reject_forbidden` 入口死锁（拒 tenant_id/project_id 注入）。
@@ -16,28 +16,28 @@ import json
 from knot.models.errors import MetadataError
 from knot.repositories.base import get_conn
 
-# metrics 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1 死线）
+# metrics 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1v2（租户库内禁列））
 _COLS = (
     "id, catalog_id, name, display, aliases, caliber, base_object, filters, "
     "dimensions, date_column, unit, lineage, freshness_lag_days, enabled, created_at, updated_at"
 )
 
 # create / update 允许的内容字段（不含 id / catalog_id / created_at / updated_at；
-# 严禁 tenant_id / project_id 注入 — OOS-1 死线）
+# 严禁 tenant_id / project_id 注入 — OOS-1v2（租户库内禁列））
 _UPDATABLE = (
     "name", "display", "aliases", "caliber", "base_object",
     "filters", "dimensions", "date_column", "unit", "lineage", "freshness_lag_days", "enabled",
 )
 
-# OOS-1 死线：严禁列（防顺手引租户隔离）
+# OOS-1v2（租户库内禁列）：严禁列（防顺手引租户隔离）
 _FORBIDDEN_KEYS = ("tenant_id", "project_id")
 
 
 def _reject_forbidden(fields: dict) -> None:
-    """OOS-1 入口死锁：payload 含 tenant_id/project_id → MetadataError（防多租户漂移）。"""
+    """OOS-1v2 入口死锁：payload 含 tenant_id/project_id → MetadataError（防多租户漂移）。"""
     bad = [k for k in _FORBIDDEN_KEYS if k in fields]
     if bad:
-        raise MetadataError(f"OOS-1 死线：metric 严禁 {bad} 列（catalog_id = 水平切分非租户隔离）")
+        raise MetadataError(f"OOS-1v2（租户库内禁列）：metric 严禁 {bad} 列（catalog_id = 水平切分非租户隔离）")
 
 
 # v0.7.16 派生指标 op 白名单（与 compile_helpers._OP_SQL 对齐；repo ⊥ semantic 层不 import，本地常量）
@@ -85,7 +85,7 @@ def get_metric(metric_id: int) -> dict | None:
 
 
 def create_metric(catalog_id: int = 1, **fields) -> int:
-    """新建 metric；返回新 id。name 必填 + (caliber 原子口径 OR lineage 派生定义) 二选一；OOS-1 拒 tenant_id/project_id。
+    """新建 metric；返回新 id。name 必填 + (caliber 原子口径 OR lineage 派生定义) 二选一；OOS-1v2 拒 tenant_id/project_id。
 
     派生 metric（lineage）免 caliber → 插 '' 满足 schema NOT NULL（0 schema 改）。
     per-catalog name 重复 → sqlite3.IntegrityError（schema UNIQUE(catalog_id, name)）。
@@ -115,7 +115,7 @@ def create_metric(catalog_id: int = 1, **fields) -> int:
 
 
 def update_metric(metric_id: int, **fields) -> None:
-    """更新 metric 内容字段（`_UPDATABLE` 白名单；OOS-1 拒 tenant_id/project_id）。无白名单字段 → no-op。"""
+    """更新 metric 内容字段（`_UPDATABLE` 白名单；OOS-1v2 拒 tenant_id/project_id）。无白名单字段 → no-op。"""
     _reject_forbidden(fields)
     cols = [k for k in fields if k in _UPDATABLE]
     if not cols:

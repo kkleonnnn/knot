@@ -33,7 +33,7 @@ AuditAction = Literal[
     # v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离第②层 assert 失败（async race 漂移；39→40）
     # detail 含 attempted_catalog_id + expected_catalog_id（R-PB-A1-23 下游风控）
     "catalog.context_violation",
-    # v0.7.0 C2 指标注册表 CRUD（语义层第一刀；metric.catalog_id 归属 OOS-1 sustained；40→43）
+    # v0.7.0 C2 指标注册表 CRUD（语义层第一刀；metric.catalog_id 归属 OOS-1v2 sustained；40→43）
     "metric.create", "metric.update", "metric.delete",
     # v0.7.3 C3 LogicForm admin 修正（语义层第四刀；admin 改 AI 理解的口径归属 = 治理事件；44→45）
     "logicform.correct",

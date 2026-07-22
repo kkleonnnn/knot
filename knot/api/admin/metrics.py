@@ -1,7 +1,7 @@
 """knot/api/admin/metrics.py — 指标注册表管理路由（v0.7.0 C2 语义层第一刀）。
 
 route 前缀 `/api/admin/metrics-registry`（**避与既有 `/api/admin/metrics` 内测健康 KPI 屏撞**）。
-全 require_admin（v0.7.0 metric 仅 admin 可见，继承 R-2FA enroll gate）。CRUD 经 metric_repo（OOS-1 死锁）。
+全 require_admin（v0.7.0 metric 仅 admin 可见，继承 R-2FA enroll gate）。CRUD 经 metric_repo（OOS-1v2 死锁）。
 审计接线：metric.create/update/delete（AuditAction）+ resource_type=metric。
 """
 from __future__ import annotations
