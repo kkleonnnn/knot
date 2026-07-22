@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.24 — data_source 删除级联清理 + 悬空 default_source_id / user_sources / bi_reports 治愈
+## [Unreleased] - v0.9.0 — OOS-1 红线修订仪式 + 多租户地基第一刀（C 方案 per-tenant 文件隔离）
+
+> **红线修订声明**：本版本经正式红线修订仪式翻转 OOS-1（v0.6.2.0 立，单租户死线）为 OOS-1v2（多租户 C 方案，租户库内禁列语义保留）。程序：整体审核三方独立意见（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ v3 三阶段评审 + 绊线翻转与新隔离 CI 同 commit（D1）。不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8 A3 定性）。
+>
+> **C1-C5 原子落地本 MINOR**（squash）：**C1 治理仪式（本 commit）** · C2 机制（tenant ctx + get_conn 双层 + 平台库 + 启动序重排）· C3 绊线翻转 + 隔离 CI（同 commit D1）· C4 存量迁移（knot.db → platform.db + tenants/1/knot.db）· C5 收尾。完整 LOCKED 设计 docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md。
+
+### Governance (C1 · 仪式)
+- **OOS-1 → OOS-1v2 红线修订**：CLAUDE.md 立约文本置入 + 本 CHANGELOG 修订声明 + LOCKED 隔离设计 4 产物（catalog_id→tenant 语义继承审计 / 隔离栈就绪度审计 6 项 / 平台库-租户库表划分 + 迁移映射 / tenant ctx fail-closed 设计）落库。新立 **R-T-GATE**（第二租户开通解锁门：隔离栈就绪前硬 CI `assert_no_second_active_tenant_served` 挡多租户暴露）。
+
+## [Released] - v0.8.24 — data_source 删除级联清理 + 悬空 default_source_id / user_sources / bi_reports 治愈
 
 > 数据完整性 bug fix chore。走完整 Loop Protocol v3（Stage 1 执行者 + Stage 2 Codex major-revise 6 catch + Stage 3 守护者 major-revise → 放行）。堆叠于 v0.8.23（#245）。
 
