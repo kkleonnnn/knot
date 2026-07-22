@@ -61,12 +61,14 @@ app.add_middleware(
 
 @app.middleware("http")
 async def _tenant_context_middleware(request, call_next):
-    """v0.9.0 C2 请求作用域 tenant ctx（镜像 catalog ctx **set-without-reset**）。
+    """v0.9.0 C2 请求作用域 tenant ctx（set-without-reset）。
 
-    uvicorn per-request asyncio task 隔离（copy_context）→ 下游 endpoint + SSE generator 继承
-    （grounded 实证 20 并发 + keep-alive 0 泄漏；query 热路径 0 context-fork）。**禁 reset**
-    （run_in_executor 场景丢 ctx）。v0.9.0 单租户解析器（platform.db 恰 1 active，0/>1 → raise
-    = R-T-GATE 请求侧兜底）；多租户 = 0.1 JWT tid 解析。
+    传播机制（Starlette 1.3.1 BaseHTTPMiddleware 源码 + 20 并发实证 · 守护者 Stage 4 V1 亲验）：本函数于
+    call_next 前 set → BaseHTTPMiddleware 在 set **之后** `start_soon` spawn 下游子任务 → 子任务 copy_context
+    含本 tenant → endpoint + SSE `async def generate()`（AsyncIterable 非 threadpool）均继承；20 并发
+    distinct-tenant = 20/20 无泄漏。get_conn 每连接读 current_tenant() → 传播断即 raise（非 fail-open）。
+    **禁 reset**（executor fork 场景丢 ctx → 那 3 处走 copy_context().run 显式传播）。单租户解析器
+    （platform.db 恰 1 active，0/>1 → raise = R-T-GATE 请求侧兜底）；多租户 = 0.1 JWT tid 解析。
     """
     _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())  # set-without-reset
     return await call_next(request)
@@ -224,7 +226,9 @@ async def _audit_auto_purge_if_stale():
     async def _maybe_purge():
         # v0.9.0 C2（set 点#3）：fire-and-forget create_task 无 tenant ctx（startup hook 非 ❺ 块）→
         # settings_repo.get_app_setting 撞 fail-closed。入口 set tenant#1 + finally reset。
-        # （to_thread 的 _purge 在 worker 线程不 copy ctx → purge() 函数体内自行租户解析，见 purge_audit_log。）
+        # anyio to_thread.run_sync **copy** contextvars（4.14 实测）→ 下方 to_thread(_purge) 继承本 set 的
+        # tenant ctx；purge() 本体不自解析（靠继承）。⚠️ 依赖本行 set：删了 → _purge 撞 fail-closed，
+        # TenantContextError 被下方 except 静默吞 → auto-purge 静默停（守护者 Stage 4 §V-2 纠错）。
         from knot.core import tenant_context as _tc
         from knot.repositories import tenant_repo as _tr
         _tok = _tc.set_active_tenant(_tr.resolve_single_tenant())
