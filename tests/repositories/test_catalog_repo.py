@@ -1,7 +1,7 @@
 """tests/repositories/test_catalog_repo — v0.6.2.5 段 4 (A1) commit 2 守护测试（TDD）。
 
 覆盖：
-- R-PB-A1-1 OOS-1 死线：catalogs 表 + users.active_catalog_id 0 tenant_id/project_id
+- R-PB-A1-1 OOS-1v2（租户库内禁列）：catalogs 表 + users.active_catalog_id 0 tenant_id/project_id
 - R-PB-A1-6 迁移幂等：init_db 跑两次 catalogs 行数恒定 + seed 仅空时
 - catalog_repo CRUD（list/get/create/update）+ update 仅 6 字段（防 tenant 注入）
 - per-user active 解析：get_user_active_catalog_id（NULL → 兜底 id=1）+ set_user_active_catalog
@@ -14,14 +14,14 @@ from knot.repositories import catalog_repo
 from knot.repositories.base import get_conn, init_db
 
 
-# ─── R-PB-A1-1 OOS-1 死线：0 tenant_id/project_id ────────────────────
+# ─── R-PB-A1-1 OOS-1v2（租户库内禁列）：0 tenant_id/project_id ────────────────────
 
 def test_A1_1_catalogs_schema_no_tenant(tmp_db_path):
     conn = get_conn()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(catalogs)").fetchall()}
     conn.close()
-    assert "tenant_id" not in cols, "OOS-1 死线：catalogs 严禁 tenant_id"
-    assert "project_id" not in cols, "OOS-1 死线：catalogs 严禁 project_id"
+    assert "tenant_id" not in cols, "OOS-1v2（租户库内禁列）：catalogs 严禁 tenant_id"
+    assert "project_id" not in cols, "OOS-1v2（租户库内禁列）：catalogs 严禁 project_id"
     # 10 列契约（v0.7.27 +field_labels）
     assert cols == {
         "id", "name", "description", "tables", "lexicon",
@@ -35,7 +35,7 @@ def test_A1_1_users_active_catalog_id_no_tenant(tmp_db_path):
     acols = {r[1] for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
     conn.close()
     assert "active_catalog_id" in cols, "users.active_catalog_id 必备"
-    assert "tenant_id" not in cols and "project_id" not in cols, "OOS-1 死线：users 0 tenant"
+    assert "tenant_id" not in cols and "project_id" not in cols, "OOS-1v2（租户库内禁列）：users 0 tenant"
     assert "catalog_id" in acols, "audit_log.catalog_id 必备（R-PB-A1-5 ③）"
 
 
@@ -111,7 +111,7 @@ def test_field_labels_crud(tmp_db_path):
 
 
 def test_update_catalog_ignores_non_whitelisted_fields(tmp_db_path):
-    """OOS-1：update 忽略 tenant_id 等非白名单字段（不抛、不写）。"""
+    """OOS-1v2：update 忽略 tenant_id 等非白名单字段（不抛、不写）。"""
     cid = catalog_repo.create_catalog("X")
     catalog_repo.update_catalog(cid, tenant_id=42, name="X3")  # tenant_id 应被忽略
     cat = catalog_repo.get_catalog(cid)

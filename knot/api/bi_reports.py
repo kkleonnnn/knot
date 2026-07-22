@@ -13,6 +13,7 @@ R-BI-1：与 saved_reports（ASK 收藏）严格分开 —— 全新路由前缀
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import time
 from io import BytesIO
@@ -260,7 +261,9 @@ async def delete_report(report_id: int, request: Request, user=Depends(require_r
 async def refresh_report(report_id: int, request: Request, user=Depends(require_report_perm("edit"))):
     # 卸载 sync SQLAlchemy 到线程池（dashboard N tile 查询串行，防阻塞事件循环）—— B-3/先例 datasources.py
     loop = asyncio.get_event_loop()
-    out = await loop.run_in_executor(None, svc.refresh, report_id, user)
+    # v0.9.0 C2：copy_context().run 传播请求 tenant/catalog ctx 到 executor worker（fail-closed tenant ctx）
+    _ctx = contextvars.copy_context()
+    out = await loop.run_in_executor(None, lambda: _ctx.run(svc.refresh, report_id, user))
     if out is None:
         raise HTTPException(status_code=404, detail="报表不存在")
     # B-6：审计 detail 按 report_type 分支（dashboard/tabbed 返 per-tile summary，无顶层 rows/error）

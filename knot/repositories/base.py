@@ -13,6 +13,7 @@ from pathlib import Path
 
 from knot.config import SQLITE_DB_PATH
 from knot.core.logging_setup import logger
+from knot.core.tenant_context import current_tenant  # v0.9.0 get_conn 双层解析（fail-closed）
 from knot.repositories import migrations
 
 # 再导出上传库迁移函数：既有 base.<fn> 引用（tests / engine_cache 注释）与 init_db 内部调用保持 byte-equal。
@@ -22,8 +23,25 @@ from knot.repositories.migrations import (  # noqa: F401
 )
 
 
+def _tenant_db_path() -> Path:
+    """当前 active tenant 的库路径（**fail-closed**：无 ctx → current_tenant() raise TenantContextError）。
+
+    = 数据目录锚点 `SQLITE_DB_PATH.parent` / `tenant.db_dir` / `knot.db`。
+    db_dir='tenants/1'(生产) → `.../data/tenants/1/knot.db`；db_dir='.'(测试) → `.../data/knot.db`
+    （= 锚点本身，保直读 SQLITE_DB_PATH 的既有测试断言 byte-equal）。SQLITE_DB_PATH 是 str，须 Path() 包。
+    """
+    return Path(SQLITE_DB_PATH).parent / current_tenant()["db_dir"] / "knot.db"
+
+
 def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
+    """租户库连接（v0.9.0 **fail-closed 双层解析**：无 tenant ctx → raise TenantContextError）。
+
+    SQLITE_DB_PATH env 语义降级为「数据目录锚点」（parent 派生 platform.db 与 tenants/），不引新 env。
+    32 消费文件 0 改动（仍调 get_conn()）；平台库连接走 tenant_repo.get_platform_conn（ctx-free）。
+    """
+    p = _tenant_db_path()
+    p.parent.mkdir(parents=True, exist_ok=True)  # 租户库目录（tenants/<id>/）缺失即建 — 首启/迁移/测试自洽
+    conn = sqlite3.connect(p, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn

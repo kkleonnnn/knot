@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import contextvars
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -67,8 +68,10 @@ async def share_report_endpoint(report_id: int, req: ReportShareRequest, request
         raise HTTPException(status_code=413, detail=f"图片过大（≤{_MAX_PNG_BYTES // (1024 * 1024)}MB）")
 
     loop = asyncio.get_event_loop()
+    # v0.9.0 C2：copy_context().run 传播请求 tenant/catalog ctx 到 executor worker（fail-closed tenant ctx）
+    _ctx = contextvars.copy_context()
     try:  # SYNC 分享（阻塞 HTTP fan-out）卸载线程池
-        results = await loop.run_in_executor(None, share_svc.share_report, png, req.target_ids, req.caption)
+        results = await loop.run_in_executor(None, lambda: _ctx.run(share_svc.share_report, png, req.target_ids, req.caption))
     except share_svc.ShareValidationError as e:
         # 校验失败（target_id∉白名单/凭据缺，fan-out 前 0 出境）→ 400，无出境尝试不审计
         raise HTTPException(status_code=400, detail=str(e)) from None

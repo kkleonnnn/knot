@@ -38,7 +38,7 @@ window partition_by / window arg / window 内层 order_by[].field / window as_na
 严禁碰信任的 metric.filters / caliber（require_admin gated，见 §残余风险）。
 
 ## 残余风险（接受 + 记录，Stage 3 §C）
-- admin caliber / metric filters 信任面 scope 外（require_admin + OOS-1 锁）；caliber 内只读跨表子查询按设计不防。
+- admin caliber / metric filters 信任面 scope 外（require_admin + OOS-1v2 锁）；caliber 内只读跨表子查询按设计不防。
 - 合法字符串字面量含 `--/#`（如 `o.note LIKE '%--%'`）→ G0 误杀 → 回退 LLM（罕见、非用户错）。
 - 裸 `SESSION_USER`（无括号）parse 成 Column：别名类由 G5 挡；filters 内视为列名（低危，非函数）。
 - benign-Anonymous / typed 危险划分 sqlglot-版本相关 → requirements.txt `>=30,<31` pin 承重；升级须重跑攻击语料。

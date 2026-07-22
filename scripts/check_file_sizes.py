@@ -31,6 +31,8 @@ BACKEND_ACK = {
     "knot/services/engine_cache.py":       346,  # v0.8.24 +invalidate_all_engine_cache（删源撤两 cache 命名空间，340→346）；此前 v0.8.19a config-only 337→339
     # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）
     "knot/repositories/migrations.py":     357,  # v0.8.24 +删源悬空治存量 cleanup（344→357）；v0.8.22 从 base.py 拆出的历史迁移块（~300 行 inherent）
+    "knot/main.py":                        315,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK
+    "knot/repositories/tenancy_migration.py": 363,  # v0.9.0 C4 存量迁移：crash-safe + 并发-safe + 校验/fsync/resume-保全/denylist 防御纵深（守护者 Stage 4 两轮对抗加固）；13 fn 单一内聚迁移关注点，拆分反损可读性 → ACK
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK

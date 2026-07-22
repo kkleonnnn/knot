@@ -1,6 +1,6 @@
 """catalog_repo — catalogs 表 CRUD + per-user active catalog 解析（v0.6.2.5 段 4 A1）。
 
-⚠️ OOS-1 死线（R-PB-A1-1 守护者强化）：本仓 0 tenant_id/project_id 逻辑 —
+⚠️ OOS-1v2（租户库内禁列）（R-PB-A1-1 守护者强化）：本仓 0 tenant_id/project_id 逻辑 —
    catalog_id = 语义层水平切分（per-user active catalog）≠ 租户数据隔离。
    数据库连接共享（engine_cache key 不动）→ 非多租户隔离架构。
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 from knot.models.errors import MetadataError
 from knot.repositories.base import get_conn
 
-# catalogs 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1 死线）
+# catalogs 表读取列（与 schema.sql 一致；0 tenant_id — OOS-1v2（租户库内禁列））
 _COLS = "id, name, description, tables, lexicon, business_rules, relations, field_labels, created_at, updated_at"
 
 # update 仅允许 7 个内容/元字段（v0.7.27 +field_labels；不允许改 id / created_at / 注入 tenant_id）

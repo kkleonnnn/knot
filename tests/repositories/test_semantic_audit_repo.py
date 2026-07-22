@@ -1,24 +1,24 @@
 """tests/repositories/test_semantic_audit_repo — v0.7.3 C1 LogicForm 审计侧表守护。
 
-覆盖：OOS-1 死线（0 tenant_id/project_id）+ R-SL-40 catalog_id 落盘 + CRUD + 命中/near-miss +
+覆盖：OOS-1v2（租户库内禁列）（0 tenant_id/project_id）+ R-SL-40 catalog_id 落盘 + CRUD + 命中/near-miss +
 catalog 隔离（list_audit catalog_id 过滤）+ get_by_message（engine 派生）+ 修正行（is_corrected/parent）。
 """
 from knot.repositories import semantic_audit_repo as sar
 from knot.repositories.base import get_conn
 
 
-# ─── OOS-1 死线 + schema ──────────────────────────────────────────────
+# ─── OOS-1v2（租户库内禁列） + schema ──────────────────────────────────────────────
 
 def test_schema_no_tenant_and_has_catalog_id(tmp_db_path):
     conn = get_conn()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(semantic_query_audit)").fetchall()}
     conn.close()
-    assert "tenant_id" not in cols and "project_id" not in cols, "OOS-1 死线：侧表严禁 tenant_id/project_id"
+    assert "tenant_id" not in cols and "project_id" not in cols, "OOS-1v2（租户库内禁列）：侧表严禁 tenant_id/project_id"
     assert "catalog_id" in cols, "R-SL-40：须存解析时 catalog_id"
     assert cols == {
         "id", "message_id", "catalog_id", "logicform_json",
         "compile_error_reason", "is_corrected", "parent_message_id", "created_at",
-        "restored_from_audit_id",   # v0.7.6 append-only 恢复来源（OOS-1 合规非 tenant 列）
+        "restored_from_audit_id",   # v0.7.6 append-only 恢复来源（OOS-1v2 合规非 tenant 列）
     }
 
 

@@ -1,6 +1,6 @@
 """bi_report_schedule_repo — v0.8.17 (②c) 报表定时刷新配置 + fire 台账 薄 SQL。
 
-⚠️ OOS-1 死线 sustained：catalog_id 水平切分 ≠ 租户隔离；`_reject_forbidden` 拒 tenant_id/project_id。
+⚠️ OOS-1v2 sustained（租户库内禁列 · 隔离靠 per-tenant 文件边界）：catalog_id 水平切分 ≠ 租户隔离；`_reject_forbidden` 拒 tenant_id/project_id。
 镜像 monitor_repo（get_conn / close / dict 返回 / _COLS / _UPDATABLE / MetadataError）。
 v1 一报一 schedule（UNIQUE report_id）；fire 台账 append-only。
 `claim` = 原子认领（守护者 B-4）：next_run_at recompute 与 WHERE 门在**同一 UPDATE**，rowcount==1 才 fire。
@@ -22,7 +22,7 @@ _FIRE_COLS = "id, schedule_id, report_id, status, error, refresh_seq, fired_at"
 def _reject_forbidden(fields: dict) -> None:
     bad = [k for k in fields if k in _FORBIDDEN]
     if bad:
-        raise MetadataError(f"OOS-1 死线：schedule 严禁 {bad}（catalog_id 水平切分非租户隔离）")
+        raise MetadataError(f"OOS-1v2（租户库内禁列）：schedule 严禁 {bad}（catalog_id 水平切分非租户隔离）")
 
 
 def get_by_report(report_id: int) -> dict | None:

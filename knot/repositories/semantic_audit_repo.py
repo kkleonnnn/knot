@@ -1,6 +1,6 @@
 """semantic_audit_repo — semantic_query_audit 表 CRUD（v0.7.3 C1 · LogicForm 审计侧表）。
 
-⚠️ OOS-1 死线 sustained：0 tenant_id / project_id —— catalog_id = 语义层水平切分（per-catalog），
+⚠️ OOS-1v2 sustained（租户库内禁列 · 隔离靠 per-tenant 文件边界）：0 tenant_id / project_id —— catalog_id = 语义层水平切分（per-catalog），
    非租户隔离。R-SL-40：catalog_id = LogicForm 解析时 active catalog（messages 无 catalog_id，
    catalog 是 ContextVar 临时解析从不落 message → 审计渲染 / 修正 re-run 须存当时 catalog）。
 

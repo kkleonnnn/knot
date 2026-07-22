@@ -326,7 +326,7 @@ def compile_logicform(lf, catalog: dict, time_ctx) -> str:
     """主入口：从 active catalog 解析 metric（R-SL-21 catalog 隔离）→ 确定性编译 SQL。
 
     catalog = current_catalog() dict（含 catalog_id + tables）。仅取 active catalog 的 metric
-    （`list_metrics(catalog_id)` — 非 None 全取，OOS-1 编译隔离）。
+    （`list_metrics(catalog_id)` — 非 None 全取，OOS-1v2 编译隔离）。
     v0.7.14：lf.outer → 结果再聚合 `WITH r AS (<现有编译>) SELECT <outer> FROM r`（_build_sql 不读 lf.outer，0 递归）。
     """
     from knot.repositories import metric_repo  # 延迟 import（避 import-time 环 + 测试可 patch）

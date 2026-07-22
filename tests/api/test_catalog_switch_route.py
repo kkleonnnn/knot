@@ -2,7 +2,7 @@
 
 覆盖：
 - POST /api/catalog/switch：per-user active 切换 + catalog.switch audit（38→39）+ catalog_id 落库（R-PB-A1-10）
-- 多 catalog 管理路由：GET/POST/PUT/DELETE /api/admin/catalogs（OOS-1：0 tenant）
+- 多 catalog 管理路由：GET/POST/PUT/DELETE /api/admin/catalogs（OOS-1v2：0 tenant）
 - ghost catalog_id 切换 → 404（set_user_active_catalog MetadataError）
 - 默认 catalog id=1 不可删 → 400
 """

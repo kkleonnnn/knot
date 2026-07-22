@@ -373,6 +373,12 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 - v0.4.x dev 用户升级路径（README §v0.4.x → v0.6.0）：手动 `mv bi_agent.db knot.db`（v0.5.0 startup auto-rename migration 已撤回 — 详 CHANGELOG v0.6.0）
 - Apache Doris / MySQL — 业务查询目标（通过 .env 配置）
 
+## ⭐ OOS-1v2 多租户隔离红线（v0.9.0 红线修订仪式改立 · 原 OOS-1 单租户死线 v0.6.2.0 正式翻转）
+
+> **OOS-1v2（v0.9.0 红线修订仪式改立 · 原 OOS-1 单租户死线正式翻转）**：多租户隔离模型 = **C 方案（平台库 + per-tenant SQLite 文件，fail-closed）**。**租户库内严禁 tenant_id/project_id 列**——行级租户列对 LogicForm 编译器 fail-open（漏注一条 = 静默跨租户供数），文件边界是唯一隔离载体；租户归属列仅允许存在于平台库（tenants 等平台元数据表）。catalog_id 仍 = 租户内水平切分 ≠ 租户隔离。tenant 上下文 fail-closed（无 ctx → raise，严禁全局回退）。配套 **R-T-GATE**：隔离栈就绪（uploads/凭据/egress/catalog/调度器/缓存与限流键/开通口令）前严禁放开第二租户开通。修订程序：v0.8→v0.9 整体审核三方（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ 本仪式 Stage 1-3 + CHANGELOG 修订声明；不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8）。
+>
+> **完整 LOCKED 设计**（4 产物 + 迁移 + R-T-GATE 就绪清单）：[`docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md`](docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md)（Stage 3 守护者复核 PASS · 放行）+ [`v0.9.0-stage3-recheck-brief.md`](docs/plans/v0.9.0-stage3-recheck-brief.md)。
+
 ## 加密 master key（v0.6.0 单一 KNOT_MASTER_KEY）
 
 - **v0.6.0+ 唯一**：`KNOT_MASTER_KEY`
@@ -478,7 +484,7 @@ graph TD
 ### ⭐ v0.7 不变量带入清单（greenfield 必守护栏 — 业务模型可重写，以下不可丢）
 v0.7.0 Stage 1 须逐条声明载体/守护点：
 
-- **v0.5 守护代（6）**：gate 鉴权（require_admin/get_current_user）· R-2FA（token_version 吊销 + 强制 enroll）· 视觉铁律（brandSoft 8% / borderLeft 25% / R-PA-PB-V1 + 18 屏 byte-equal）· doc-invariant CI（4~5 源点 + count==1）· R-192 AppShell 13 props · **OOS-1 单租户**（metric 归 `catalog_id`，严禁顺手引 tenant_id）
+- **v0.5 守护代（6）**：gate 鉴权（require_admin/get_current_user）· R-2FA（token_version 吊销 + 强制 enroll）· 视觉铁律（brandSoft 8% / borderLeft 25% / R-PA-PB-V1 + 18 屏 byte-equal）· doc-invariant CI（4~5 源点 + count==1）· R-192 AppShell 13 props · **OOS-1v2 多租户隔离**（v0.9.0 红线修订仪式改立；C 方案 per-tenant 文件边界，租户库内仍严禁 tenant_id 列 = fail-open；catalog_id = 租户内水平切分 ≠ 隔离；详 § OOS-1v2 多租户隔离红线，数据库段旁）
 - **v0.4 守护代（4）**：数据加密（Fernet/KNOT_MASTER_KEY/enc_v1，metric 含机密须注册 + 补存储侧 CI 守护）· 审计（metric CRUD 配 Literal + audit 调用 + CI 断言每 Literal ≥1 emit）· 成本（cost_service R-S8 横跨语义+LLM 双路径 + 新 agent_kind 桶）· async（LogicForm 解析/编译 async-native + R-26 budget gate）
 - **接缝（2）**：脱敏链 V2（metric SQL surface 非 admin 须脱敏）· **`crypto-only-in-allowed-callers` contract 扩 semantic 层**（semantic/agents 严禁直连 core.crypto）
 - R-LP-v3 治理已立约（唯一原生带入，无需重立）

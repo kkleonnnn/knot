@@ -85,7 +85,8 @@ def test_core_only_contains_horizontal_utilities():
     v0.6.1 起：新增 time_resolver.py（时间语义统一引擎 — 同 date_context.py 同性质横切工具）。
     若新增其他业务文件，本测试失败 — 强制 reviewer 思考分层归属。"""
     core_dir = pathlib.Path(knot.core.__file__).parent
-    expected = {"__init__.py", "logging_setup.py", "date_context.py", "time_resolver.py"}
+    expected = {"__init__.py", "logging_setup.py", "date_context.py", "time_resolver.py",
+                "tenant_context.py"}  # v0.9.0 C2：多租户 ContextVar 横切工具（api/services/repositories 均依赖，零业务逻辑）
     actual = {f.name for f in core_dir.glob("*.py")}
     unexpected = actual - expected
     assert not unexpected, (

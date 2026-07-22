@@ -11,6 +11,7 @@ R-BI-1：与 saved_reports/Chat 0 触。
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import os
 import secrets
 
@@ -39,7 +40,10 @@ async def scheduler_tick(request: Request):
     if not secrets.compare_digest(presented, token):   # 守护者 B-3：常量时间比对
         raise HTTPException(status_code=401, detail="无效调度 token")
     loop = asyncio.get_event_loop()                     # 卸 sync SQLAlchemy 刷新到线程池
-    return await loop.run_in_executor(None, sched_svc.run_due)
+    # v0.9.0 C2：run_in_executor 不 copy contextvars → copy_context().run 传播请求 tenant/catalog ctx 到
+    # worker 线程（fail-closed tenant ctx 否则 raise）；ctx.run 天然隔离每次调用 → 无线程池残留。
+    _ctx = contextvars.copy_context()
+    return await loop.run_in_executor(None, lambda: _ctx.run(sched_svc.run_due))
 
 
 class ScheduleRequest(BaseModel):

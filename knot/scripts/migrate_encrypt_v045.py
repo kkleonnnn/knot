@@ -58,7 +58,7 @@ def migrate(dry_run: bool = False, db_path: str | None = None) -> dict:
     # 守护者提示 §一处提示：master key 缺失先 fail，不创建 bak
     assert_master_key_loaded()
 
-    path = Path(db_path or _base_mod.SQLITE_DB_PATH)
+    path = Path(db_path) if db_path else _base_mod._tenant_db_path()  # v0.9.0 C2：租户库路径（非 raw 锚点；ctx 由 CLI 提供）
     backup_path: str | None = None
     if not dry_run:
         backup_path = str(_make_backup(path))
@@ -118,7 +118,12 @@ def _main() -> int:
     )
     ap.add_argument("--dry-run", action="store_true",
                     help="只统计 would_encrypt，0 副作用（不写 DB / 不创建 bak）")
+    ap.add_argument("--tenant", type=int, default=None, help="租户 id（默认 = 单租户解析 tenant#1）")
     args = ap.parse_args()
+    # v0.9.0 C2：standalone CLI 无 middleware/ctx → 显式 set tenant ctx。finally reset。
+    from knot.core import tenant_context as _tc
+    from knot.repositories import tenant_repo as _tr
+    _tok = _tc.set_active_tenant(_tr.get_tenant(args.tenant) if args.tenant else _tr.resolve_single_tenant())
     try:
         stats = migrate(dry_run=args.dry_run)
         prefix = "[dry-run] " if args.dry_run else ""
@@ -127,6 +132,8 @@ def _main() -> int:
     except Exception as e:
         sys.stderr.write(f"\n\033[91m[迁移失败] {e}\033[0m\n")
         return 1
+    finally:
+        _tc.reset_active_tenant(_tok)
 
 
 if __name__ == "__main__":

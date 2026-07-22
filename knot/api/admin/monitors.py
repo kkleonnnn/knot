@@ -1,7 +1,7 @@
 """knot/api/admin/monitors.py — 事件/规则/动作监控路由（v0.7.7 C4 语义层第八刀）。
 
 route `/api/admin/monitors`（避撞既有 admin 屏）。全 require_admin（继承 R-2FA enroll gate R-SL-65）。
-CRUD 经 monitor_repo（OOS-1 死锁）+ monitor.create/update/delete audit（R-SL-66）。
+CRUD 经 monitor_repo（OOS-1v2 死锁）+ monitor.create/update/delete audit（R-SL-66）。
 
 ⭐ check-now（手动「立即检查」，D1 绕调度器卡点）：
 - **R-SL-77 flag-gate**：fire 路径受 `KNOT_SEMANTIC_LAYER`（flag off → 不 fire，守零生产风险不变量）。

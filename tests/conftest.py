@@ -41,6 +41,13 @@ os.environ.setdefault("KNOT_SKIP_STARTUP_AUTO_PURGE", "1")
 # main.py 模块级 init_db 在 import 时 seed）。测「随机/env」seed 行为的用例自设 env 覆盖。
 os.environ.setdefault("KNOT_INITIAL_ADMIN_PASSWORD", "admin123")
 
+# v0.9.0 C4：跳过启动期存量迁移。main.py 模块级启动序（import 时跑）会调 migrate_anchor_db_to_tenant_once()
+# —— 但 main import 期 SQLITE_DB_PATH 尚是真实数据目录（monkeypatch 是 function-scoped，太晚），
+# 无 gate 会迁移/rename 开发者真实 knot.db。**无条件直写**（非 setdefault）：对抗评审指出 setdefault 遇
+# 外部已设的非 "1" 值（如误 export=0 / 子进程自建 env dict）不覆盖 → main 会对真实目录跑迁移。
+# 同 JWT_SECRET 的 import-timing pin 策略。迁移逻辑由 tests/test_tenancy_migration.py 直调 tmp 目录验证。
+os.environ["KNOT_SKIP_STARTUP_MIGRATION"] = "1"
+
 
 def _reset_module_level_caches():
     """v0.6.5.3 flaky 修：清三类模块级可变缓存（跨测试 state 泄露根因 class）。
@@ -102,7 +109,22 @@ def _master_key_for_tests(monkeypatch):
     # → engine.connect() sqlite "unable to open" ERROR）② admin._DS_STATS_CACHE 跨测试 stats 数据污染
     # ③ totp_service._TOKEN_VERSION_CACHE token_version 残留。非确定性触发（PYTHONHASHSEED）→ flaky。
     _reset_module_level_caches()
+    # v0.9.0 C2：默认 tenant#1 ctx（db_dir='.' → get_conn 解析到 SQLITE_DB_PATH 锚点本身；直读锚点断言 byte-equal）。
+    # fail-closed get_conn 要求 ctx，无则全测 raise。autouse（同 scope）先于显式 DB fixture 实例化 → init_db 有 ctx。
+    # 静态 row 不查 platform.db（repository/unit 直调 get_conn 场景）；integration middleware 另从 platform.db resolve。
+    # db_dir='.' 惰性解析（get_conn 时读当时 monkeypatched SQLITE_DB_PATH）→ 此处早 set 不受后续 monkeypatch 影响。
+    _tenant_token = None
+    try:
+        from knot.core import tenant_context as _tc
+        _tenant_token = _tc.set_active_tenant(
+            {"id": 1, "slug": "default", "name": "默认租户", "status": "active", "db_dir": "."}
+        )
+    except ImportError:
+        pass
     yield
+    if _tenant_token is not None:
+        from knot.core import tenant_context as _tc
+        _tc.reset_active_tenant(_tenant_token)
     try:
         from knot.core.crypto.fernet import get_crypto_adapter
         get_crypto_adapter.cache_clear()
@@ -117,12 +139,19 @@ def tmp_db_path(monkeypatch):
     base.py 在 import 时把 SQLITE_DB_PATH 拷进自己的命名空间，所以 monkeypatch
     必须直接打 base 模块（不是 config 单例）。
     """
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_test_")
-    os.close(fd)
-    os.unlink(path)  # 让 init_db() 自己创建
+    # v0.9.0 C2 双层布局：mkdtemp 目录 + anchor=dir/knot.db；tenant#1 db_dir='.' → anchor 本身
+    # （mkstemp 单文件与双层库冲突：db_dir='.' + '/knot.db' 会忽略 mkstemp 随机文件名 — 手册 iv#6）。
+    # base.py + tenant_repo.py 各在 import 时拷 SQLITE_DB_PATH 进自己命名空间 → 须分别 monkeypatch。
+    # tenant ctx 由 autouse `_master_key_for_tests` 提供（静态 tenant#1 db_dir='.'）。
+    d = tempfile.mkdtemp(prefix="knot_test_")
+    anchor = os.path.join(d, "knot.db")
 
     from knot.repositories import base as base_mod
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
+    from knot.repositories import tenant_repo as _tr
+    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", anchor)
+    monkeypatch.setattr(_tr, "SQLITE_DB_PATH", anchor)
+    _tr.init_platform_db()               # 供基于 tmp_db_path 的 TestClient fixture（middleware resolve_single_tenant）
+    _tr.seed_default_tenant(db_dir=".")  # tenant#1 db_dir='.' → anchor 本身
     base_mod.init_db()
 
     # v0.6.0.20：seed admin 默认 must_change_password=1（生产环境必须改密）；
@@ -132,7 +161,7 @@ def tmp_db_path(monkeypatch):
     if admin and admin.get("must_change_password"):
         user_repo.update_user(admin["id"], must_change_password=0)
 
-    yield path
+    yield anchor
 
-    if os.path.exists(path):
-        os.unlink(path)
+    import shutil
+    shutil.rmtree(d, ignore_errors=True)

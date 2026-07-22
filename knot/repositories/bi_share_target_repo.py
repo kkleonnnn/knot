@@ -1,7 +1,7 @@
 """bi_share_target_repo — v0.8.14 分享投递目标白名单 CRUD（admin 策展）。
 
 用户分享时提交 target_id 引本表行；服务端校验 target_id ∈ 本表（chat_id 禁用户自填 — R-BI-SHARE-1）。
-chat_id 非机密（明文存）；OOS-1：绑 data_source_id（可空=全局），严禁 tenant_id。
+chat_id 非机密（明文存）；OOS-1v2：绑 data_source_id（可空=全局），严禁 tenant_id。
 IM 凭据（lark_app_secret/telegram_bot_token）不在本表 —— 走 settings_repo 加密 app_settings。
 """
 from __future__ import annotations

@@ -142,7 +142,7 @@ def run_post_schema_migrations(conn):
     """)
 
     # ── v0.6.2.5 段 4 (A1): single-tenant 多 catalog 切换 — 迁移地基 ─────────────
-    # OOS-1 死线（R-PB-A1-1）：catalogs 表 + users.active_catalog_id 严禁 tenant_id/project_id；
+    # OOS-1v2（租户库内禁列）（R-PB-A1-1）：catalogs 表 + users.active_catalog_id 严禁 tenant_id/project_id；
     #   catalog_id = 语义层水平切分（per-user active catalog）≠ 租户数据隔离。
     # users.active_catalog_id：每用户 active catalog（NULL → 兜底 catalog id=1）
     users_cols_v0625 = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}

@@ -11,7 +11,7 @@ catalog.py — admin 维护业务目录 + 多 catalog 切换（v0.2.5 / v0.6.2.5
   catalog id=1 缺失时 app_settings legacy 兜底；详 catalog_loader._load_from_db）。
 读取：catalog_loader.reload(strict=True) —— catalogs id=1 优先，缺失 fallback _local/_template_catalog.py。
 多 catalog（v0.6.2.5 A1）：catalogs 表多行 + per-user users.active_catalog_id 切换；
-  ⚠️ OOS-1 死线 R-PB-A1-1：0 tenant_id — catalog_id = 语义层水平切分 ≠ 租户隔离。
+  ⚠️ OOS-1v2（租户库内禁列） R-PB-A1-1：0 tenant_id — catalog_id = 语义层水平切分 ≠ 租户隔离。
 """
 import json
 
@@ -203,7 +203,7 @@ async def list_all_catalogs(admin=Depends(require_admin)):
 
 @router.post("/api/admin/catalogs")
 async def create_new_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
-    """新建 catalog（name 必填）。⚠️ OOS-1 死线：0 tenant — 仅 catalog_id 语义切分。"""
+    """新建 catalog（name 必填）。⚠️ OOS-1v2（租户库内禁列）：0 tenant — 仅 catalog_id 语义切分。"""
     name = str(payload.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name 必填")
