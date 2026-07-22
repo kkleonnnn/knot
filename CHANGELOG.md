@@ -14,6 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Governance (C1 · 仪式)
 - **OOS-1 → OOS-1v2 红线修订**：CLAUDE.md 立约文本置入 + 本 CHANGELOG 修订声明 + LOCKED 隔离设计 4 产物（catalog_id→tenant 语义继承审计 / 隔离栈就绪度审计 6 项 / 平台库-租户库表划分 + 迁移映射 / tenant ctx fail-closed 设计）落库。新立 **R-T-GATE**（第二租户开通解锁门：隔离栈就绪前硬 CI `assert_no_second_active_tenant_served` 挡多租户暴露）。
 
+### Added (C2 · 机制)
+- **平台库 `platform.db` + `tenants` 表**（`knot/repositories/platform_schema.sql` + `tenant_repo.py`）：存平台元数据（v0.9.0 仅 tenants 表）；`get_platform_conn` **ctx-free**（不撞 fail-closed，解 chicken-and-egg）+ CRUD + `resolve_single_tenant`（恰 1 active 否则 raise = R-T-GATE 落地）+ `seed_default_tenant`。
+- **租户 ContextVar fail-closed**（`knot/core/tenant_context.py`）：`current_tenant()` 未设即 raise `TenantContextError`（**无全局回退** —— 反 catalog ctx 的回退语义，tenant 是安全边界）；`assert_tenant_context` runtime tripwire（core 不 import services → 纯 raise 无 audit）。
+- **`base.get_conn` 双层解析**：`Path(SQLITE_DB_PATH).parent / current_tenant()["db_dir"] / "knot.db"` —— 隔离坍缩到连接解析单点（C 方案 fail-closed 核心）。
+
+### Changed (C2/C3)
+- **`main.py` 启动序重排 ❶-❺**（解 chicken-and-egg）：platform bootstrap（ctx-free）→ ❷.5 C4 存量迁移 gate → 逐租户 set ctx + `init_db` + reset → tenant#1 ctx 下 seed_prompts/totp-rollout。加 tenant middleware（set-without-reset，`resolve_single_tenant` per request）。
+- **执行者-fork ctx 传播**（kk 选项①）：`bi_schedule`/`bi_reports`/`bi_share` 三处 `run_in_executor` 裸 fork 丢 fail-closed ctx → `copy_context().run` 修（anyio `to_thread` 已自带 copy，仅 raw executor 需）。
+- **OOS-1 → OOS-1v2 绊线翻转（C3）**：`schema.sql` + 20 文件注释 `OOS-1(?!v2)`→`OOS-1v2` + `死线`→`（租户库内禁列）`（**注释-only，0 行为改**）；租户库内禁 `tenant_id`/`project_id` 列语义（对 LogicForm 编译器 fail-open → 靠文件边界隔离，绊线作静态防线）。
+
+### Migration (C4 · pre-tenancy 存量迁移)
+- **`knot/repositories/tenancy_migration.py`**：旧单库锚点 `data/knot.db` → tenant#1 `data/tenants/1/knot.db`（+ `platform.db`）。启动序 ❷.5 自动跑（`KNOT_SKIP_STARTUP_MIGRATION` gate 测试期跳）。**COPY 非 move**（sqlite `.backup()` WAL-safe，只读锚点）→ 强校验（非空/表集合/关键表行数/decrypt 烟测）→ 过才删锚点（备份 `.pre-tenancy.bak`）；校验不过删 target 保锚点 last-good + raise（fail-closed）。**铁律：C4 必先于现网 rollout**（DEPLOY.md 迁移段 + 多副本「先单副本/init-container」+ 回滚步骤）。uploads.db 备份不迁（engine import 期绑数据根，relocation v0.9.1）。
+- **两轮对抗加固**（R-137 无单点可信）：执行者 4 视角证伪（5 confirmed→修）+ 守护者 Stage 4 6-agent 数据安全对抗（crash 注入 10 死点全 REFUTED；3 must + 4 should 全修）。核心 = flock 跨进程串行 + `_target_has_real_data` **denylist**（排除三法坐实的 5 张 fresh-seeded 表 + users>1 + totp_secret；结构上不漏表）+ resume 前 `.pre-resume.bak` 保全 + `_fsync_file` 严格中止 + 空/损坏库拒服务 + 原子备份。
+
+### Tests / Gates
+- `tests/test_tenant_isolation.py`（10：fail-closed/双租户文件隔离/R-T-GATE/绊线/gitignore/flatten==144）+ `tests/test_tenancy_migration.py`（23：7 状态机分支/denylist/crash-resume/错-key/损坏-无-bak/flock 真并发/verify 不符/resume 保全/孤儿标记）。doc-invariant CI 保 4 源点版本 == 0.9.0（C1 已 bump：main.py/version.js/README/test_rename_smoke）。
+
+### Deferred (backlog · 非阻断)
+- **安全阀排除-seeded-表盲区**（守护者 Stage 4 §4）：target 若仅改被排除的 seeded 表（`semantic_layer` 内容 / `app_settings` 用户密钥）且无其他表触碰、无 marker → false-negative。实际靠「任何用户操作先登录 → 默认 `KNOT_TOTP_REQUIRED=true` 强制 enroll 写 `totp_secret`（被查）+ 登录写 `audit_log`（被查）」兜住；仅 TOTP 禁用 + 只改 seeded 表才漏。可选加固 `_target_has_real_data` 补 `semantic_layer WHERE content!=''` → 0.1 / 运维随手。
+- **隔离栈 per-tenant 化**（R-T-GATE 解锁前置，0.1）：engine_cache / `_upload_engine`（uploads relocation v0.9.1）/ catalog 全局 / `_DS_STATUS_CACHE` 缓存键 · 鉴权拆分 platform/tenant_admin · 配置凭据/审计/计费租户化 · 多租户解析（JWT tid→库）· assert_tenant_context audit + 绊线接线。
+
 ## [Released] - v0.8.24 — data_source 删除级联清理 + 悬空 default_source_id / user_sources / bi_reports 治愈
 
 > 数据完整性 bug fix chore。走完整 Loop Protocol v3（Stage 1 执行者 + Stage 2 Codex major-revise 6 catch + Stage 3 守护者 major-revise → 放行）。堆叠于 v0.8.23（#245）。
