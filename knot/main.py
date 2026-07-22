@@ -31,7 +31,7 @@ from knot.api import templates as templates_router
 from knot.api import totp as totp_router
 from knot.core import tenant_context as _tenant_ctx
 from knot.core.logging_setup import logger, new_request_id, set_request_id
-from knot.repositories import init_db, tenant_repo
+from knot.repositories import init_db, tenancy_migration, tenant_repo
 
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
@@ -83,6 +83,11 @@ _DATA_DIR.mkdir(parents=True, exist_ok=True)
 # ❸❹ 读 tenants → 逐租户 set ctx → init_db（run_pre/post_schema + seed admin + uploads 迁移 + cleanup 复用）→ finally reset
 tenant_repo.init_platform_db()
 tenant_repo.seed_default_tenant()
+# ❷.5 C4 存量迁移：pre-tenancy 锚点 knot.db → tenant#1 db_dir（**必在 per-tenant init_db 前** —— 否则
+# init_db 建空租户库、真数据在锚点孤儿）。KNOT_SKIP_STARTUP_MIGRATION=1 时跳过（测试期 main import 跑在真实
+# 数据目录 → 防误迁 dev 库；迁移逻辑由 tests/test_tenancy_migration.py 直调 tmp 目录验证）。
+if os.getenv("KNOT_SKIP_STARTUP_MIGRATION", "").strip() != "1":
+    logger.info(f"[C4] tenant#1 存量迁移: {tenancy_migration.migrate_anchor_db_to_tenant_once()}")
 for _t in tenant_repo.list_tenants():
     _tok = _tenant_ctx.set_active_tenant(_t)
     try:

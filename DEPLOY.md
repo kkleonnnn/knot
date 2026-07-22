@@ -300,8 +300,8 @@ location / {
 
 ```bash
 # crontab -e
-# 每日 02:00 自动备份
-0 2 * * * cd /path/to/knot && cp data/knot.db data/knot.db.$(date +\%Y\%m\%d).bak && find data/ -name "knot.db.*.bak" -mtime +30 -delete
+# 每日 02:00 自动备份（v0.9.0 起业务库在 data/tenants/ + 平台库 data/platform.db → 整目录打包）
+0 2 * * * cd /path/to/knot && tar czf data/backup.$(date +\%Y\%m\%d).tgz data/tenants data/platform.db data/uploads.db 2>/dev/null && find data/ -name "backup.*.tgz" -mtime +30 -delete
 ```
 
 ✅ `audit_log` 自动 7 天 retention + timestamped 备份（F-C 已内置 — 无需额外）。
@@ -386,9 +386,65 @@ sleep 10 && docker logs knot | tail -5
 ```
 
 **关键不变量**：
-- ✅ `./data/knot.db` 不动 → 所有用户配置 / 历史对话 / audit 全保留
+- ✅ 业务库不丢 → 所有用户配置 / 历史对话 / audit 全保留（v0.9.0 起业务库 = `./data/tenants/1/knot.db`；见下「多租户存量迁移」）
 - ✅ `KNOT_MASTER_KEY` env 不动 → 历史加密数据可解密
 - ✅ `init_db()` 启动期幂等迁移 schema（新表新列自动加，旧数据不动）
+
+> ⚠️ **首次从 v0.8.x（或更早）升到 v0.9.x 例外**：这是**一次性存量迁移**（`data/knot.db` → `data/tenants/1/knot.db` + 新建 `data/platform.db`），不是普通 micro PATCH。**升级前务必读下一节**。
+
+---
+
+## 🔀 v0.9.0 多租户存量迁移（一次性 · 现网 rollout 前必读）
+
+v0.9.0 引入多租户 C 方案（每租户独立 SQLite 文件）。业务库从单库锚点 `data/knot.db` 迁入
+tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`（存 `tenants` 表）。
+
+### 自动迁移（启动期，幂等 · 抗中途 crash 续跑）
+
+首次启动 v0.9.x 容器时，启动序在 per-tenant `init_db()` **之前**自动执行迁移：
+
+1. `PRAGMA wal_checkpoint(TRUNCATE)` 折 WAL + 关连接 → **COPY** `data/knot.db` → `data/tenants/1/knot.db`
+2. **强校验**：表集合一致 + 关键表（users/audit_log/data_sources/conversations）行数一致 + 抽 1 条加密凭据解密烟测（证 `KNOT_MASTER_KEY` 未变）
+3. 校验通过 → 把旧锚点 rename 为 `data/knot.db.pre-tenancy.bak`（**保留作回滚源**）；`uploads.db` 一并备份为 `uploads.db.pre-tenancy.bak`（v0.9.0 **不迁** uploads，留原位）
+4. **校验不通过 → 删半成品 target，保锚点 `data/knot.db` 不动（last-good），并中止启动**（fail-closed，绝不带残缺库起服务）
+
+**验证成功**（`docker logs knot | grep C4`）：
+```
+[C4] 存量迁移完成（migrated）：…/data/knot.db → …/data/tenants/1/knot.db；旧库备份 …/data/knot.db.pre-tenancy.bak
+[C4] tenant#1 存量迁移: migrated
+```
+全新部署（无 `data/knot.db`）会打印 `skip:fresh`（无存量可迁，正常）。
+
+### 🔴 铁律：C4 迁移必先于现网 rollout
+
+**严禁跳过迁移直接上 v0.9.x 现网**。生产 tenant#1 的 `db_dir='tenants/1'` ≠ 旧锚点 `data/knot.db`；
+若旧数据仍在锚点而迁移未跑，`init_db()` 会在 `tenants/1/` 建**空库**起服务，旧数据在锚点**孤儿**（表面「数据没了」）。
+自动迁移已内建，正常升级即闭合；此铁律针对**手动改 `SQLITE_DB_PATH` / 手动摆库文件**的运维场景。
+
+> 安全阀：若 `data/tenants/1/knot.db` **已有用户业务数据**（>1 用户 / 有会话 / 配了数据源/知识/报表等）而旧锚点
+> `data/knot.db` **仍在**，迁移会**拒绝覆盖并中止启动**（疑似在迁移前已上过现网写入了新库）。此时**人工核对**两库后手动处置，勿强迁。
+
+### ⚠️ 多副本 / 多 worker 首次升级注意
+
+迁移在启动期跑，并用数据根 `.c4-migration.lock`（`flock`）串行化**同节点**的多 worker/多进程启动。但
+**跨节点共享卷（K8s RWM/NFS PVC）上的 `flock` 不保证跨节点互斥**。故首次从 v0.8.x 升 v0.9.x 时：
+
+- **先以单副本迁移**（`replicas: 1`）确认日志出现 `[C4] tenant#1 存量迁移: migrated`（或 `skip:fresh`）后再扩容；
+- 或把迁移放进 **init-container / 一次性 Job**（单实例先跑），应用副本再起。
+
+（单 uvicorn / 单副本部署——KNOT 内测默认——无此问题；迁移是一次性操作，迁完后 `skip:migrated` 恒等幂等。）
+
+### 回滚（v0.9.x → v0.8.x）
+
+```bash
+docker stop knot && docker rm knot
+cd /path/to/knot/data
+mv knot.db.pre-tenancy.bak knot.db     # 旧锚点复位（回滚源）
+rm -rf tenants platform.db             # 清多租户产物（旧版本不认）
+# 若 uploads 有改动：mv uploads.db.pre-tenancy.bak uploads.db
+# 再用 v0.8.x 镜像启动
+```
+> 回滚窗口内旧锚点 `.pre-tenancy.bak` 是完整业务库；迁移后若已在新库写入数据，回滚会丢失这部分增量 —— 故回滚应在**升级后尽早**决策。
 
 ---
 
@@ -398,7 +454,7 @@ sleep 10 && docker logs knot | tail -5
 |---|---|---|
 | **boot 日志** | `docker logs knot` | "已加载（Fernet）" + "Uvicorn running" |
 | **错误日志** | `docker logs knot 2>&1 \| grep -i error` | 极少；持续报错需诊断 |
-| **DB 增长** | `du -sh data/knot.db` | 5-10 人内测预期 < 50MB / 周 |
+| **DB 增长** | `du -sh data/tenants/1/knot.db data/platform.db` | 5-10 人内测预期 < 50MB / 周 |
 | **F-A 用户反馈** | admin 浏览器 → API `/api/admin/feedback` | 👍/👎 数量 + 评论质量集中点 |
 | **F-B 前端错误** | admin 浏览器 → API `/api/admin/frontend-errors` | 应极少；持续上报需修 |
 | **F-C audit 自动清理** | `docker logs knot \| grep audit_auto_purge` | 7 天阈值后自动跑 |
@@ -499,7 +555,7 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 
 ### Q1: 我能改 KNOT_MASTER_KEY 吗？
 **不能** — 改了之后所有加密数据（数据源密码 / API Key）**永久无法解密**。如果一定要改：
-1. 先 `bash scripts/deploy_checklist.sh` 之前**备份** `data/knot.db`
+1. 先**备份**整个 `data/` 目录（v0.9.0 起业务库在 `data/tenants/`、平台库 `data/platform.db`）
 2. admin 进 UI 把所有数据源 / API Key **重新填一遍**
 3. 再改 key 重启
 

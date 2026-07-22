@@ -1,7 +1,7 @@
 """knot.repositories.tenant_repo — 平台库(platform.db) 连接 + tenants 表 CRUD + 单租户解析器。
 
 平台库存平台元数据（v0.9.0 仅 tenants 表）；租户库 = `SQLITE_DB_PATH.parent / db_dir / knot.db`
-（`base.get_conn` 双层解析）。
+（`base.get_conn` 双层解析）。存量迁移（pre-tenancy knot.db → tenant#1 库）在 `tenancy_migration.py`。
 
 `get_platform_conn` **ctx-free**（不经 fail-closed `get_conn`）—— 供启动序 platform bootstrap +
 tenant 解析 + C4 迁移；否则自身撞 fail-closed 门（chicken-and-egg）。

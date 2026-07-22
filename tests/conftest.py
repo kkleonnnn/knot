@@ -41,6 +41,13 @@ os.environ.setdefault("KNOT_SKIP_STARTUP_AUTO_PURGE", "1")
 # main.py 模块级 init_db 在 import 时 seed）。测「随机/env」seed 行为的用例自设 env 覆盖。
 os.environ.setdefault("KNOT_INITIAL_ADMIN_PASSWORD", "admin123")
 
+# v0.9.0 C4：跳过启动期存量迁移。main.py 模块级启动序（import 时跑）会调 migrate_anchor_db_to_tenant_once()
+# —— 但 main import 期 SQLITE_DB_PATH 尚是真实数据目录（monkeypatch 是 function-scoped，太晚），
+# 无 gate 会迁移/rename 开发者真实 knot.db。**无条件直写**（非 setdefault）：对抗评审指出 setdefault 遇
+# 外部已设的非 "1" 值（如误 export=0 / 子进程自建 env dict）不覆盖 → main 会对真实目录跑迁移。
+# 同 JWT_SECRET 的 import-timing pin 策略。迁移逻辑由 tests/test_tenancy_migration.py 直调 tmp 目录验证。
+os.environ["KNOT_SKIP_STARTUP_MIGRATION"] = "1"
+
 
 def _reset_module_level_caches():
     """v0.6.5.3 flaky 修：清三类模块级可变缓存（跨测试 state 泄露根因 class）。
