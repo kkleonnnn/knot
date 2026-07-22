@@ -14,6 +14,9 @@ env/
 **/data/*.db
 **/data/*.db-shm
 **/data/*.db-wal
+# v0.9.0 C2：per-tenant 库目录（platform.db 走上方 **/data/*.db；租户库/上传库在子目录）——
+# **/data/*.db 不匹配子目录，缺此则 tenants/<id>/knot.db 裸奔进 git（手册 C4 flag，提前至 C2）。
+**/data/tenants/
 **/data/logs/
 
 # 业务隐私（v0.2.4 起）：真实业务目录 / few-shot / eval / schema fixture 不进 git

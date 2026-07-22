@@ -29,8 +29,9 @@ from knot.api import prompts as prompts_router
 from knot.api import saved_reports as saved_reports_router
 from knot.api import templates as templates_router
 from knot.api import totp as totp_router
+from knot.core import tenant_context as _tenant_ctx
 from knot.core.logging_setup import logger, new_request_id, set_request_id
-from knot.repositories import init_db
+from knot.repositories import init_db, tenant_repo
 
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
@@ -57,18 +58,47 @@ app.add_middleware(
     allow_credentials=_cors_allow_credentials,
 )
 
+
+@app.middleware("http")
+async def _tenant_context_middleware(request, call_next):
+    """v0.9.0 C2 请求作用域 tenant ctx（镜像 catalog ctx **set-without-reset**）。
+
+    uvicorn per-request asyncio task 隔离（copy_context）→ 下游 endpoint + SSE generator 继承
+    （grounded 实证 20 并发 + keep-alive 0 泄漏；query 热路径 0 context-fork）。**禁 reset**
+    （run_in_executor 场景丢 ctx）。v0.9.0 单租户解析器（platform.db 恰 1 active，0/>1 → raise
+    = R-T-GATE 请求侧兜底）；多租户 = 0.1 JWT tid 解析。
+    """
+    _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())  # set-without-reset
+    return await call_next(request)
+
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
 # _DATA_DIR.mkdir 保留 — sqlite3.connect 需要父目录存在
 _DATA_DIR = Path(__file__).parent / "data"
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
-init_db()
+
+# v0.9.0 C2 启动序重排（Stage3 #3 解 chicken-and-egg）：
+# ❷ platform bootstrap（get_platform_conn **ctx-free**，不撞 fail-closed get_conn）：建 platform.db + seed 恰 1 tenant#1
+# ❸❹ 读 tenants → 逐租户 set ctx → init_db（run_pre/post_schema + seed admin + uploads 迁移 + cleanup 复用）→ finally reset
+tenant_repo.init_platform_db()
+tenant_repo.seed_default_tenant()
+for _t in tenant_repo.list_tenants():
+    _tok = _tenant_ctx.set_active_tenant(_t)
+    try:
+        init_db()
+    finally:
+        _tenant_ctx.reset_active_tenant(_tok)
 
 # v0.6.0 F2.9：启动期幂等 seed 3-Agent system prompt 默认值（从 knot/prompts/*.md → DB）
 # 仅 DB 行不存在时 INSERT；已有则跳过（不覆盖 admin 已编辑值，R-PA-2.3）
 from knot.services.prompt_service import seed_defaults_from_files as _seed_prompts  # noqa: E402
 
-_seed_result = _seed_prompts()
-logger.info(f"prompt seed: {_seed_result}")
+# ❺ tenant#1 ctx 下 DB-touching 启动（seed_prompts）；finally reset 防 ctx 泄进 serving 使 fail-closed 虚化
+_t1_tok = _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())
+try:
+    _seed_result = _seed_prompts()
+    logger.info(f"prompt seed: {_seed_result}")
+finally:
+    _tenant_ctx.reset_active_tenant(_t1_tok)
 
 
 # v0.4.5 R-45 / v0.5.0 R-68：master key fail-fast 在 init_db() 之后、所有路由注册之前。
@@ -129,7 +159,16 @@ _check_jwt_secret_or_exit()
 # + 崩溃安全 bump→flag→cache）。置于两个 fail-fast 之后 — 配置健康才执行，避免 sys.exit 前误改 DB。
 from knot.services.totp_service import apply_rollout_session_invalidation as _apply_totp_rollout  # noqa: E402
 
-logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
+# ❺ 续：totp_rollout 须在 tenant#1 ctx（漏 set → KNOT_TOTP_REQUIRED 默认 true 下读 app_settings 撞 fail-closed boot 崩）
+#    + catalog reload 补调（命门#1：catalog.py import 期 reload 早于 init/ctx → 降级 file/empty；此处 tenant#1
+#    ctx 下重 reload 覆盖 boot→首请求窗口非请求消费者）。finally reset。
+_t1_tok2 = _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())
+try:
+    logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
+    from knot.services.agents import catalog as _catalog_loader  # noqa: E402
+    _catalog_loader.reload(strict=False)
+finally:
+    _tenant_ctx.reset_active_tenant(_t1_tok2)
 
 
 @app.on_event("startup")
@@ -183,6 +222,12 @@ async def _audit_auto_purge_if_stale():
     from knot.repositories import settings_repo
 
     async def _maybe_purge():
+        # v0.9.0 C2（set 点#3）：fire-and-forget create_task 无 tenant ctx（startup hook 非 ❺ 块）→
+        # settings_repo.get_app_setting 撞 fail-closed。入口 set tenant#1 + finally reset。
+        # （to_thread 的 _purge 在 worker 线程不 copy ctx → purge() 函数体内自行租户解析，见 purge_audit_log。）
+        from knot.core import tenant_context as _tc
+        from knot.repositories import tenant_repo as _tr
+        _tok = _tc.set_active_tenant(_tr.resolve_single_tenant())
         try:
             last = settings_repo.get_app_setting("audit.last_purge_at", "")
             should_run = True
@@ -206,6 +251,8 @@ async def _audit_auto_purge_if_stale():
             logger.info(f"[audit_auto_purge] startup 自动清理完成: {stats}")
         except Exception as e:
             logger.warning(f"[audit_auto_purge] 失败 (silent fail): {type(e).__name__}: {e}")
+        finally:
+            _tc.reset_active_tenant(_tok)
 
     asyncio.create_task(_maybe_purge())
 

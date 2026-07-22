@@ -58,7 +58,7 @@ def purge(dry_run: bool = False, db_path: str | None = None,
     except ValueError:
         days = _DEFAULT_RETENTION
 
-    path = Path(db_path or _base_mod.SQLITE_DB_PATH)
+    path = Path(db_path) if db_path else _base_mod._tenant_db_path()  # v0.9.0 C2：租户库路径（非 raw 锚点；ctx 由调用方/CLI 提供）
     backup_path: str | None = None
     if not dry_run:
         backup_path = str(_make_backup(path))
@@ -90,7 +90,13 @@ def purge(dry_run: bool = False, db_path: str | None = None,
 def _main() -> int:
     ap = argparse.ArgumentParser(description="v0.4.6 审计日志 retention 清理（独立 entrypoint）")
     ap.add_argument("--dry-run", action="store_true", help="只统计 would_delete，0 副作用")
+    ap.add_argument("--tenant", type=int, default=None, help="租户 id（默认 = 单租户解析 tenant#1）")
     args = ap.parse_args()
+    # v0.9.0 C2：standalone CLI 无 middleware/ctx → 显式 set tenant ctx（in-process auto-purge 调用方已有 ctx，
+    # purge() 不自设以免覆盖调用方 ctx）。finally reset。
+    from knot.core import tenant_context as _tc
+    from knot.repositories import tenant_repo as _tr
+    _tok = _tc.set_active_tenant(_tr.get_tenant(args.tenant) if args.tenant else _tr.resolve_single_tenant())
     try:
         stats = purge(dry_run=args.dry_run)
         prefix = "[dry-run] " if args.dry_run else ""
@@ -99,6 +105,8 @@ def _main() -> int:
     except Exception as e:
         sys.stderr.write(f"\n\033[91m[清理失败] {e}\033[0m\n")
         return 1
+    finally:
+        _tc.reset_active_tenant(_tok)
 
 
 if __name__ == "__main__":

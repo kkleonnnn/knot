@@ -11,13 +11,17 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(monkeypatch):
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_int_")
-    os.close(fd)
-    os.unlink(path)
+    # v0.9.0 C2 双层布局：mkdtemp + anchor=dir/knot.db + platform.db（middleware resolve_single_tenant 需）。
+    # tenant#1 db_dir='.' → anchor 本身。base + tenant_repo 各拷 SQLITE_DB_PATH → 分别 monkeypatch。
+    d = tempfile.mkdtemp(prefix="knot_int_")
+    anchor = os.path.join(d, "knot.db")
 
-    # patch SQLite 路径
     from knot.repositories import base as base_mod
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
+    from knot.repositories import tenant_repo as _tr
+    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", anchor)
+    monkeypatch.setattr(_tr, "SQLITE_DB_PATH", anchor)
+    _tr.init_platform_db()                 # middleware / 启动序 resolve_single_tenant 需 platform.db
+    _tr.seed_default_tenant(db_dir=".")    # tenant#1 db_dir='.' → anchor 本身（tenant ctx 由 autouse + middleware 提供）
     base_mod.init_db()
 
     # v0.6.0.20：默认 admin seed 必须改密；测试场景统一 reset 让业务 API 可调
@@ -27,13 +31,13 @@ def client(monkeypatch):
     if admin and admin.get("must_change_password"):
         user_repo.update_user(admin["id"], must_change_password=0)
 
-    # 重新 import main 触发 app factory（模块级 init_db 已跑过；TestClient 共用 app）
+    # 重新 import main 触发 app factory（模块级启动序已跑过；TestClient 共用 app）
     from knot.main import app
     with TestClient(app) as c:
         yield c
 
-    if os.path.exists(path):
-        os.unlink(path)
+    import shutil
+    shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture()

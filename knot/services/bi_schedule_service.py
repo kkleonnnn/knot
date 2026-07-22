@@ -78,7 +78,12 @@ def _classify(out: dict | None) -> tuple[str, str, int | None]:
 
 
 def run_due() -> dict:
-    """CronJob tick 主编排。返 {checked, fired, results:[{schedule_id, report_id, status, error}]}。"""
+    """CronJob tick 主编排。返 {checked, fired, results:[{schedule_id, report_id, status, error}]}。
+
+    v0.9.0 C2：tenant ctx 由**调用方**提供 —— tick 端点（bi_schedule.py:42）经 `copy_context().run` 传播请求
+    ctx 到 executor worker（`ctx.run` 天然隔离，无线程池残留）。run_due 本体不 set ctx（in-process/测试调用
+    继承调用方 ctx）。0.3 改按 schedule 归属租户迭代（逐租户独立 ctx 边界）。
+    """
     now = _now()
     now_str = now.strftime(_FMT)
     due = sched_repo.list_due(now_str)
