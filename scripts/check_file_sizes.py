@@ -28,7 +28,7 @@ BACKEND_ACK = {
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
     "knot/adapters/db/doris.py":           392,  # v0.8.0 B6.1 +auto-LIMIT；v0.8.5 ②a +is_safe_sql wrapper →373；v0.8.19a +drop_sqlite_table（删上传表清理）+ load_rows_to_sqlite 命名参数修（既存 P1）373→390（headroom 2）
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
-    "knot/services/engine_cache.py":       346,  # v0.8.24 +invalidate_all_engine_cache（删源撤两 cache 命名空间，340→346）；此前 v0.8.19a config-only 337→339
+    "knot/services/engine_cache.py":       361,  # v0.9.1 失效器三拆（user/tenant 版 + tid 前缀键，346→361，MF3）；v0.8.24 +invalidate_all（340→346）
     # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）
     "knot/repositories/migrations.py":     357,  # v0.8.24 +删源悬空治存量 cleanup（344→357）；v0.8.22 从 base.py 拆出的历史迁移块（~300 行 inherent）
     "knot/main.py":                        315,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK

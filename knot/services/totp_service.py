@@ -23,6 +23,7 @@ import bcrypt
 import pyotp
 from cachetools import TTLCache
 
+from knot.core.tenant_context import tenant_cache_key
 from knot.repositories import totp_repo, user_repo
 
 # ─── R-PB-B1-13 + NRP-1：JWT token_version cache（TTLCache，单 user 失效）─
@@ -48,21 +49,26 @@ def _utc_iso() -> str:
 
 
 def get_token_version_cached(user_id: int) -> int:
-    """JWT 验证调用 — cache hit 直接返；miss 走 DB + cache 60s。"""
-    cached = _TOKEN_VERSION_CACHE.get(user_id)
+    """JWT 验证调用 — cache hit 直接返；miss 走 DB + cache 60s。
+
+    v0.9.1 MF1（安全 critical）：键 `(tid, user_id)`（tenant_cache_key）—— 原裸 user_id 喂 JWT 吊销判
+    （deps.py JWT_REVOKED）→ 跨租户 B 的 user_id=1 命中 A 缓存 ver → **B 已吊销 token 被放行 / B 有效 token 错 401**。
+    """
+    key = tenant_cache_key(user_id)
+    cached = _TOKEN_VERSION_CACHE.get(key)
     if cached is not None:
         return int(cached)
     ver = user_repo.get_token_version(user_id)
-    _TOKEN_VERSION_CACHE[user_id] = ver
+    _TOKEN_VERSION_CACHE[key] = ver
     return ver
 
 
 def invalidate_token_version_cache(user_id: int) -> None:
-    """R-PB-B1-13 NRP-1：reset / change_password 必调用 — single-user pop。
+    """R-PB-B1-13 NRP-1：reset / change_password 必调用 — single-user pop（v0.9.1：当前租户 (tid,user_id)）。
 
-    严禁 cache.clear() 全清（会污染其他活跃用户的 cache）。
+    严禁 cache.clear() 全清（会污染其他活跃用户/租户的 cache）。**区别于 invalidate_all（rollout 全局清）。**
     """
-    _TOKEN_VERSION_CACHE.pop(user_id, None)
+    _TOKEN_VERSION_CACHE.pop(tenant_cache_key(user_id), None)
 
 
 def invalidate_all_token_version_cache() -> None:
@@ -70,6 +76,10 @@ def invalidate_all_token_version_cache() -> None:
 
     区别于 invalidate_token_version_cache 的 single-user pop（NRP-1）：rollout 时
     所有 user 的 token_version 都变了，clear() 全清是正确且安全的（无"污染他人"问题）。
+
+    **⭐ v0.9.1 MF1/G2 非对称铁律**：本函数**保持真全局 `.clear()`（严禁 tenant-scope）** —— rollout 是全租户
+    全员事件；若收成当前租户会留别租户 stale token_version = **吊销绕过安全洞**。与 engine 的
+    `invalidate_tenant_engine_cache`（收当前租户）**语义相反**，严禁套同一 tid 化模板。
     """
     _TOKEN_VERSION_CACHE.clear()
 

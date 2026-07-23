@@ -8,6 +8,7 @@ from sqlalchemy import text as _sa_text
 from knot import config as cfg
 from knot.adapters.db import doris as db_connector
 from knot.core.logging_setup import logger
+from knot.core.tenant_context import current_tenant, tenant_cache_key
 from knot.repositories import data_source_repo
 
 # v0.8.19a F1（上传问数隔离）：上传数据表住**独立** uploads.db，与业务主库 knot.db 物理隔离
@@ -178,11 +179,11 @@ def get_user_engine(user: dict):
             for src in sources:
                 groups[_group_key(src)].append(src)
 
-            # 缓存 key：单组用 (uid, group_key)；多组用 (uid, "multi:" + 全部 group_key 排序拼接)
+            # 缓存 key：单组 (tid,uid,group_key)；多组 (tid,uid,"multi:"+…)（v0.9.1 tid 前缀 = tenant_cache_key）
             if len(groups) == 1:
-                cache_key = (uid, next(iter(groups.keys())))
+                cache_key = tenant_cache_key(uid, next(iter(groups.keys())))
             else:
-                cache_key = (uid, "multi:" + "|".join(sorted(groups.keys())))
+                cache_key = tenant_cache_key(uid, "multi:" + "|".join(sorted(groups.keys())))
             cached = _engine_cache.get(cache_key)
             if cached and (now - cached["ts"]) < _TTL_SEC:
                 return cached["engine"], cached["schema"]
@@ -267,7 +268,7 @@ def get_user_engine(user: dict):
     # Fallback: legacy doris_* fields on users 表
     if user.get("doris_user") and user.get("doris_password"):
         legacy_key = f"{user.get('doris_host') or cfg.DEFAULT_DB_HOST}:{user.get('doris_port') or cfg.DEFAULT_DB_PORT}:{user['doris_user']}"
-        cache_key = (uid, legacy_key)
+        cache_key = tenant_cache_key(uid, legacy_key)
         cached = _engine_cache.get(cache_key)
         if cached and (now - cached["ts"]) < _TTL_SEC:
             return cached["engine"], cached["schema"]
@@ -299,12 +300,12 @@ def get_engine_for_source(source_id: int):
     时由 service 层 fallback 到 get_user_engine + warning。
 
     返回 engine 或 None（source 不存在 / 未激活 / 连接失败）。
-    缓存 key = ("source", source_id) — 与 (uid, group_key) 命名空间隔离。
+    缓存 key = (tid, "source", source_id) — 与 (tid, uid, group_key) 命名空间隔离（v0.9.1 tid 前缀）。
     """
     src = data_source_repo.get_datasource(source_id)
     if not src or not src.get("is_active"):
         return None
-    cache_key = ("source", source_id)
+    cache_key = tenant_cache_key("source", source_id)
     now = time.time()
     cached = _engine_cache.get(cache_key)
     if cached and (now - cached["ts"]) < _TTL_SEC:
@@ -324,23 +325,37 @@ def get_engine_for_source(source_id: int):
         return None
 
 
-def invalidate_engine_cache(user_id: int):
-    """清掉某 user 名下的所有连接组缓存。"""
-    keys_to_drop = [k for k in _engine_cache if isinstance(k, tuple) and k[0] == user_id]
+def invalidate_user_engine_cache(user_id: int):
+    """清当前租户下某 user 的连接组缓存（v0.9.1 MF3：仅 (tid,uid,…) 用户键）。
+
+    **不碰 (tid,"source",id)** —— source engine 用源自身凭据、不从属 user，改密/改用户不该 nuke source 引擎
+    （守护者 MF3 纠正草案「invalidate(uid) 补删 source 键」方向错；source 失效属 datasource 生命周期 = tenant 版）。
+    """
+    tid = current_tenant()["id"]
+    keys_to_drop = [k for k in _engine_cache
+                    if isinstance(k, tuple) and len(k) >= 2 and k[0] == tid and k[1] == user_id]
     for k in keys_to_drop:
         _engine_cache.pop(k, None)
 
 
-def invalidate_all_engine_cache():
-    """v0.8.24 R2：清全部引擎缓存 —— (uid,group_key) 用户组 + ("source",id) 单源两命名空间。
-    删源必调：group_key=host:port:user 不含 db 列表，同组多 db 删其一 → key 不变 → 旧合并 engine
-    含被删 schema 存活 ≤TTL；且 invalidate_engine_cache(uid) 清不掉 ("source",id)（k[0]=="source"）。"""
-    _engine_cache.clear()
+def invalidate_tenant_engine_cache():
+    """清**当前租户**全部引擎缓存 —— (tid,uid,…) 用户组 + (tid,"source",id) 单源两命名空间。
+
+    删源必调（v0.8.24 R2：group_key=host:port:user 不含 db 列表，同组多 db 删其一 → key 不变 → 旧合并 engine
+    含被删 schema 存活 ≤TTL；且 user 版清不掉 (tid,"source",id)）。
+    **⭐ 仅当前租户**（v0.9.1 MF3/G2 非对称：与 token 的 `invalidate_all_token_version_cache` 全局 `.clear()`
+    语义**相反** —— 删 A 的源绝不 nuke B 的缓存；严禁套 token 那个的全局清模板）。
+    """
+    tid = current_tenant()["id"]
+    keys_to_drop = [k for k in _engine_cache if isinstance(k, tuple) and k[0] == tid]
+    for k in keys_to_drop:
+        _engine_cache.pop(k, None)
 
 
 def get_user_databases(user_id: int):
-    """返回当前 user 主连接组的 databases 列表（供 schema 接口等使用）。"""
+    """返回当前租户下该 user 主连接组的 databases 列表（供 schema 接口等）。"""
+    tid = current_tenant()["id"]
     for key, val in _engine_cache.items():
-        if isinstance(key, tuple) and key[0] == user_id:
+        if isinstance(key, tuple) and len(key) >= 2 and key[0] == tid and key[1] == user_id:
             return val.get("databases")
     return None

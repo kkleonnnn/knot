@@ -62,12 +62,11 @@ def test_a_poison_module_level_caches():
     engine_cache._engine_cache[(999999, "poison-group")] = {
         "engine": object(), "schema": "", "databases": [], "ts": 9e18,
     }
-    admin_mod._DS_STATS_CACHE["data"] = {"poisoned": True}
-    admin_mod._DS_STATS_CACHE["ts"] = 9e18
+    admin_mod._DS_STATS_CACHE[1] = {"data": {"poisoned": True}, "ts": 9e18}  # v0.9.1 形状 {tid:{data,ts}}
     totp_service._TOKEN_VERSION_CACHE[999999] = 12345
 
     assert (999999, "poison-group") in engine_cache._engine_cache
-    assert admin_mod._DS_STATS_CACHE["data"] == {"poisoned": True}
+    assert admin_mod._DS_STATS_CACHE[1]["data"] == {"poisoned": True}
     assert totp_service._TOKEN_VERSION_CACHE.get(999999) == 12345
 
 
@@ -79,6 +78,5 @@ def test_b_autouse_cleared_all_poison():
     assert (999999, "poison-group") not in engine_cache._engine_cache, \
         "_engine_cache 未被 autouse 清 → engine 跨测试泄露"
     assert len(engine_cache._engine_cache) == 0
-    assert admin_mod._DS_STATS_CACHE["data"] is None
-    assert admin_mod._DS_STATS_CACHE["ts"] == 0.0
+    assert len(admin_mod._DS_STATS_CACHE) == 0   # v0.9.1：.clear() 清所有租户槽
     assert totp_service._TOKEN_VERSION_CACHE.get(999999) is None

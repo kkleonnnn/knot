@@ -199,18 +199,22 @@ def test_R_PB_B1_13_change_password_invalidates_old_jwt(client, auth_headers):
 
 
 def test_NRP_1_cachetools_per_key_invalidate_only():
-    """NRP-1：reset user_a 不污染 user_b 的 token_version cache。严禁 cache.clear() 全清。"""
+    """NRP-1：reset user_a 不污染 user_b 的 token_version cache。严禁 cache.clear() 全清。
+
+    v0.9.1：键 (tid,user_id)（tenant_cache_key）—— single-user pop 只清当前租户该 user（NRP-1 语义不变）。
+    """
+    from knot.core.tenant_context import tenant_cache_key
     from knot.services import totp_service
 
     cache = totp_service._TOKEN_VERSION_CACHE
-    cache[100] = 5
-    cache[200] = 3
+    cache[tenant_cache_key(100)] = 5
+    cache[tenant_cache_key(200)] = 3
 
     totp_service.invalidate_token_version_cache(100)
 
-    assert 100 not in cache, "user_a cache 应被清"
-    assert 200 in cache, "user_b cache 严禁被波及（NRP-1）"
-    assert cache[200] == 3
+    assert tenant_cache_key(100) not in cache, "user_a cache 应被清"
+    assert tenant_cache_key(200) in cache, "user_b cache 严禁被波及（NRP-1）"
+    assert cache[tenant_cache_key(200)] == 3
 
 
 # ─── R-PB-B1-7 业界标准 1 次码 + recovery codes 格式 ─────────────

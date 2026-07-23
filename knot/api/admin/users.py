@@ -9,7 +9,7 @@ from knot.api.deps import require_admin
 from knot.api.schemas import CreateUserRequest, UpdateUserRequest
 from knot.repositories import data_source_repo, user_repo
 from knot.services import auth_service
-from knot.services.engine_cache import invalidate_engine_cache
+from knot.services.engine_cache import invalidate_user_engine_cache
 
 router = APIRouter()
 
@@ -82,7 +82,7 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Reque
             if not data_source_repo.datasource_exists(sid):
                 raise HTTPException(status_code=400, detail="指定的数据源不存在")
         data_source_repo.set_user_sources(user_id, req.source_ids or [])
-    invalidate_engine_cache(user_id)
+    invalidate_user_engine_cache(user_id)
     # 区分子动作：role_change / password_reset / generic update
     fields_set = set(req.__fields_set__)
     if "role" in fields_set and req.role is not None:

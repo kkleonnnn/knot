@@ -69,14 +69,26 @@ def _reset_module_level_caches():
     except ImportError:
         pass
     try:
+        # v0.9.1 MF5：_DS_STATS_CACHE 形状改 {tid:{data,ts}} → 原地 .clear()（守 R-AS-2 对象身份，不 rebind）
         from knot.api import admin as _admin_mod
-        _admin_mod._DS_STATS_CACHE["data"] = None
-        _admin_mod._DS_STATS_CACHE["ts"] = 0.0
+        _admin_mod._DS_STATS_CACHE.clear()
+    except (ImportError, AttributeError):
+        pass
+    try:
+        # v0.9.1 MF5：_DS_STATUS_CACHE 此前**未 reset**（守护者指出的 latent flakiness gap）→ 补 .clear()
+        from knot.api.admin import datasources as _ds_mod
+        _ds_mod._DS_STATUS_CACHE.clear()
     except (ImportError, AttributeError):
         pass
     try:
         from knot.services import totp_service as _totp_svc
         _totp_svc._TOKEN_VERSION_CACHE.clear()
+    except (ImportError, AttributeError):
+        pass
+    try:
+        # v0.9.1：rate-limit 桶现含 tid 前缀键 → 跨测试须清（防泄漏）
+        from knot.api import _rate_limit as _rl
+        _rl._reset_for_tests()
     except (ImportError, AttributeError):
         pass
 

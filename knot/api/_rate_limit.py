@@ -22,6 +22,8 @@ from collections import defaultdict
 
 from fastapi import HTTPException, Request
 
+from knot.core.tenant_context import current_tenant
+
 # 默认限流配置：(limit, window_sec)
 # login: 10 次 / 60s / IP — 防字典攻击（admin/admin123 + v0.6.0.20 强制改密兜底）
 # change_pwd: 5 次 / 60s / IP — 改密接口更严
@@ -88,8 +90,18 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _tenant_authed_key(kind: str, user_id: int) -> str:
+    """v0.9.1 MF8：authed（user_id 键）桶的租户前缀键 `{tid}:{kind}:{user_id}`。
+
+    tid 源同 tenant_cache_key（`current_tenant()["id"]`）—— 防跨租户同 user_id 撞桶（DoS）。
+    tenant middleware 对每请求已 set ctx（含 auth 前的 totp-verify interim 阶段）→ current_tenant() 可用。
+    """
+    return f"{current_tenant()['id']}:{kind}:{user_id}"
+
+
 def _enforce(request: Request, kind: str) -> None:
-    """通用限流强制；超限抛 429 + Retry-After。"""
+    """通用限流强制（**IP 键，全局跨租户** —— v0.9.1 G3 显式安全策略：brute-force 防护本就 per-IP，
+    非遗漏；login/change_pwd 用此，不加 tid）；超限抛 429 + Retry-After。"""
     limit, window = _DEFAULT_LIMITS[kind]
     key = f"{kind}:{_client_ip(request)}"
     ok, retry_after = _bucket.check(key, limit, window)
@@ -124,7 +136,7 @@ def enforce_totp_verify_rate_limit(user_id: int) -> None:
     沿用 enforce_query_rate_limit 模式（v0.6.0.24）。
     """
     limit, window = _DEFAULT_LIMITS["totp_verify"]
-    key = f"totp_verify:{user_id}"
+    key = _tenant_authed_key("totp_verify", user_id)
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
         # v0.6.5.2 F1：纯 zh string（同 _enforce）
@@ -138,7 +150,7 @@ def enforce_totp_verify_rate_limit(user_id: int) -> None:
 def enforce_totp_enroll_rate_limit(user_id: int) -> None:
     """v0.6.2.0：TOTP enroll-init 3 次/3600s/user_id（防恶意频繁触发 secret 生成）。"""
     limit, window = _DEFAULT_LIMITS["totp_enroll"]
-    key = f"totp_enroll:{user_id}"
+    key = _tenant_authed_key("totp_enroll", user_id)
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
         # v0.6.5.2 F1：纯 zh string（同 _enforce）
@@ -157,7 +169,7 @@ def enforce_totp_enroll_complete_rate_limit(user_id: int) -> None:
     10/3600 上限同时封顶 complete 的 bcrypt CPU lever（每次成功 10× bcrypt + DB 覆写）。
     """
     limit, window = _DEFAULT_LIMITS["totp_enroll_complete"]
-    key = f"totp_enroll_complete:{user_id}"
+    key = _tenant_authed_key("totp_enroll_complete", user_id)
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
         # v0.6.5.2 F1：纯 zh string（同 _enforce）
@@ -175,7 +187,7 @@ def enforce_query_rate_limit(user_id: int) -> None:
     避免 _rate_limit.py → knot.api.deps 循环 import（_rate_limit 是底层）。
     """
     limit, window = _DEFAULT_LIMITS["query"]
-    key = f"query:{user_id}"
+    key = _tenant_authed_key("query", user_id)
     ok, retry_after = _bucket.check(key, limit, window)
     if not ok:
         # v0.6.5.2 F1：纯 zh string（同 _enforce）

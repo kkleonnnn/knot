@@ -22,12 +22,13 @@ def _mk_user(client, auth_headers, username) -> int:
 
 
 def test_delete_datasource_invalidates_engine_cache(client, auth_headers):
-    """MF2：删源后 _engine_cache 全清（含 ("source",id) 命名空间，invalidate_engine_cache(uid) 清不掉的那个）。"""
+    """MF2 + v0.9.1 MF3：删源后清**当前租户** engine cache 两命名空间（tid 前缀键）。"""
+    from knot.core.tenant_context import tenant_cache_key
     from knot.services import engine_cache
     sid = _mk_source(client, auth_headers)
     engine_cache._engine_cache.clear()
-    engine_cache._engine_cache[(1, "grp")] = {"engine": object(), "ts": 9e18}       # 用户组命名空间
-    engine_cache._engine_cache[("source", sid)] = {"engine": object(), "ts": 9e18}  # 单源命名空间
+    engine_cache._engine_cache[tenant_cache_key(1, "grp")] = {"engine": object(), "ts": 9e18}       # (tid,uid,group)
+    engine_cache._engine_cache[tenant_cache_key("source", sid)] = {"engine": object(), "ts": 9e18}  # (tid,"source",sid)
     assert engine_cache._engine_cache
 
     r = client.delete(f"/api/admin/datasources/{sid}", headers=auth_headers)
