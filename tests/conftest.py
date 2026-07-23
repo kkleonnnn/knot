@@ -91,6 +91,19 @@ def _reset_module_level_caches():
         _rl._reset_for_tests()
     except (ImportError, AttributeError):
         pass
+    try:
+        # v0.9.2：per-tenant uploads 引擎缓存（键 (tid,abs_path)）→ dispose+clear（指向已删 tmp uploads.db 防泄漏）
+        from knot.services import upload_engine as _ue
+        for _e in list(_ue._upload_engines.values()):
+            try:
+                if hasattr(_e, "dispose"):
+                    _e.dispose()
+            except Exception:
+                pass
+        _ue._upload_engines.clear()
+        _ue._uploads_path_owner.clear()
+    except (ImportError, AttributeError):
+        pass
 
 
 @pytest.fixture(autouse=True)

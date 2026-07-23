@@ -1,7 +1,8 @@
 """v0.8.19a F5 上传表名唯一守护 — 同名文件不互相覆盖（uuid 表名）+ 删除清物理表。
 
 守护者 Stage 3 must-fix #5-F5：表名绑 uuid（非文件名），同名文件跨用户/同用户均不 DROP-覆盖。
-端到端经 /api/upload，但 monkeypatch uploads._upload_engine 到临时库避免污染真 dev uploads.db。
+端到端经 /api/upload，但 monkeypatch uploads.get_upload_engine 到临时库避免污染真 dev uploads.db
+（v0.9.2：_upload_engine 值绑已换 per-tenant resolver get_upload_engine）。
 """
 import io
 
@@ -14,7 +15,7 @@ def temp_upload_engine(monkeypatch, tmp_path):
     from knot.adapters.db import doris
     from knot.api import uploads as uploads_mod
     eng = doris.create_sqlite_engine(str(tmp_path / "uploads_test.db"))
-    monkeypatch.setattr(uploads_mod, "_upload_engine", eng)
+    monkeypatch.setattr(uploads_mod, "get_upload_engine", lambda: eng)
     yield eng
     eng.dispose()
 

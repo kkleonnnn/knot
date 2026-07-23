@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.1 — 进程内租户状态 per-tenant 化（隔离栈第一刀）
+## [Unreleased] - v0.9.2 — uploads.db per-tenant 化（隔离栈第二刀）
+
+> v0.9 多租户 MINOR 第三个 PATCH。上传问数库从数据根全局单库 → per-tenant `tenants/<id>/uploads.db`。单租户 tenant#1 下全行为 byte-equal；R-T-GATE 不动、0 UI 改。
+> 评审链：隔离面测绘序 → Stage 1 → Codex Stage 2 major-revise（抓 blocking R2：relocation 挂 `_migrate_locked` anchor-存在分支 → 真实升级 skip:migrated 早返 no-op）→ 守护者 Stage 3 concur-major-revise（MF1-10/G1-3）→ Stage 1' → 守护者复核 PASS → 实施 → 执行者 revert-to-bad 自证 R2 回归守真实。
+
+### Security / Changed
+- **跨租户上传表混池修**：`engine_cache._upload_engine`（import 期值绑数据根单库）→ `services/upload_engine.py::get_upload_engine()` per-tenant resolver。原全局库下上传问数 NL-SQL 的 `sqlite_master` 可列举/SELECT **别租户**的 `t_*` 上传表。resolver memoize 键 `(tid, 规范化绝对路径)` + 路径在数据根内校验 + path→tid 冲突 tripwire（`db_dir` 无 UNIQUE，防别名，MF5）；fail-closed（无 ctx raise）。切 `uploads.py`/`query.py` 调用点。
+- **⭐ 物理迁移 relocation（独立无条件状态机 · MF1/R2）**：`repositories/uploads_relocation.py::relocate_uploads_once` —— data-root uploads.db → `tenants/1/uploads.db`。在 `migrate_anchor_db_to_tenant_once` 持 flock 内、`_migrate_locked` 成功返回后**无条件跑**（skip:migrated/skip:fresh/migrated 皆跑）—— 真实 v0.9.0→v0.9.2 升级 knot.db 已在 v0.9.0 迁走、走 skip:migrated 也须迁 uploads（挂 anchor-存在分支则永不跑 = uploads 孤儿）。复用 C4 Stage-4 硬化 `_backup_db`（严格 fsync）+ 6 态 crash-safe + `.uploads-relocating` marker + resume 保全 + 当场新建 `pre-v0.9.2-relocation.bak`。**空 uploads.db 合法**（租户从未上传 → 不套 C4「零表即 raise」，MF4）。
+- **migrations 双修（MF2/R6）**：`_migrate_uploads_to_isolated_db_once` 主库备份路径 + uploads 路径从 **conn 实际主库**（`PRAGMA database_list`）派生（非 post-C4 已删的 root 锚点）；uploads 侧同名 `t_*` **拒无条件 DROP**（比 schema+行数，防覆盖 relocation 版，G3）；登记表迁移失败 → **中止启动**（非 fail-soft）+ metadata↔physical 检查。
+
+### Tests
+- 新 `tests/test_uploads_tenant_isolation.py`（8）：跨租户 resolver 不同文件 + fail-closed + 路径逃逸拦截 + relocation 6 态（首迁/幂等/空-legal/安全阀）+ **⭐ R2 回归守**（skip:migrated 时 relocation 仍跑，revert-to-bad 自证转红）。flip `test_mig_uploads_backed_up_not_moved` → `test_mig_uploads_relocated_to_tenant`；R8 两 test_upload_isolation 改 resolver；conftest 补 `_upload_engines` reset。
+
+### Deferred (R-T-GATE 前置)
+catalog 全局（v0.9.3）· JWT tid+tenant_resolution（v0.9.4）· 鉴权拆分（v0.9.5）· lift R-T-GATE + `db_dir` UNIQUE（v0.9.5）· lark `_token_cache`。
+
+## [Released] - v0.9.1 — 进程内租户状态 per-tenant 化（隔离栈第一刀）
 
 > v0.9 多租户 MINOR 第二个 PATCH（隔离栈就绪的第一块）。把「所有按 per-tenant AUTOINCREMENT id 键」的模块级可变状态加租户维，闭合 R-T-GATE lift 前的三类跨租户面。**单租户 tenant#1 下全行为 byte-equal**（tid=1 常量前缀）；R-T-GATE 不动、OOS-1v2 不加列、0 UI 改。
 > 评审链：隔离面测绘 workflow（8 面 grounded）→ Stage 1 草案 → Codex Stage 2 major-revise（抓漏 token + rate-limit 两颗）→ 守护者 Stage 3 concur-major-revise（MF1-8/G1-3）→ 执行者 grounded 穷举清单（新捞第 8 颗 lark，登记 OUT）→ Stage 1' → 守护者复核 PASS（独立 sweep 坐实清单穷举性）。

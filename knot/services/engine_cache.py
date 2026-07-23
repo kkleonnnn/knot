@@ -1,7 +1,6 @@
 import re
 import time
 from collections import defaultdict
-from pathlib import Path
 
 from sqlalchemy import text as _sa_text
 
@@ -11,13 +10,9 @@ from knot.core.logging_setup import logger
 from knot.core.tenant_context import current_tenant, tenant_cache_key
 from knot.repositories import data_source_repo
 
-# v0.8.19a F1（上传问数隔离）：上传数据表住**独立** uploads.db，与业务主库 knot.db 物理隔离
-# —— 上传问数 NL 生成的 SQL 只能触达上传表，物理上无法 SELECT users/app_settings/audit_log 等主库表
-# （fail-closed 隔离，非 prompt 级提示；只读闸 _is_safe_sql 挡写不挡跨表读，故靠库边界隔离）。
-# file_uploads 元数据行仍留 knot.db（upload_repo 走 get_conn）。uploads.db 派生自 SQLITE_DB_PATH 同目录，
-# 存量 t_* 迁移见 base._migrate_uploads_to_isolated_db_once（旧 v0.2.4 吞回迁移已退役）。
-_UPLOADS_DB = Path(cfg.SQLITE_DB_PATH).parent / "uploads.db"
-_upload_engine = db_connector.create_sqlite_engine(str(_UPLOADS_DB))
+# v0.8.19a F1（上传问数隔离）：上传数据表住**独立** uploads.db（fail-closed 库边界隔离）。
+# v0.9.2：uploads.db 改 **per-tenant**（tenants/<id>/uploads.db）→ 引擎 resolver 迁至
+# `knot/services/upload_engine.py::get_upload_engine`（import 期值绑数据根的 _upload_engine 已删，防跨租户表混池）。
 
 
 # ── 跨连接组多源派发引擎 ──────────────────────────────────────────────────────

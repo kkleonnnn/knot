@@ -241,21 +241,6 @@ def _db_wellformed(path: Path) -> bool:
         return False
 
 
-def _backup_uploads(data_dir: Path) -> None:
-    """uploads.db 一并备份（§7 备份/回滚；**不迁** —— engine_cache._upload_engine import 期绑数据根，relocation=v0.9.1）。
-
-    temp + os.replace 原子落地（`_backup_db_atomic`）→ 防中途 crash 留半成品 .bak 而 existence-gate 永不重生。
-    """
-    up = data_dir / "uploads.db"
-    up_bak = data_dir / "uploads.db.pre-tenancy.bak"
-    if not up.exists() or up_bak.exists():
-        return
-    try:
-        _backup_db_atomic(up, up_bak)
-    except (sqlite3.Error, OSError, RuntimeError) as e:
-        logger.warning(f"[C4] uploads.db 备份跳过（不阻断；uploads 不迁不改）: {e}")
-
-
 def _clear_orphan_marker(target_dir: Path) -> None:
     """清孤儿 `.c4-migrating`（Stage 4 #4）—— 完成后残留的标记若不清，日后锚点被误恢复会旁路安全阀。"""
     m = target_dir / ".c4-migrating"
@@ -309,7 +294,8 @@ def _migrate_locked(anchor: Path, target: Path) -> str:
             p.unlink()
     _backup_db(anchor, target)                            # WAL-safe 一致快照 + 严格 fsync
 
-    _backup_uploads(anchor.parent)
+    # v0.9.2：uploads.db relocation 已移出本函数 → 提到 migrate_anchor_db_to_tenant_once 外层无条件调
+    # （MF1/R2：本函数走 skip:migrated 早返时也须迁 uploads，故不能挂在锚点-存在分支内）。
 
     # 强校验（不过 → 删 target 保锚点 last-good，raise 中止启动；标记保留 → 下次仍按 resume 重试）
     try:
@@ -348,16 +334,23 @@ def migrate_anchor_db_to_tenant_once() -> str:
     target = anchor.parent / t1["db_dir"] / "knot.db"
 
     if target.resolve() == anchor.resolve():
-        return "skip:same-path"                          # db_dir='.'（测试 / 无需迁）
+        return "skip:same-path"                          # db_dir='.'（测试；uploads 亦 same-path 无需迁）
 
     # 跨进程独占锁（数据根 .c4-migration.lock）：串行化同节点多 worker/副本启动的一次性迁移。
     # 落后进程拿锁后由 `_migrate_locked` 重读状态 → 见锚点已迁走 → 走 skip 分支。
     # 跨节点 RWX（NFS）flock 不保证 → DEPLOY「首次 v0.9 升级先以单副本/init-container 迁移，再扩容」。
+    # v0.9.2 lazy import 避 tenancy_migration ↔ uploads_relocation 循环（后者 top-level import 本模块 helper）。
+    from knot.repositories import uploads_relocation
     anchor.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(anchor.parent / ".c4-migration.lock", os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        return _migrate_locked(anchor, target)
+        knot_result = _migrate_locked(anchor, target)   # knot 迁移抛错 → propagate 中止（relocation 不跑）
+        # ⭐ MF1/R2：uploads relocation 独立、knot 成功返回后**无条件**跑（skip:migrated/skip:fresh/migrated 皆跑）
+        # —— 真实 v0.9.0→v0.9.2 升级 knot.db 已在 v0.9.0 迁走、knot_result=skip:migrated，uploads 仍须迁。
+        uploads_result = uploads_relocation.relocate_uploads_once(anchor.parent, target.parent)
+        logger.info(f"[uploads-reloc] tenant#{t1['id']} uploads: {uploads_result}")
     finally:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)
         os.close(lock_fd)
+    return knot_result
