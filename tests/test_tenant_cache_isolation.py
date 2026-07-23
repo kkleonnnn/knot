@@ -9,7 +9,6 @@ import time
 import pytest
 
 from knot.core.tenant_context import (
-    current_tenant,
     reset_active_tenant,
     set_active_tenant,
     tenant_cache_key,
@@ -216,19 +215,30 @@ def test_ds_status_cache_cross_tenant_miss():
         reset_active_tenant(tok)
 
 
-def test_ds_stats_cache_tenant_slots_and_identity():
-    """#5（对抗修：原为 tautology）：_DS_STATS_CACHE 按生产读逻辑 `.get(current_tenant()["id"])` 跨租户隔离
-    + R-AS-2 re-export 对象身份保持。revert datasources.py:230 的 tid 键（改回单槽/GLOBAL）→ 本测转红。"""
+def test_ds_stats_cache_endpoint_cross_tenant_isolation(monkeypatch):
+    """#5 硬化（守护者 Stage 4）：**驱动生产端点** admin_datasources_stats 于两租户 ctx 证隔离 + R-AS-2 身份。
+
+    原测自填自读 `.get(tid)` = tautology（不走端点，端点 revert 成全局键也不红）。改用「list_datasources 调用次数」
+    作 cache-miss/重算的探针：tenant#1 首调 miss(算一次) + 再调 hit(不算)；tenant#2 若隔离→miss 重算(第 2 次)，
+    若端点 revert 成全局键→命中 tenant#1 缓存不重算(仍 1 次)→本测转红。故对 datasources.py:230/292 的 tid 键 revert-sensitive。
+    """
+    import asyncio
+
     from knot.api import admin
     from knot.api.admin import datasources as ds
     assert admin._DS_STATS_CACHE is ds._DS_STATS_CACHE  # R-AS-2 同对象（re-export）
     ds._DS_STATS_CACHE.clear()
-    # tenant#1 填槽（键 = 生产读写用的 current_tenant()["id"]）
-    ds._DS_STATS_CACHE[current_tenant()["id"]] = {"data": {"tables": 1}, "ts": 9e18}
-    assert ds._DS_STATS_CACHE.get(current_tenant()["id"]) == {"data": {"tables": 1}, "ts": 9e18}
+    calls = []
+    monkeypatch.setattr(ds.data_source_repo, "list_datasources", lambda: calls.append(1) or [])
+    fake_admin = {"id": 1, "role": "admin"}
+
+    asyncio.run(ds.admin_datasources_stats(admin=fake_admin))   # tenant#1 miss → 重算（calls=1）
+    asyncio.run(ds.admin_datasources_stats(admin=fake_admin))   # tenant#1 hit → 不重算
+    assert len(calls) == 1, "tenant#1 第 2 次应命中缓存（不重算）"
+
     tok = set_active_tenant(_T2)
     try:
-        # tenant#2 走同一 .get(tid) 读逻辑 → 未命中 tenant#1 槽（否则跨租户 stats 元数据泄漏）
-        assert ds._DS_STATS_CACHE.get(current_tenant()["id"]) is None
+        asyncio.run(ds.admin_datasources_stats(admin=fake_admin))   # tenant#2 miss（隔离）→ 重算
     finally:
         reset_active_tenant(tok)
+    assert len(calls) == 2, "tenant#2 缓存未命中重算 = 隔离；全局缓存则命中不重算 = 泄漏（转红）"
