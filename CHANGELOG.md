@@ -39,6 +39,7 @@ catalog 全局（v0.9.3）· JWT tid+tenant_resolution（v0.9.4）· 鉴权拆�
 ### Changed
 - **引擎缓存凭据泄漏修（主雷）**：`engine_cache._engine_cache` 4 键变体（`(uid,group)`/`(uid,"multi:")`/`(uid,legacy)`/`("source",sid)`）加 tid 前缀。原按冲突的 per-tenant AUTOINCREMENT id 键 → 缓存命中直接返用**解密凭据**建的活引擎 → 租户 B 的 saved-report/BI 重跑打租户 A 的库/凭据。
 - **引擎失效器三拆**（MF3）：`invalidate_user_engine_cache(uid)`（仅当前租户 `(tid,uid,…)`，不碰 source —— source 引擎用源自身凭据、改密不该 nuke）/ `invalidate_tenant_engine_cache()`（当前租户全 user+source，删源用）；**均仅当前租户**（G2 非对称，与 token 全局清相反）。wire `users.py`（改密→user 版）+ `datasources.py`（删源→tenant 版）。
+- **数据源 update 路径补失效（守护者 Stage 4 final-diff flagged · 同租户内、非跨租户）**：`admin_update_datasource` 改连接相关字段（db_password/db_host/db_user/db_database/db_type/http_config/is_active 等，denylist `{name,description}` 外任一）后调 `invalidate_tenant_engine_cache()` —— 原仅 delete 路径失效，改凭据后旧凭据 engine 存活至 TTL（~1h）继续供查（与 delete 路径对称）；判定在 mask/空占位处理**之后**（no-op 改密不 churn）。
 - **限流桶 per-tenant（MF8）**：authed 桶（totp_verify/enroll/enroll_complete/query，按 user_id）加 tid 前缀（跨租户 DoS）；IP 桶（login/change_pwd）保持全局（brute-force 防护本就 per-IP = 显式安全策略）。
 - **数据源缓存 per-tenant**：`_DS_STATUS_CACHE` 键 `(tid,sid)`；`_DS_STATS_CACHE` 形状 `{tid:{data,ts}}`（对象内分槽，保 R-AS-2 re-export 身份）。
 - 统一 `tenant_cache_key(*parts)` choke point（`core/tenant_context.py`，MF4）；conftest 补 `_DS_STATUS_CACHE` + rate-limit reset。

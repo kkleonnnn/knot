@@ -36,6 +36,44 @@ def test_delete_datasource_invalidates_engine_cache(client, auth_headers):
     assert engine_cache._engine_cache == {}, "删源须全清 engine cache 两命名空间"
 
 
+def test_update_datasource_credential_change_invalidates_engine_cache(client, auth_headers):
+    """v0.9.1 backlog（v0.8 守护者 Stage 4 flagged）：改连接字段（此处 db_password）后
+    清**当前租户** engine cache 两命名空间（否则旧凭据构建的 engine 存活至 TTL 继续供查）。
+
+    非 tautology：走真 PUT 端点；revert 生产码（删 update 路径 invalidate 调用）→ 缓存存活 → 本测转红。
+    """
+    from knot.core.tenant_context import tenant_cache_key
+    from knot.services import engine_cache
+    sid = _mk_source(client, auth_headers)
+    engine_cache._engine_cache.clear()
+    engine_cache._engine_cache[tenant_cache_key(1, "grp")] = {"engine": object(), "ts": 9e18}       # (tid,uid,group)
+    engine_cache._engine_cache[tenant_cache_key("source", sid)] = {"engine": object(), "ts": 9e18}  # (tid,"source",sid)
+    assert engine_cache._engine_cache
+
+    r = client.put(f"/api/admin/datasources/{sid}",
+                   json={"db_password": "rotated-secret-123"}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    assert engine_cache._engine_cache == {}, "改凭据须清 engine cache 两命名空间（旧凭据 engine 否则存活至 TTL）"
+
+
+def test_update_datasource_metadata_only_keeps_engine_cache(client, auth_headers):
+    """选择性失效：纯 name/description 元数据编辑**不清**缓存（免无谓 reconnect churn）。
+
+    守护「仅 connection-affecting 字段变更才失效」的 denylist 语义；改成「非空 kwargs 一律清」→ 本测转红。
+    """
+    from knot.core.tenant_context import tenant_cache_key
+    from knot.services import engine_cache
+    sid = _mk_source(client, auth_headers)
+    engine_cache._engine_cache.clear()
+    key = tenant_cache_key("source", sid)
+    engine_cache._engine_cache[key] = {"engine": object(), "ts": 9e18}
+
+    r = client.put(f"/api/admin/datasources/{sid}",
+                   json={"name": "renamed", "description": "just metadata"}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    assert key in engine_cache._engine_cache, "纯元数据编辑不应清 engine cache"
+
+
 def test_admin_update_user_rejects_nonexistent_default_source(client, auth_headers):
     """MF1/R1：default_source_id 存在性校验。"""
     uid = _mk_user(client, auth_headers, "u_def")
