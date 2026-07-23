@@ -11,6 +11,7 @@ from knot.adapters.db import doris as db_connector
 from knot.api._audit_helpers import audit
 from knot.api.deps import require_admin
 from knot.api.schemas import DataSourceRequest, UpdateDataSourceRequest
+from knot.core.tenant_context import current_tenant, tenant_cache_key
 from knot.repositories import data_source_repo
 
 
@@ -31,7 +32,9 @@ def _assert_http_base_url_allowed(db_type, http_config) -> None:
         raise HTTPException(status_code=400, detail="base_url host 不在 KNOT_HTTP_ALLOWED_HOSTS 内（egress 白名单）")
 
 # v0.6.1.3 — DataSources Hero stats 5min 模块级缓存（避免每次切 tab 都打远程 DB）
-_DS_STATS_CACHE: dict = {"data": None, "ts": 0.0}
+# v0.9.1 MF5：形状 {tid: {"data","ts"}}（对象内按租户分槽 — 防跨租户聚合 stats 泄漏）。
+# **保持外层对象身份**（R-AS-2：admin/__init__.py re-export 同对象 + 测 in-place 突变 / .clear()）—— 键在对象内，绝不 rebind。
+_DS_STATS_CACHE: dict = {}
 _DS_STATS_TTL_SEC = 300
 
 # v0.8.21 体验：数据源健康探测结果缓存（{source_id: (status, ts)}）—— 列表端点不再内联阻塞探测
@@ -96,8 +99,11 @@ def _http_base_url(s):
 
 
 def _cached_status(sid) -> str:
-    """v0.8.21：取缓存健康状态；无 / 过期 → "checking"（前端异步 /status 更新）。"""
-    v = _DS_STATUS_CACHE.get(sid)
+    """v0.8.21：取缓存健康状态；无 / 过期 → "checking"（前端异步 /status 更新）。
+
+    v0.9.1：键 (tid, sid)（tenant_cache_key）—— sid 是 per-tenant AUTOINCREMENT，跨租户同 sid 会串健康状态。
+    """
+    v = _DS_STATUS_CACHE.get(tenant_cache_key(sid))
     return v[0] if (v and (time.time() - v[1]) < _DS_STATUS_TTL_SEC) else "checking"
 
 
@@ -134,7 +140,7 @@ async def admin_datasources_status(admin=Depends(require_admin)):
     now = time.time()
     result = {}
     for s, st in zip(sources, statuses):
-        _DS_STATUS_CACHE[s["id"]] = (st, now)
+        _DS_STATUS_CACHE[tenant_cache_key(s["id"])] = (st, now)
         result[s["id"]] = st
     return result
 
@@ -197,8 +203,8 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
 @router.delete("/api/admin/datasources/{source_id}")
 async def admin_delete_datasource(source_id: int, request: Request, admin=Depends(require_admin)):
     data_source_repo.delete_datasource(source_id)
-    from knot.services.engine_cache import invalidate_all_engine_cache
-    invalidate_all_engine_cache()  # v0.8.24 R2：删源撤权，覆盖 (uid,group) + ("source",id) 两 cache 命名空间
+    from knot.services.engine_cache import invalidate_tenant_engine_cache
+    invalidate_tenant_engine_cache()  # v0.8.24 R2 + v0.9.1 MF3：删源撤权，清当前租户 (tid,uid,group)+(tid,"source",id) 两命名空间
     audit(request, admin, action="datasource.delete", resource_type="datasource",
           resource_id=source_id)
     return {"ok": True}
@@ -220,8 +226,10 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
     from sqlalchemy import text as _sa_text
 
     now = time.time()
-    if _DS_STATS_CACHE["data"] is not None and now - _DS_STATS_CACHE["ts"] < _DS_STATS_TTL_SEC:
-        return _DS_STATS_CACHE["data"]
+    _tid = current_tenant()["id"]
+    _slot = _DS_STATS_CACHE.get(_tid)
+    if _slot is not None and _slot["data"] is not None and now - _slot["ts"] < _DS_STATS_TTL_SEC:
+        return _slot["data"]
 
     sources = data_source_repo.list_datasources()
     active = [s for s in sources if s.get("is_active") == 1]
@@ -281,6 +289,5 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
         "total_tables": tables_total,
         "last_heartbeat": last_heartbeat,
     }
-    _DS_STATS_CACHE["data"] = result
-    _DS_STATS_CACHE["ts"] = now
+    _DS_STATS_CACHE[_tid] = {"data": result, "ts": now}
     return result

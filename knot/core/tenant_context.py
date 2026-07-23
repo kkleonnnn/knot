@@ -46,6 +46,16 @@ def current_tenant() -> dict:
     return t
 
 
+def tenant_cache_key(*parts):
+    """进程内缓存的统一租户键（v0.9.1 MF4 单一 choke point）：`(current_tenant()["id"], *parts)`。
+
+    所有「按 per-tenant AUTOINCREMENT id 键」的模块级缓存（engine / DS-status / DS-stats / token）都经此 —
+    防四处分散手改漏一处 = 仍跨租户串（守护者 MF4）。未 set ctx → `current_tenant()` raise（fail-closed，符合预期）。
+    （rate-limit 桶是字符串键，用 `current_tenant()["id"]` 直接前缀同源，不经本 tuple helper。）
+    """
+    return (current_tenant()["id"], *parts)
+
+
 def assert_tenant_context(expected_tenant_id: int) -> None:
     """执行前租户漂移 tripwire（镜像 `assert_catalog_context`）：current tenant id != expected → raise。
 

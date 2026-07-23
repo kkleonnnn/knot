@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.0 — OOS-1 红线修订仪式 + 多租户地基第一刀（C 方案 per-tenant 文件隔离）
+## [Unreleased] - v0.9.1 — 进程内租户状态 per-tenant 化（隔离栈第一刀）
+
+> v0.9 多租户 MINOR 第二个 PATCH（隔离栈就绪的第一块）。把「所有按 per-tenant AUTOINCREMENT id 键」的模块级可变状态加租户维，闭合 R-T-GATE lift 前的三类跨租户面。**单租户 tenant#1 下全行为 byte-equal**（tid=1 常量前缀）；R-T-GATE 不动、OOS-1v2 不加列、0 UI 改。
+> 评审链：隔离面测绘 workflow（8 面 grounded）→ Stage 1 草案 → Codex Stage 2 major-revise（抓漏 token + rate-limit 两颗）→ 守护者 Stage 3 concur-major-revise（MF1-8/G1-3）→ 执行者 grounded 穷举清单（新捞第 8 颗 lark，登记 OUT）→ Stage 1' → 守护者复核 PASS（独立 sweep 坐实清单穷举性）。
+
+### Security
+- **JWT 吊销跨租户绕过修（安全 critical · MF1）**：`_TOKEN_VERSION_CACHE`（totp_service）原按裸 `user_id` 键、喂 JWT 吊销判定（`deps.py` JWT_REVOKED）→ 跨租户 B 的 user_id=1 命中 A 缓存版本 → **B 已吊销 token 被放行 / B 有效 token 错 401**。改键 `(tid, user_id)`。**`invalidate_all_token_version_cache` 保持真全局 `.clear()`**（rollout 全员事件；G2 非对称 —— 收成 tenant-scoped 会留别租户 stale = 吊销洞）。
+
+### Changed
+- **引擎缓存凭据泄漏修（主雷）**：`engine_cache._engine_cache` 4 键变体（`(uid,group)`/`(uid,"multi:")`/`(uid,legacy)`/`("source",sid)`）加 tid 前缀。原按冲突的 per-tenant AUTOINCREMENT id 键 → 缓存命中直接返用**解密凭据**建的活引擎 → 租户 B 的 saved-report/BI 重跑打租户 A 的库/凭据。
+- **引擎失效器三拆**（MF3）：`invalidate_user_engine_cache(uid)`（仅当前租户 `(tid,uid,…)`，不碰 source —— source 引擎用源自身凭据、改密不该 nuke）/ `invalidate_tenant_engine_cache()`（当前租户全 user+source，删源用）；**均仅当前租户**（G2 非对称，与 token 全局清相反）。wire `users.py`（改密→user 版）+ `datasources.py`（删源→tenant 版）。
+- **限流桶 per-tenant（MF8）**：authed 桶（totp_verify/enroll/enroll_complete/query，按 user_id）加 tid 前缀（跨租户 DoS）；IP 桶（login/change_pwd）保持全局（brute-force 防护本就 per-IP = 显式安全策略）。
+- **数据源缓存 per-tenant**：`_DS_STATUS_CACHE` 键 `(tid,sid)`；`_DS_STATS_CACHE` 形状 `{tid:{data,ts}}`（对象内分槽，保 R-AS-2 re-export 身份）。
+- 统一 `tenant_cache_key(*parts)` choke point（`core/tenant_context.py`，MF4）；conftest 补 `_DS_STATUS_CACHE` + rate-limit reset。
+
+### Tests
+- 新 `tests/test_tenant_cache_isolation.py`（9）：5 缓存跨租户交叉未命中 + token 吊销隔离（MF1）+ `invalidate_all` 非对称（G2：token 全清 / engine 收当前租户）+ 失效器作用域。存量 `test_isolation_hardening`/`test_datasources_stats`/`test_default_source_cascade_api` 随形状/键更新。
+
+### Deferred (backlog · R-T-GATE 前置，非静默)
+- `lark._token_cache`（notification/share 隔离片）· `_upload_engine`/uploads（v0.9.2）· catalog 全局（v0.9.3）· JWT tid+tenant_resolution（v0.9.4）· 鉴权拆分 platform/tenant admin（v0.9.5）· lift R-T-GATE（v0.9.5）。
+
+## [Released] - v0.9.0 — OOS-1 红线修订仪式 + 多租户地基第一刀（C 方案 per-tenant 文件隔离）
 
 > **红线修订声明**：本版本经正式红线修订仪式翻转 OOS-1（v0.6.2.0 立，单租户死线）为 OOS-1v2（多租户 C 方案，租户库内禁列语义保留）。程序：整体审核三方独立意见（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ v3 三阶段评审 + 绊线翻转与新隔离 CI 同 commit（D1）。不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8 A3 定性）。
 >

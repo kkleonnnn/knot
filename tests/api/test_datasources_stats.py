@@ -39,8 +39,7 @@ def test_module_level_cache_returns_byte_equal_on_second_call(client, auth_heade
     """5min 模块级 cache：连续 2 次调用返回字节相等（避免每次重打远程 DB）。"""
     # cache 是模块级；测试间可能受污染 — 此测试容忍：仅断言 2 次结果一致
     from knot.api import admin as admin_mod
-    admin_mod._DS_STATS_CACHE["data"] = None  # 强制首次 miss
-    admin_mod._DS_STATS_CACHE["ts"] = 0.0
+    admin_mod._DS_STATS_CACHE.clear()  # v0.9.1 形状 {tid:{data,ts}}：清所有租户槽 → 强制首次 miss
 
     r1 = client.get("/api/admin/datasources-stats", headers=auth_headers)
     r2 = client.get("/api/admin/datasources-stats", headers=auth_headers)
