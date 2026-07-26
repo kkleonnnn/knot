@@ -98,12 +98,20 @@ def resolve_business_rules(catalog: dict) -> tuple[str, str]:
     br = (catalog.get("business_rules") or "").strip()
     if br:
         return br, "corpus catalog.business_rules"
+    # v0.9.3 R-8'：catalog 载体 per-tenant 化后，无 tenant ctx 读 `_cl.BUSINESS_RULES` 会 raise
+    # TenantContextError（fail-closed）。此前这里被裸 `except Exception: pass` 吞成 "（无）" →
+    # eval 命中率下滑会被误判成「语义层回归」（2026-07-18 假回归同型）。故**把缺 ctx 与真无规则分开报**，
+    # 让降级在 eval 输出里可见（source 标签即诊断），而不是静默。
     try:
         from knot.services.agents import catalog as _cl
-        if (_cl.BUSINESS_RULES or "").strip():
-            return _cl.BUSINESS_RULES, "catalog_loader.BUSINESS_RULES"
-    except Exception:
-        pass
+        rules = _cl.BUSINESS_RULES
+    except Exception as e:
+        from knot.core.tenant_context import TenantContextError
+        if isinstance(e, TenantContextError):
+            return "", "（无 — 缺 tenant ctx：CLI/harness 须显式 set_active_tenant，见 R-8'）"
+        return "", f"（无 — catalog 读失败：{type(e).__name__}）"
+    if (rules or "").strip():
+        return rules, "catalog_loader.BUSINESS_RULES"
     return "", "（无）"
 
 

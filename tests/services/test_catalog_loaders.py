@@ -11,7 +11,9 @@ import ast
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
-_MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "_SOURCE"}
+_CATALOG_MOD = "knot/services/agents/catalog.py"
+# v0.9.3 R-9 哨兵三件套：补 FIELD_LABELS（v0.7.27 引入后一直在哨兵外 —— 双向变异实验坐实漏检）。
+_MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_LABELS", "_SOURCE"}
 
 
 def _py_files():
@@ -48,6 +50,50 @@ def test_no_value_binding_from_import_of_catalog_globals():
     assert not offenders, (
         "facade-freeze 值绑定模式（reload reassign 后快照陈旧 → 静默空 catalog；须 `import catalog` "
         "module-attr live 读）：\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_catalog_py_has_no_global_statement_on_carrier_names():
+    """⭐ v0.9.3 R-9 哨兵②（B-1 实测推出）：catalog.py 内**禁** `global <6 名>` 语句。
+
+    实测过的失效机制（最小复刻模块）：PEP 562 模块 `__getattr__` 只在常规属性查找**失败**时触发；
+    一旦模块内出现 `global TABLES; TABLES = ...`，那 6 名就被**复活**进模块 `__dict__` →
+    代理**静默死亡**（不报错）、per-tenant 槽闲置、跨租户串供照旧。
+    **时序真相**：`reload()` 在启动期与每 query 都跑 ⇒ 一旦跑过就永久落在静默支
+    （NameError 那支只存在于首次 reload 之前，反而是幸运情况）。
+    → 故此哨兵与「禁 from-import 值绑」同等承重：后者防外部值绑，本条防内部复活。
+    """
+    tree = ast.parse((_REPO / _CATALOG_MOD).read_text(encoding="utf-8"))
+    offenders = [
+        f"{_CATALOG_MOD}:{n.lineno} global {sorted(set(n.names) & _MUTABLE_GLOBALS)}"
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Global) and (set(n.names) & _MUTABLE_GLOBALS)
+    ]
+    assert not offenders, (
+        "catalog.py 内 `global <载体名>` 会把该名复活进模块 __dict__ → PEP 562 代理静默失效、"
+        "租户槽闲置、跨租户串供照旧（且无任何异常）。reload 须用局部变量构造 + 原子发布到载体：\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_catalog_py_has_no_bare_name_read_of_carrier():
+    """⭐ v0.9.3 R-9 哨兵③：catalog.py 函数体内**禁裸名读**那 6 名（`LOAD_GLOBAL` 永不触发 `__getattr__`）。
+
+    B-1：模块内 `for t in TABLES` 这类读法在代理方案下要么 NameError（首次 reload 前），
+    要么读到被复活的进程全局（reload 后）—— 两支都错。内部一律走显式载体访问器。
+    """
+    tree = ast.parse((_REPO / _CATALOG_MOD).read_text(encoding="utf-8"))
+    offenders = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(fn):
+            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                    and node.id in _MUTABLE_GLOBALS):
+                offenders.append(f"{_CATALOG_MOD}:{node.lineno} in {fn.name}(): 裸名读 {node.id}")
+    assert not offenders, (
+        "catalog.py 内部裸名读载体名 → 编译成 LOAD_GLOBAL，永不触发 PEP 562 代理（B-1）。"
+        "改走显式载体访问器：\n  " + "\n  ".join(offenders)
     )
 
 

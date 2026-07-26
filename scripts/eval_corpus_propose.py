@@ -204,5 +204,29 @@ def main() -> int:
     return 0
 
 
+def _with_tenant_ctx(fn):
+    """v0.9.3 R-8'：standalone CLI 无 middleware ⇒ 无 tenant ctx。
+
+    catalog 载体自 v0.9.3 起 per-tenant，无 ctx 读 catalog 会 fail-closed raise → business_rules 静默变空
+    → eval 命中率下滑会被误判成「语义层回归」（2026-07-18 假回归同型，正是立 R-STORM 的那个案例）。
+    故显式 set ctx，镜像 `knot/scripts/purge_audit_log.py:97-109` 的既有先例；finally reset。
+    """
+    from knot.core import tenant_context as _tc
+    from knot.repositories import tenant_repo as _tr
+    try:
+        tok = _tc.set_active_tenant(_tr.resolve_single_tenant())
+    except Exception as e:
+        sys.stderr.write(
+            f"\n\033[91m[eval] 无法解析 tenant ctx：{e}\033[0m\n"
+            "  → catalog 自 v0.9.3 起 per-tenant（fail-closed）；CLI 必须能解析租户。\n"
+            "  → 请确认 data/platform.db 存在且恰有 1 个 active 租户。\n"
+        )
+        return 1
+    try:
+        return fn()
+    finally:
+        _tc.reset_active_tenant(tok)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_with_tenant_ctx(main))
