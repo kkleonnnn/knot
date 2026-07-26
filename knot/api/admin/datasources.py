@@ -287,7 +287,10 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
     try:
         from knot.services.agents import catalog as _catalog
         tables_total += len(_catalog.get_http_tables())
-    except Exception:
+    except Exception as e:
+        from knot.core.tenant_context import TenantContextError
+        if isinstance(e, TenantContextError):
+            raise   # v0.9.3 D8'：缺 tenant ctx 不得静默把 HTTP 表数记成 0（观测失真且会被 tid 缓存固化）
         pass
 
     result = {

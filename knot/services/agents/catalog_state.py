@@ -30,7 +30,9 @@ SQL**（= `catalog.py:110-115` 记录的 v0.7.29b bug 类复发）。
 from __future__ import annotations
 
 import threading
+import time
 
+from knot.core.logging_setup import logger
 from knot.core.tenant_context import tenant_cache_key
 
 #: 载体 6 键（与 `catalog` 模块对外暴露的 6 个名字一一对应；顺序无语义）
@@ -62,8 +64,16 @@ def publish(
         "lexicon": lexicon, "tables": tables, "business_rules": business_rules,
         "relations": relations, "field_labels": field_labels, "source": source,
     }
+    k = _key()
     with _lock:
-        _state[_key()] = slot
+        _state[k] = slot
+    # F-3' 观测：**每次发布**记 DEBUG（`pick_http_route` 每 query 都 reload → INFO 会变日志噪音；
+    # 冷槽那条才是 INFO）。同样只记规模与来源，严禁记内容。
+    logger.debug(
+        "[catalog] 槽发布 tenant={} source={} tables={} http_tables={} lexicon_keys={} relations={}",
+        k[0], source, len(tables),
+        sum(1 for t in tables if t.get("source_type") == "http"), len(lexicon), len(relations),
+    )
     return slot
 
 
@@ -84,8 +94,17 @@ def get_state() -> dict:
             return slot
         # lazy import 破环（catalog 在模块级 import 本模块拿访问器）—— 沿用本仓 R-106 方案 1
         from knot.services.agents import catalog as _cat
+        t0 = time.perf_counter()
         _cat.reload(strict=False)     # 唯一 writer，内部 publish 到本槽
-        return _state[k]              # reload 必 publish；未 publish 属契约破坏，KeyError 即暴露
+        slot = _state[k]              # reload 必 publish；未 publish 属契约破坏，KeyError 即暴露
+        # F-3' 观测：**冷槽加载**记 INFO（每租户进程内仅首次，信息量高）。只记规模与来源，
+        # **严禁记 catalog 内容**（business_rules / lexicon 含业务口径 = 敏感）。
+        logger.info(
+            "[catalog] 冷槽加载 tenant={} source={} tables={} lexicon_keys={} relations={} ms={:.1f}",
+            k[0], slot["source"], len(slot["tables"]), len(slot["lexicon"]),
+            len(slot["relations"]), (time.perf_counter() - t0) * 1000,
+        )
+        return slot
 
 
 def invalidate_all() -> None:

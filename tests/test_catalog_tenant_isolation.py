@@ -278,3 +278,89 @@ def test_tenant_db_has_no_tenant_column(two_tenants):
         finally:
             c.close()
         assert not (cols & {"tenant_id", "project_id"}), f"{dbdir} catalogs 出现租户列（破 OOS-1v2）"
+
+
+# ───────── D8' fail-closed 穷举（Codex R3；脱敏链安全最重）─────────
+
+@pytest.mark.parametrize("call", [
+    pytest.param(lambda: __import__("knot.services.desensitize", fromlist=["x"])
+                 .non_admin_alias_map(), id="desensitize(脱敏链·安全最重)"),
+    pytest.param(lambda: __import__("knot.services.llm_prompt_builder", fromlist=["x"])
+                 .build_system_prompt("q", "## db.t", ""), id="llm_prompt_builder(RELATIONS 注入)"),
+    pytest.param(lambda: __import__("knot.services.agents.sql_planner_prompts", fromlist=["x"])
+                 ._relations_for_schema("## db.t"), id="sql_planner_prompts(关系段)"),
+    pytest.param(lambda: __import__("knot.services.agents.catalog_loaders", fromlist=["x"])
+                 ._load_from_db(), id="catalog_loaders(DB 源→legacy 兜底)"),
+])
+def test_no_tenant_ctx_never_degrades_silently(two_tenants, call):
+    """⭐ D8' / Stage 4 看点 4：无 tenant ctx 时这些点必须 **raise 而非静默降级**。
+
+    降级各自的后果：脱敏链返 {} → alias_map 空 → scrub 全 no-op → 非 admin 裸看内部库表名/错误原文（**安全**）；
+    relations 段返 "" → LLM 无 JOIN 条件 → 隐式笛卡尔/错数；catalog_loaders 降级 → 把部署级 file/legacy
+    catalog 当成该租户内容（全体租户共用一份）。
+    revert（去掉 `isinstance(e, TenantContextError): raise` 守卫）→ 本测转红。
+    """
+    catalog_state.invalidate_all()
+    tok = tc._active_tenant_ctx.set(None)
+    try:
+        with pytest.raises(tc.TenantContextError):
+            call()
+    finally:
+        tc._active_tenant_ctx.reset(tok)
+
+
+def test_desensitize_alias_map_still_works_with_ctx(two_tenants):
+    """反向（防上一条被"一律 raise"糊弄过去）：**有** tenant ctx 时脱敏 alias_map 正常构建、且是本租户词典。"""
+    from knot.services.desensitize import non_admin_alias_map
+    catalog_state.invalidate_all()
+    tok = _in(2, "tenants/2")
+    try:
+        amap = non_admin_alias_map()
+        assert amap, "有 ctx 时 alias_map 不该为空（否则脱敏 no-op）"
+        assert any("t2" in k or "t2" in str(v) for k, v in amap.items()), amap
+    finally:
+        reset_active_tenant(tok)
+
+
+def test_capture_active_catalog_fails_closed_without_tenant_ctx(two_tenants):
+    """D8'：`capture_active_catalog` 的 fail-soft 不得吞缺-tenant-ctx（否则该请求被静默服务）。
+
+    revert（去掉 query_helper 的 `isinstance(e, TenantContextError): raise`）→ 本测转红
+    （原路径会 log warning 后返 None，请求继续跑）。
+    """
+    from knot.services import query_helper
+    catalog_state.invalidate_all()
+    tok = tc._active_tenant_ctx.set(None)
+    try:
+        with pytest.raises(tc.TenantContextError):
+            query_helper.capture_active_catalog({"id": 1})
+    finally:
+        tc._active_tenant_ctx.reset(tok)
+
+
+def test_observability_never_logs_catalog_content(two_tenants):
+    """⭐ F-3'：观测只记规模/来源/耗时，**严禁记 catalog 内容**（business_rules/lexicon = 业务口径，敏感）。
+
+    ⚠️ 必须挂 **loguru sink** 抓日志：本仓 logger 是 loguru（`core/logging_setup`），
+    pytest 的 `caplog` 只抓 stdlib logging → 用 caplog 写这条测是 **tautology**
+    （实测：把 business_rules 拼进日志后 caplog 版仍绿）。
+    钉死方式：租户库的 business_rules 是「【租户1机密业务规则】」这种可检索标记串，断言其不出现在任何一行日志里。
+    revert（把内容拼进 log）→ 本测转红（已实证）。
+    """
+    from loguru import logger as _lg
+    sink: list = []
+    hid = _lg.add(lambda m: sink.append(str(m)), level="DEBUG", format="{message}")
+    catalog_state.invalidate_all()
+    tok = _in(1, "tenants/1")
+    try:
+        catalog.reload(strict=False)          # 触发 publish 的 DEBUG 行
+        catalog_state.invalidate_all()
+        catalog.current_catalog()             # 触发冷槽加载的 INFO 行
+    finally:
+        reset_active_tenant(tok)
+        _lg.remove(hid)
+    blob = "".join(sink)
+    assert "[catalog]" in blob, f"没抓到 catalog 观测日志（sink 失效则本测退化为 tautology）：{blob[:200]}"
+    assert "机密业务规则" not in blob, f"日志泄漏 business_rules 内容：{blob[:300]}"
+    assert "t1词" not in blob, f"日志泄漏 lexicon 内容：{blob[:300]}"
+    assert "secret_t1" not in blob, f"日志泄漏表名内容：{blob[:300]}"

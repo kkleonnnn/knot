@@ -73,7 +73,12 @@ def _load_from_db() -> tuple:
             raw_rel = cat.get("relations") or ""
             raw_field_labels = cat.get("field_labels") or ""   # v0.7.27（app_settings legacy 路径无此键 → 留 ""）
             got = True
-    except Exception:
+    except Exception as e:
+        from knot.core.tenant_context import TenantContextError
+        if isinstance(e, TenantContextError):
+            # v0.9.3 D8'：漏 tenant ctx **不得**降级 —— 降级会把「部署级 file/legacy catalog」当成该租户内容，
+            # 即全体租户共用同一份（含部署方真实业务规则与库表清单）。fail-closed 上抛。
+            raise
         pass  # catalogs 表访问失败 → 落 app_settings legacy 兜底
     if not got:
         try:
@@ -83,9 +88,13 @@ def _load_from_db() -> tuple:
             rules = get_app_setting("catalog.business_rules") or ""
             raw_rel = get_app_setting("catalog.relations") or ""
         except Exception as e:
+            from knot.core.tenant_context import TenantContextError
+            if isinstance(e, TenantContextError):
+                raise   # 同上；且真因是缺 ctx，不得被包装成「catalogs 行缺失」把运维引向错方向（D4'）
             from knot.models.errors import MetadataError
             raise MetadataError(
-                "catalog 双源不可用（catalogs id=1 缺失 + app_settings legacy 无法读）— 真空期熔断",
+                "catalog 双源不可用（catalogs id=1 缺失 + app_settings legacy 无法读）— 真空期熔断。"
+                "若日志同期有 TenantContextError，真因是缺 tenant ctx 而非 catalogs 行缺失。",
             ) from e
 
     tables, lex, relations = [], {}, []

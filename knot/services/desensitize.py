@@ -117,7 +117,12 @@ def non_admin_alias_map() -> dict[str, str]:
     try:
         from knot.services.agents import catalog as _cat
         return build_table_alias_map(_cat.current_catalog().get("lexicon"))
-    except Exception:
+    except Exception as e:
+        from knot.core.tenant_context import TenantContextError
+        if isinstance(e, TenantContextError):
+            # ⭐ v0.9.3 D8'（Codex R3 · 本片安全最重）：脱敏绝不 fail-open。
+            # 返 {} → alias_map 空 → scrub_* 全 no-op → 非 admin 直接看到内部库表全名/错误原文。
+            raise
         return {}
 
 

@@ -36,7 +36,10 @@ def build_system_prompt(schema_text: str, business_context: str = "", question: 
         from knot.services.agents import catalog as _cl
         selected = _re.findall(r"^##+\s*([\w.]+)\s*$", schema_text or "", _re.MULTILINE)
         section_relations = _cl.get_relations_for_tables(selected) if hasattr(_cl, "get_relations_for_tables") else ""
-    except Exception:
+    except Exception as e:
+        from knot.core.tenant_context import TenantContextError
+        if isinstance(e, TenantContextError):
+            raise   # v0.9.3 D8'：relations 段静默空 → LLM 无 JOIN 条件 → 隐式笛卡尔/错数，不得 fail-open
         section_relations = ""
 
     section_safety = """## 安全规则（必须严格遵守）
