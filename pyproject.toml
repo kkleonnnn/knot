@@ -32,6 +32,10 @@ ignore = [
     "B904",      # 历史代码无 raise from err，legacy 不强制
     # ── pylint 度量类（在 v0.3.x 重构期不强制；后续 PATCH 可单独清理）
     "PLR0913",   # too many args
+    "PLR0917",   # too many **positional** args —— 与已豁免的 PLR0913 同度量类；ruff 0.16.0 将其从 preview
+                 # 转正式 → 20 个既存文件（repo/service 层惯用长签名）一夜变红，与本 PATCH 无关（v0.9.2
+                 # `8680b16` 在 ruff 0.15.x 下同一 job 全绿）。按既有「度量类不强制」口径豁免，不在硬化
+                 # PATCH 里夹带 20 文件 keyword-only 重构。清理 = 独立 lint PATCH（backlog）。
     "PLR0911",   # too many returns
     "PLR0912",   # too many branches
     "PLR0915",   # too many statements
