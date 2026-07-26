@@ -80,9 +80,8 @@ def capture_active_catalog(user: dict):
         catalog_loader.set_active_catalog_ctx(content)  # Token 弃 — 中间件 reset 已撤回，靠 asyncio task 隔离
         return content["catalog_id"]
     except Exception as e:
-        from knot.core.tenant_context import TenantContextError
-        if isinstance(e, TenantContextError):
-            raise   # v0.9.3 D8'：缺 tenant ctx 不得静默落租户默认槽（该请求本就不该被服务）
+        from knot.core.tenant_context import reraise_if_tenant_error as _rt
+        _rt(e)   # D8'：缺 tenant ctx 不得静默落租户默认槽（该请求本就不该被服务）
         logger.warning("per-user active catalog 捕获失败 — query 降级回退本租户默认 catalog", exc_info=False)
         return None
 
