@@ -222,17 +222,17 @@ def test_mig_lock_file_created_and_released(mig_env):
     assert (tmp / ".c4-migration.lock").exists()   # 锁文件建立（O_CREAT）
 
 
-def test_mig_uploads_backed_up_not_moved(mig_env):
-    """uploads.db 备份不迁：迁后 uploads.db 留原位 + 生成 .pre-tenancy.bak，且未进租户目录
-    （engine_cache._upload_engine import 期绑数据根，relocation=v0.9.1）。"""
+def test_mig_uploads_relocated_to_tenant(mig_env):
+    """v0.9.2：uploads.db relocation —— 迁后移入 tenants/1/uploads.db + data-root 源移走 + 生成 relocation bak
+    （MF1：relocation 在 migrate_anchor_db_to_tenant_once 外层无条件跑，接 C4 knot 迁移之后）。"""
     tmp, anchor = mig_env
     _build_db(anchor, users=1)
     up = tmp / "uploads.db"
-    _build_db(up, users=0)
+    _build_db(up, users=0)                                             # data-root uploads.db（有表）
     _migrate()
-    assert up.exists()                                            # 留原位（不迁）
-    assert (tmp / "uploads.db.pre-tenancy.bak").exists()          # 备份在
-    assert not (tmp / "tenants" / "1" / "uploads.db").exists()    # 未迁进租户目录
+    assert (tmp / "tenants" / "1" / "uploads.db").exists()            # 已迁进租户目录
+    assert not up.exists()                                            # data-root 源已移走
+    assert (tmp / "uploads.db.pre-v0.9.2-relocation.bak").exists()    # relocation 备份在
 
 
 # ───────────────────── Stage 4 守护者对抗加固覆盖（must + should） ─────────────────────

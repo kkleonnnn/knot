@@ -405,13 +405,15 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 
 1. `PRAGMA wal_checkpoint(TRUNCATE)` 折 WAL + 关连接 → **COPY** `data/knot.db` → `data/tenants/1/knot.db`
 2. **强校验**：表集合一致 + 关键表（users/audit_log/data_sources/conversations）行数一致 + 抽 1 条加密凭据解密烟测（证 `KNOT_MASTER_KEY` 未变）
-3. 校验通过 → 把旧锚点 rename 为 `data/knot.db.pre-tenancy.bak`（**保留作回滚源**）；`uploads.db` 一并备份为 `uploads.db.pre-tenancy.bak`（v0.9.0 **不迁** uploads，留原位）
+3. 校验通过 → 把旧锚点 rename 为 `data/knot.db.pre-tenancy.bak`（**保留作回滚源**）
 4. **校验不通过 → 删半成品 target，保锚点 `data/knot.db` 不动（last-good），并中止启动**（fail-closed，绝不带残缺库起服务）
+5. **（v0.9.2 起）uploads.db relocation**：knot.db 迁移后同一启动内，data-root `uploads.db`（上传问数表库）**移入** `data/tenants/1/uploads.db`（crash-safe copy+校验+last-good；源备份 `data/uploads.db.pre-v0.9.2-relocation.bak`）。**独立无条件跑** —— 即使 knot.db 已在早前 v0.9.0 迁走（本次 `skip:migrated`），uploads 仍会迁（否则上传问数指向空库、旧上传数据孤儿）。无 data-root uploads.db（从未上传）→ `skip:fresh`。
 
-**验证成功**（`docker logs knot | grep C4`）：
+**验证成功**（`docker logs knot | grep -E 'C4|uploads-reloc'`）：
 ```
 [C4] 存量迁移完成（migrated）：…/data/knot.db → …/data/tenants/1/knot.db；旧库备份 …/data/knot.db.pre-tenancy.bak
 [C4] tenant#1 存量迁移: migrated
+[uploads-reloc] 完成（relocated）：…/data/uploads.db → …/data/tenants/1/uploads.db
 ```
 全新部署（无 `data/knot.db`）会打印 `skip:fresh`（无存量可迁，正常）。
 
@@ -440,8 +442,9 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 docker stop knot && docker rm knot
 cd /path/to/knot/data
 mv knot.db.pre-tenancy.bak knot.db     # 旧锚点复位（回滚源）
+# v0.9.2 起 uploads.db 已迁进 tenants/1/ —— 反向快照回滚（用租户内最新版，非陈旧 root .bak）：
+[ -f tenants/1/uploads.db ] && cp tenants/1/uploads.db uploads.db   # 租户内 uploads 回搬 data-root
 rm -rf tenants platform.db             # 清多租户产物（旧版本不认）
-# 若 uploads 有改动：mv uploads.db.pre-tenancy.bak uploads.db
 # 再用 v0.8.x 镜像启动
 ```
 > 回滚窗口内旧锚点 `.pre-tenancy.bak` 是完整业务库；迁移后若已在新库写入数据，回滚会丢失这部分增量 —— 故回滚应在**升级后尽早**决策。
@@ -527,6 +530,9 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 | `KNOT 启动失败 — 缺少加密主密钥` | `.env` 没设 `KNOT_MASTER_KEY=` → 同上 |
 | `cryptography.fernet.InvalidToken` | `KNOT_MASTER_KEY` 被改了 → 必须用历史那个 key（密码管理器找） |
 | `sqlite3.OperationalError: no such column` | DB schema 不兼容（极少见）→ 联系开发 |
+| `[uploads-reloc] … 拒绝以损坏库起服务` | 上传库 `data/tenants/1/uploads.db` 探针不健康（**fail-closed，故意不启动**）。① 错误信息里带 sqlite 原因：`OperationalError`（锁竞争/权限）→ **重启即恢复**，真损坏才持续复现；② 确损坏且有备份 → 还原到 **`tenants/1/uploads.db` 本身**（勿还原到 `data/`，那会撞下面那条安全阀）；③ 确损坏且不需历史上传 → 删除该文件后重启（走 `skip:fresh`，用户重新上传；上传元数据在 knot.db 内，源文件在用户本地） |
+| `[uploads-reloc] … 疑似 C1-C3 在 relocation 前上了现网写入。拒绝覆盖` | `data/uploads.db` 与 `data/tenants/1/uploads.db` **同时存在且后者已有上传表** → 迁移拒绝覆盖现网数据。人工核对哪份是最新（比 `t_*` 表与行数），保留最新的那份到 `tenants/1/`、把 data-root 那份改名挪走，再启动 |
+| `[C4] … 拒绝以空/损坏库起服务` | 租户主库 `data/tenants/1/knot.db` 空或损坏（同为 fail-closed）→ 若有 `data/knot.db.pre-tenancy.bak` 按「回滚」段人工恢复；否则排查掉电/磁盘故障 |
 
 ### 运行时问题
 

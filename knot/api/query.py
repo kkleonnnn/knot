@@ -29,7 +29,8 @@ from knot.services import (
     query_helper,  # v0.6.2.6 段 4 (A1 并发半)：隔离三层①入口捕获 per-user active catalog
     query_steps,
 )
-from knot.services.engine_cache import _upload_engine, get_user_engine
+from knot.services.engine_cache import get_user_engine
+from knot.services.upload_engine import get_upload_engine
 
 router = APIRouter()
 
@@ -51,7 +52,8 @@ def _get_engine_and_schema(req: QueryRequest, user: dict):
         rec = upload_repo.get_file_upload(req.upload_id)
         if not rec or rec["user_id"] != user["id"]:
             raise HTTPException(status_code=404, detail="上传文件不存在")
-        return _upload_engine, db_connector.get_sqlite_schema_text(_upload_engine, rec["table_name"])
+        _up_eng = get_upload_engine()
+        return _up_eng, db_connector.get_sqlite_schema_text(_up_eng, rec["table_name"])
     engine, schema_text = get_user_engine(user)
     if engine is None:
         raise HTTPException(status_code=400, detail="数据库未配置或连接失败，请联系管理员")

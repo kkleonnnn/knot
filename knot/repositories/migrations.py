@@ -253,10 +253,18 @@ def _migrate_uploads_to_isolated_db_once(conn):
     （任一表失败 → 保留主库该表不删 = last-good）。
     幂等：只迁 file_uploads 登记且**仍在主库**的表；已迁走的（主库无）自然跳过 → 无存量时 no-op。
     """
-    # v0.8.22：SQLITE_DB_PATH 调用期反读 base（兼容测试 monkeypatch base.SQLITE_DB_PATH；无环——
-    # base 顶层 import migrations，本函数调用期反读 base）。
-    from knot.repositories import base as _b
-    uploads_db = Path(_b.SQLITE_DB_PATH).parent / "uploads.db"
+    # v0.9.2 MF2/R6：路径从 **conn 的实际主库**（PRAGMA database_list）取 —— 非 root 锚点
+    # （post-C4 root knot.db 已迁走 → 旧 `Path(base.SQLITE_DB_PATH)` 备份 copy2 失败被吞、无备份续跑）。
+    # tenant uploads.db = 该主库同目录（per-tenant；本函数在 per-tenant init_db 内、conn 即租户 knot.db）。
+    _main_path = None
+    for _row in conn.execute("PRAGMA database_list"):
+        if _row[1] == "main" and _row[2]:
+            _main_path = _row[2]
+            break
+    if not _main_path:
+        return  # :memory: / 无文件主库 —— 无存量可迁
+    main_path = Path(_main_path)
+    uploads_db = main_path.parent / "uploads.db"
     try:
         regd = [r[0] for r in conn.execute("SELECT table_name FROM file_uploads").fetchall()]
     except sqlite3.OperationalError:
@@ -266,52 +274,82 @@ def _migrate_uploads_to_isolated_db_once(conn):
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         ).fetchall()
     }
+    if not regd:
+        return  # 无登记上传 → no-op
     to_move = [t for t in regd if t in main_tables]
-    if not to_move:
-        return  # 存量上传表均已迁走 / fresh 部署 → no-op（幂等）
 
-    # 首迁前备份主库（WAL checkpoint 后 copy，best-effort；真正安全靠下方逐表校验+保 last-good）
-    try:
-        import shutil
-        bak = Path(_b.SQLITE_DB_PATH).with_suffix(".db.pre-upload-isolation.bak")
-        if not bak.exists():
-            try:
-                conn.execute("PRAGMA wal_checkpoint(FULL)")
-            except sqlite3.OperationalError:
-                pass
-            shutil.copy2(_b.SQLITE_DB_PATH, bak)
-    except OSError as e:
-        logger.warning(f"[migration] upload-isolation 备份跳过（不阻断，靠逐表校验兜底）: {e}")
+    def _col_sig(db, tbl):
+        # 归一化列签名 (name,type,notnull,pk)（对抗 #2）：CREATE-AS-SELECT 归一化 DDL ≠ 原始 DDL 文本，
+        # 用列签名比而非 raw sqlite_master.sql 文本，否则 WAL split-commit 残留会因 DDL 文本异被误判冲突 → 永久 abort。
+        return tuple((r[1], (r[2] or "").upper(), r[3], r[5]) for r in conn.execute(f'PRAGMA {db}.table_info("{tbl}")'))
 
-    moved, failed = 0, 0
+    # 首迁前备份主库（仅有待迁表时；从 conn 实际主库路径 best-effort，真正安全靠逐表校验+失败中止保 last-good）
+    if to_move:
+        try:
+            import shutil
+            bak = main_path.with_suffix(".db.pre-upload-isolation.bak")
+            if not bak.exists():
+                try:
+                    conn.execute("PRAGMA wal_checkpoint(FULL)")
+                except sqlite3.OperationalError:
+                    pass
+                shutil.copy2(main_path, bak)
+        except OSError as e:
+            logger.warning(f"[migration] upload-isolation 备份跳过（不阻断，靠逐表校验兜底）: {e}")
+
+    conn.execute(f"ATTACH DATABASE '{uploads_db.as_posix()}' AS up")
+    moved = 0
     try:
-        conn.execute(f"ATTACH DATABASE '{uploads_db.as_posix()}' AS up")
+        up_tables = {
+            r[0] for r in conn.execute(
+                "SELECT name FROM up.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
         for tbl in to_move:
-            try:
-                src_n = conn.execute(f'SELECT COUNT(*) FROM main."{tbl}"').fetchone()[0]
-                conn.execute(f'DROP TABLE IF EXISTS up."{tbl}"')
-                conn.execute(f'CREATE TABLE up."{tbl}" AS SELECT * FROM main."{tbl}"')
-                dst_n = conn.execute(f'SELECT COUNT(*) FROM up."{tbl}"').fetchone()[0]
-                if src_n != dst_n:  # 校验不过 → 弃 uploads 侧、保主库 last-good
-                    logger.error(f"[migration] upload-isolation 行数不符 {tbl}: {src_n}!={dst_n}，保主库副本")
-                    conn.execute(f'DROP TABLE IF EXISTS up."{tbl}"')
-                    failed += 1
+            src_n = conn.execute(f'SELECT COUNT(*) FROM main."{tbl}"').fetchone()[0]
+            if tbl in up_tables:
+                # G3：uploads 侧已有同名（relocation 先搬 / split-commit 残留）→ 拒无条件 DROP；比行数 + **归一化列签名**
+                up_n = conn.execute(f'SELECT COUNT(*) FROM up."{tbl}"').fetchone()[0]
+                if up_n == src_n and _col_sig("up", tbl) == _col_sig("main", tbl):
+                    conn.execute(f'DROP TABLE main."{tbl}"')  # 一致 → 主库侧冗余副本删之（uploads 版为准）
+                    conn.commit()
+                    moved += 1
                     continue
-                conn.execute(f'DROP TABLE main."{tbl}"')  # 校验通过才删主库侧
-                moved += 1
-            except Exception as e:
-                logger.exception(f"[migration] upload-isolation 表 {tbl} 失败，保主库副本: {e}")
-                failed += 1
-        conn.execute("DETACH DATABASE up")
-        conn.commit()
-        if moved or failed:
-            logger.info(f"[migration] uploads t_* 隔离到 uploads.db: moved={moved}, failed={failed}")
-    except Exception as e:
+                raise RuntimeError(
+                    f"[migration] upload-isolation 同名表 {tbl} uploads 侧不一致"
+                    f"（行数 up={up_n} main={src_n} / 列签名{'异' if _col_sig('up', tbl) != _col_sig('main', tbl) else '同'}）—— fail-closed 拒覆盖"
+                )
+            # 对抗 #3/#6：**两 commit/表**（CREATE up 提交 → DROP main 提交）—— 无单 commit 跨双文件，
+            # 消除 WAL 跨附加库非原子窗口；crash 于两 commit 间 → 双份存在、下轮 boot 由上分支归一化比恢复。
+            conn.execute(f'CREATE TABLE up."{tbl}" AS SELECT * FROM main."{tbl}"')
+            dst_n = conn.execute(f'SELECT COUNT(*) FROM up."{tbl}"').fetchone()[0]
+            if src_n != dst_n:
+                conn.execute(f'DROP TABLE IF EXISTS up."{tbl}"')
+                raise RuntimeError(f"[migration] upload-isolation 行数不符 {tbl}: {src_n}!={dst_n} —— 保主库 last-good、中止启动")
+            conn.commit()                                 # commit#1：up.tbl 落盘（仅 uploads.db）
+            conn.execute(f'DROP TABLE main."{tbl}"')
+            conn.commit()                                 # commit#2：drop main（仅 knot.db）
+            moved += 1
+        # 对抗 #8 MF4 metadata↔physical：**无条件**（即使 to_move 空）审登记表全在 uploads 侧（缺 = 疑孤儿元数据）
+        up_after = {
+            r[0] for r in conn.execute(
+                "SELECT name FROM up.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
+        _orphan = [t for t in regd if t not in up_after]
+        if _orphan:
+            logger.error(f"[migration] file_uploads 登记表不在 uploads DB（疑遗留孤儿元数据）: {_orphan}")
+        if moved:
+            logger.info(f"[migration] uploads t_* 隔离到 uploads.db: moved={moved}")
+    finally:
+        try:
+            conn.rollback()   # 异常路径撤未提交表（last-good）；成功路径已全 commit → no-op
+        except sqlite3.OperationalError:
+            pass
         try:
             conn.execute("DETACH DATABASE up")
         except sqlite3.OperationalError:
             pass
-        logger.exception(f"[migration] upload-isolation 中止: {e}")
 
 
 # ⚠️ v0.8.19a 退役：本函数把老 uploads.db 吞回主库，与 F1 隔离方向相反 —— **已从 init_db 移除调用**
