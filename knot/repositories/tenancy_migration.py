@@ -333,6 +333,20 @@ def migrate_anchor_db_to_tenant_once() -> str:
     anchor = Path(tenant_repo.SQLITE_DB_PATH)
     target = anchor.parent / t1["db_dir"] / "knot.db"
 
+    # ⭐ Stage 4 对抗（critic 命中 · 4 lens 全漏）：db_dir 含容校验 —— **写侧（会 unlink 源）此前无校验**，
+    # 而读侧 resolver 有（`upload_engine._tenant_uploads_path` + 其 escape 测）。db_dir='../evil' 会把 knot.db /
+    # uploads.db 搬到数据根**外**并删源，随后读侧 resolver 拒绝服务它自己刚建的文件 = OOS-1v2 文件边界逃逸。
+    # 放在此处（而非 `relocate_uploads_once` 内）是因为 C4 与 uploads 的 target 同源于本行 —— 一处守两条路径，
+    # 不制造「uploads 有守卫、C4 没有」的新不对称。db_dir 当前仅 seed 写（0 个 API 写点）→ 本条为纵深防御；
+    # 根治 = v0.9.5 provisioning 期 db_dir 格式约束 + UNIQUE（backlog 已登记）。
+    _root = anchor.parent.resolve()
+    _tdir = (_root / t1["db_dir"]).resolve()
+    if _root != _tdir and _root not in _tdir.parents:
+        raise RuntimeError(
+            f"[C4] tenant#{t1['id']} db_dir 逃出数据根：{_tdir} 不在 {_root} 内"
+            f"（db_dir={t1['db_dir']!r} 非法）—— 拒绝迁移，防把租户库写到边界外并删源。"
+        )
+
     if target.resolve() == anchor.resolve():
         return "skip:same-path"                          # db_dir='.'（测试；uploads 亦 same-path 无需迁）
 

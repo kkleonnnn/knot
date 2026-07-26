@@ -530,6 +530,9 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 | `KNOT 启动失败 — 缺少加密主密钥` | `.env` 没设 `KNOT_MASTER_KEY=` → 同上 |
 | `cryptography.fernet.InvalidToken` | `KNOT_MASTER_KEY` 被改了 → 必须用历史那个 key（密码管理器找） |
 | `sqlite3.OperationalError: no such column` | DB schema 不兼容（极少见）→ 联系开发 |
+| `[uploads-reloc] … 拒绝以损坏库起服务` | 上传库 `data/tenants/1/uploads.db` 探针不健康（**fail-closed，故意不启动**）。① 错误信息里带 sqlite 原因：`OperationalError`（锁竞争/权限）→ **重启即恢复**，真损坏才持续复现；② 确损坏且有备份 → 还原到 **`tenants/1/uploads.db` 本身**（勿还原到 `data/`，那会撞下面那条安全阀）；③ 确损坏且不需历史上传 → 删除该文件后重启（走 `skip:fresh`，用户重新上传；上传元数据在 knot.db 内，源文件在用户本地） |
+| `[uploads-reloc] … 疑似 C1-C3 在 relocation 前上了现网写入。拒绝覆盖` | `data/uploads.db` 与 `data/tenants/1/uploads.db` **同时存在且后者已有上传表** → 迁移拒绝覆盖现网数据。人工核对哪份是最新（比 `t_*` 表与行数），保留最新的那份到 `tenants/1/`、把 data-root 那份改名挪走，再启动 |
+| `[C4] … 拒绝以空/损坏库起服务` | 租户主库 `data/tenants/1/knot.db` 空或损坏（同为 fail-closed）→ 若有 `data/knot.db.pre-tenancy.bak` 按「回滚」段人工恢复；否则排查掉电/磁盘故障 |
 
 ### 运行时问题
 
