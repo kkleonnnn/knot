@@ -24,6 +24,15 @@ jobs:
           pip install -e ".[dev]"
           python -c "import knot; print('knot installed at', knot.__file__)"
 
+      # ⚙️ ruff **CI-only pin**（资深架构师 2026-07-26 拍板「只在 CI pin、dev 浮动」）
+      # 为什么：ruff 把规则从 preview 转正式是随 **minor** 发布的 —— 一次上游 minor 就能让既存代码一夜变红，
+      # 且与本次改动无关。实证（v0.9.2 PR#254）：0.16.0 转正 PLR0917 → `knot/` 35 条报错散在 20 个既存文件，
+      # 同一 job 在前一 commit（0.15.x）全绿。此处钉 **minor 上界、放开 patch**（拿 bug fix，不拿新规则）。
+      # 故意不对称：`requirements-dev.txt` 仍是 `ruff>=0.6.0` 浮动 → 本地先撞到新规则（早发现），
+      # CI 不因上游发版而红（不阻塞合并）。升 minor = 有意动作：改此处上界 + 单独 lint PATCH 清理新规则。
+      - name: Pin ruff (CI 闸门确定性；dev 侧仍浮动)
+        run: pip install "ruff>=0.16,<0.17"
+
       - name: Ruff lint
         run: ruff check knot/
 
