@@ -195,6 +195,12 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
         _assert_http_base_url_allowed("http", kwargs["http_config"])
     if kwargs:
         data_source_repo.update_datasource(source_id, **kwargs)
+        # v0.9.1 backlog（v0.8 守护者 Stage 4 flagged）：改连接相关字段须清当前租户缓存引擎，
+        # 否则旧凭据构建的 engine 存活至 TTL（~1h）继续用旧凭据供查 —— 与 delete 路径对称。
+        # kwargs 已过 mask/空占位处理，仅含**实际写入**字段；纯 name/description 元数据编辑不清（免无谓 reconnect）。
+        if kwargs.keys() - {"name", "description"}:
+            from knot.services.engine_cache import invalidate_tenant_engine_cache
+            invalidate_tenant_engine_cache()  # 清当前租户 (tid,uid,group)+(tid,"source",id) 两命名空间
     audit(request, admin, action="datasource.update", resource_type="datasource",
           resource_id=source_id, detail={"fields": sorted(kwargs.keys())})
     return {"ok": True}
