@@ -166,14 +166,17 @@ _check_jwt_secret_or_exit()
 # + 崩溃安全 bump→flag→cache）。置于两个 fail-fast 之后 — 配置健康才执行，避免 sys.exit 前误改 DB。
 from knot.services.totp_service import apply_rollout_session_invalidation as _apply_totp_rollout  # noqa: E402
 
-# ❺ 续：totp_rollout 须在 tenant#1 ctx（漏 set → KNOT_TOTP_REQUIRED 默认 true 下读 app_settings 撞 fail-closed boot 崩）
-#    + catalog reload 补调（命门#1：catalog.py import 期 reload 早于 init/ctx → 降级 file/empty；此处 tenant#1
-#    ctx 下重 reload 覆盖 boot→首请求窗口非请求消费者）。finally reset。
+# ❺ 续：totp_rollout 须在 tenant#1 ctx（漏 set → KNOT_TOTP_REQUIRED 默认 true 下读 app_settings 撞 fail-closed boot 崩）。
+# v0.9.3 F-1'：**catalog warm-up 已删**（原此处 `_catalog_loader.reload(strict=False)`）。
+#   理由：catalog 载体自 v0.9.3 起 per-tenant，warm 单一租户只会让「进程全局 = 某一租户内容」的错配固化到
+#   每次启动；warm 全部租户则启动成本随租户数线性增长。冷槽改由 `catalog_state.get_state()` 的 **lazy miss
+#   loader** 兜（D5' 强制项）—— 守护者 F-1' 批准并附硬条件：lazy loader 须被证明**普适**，故验收有冷进程测
+#   覆盖 query（有 catalog ctx）与**非 query**（admin/脱敏，无 catalog ctx）两种形态，见
+#   tests/test_catalog_tenant_isolation.py。
+# 注：`resolve_single_tenant()` 仍在（R-T-GATE 前置项之一，见 docs/plans/v0.9.3 §5 清单，本片不动）。
 _t1_tok2 = _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())
 try:
     logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
-    from knot.services.agents import catalog as _catalog_loader  # noqa: E402
-    _catalog_loader.reload(strict=False)
 finally:
     _tenant_ctx.reset_active_tenant(_t1_tok2)
 
