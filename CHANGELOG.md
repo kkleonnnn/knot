@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **F3 · 写侧 `db_dir` 含容守卫（OOS-1v2 纵深）**：读侧 resolver 早有逃逸校验，**写侧（会 unlink 源）此前无** → `db_dir='../evil'` 会把 knot.db/uploads.db 搬到数据根**外**并删源，随后 resolver 拒绝服务它刚建的文件。守卫加在 `migrate_anchor_db_to_tenant_once` 的 target 派生处 —— **一处守 C4 + uploads 两条路径**，不制造新不对称。（`db_dir` 当前仅 seed 写、0 API 写点 → 纵深防御；根治 = v0.9.5 provisioning 期格式约束 + UNIQUE。）
 
 - **数据源 update 路径补失效（v0.9.1 守护者 Stage 4 final-diff flagged，修复随本段合入 · 同租户内、非跨租户）**：`admin_update_datasource` 改连接相关字段（db_password/db_host/db_user/db_database/db_type/http_config/is_active 等，denylist `{name,description}` 外任一）后调 `invalidate_tenant_engine_cache()` —— 原仅 delete 路径失效，改凭据后旧凭据 engine 存活至 TTL（~1h）继续供查（与 delete 路径对称）；判定在 mask/空占位处理**之后**（no-op 改密不 churn）。
+### Chore
+- **ruff CI-only pin（资深架构师 2026-07-26 拍板「只在 CI pin、dev 浮动」）**：`ci.yml` 在 editable 安装之后 / `ruff check knot/` 之前插一步 `pip install "ruff>=0.16,<0.17"` —— 钉 **minor 上界、放开 patch**（ruff 把规则 preview→正式是随 minor 发布的，patch 只含 bug fix）。`requirements-dev.txt` 的 `ruff>=0.6.0` **故意不动**：本地浮动 → 先撞到新规则（早发现），CI 确定 → 不因上游发版而红（不阻塞合并）。诱因：0.16.0 转正 `PLR0917` 令 `knot/` 35 条报错散在 20 个既存文件，与当时改动无关（同一 job 在前一 commit 全绿）；该规则已按既有「pylint 度量类不强制」口径豁免。升 minor = 有意动作：改此上界 + 单独 lint PATCH 清理新规则。
+
 ### Tests
 - 新 `tests/test_uploads_tenant_isolation.py`（15 def / 16 例）：跨租户 resolver 不同文件 + fail-closed + 路径逃逸拦截 + relocation 7 态（首迁/幂等/空-legal/安全阀/孤儿 marker/**损坏→halt**）+ **⭐ R2 回归守**（skip:migrated 时 relocation 仍跑）。Stage 4 二轮补：**探针强度**（magic 头完好但截断/cell-ptr 破坏 → 仍 halt；覆盖此前零覆盖的 `quick_check` 返非-ok **limb ii**，并杀「探针退化成看 magic/看大小」mutant —— 原垃圾字节测在该 mutant 下仍绿）· **resume 遇读不出 target 自愈**（F1）· **写侧 db_dir 逃逸拒迁**（F3）· **端到端 relocation→resolver join**（此前两半测互不相交，正因如此漏掉 F3）。flip `test_mig_uploads_backed_up_not_moved` → `test_mig_uploads_relocated_to_tenant`；R8 两 test_upload_isolation 改 resolver；conftest 补 `_upload_engines` reset。
 
