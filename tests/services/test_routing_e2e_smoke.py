@@ -45,7 +45,12 @@ def test_e2e_bug2_history_position_routes_sql_not_http(monkeypatch):
                         "ohx_dwd.dwd_user_position_history"]}
     http_tables = {"futures_admin.futures_position_list"}
     monkeypatch.setattr(catalog_loader, "reload", lambda strict=False: "mock")
-    monkeypatch.setattr(catalog_loader, "LEXICON", mock_lex)
+    # v0.9.3：LEXICON 已是 PEP 562 代理名 —— **禁 monkeypatch.setattr**（monkeypatch 先 getattr 存"原值"，
+    # 代理会响应它 → teardown 时把值 setattr 回模块 __dict__ 而非 delattr → 名字永久驻留 = 代理静默死亡
+    # + 冻结快照；实测坐实）。改为显式发布整槽（本测本意即整体 mock catalog；conftest 每测 invalidate）。
+    from knot.services.agents import catalog_state
+    catalog_state.publish(lexicon=mock_lex, tables=[], business_rules="",
+                          relations=[], field_labels={}, source="mock")
     monkeypatch.setattr(catalog_loader, "is_http_table", lambda t: t in http_tables)
     monkeypatch.setattr(catalog_loader, "get_http_spec",
                         lambda t: {"url_template": "x", "method": "GET"} if t in http_tables else None)
@@ -84,7 +89,12 @@ def test_e2e_full_routing_decision_chain(monkeypatch):
                         "ohx_dwd.dwd_user_position_history"]}
     http_tables = {"futures_admin.futures_position_list"}
     monkeypatch.setattr(catalog_loader, "reload", lambda strict=False: "mock")
-    monkeypatch.setattr(catalog_loader, "LEXICON", mock_lex)
+    # v0.9.3：LEXICON 已是 PEP 562 代理名 —— **禁 monkeypatch.setattr**（monkeypatch 先 getattr 存"原值"，
+    # 代理会响应它 → teardown 时把值 setattr 回模块 __dict__ 而非 delattr → 名字永久驻留 = 代理静默死亡
+    # + 冻结快照；实测坐实）。改为显式发布整槽（本测本意即整体 mock catalog；conftest 每测 invalidate）。
+    from knot.services.agents import catalog_state
+    catalog_state.publish(lexicon=mock_lex, tables=[], business_rules="",
+                          relations=[], field_labels={}, source="mock")
     monkeypatch.setattr(catalog_loader, "is_http_table", lambda t: t in http_tables)
     monkeypatch.setattr(catalog_loader, "get_http_spec",
                         lambda t: {"url_template": "x", "method": "GET"} if t in http_tables else None)

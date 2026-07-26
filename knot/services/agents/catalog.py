@@ -1,22 +1,21 @@
-"""catalog_loader.py — 业务目录加载器（v0.2.5 DB 优先 + 热更）
+"""catalog.py — 业务目录加载器（DB 优先 + file fallback + 热更；v0.9.3 起载体 per-tenant）
 
-加载优先级（高 → 低）：
-  1) DB（admin 后台编辑）：app_settings 三键
-       - catalog.tables          (JSON list[dict])
-       - catalog.lexicon         (JSON dict[str, list[str]])
-       - catalog.business_rules  (text)
-     某项 DB 有值即用 DB；该项为空则继续 fallback。
-  2) knot/services/agents/_local_catalog.py    — 真实业务 .py（.gitignore，部署方按需放置）
-  3) knot/services/agents/_template_catalog.py — 仓库内通用模板
+加载优先级（高 → 低，每键独立）：
+  1) DB（admin 后台编辑）：`catalogs` 行（legacy 兜底 `app_settings` 4 键）
+  2) `_local_catalog.py`（真实业务 .py，.gitignore，部署方放置）
+  3) `_template_catalog.py`（仓库内通用模板）
+其中 **file HTTP 虚拟表始终权威追加**（部署代码层配置 > admin DB 影子，见 `reload()` L79-82）。
 
-调用方应通过 `import catalog_loader as _cl` + `_cl.LEXICON` / `_cl.TABLES` / `_cl.BUSINESS_RULES`
-动态读取（不要 `from catalog_loader import LEXICON` 一次性快照），admin 修改后调用
-`catalog_loader.reload()` 即可在不重启进程的情况下生效。
+**读法（v0.9.3）**：模块外一律 `import catalog as _cl` + `_cl.TABLES` 等 module-attr live 读 ——
+现由 PEP 562 `__getattr__` 代理到**当前租户槽**（`catalog_state`），故 13 个 importer 写法不变即租户感知。
+严禁 `from catalog import TABLES`（值绑快照 → reload 后陈旧；静态哨兵禁绝）。
+**模块内**一律走 `catalog_state.get_state()` 显式访问器（裸名读编译成 `LOAD_GLOBAL`，永不触发代理）。
 """
 from __future__ import annotations
 
 import contextvars
 
+from knot.services.agents import catalog_state
 from knot.services.agents.catalog_loaders import (
     _infer_source_types_from_datasources,
     _load_from_db,
@@ -24,12 +23,20 @@ from knot.services.agents.catalog_loaders import (
     _merge_lexicons,
 )
 
-LEXICON: dict = {}
-TABLES: list = []
-BUSINESS_RULES: str = ""
-RELATIONS: list = []  # v0.4.1.1: 多表关联元数据，list[tuple(left_t, left_c, right_t, right_c, semantics)]
-FIELD_LABELS: dict = {}  # v0.7.27: 维度中文标签 {列名:中文}（DB-only；空 → _semantic_display_meta merge no-op byte-equal）
-_SOURCE: str = "empty"  # "db" | "real" | "example" | "empty"
+# v0.9.3：6 个原模块全局 → `catalog_state` 租户槽。这 6 名**必须不存在于本模块命名空间**，
+# 否则下方代理永不触发（机制、实测与三道守护详见 `catalog_state` 模块 docstring + `assert_no_resurrected_globals`）。
+_ATTR_TO_SLOT = {
+    "LEXICON": "lexicon", "TABLES": "tables", "BUSINESS_RULES": "business_rules",
+    "RELATIONS": "relations", "FIELD_LABELS": "field_labels", "_SOURCE": "source",
+}
+
+
+def __getattr__(name: str):
+    """PEP 562 代理 —— 13 个 importer 的 `catalog.TABLES` 写法一行不改即租户感知（D2'）。仅供模块外读。"""
+    slot_key = _ATTR_TO_SLOT.get(name)
+    if slot_key is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return catalog_state.get_state()[slot_key]
 
 # ── v0.6.2.6 段 4 (A1 并发半): Connection Context 隔离 ──────────────────────────
 # per-request active catalog 内容（请求作用域 ContextVar）；未 set → current_catalog() 回退模块全局
@@ -50,13 +57,18 @@ def current_catalog() -> dict:
     ctx = _active_catalog_ctx.get()
     if ctx is not None:
         return ctx
+    # v0.9.3 D4'：回退目标从**进程全局**改为**当前租户的默认 catalog 槽** —— 跨租户面关闭。
+    # 租户 ctx 本身仍 fail-closed（`get_state()` 内 `current_tenant()` 无 ctx 即 raise，不再静默供数）。
+    # identity 保持：代理与本回退读同一槽的同一值对象 → `cur["tables"] is catalog.TABLES` 仍成立
+    # （test_catalog_context.py:22-25 三条 `is` 断言）。
+    state = catalog_state.get_state()
     return {
-        "lexicon": LEXICON,
-        "tables": TABLES,
-        "business_rules": BUSINESS_RULES,
-        "relations": RELATIONS,
-        "field_labels": FIELD_LABELS,   # v0.7.27 维度中文标签（全局回退；per-user 走 _parse_catalog_content）
-        "catalog_id": None,
+        "lexicon": state["lexicon"],
+        "tables": state["tables"],
+        "business_rules": state["business_rules"],
+        "relations": state["relations"],
+        "field_labels": state["field_labels"],
+        "catalog_id": None,   # 租户默认槽无 per-user catalog_id（per-user 走 _parse_catalog_content）
     }
 
 
@@ -84,9 +96,14 @@ def reload(strict: bool = False) -> str:
       - strict=False（默认 — 模块 import / startup 时）：source_type 推断异常 → log warning 不阻塞
       - strict=True（admin reload / pick_http_route 触发时）：推断异常 → MetadataError 上抛
       防 BI 全盘瘫痪：业务条件触发 fail-fast；startup 期降级为 warning。
-    """
-    global LEXICON, TABLES, BUSINESS_RULES, RELATIONS, FIELD_LABELS, _SOURCE
 
+    v0.9.3 D2'/D3'：**全程局部变量构造 → 末尾一次性原子发布到当前租户槽**（`catalog_state.publish`）。
+      - **禁 `global`**：`global X; X = ...` 会把载体名复活进模块 `__dict__` → PEP 562 代理静默死亡、
+        租户槽闲置、跨租户串供照旧且无异常（B-1 实测）。静态哨兵 + 末尾运行期断言双守。
+      - 本函数是租户槽的**唯一 writer**，且输出**只落租户默认槽**（R-2 非对称：per-request active catalog
+        走 `_active_catalog_ctx` 那个另一载体 —— 因 `_load_from_db` 硬编 `get_catalog(1)`，若按 active
+        catalog_id 分槽会把 catalog#1 口径写进 (tid,N) 槽 = 租户内跨 catalog 污染）。
+    """
     from knot.models.errors import MetadataError
 
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
@@ -137,23 +154,32 @@ def reload(strict: bool = False) -> str:
                 "catalog source_type 推断兜底失败（startup 期降级；admin reload 时重试）",
                 exc_info=True,
             )
-    TABLES = base_tables
+    tables = base_tables
 
     # v0.6.1.4: LEXICON — 智能合并（不简单覆盖）
     # 同一关键词在 file 和 DB 都存在时 → value list 合并（保留两边的表）
     # 由 pick_http_route entity-aware ranking 决定优先级
-    LEXICON = _merge_lexicons(f_lex, db_lex)
+    lexicon = _merge_lexicons(f_lex, db_lex)
 
-    BUSINESS_RULES = db_rules if db_rules.strip() else f_rules
-    RELATIONS = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
-    FIELD_LABELS = db_field_labels  # v0.7.27 维度中文标签 — DB-only（file 载体不提供 → 无 file fallback；空 → merge no-op byte-equal）
+    business_rules = db_rules if db_rules.strip() else f_rules
+    relations = db_relations if db_relations else f_relations  # v0.5.44 — DB 覆盖优先
+    field_labels = db_field_labels  # v0.7.27 维度中文标签 — DB-only（file 载体不提供 → 无 file fallback；空 → merge no-op byte-equal）
 
-    _SOURCE = "db+file_http" if (db_found and any(t.get("source_type") == "http" for t in TABLES)) else ("db" if db_found else f_src)
-    return _SOURCE
+    source = "db+file_http" if (db_found and any(t.get("source_type") == "http" for t in tables)) else ("db" if db_found else f_src)
+
+    # ⭐ 原子发布：整槽一次性替换（GIL 下原子）→ 并发读者永不见半成品态
+    catalog_state.publish(
+        lexicon=lexicon, tables=tables, business_rules=business_rules,
+        relations=relations, field_labels=field_labels, source=source,
+    )
+    # ⭐ B-1 第二道守护（静态哨兵之外的运行期断言）：本函数绝不能把载体名复活进模块命名空间。
+    catalog_state.assert_no_resurrected_globals()
+    return source
 
 
-# 启动期初始加载（DB 表不存在时 persistence.get_app_setting 返回 None，安全）
-reload()
+# v0.9.3 D6'：**删除 import 期无条件 `reload()`** —— 它原在无 tenant ctx 下跑，双源皆不可达 → 静默降级加载
+# `_template_catalog` demo 表（实测 `_SOURCE='example'`）；per-tenant 后更会在 import 期 raise。
+# 冷槽由 `catalog_state.get_state()` 的 lazy miss loader 兜（D5' 强制项）。
 
 
 def get_defaults_from_files() -> dict:
@@ -170,7 +196,9 @@ def get_defaults_from_files() -> dict:
 
 
 def get_table_full_names() -> list:
-    return [f"{t['db']}.{t['table']}" for t in TABLES]
+    """v0.9.3 §II：转显式载体访问器（原裸名读 `TABLES`）。`knot/` 内 0 生产调用者但
+    `tests/services/test_knot_catalog.py:67` 是活调用者 → 不随死码删（`_template_catalog.py:106` 同名物不动）。"""
+    return [f"{t['db']}.{t['table']}" for t in catalog_state.get_state()["tables"]]
 
 
 # ── v0.4.1.1: RELATIONS 元数据访问 + 按需渲染 ─────────────────────────────────
@@ -194,13 +222,25 @@ def is_http_table(table_full_name: str) -> bool:
     Returns:
         True 是 HTTP 虚拟表，False 是 SQL 表或未注册
     """
+    t = _find_table(table_full_name)   # 单次解析（§6-5 同理，勿写成两次 _find_table 调用）
+    return t is not None and t.get("source_type", "db") == "http"
+
+
+def _find_table(table_full_name: str) -> dict | None:
+    """在**当前租户槽**里按 "db.table" 找表条目（v0.9.3：替代 5 处裸名读 `TABLES` 的公共实现）。
+
+    注意读的是租户槽而**不是** `current_catalog()`：ctx 载体由 `_parse_catalog_content` 生成、
+    **永不含 file HTTP 虚拟表**（`query_helper.py:26-27`）→ 若 HTTP helper 改走 ctx，
+    query 路径内 `is_http_table()` 恒 False → `pick_http_route` 永返 None → **HTTP 查询静默落 SQL**
+    （v0.7.29b bug 类复发）。故 HTTP 三件必须读经完整 reload 流水线（含 file merge）的租户槽。
+    """
     if "." not in table_full_name:
-        return False
+        return None
     db, table = table_full_name.split(".", 1)
-    for t in TABLES:
+    for t in catalog_state.get_state()["tables"]:
         if t.get("db") == db and t.get("table") == table:
-            return t.get("source_type", "db") == "http"
-    return False
+            return t
+    return None
 
 
 def get_http_spec(table_full_name: str) -> dict | None:
@@ -211,28 +251,15 @@ def get_http_spec(table_full_name: str) -> dict | None:
 
     Returns:
         dict (HTTPEndpointSpec 形态) 或 None（非 HTTP 表或未配 http_spec）
+
+    v0.9.3 §6-5：**单次解析**载体。原实现先经 `is_http_table()` 扫一遍、再自己扫一遍 ——
+    而两次扫之间夹着 `pick_http_route` 的每-query `reload()`，可能出现 `is_http_table=True`
+    但取 spec 时命中新内容返 None → **静默落 SQL**。现取一次条目本地复用，消除该窗口。
     """
-    if not is_http_table(table_full_name):
+    t = _find_table(table_full_name)
+    if t is None or t.get("source_type", "db") != "http":
         return None
-    db, table = table_full_name.split(".", 1)
-    for t in TABLES:
-        if t.get("db") == db and t.get("table") == table:
-            return t.get("http_spec")
-    return None
-
-
-def get_field_mapping(table_full_name: str) -> dict:
-    """取虚拟表的 field_mapping（API 字段 → 业务字段重映射）。
-
-    Returns: dict 或空 dict（未配映射）
-    """
-    if "." not in table_full_name:
-        return {}
-    db, table = table_full_name.split(".", 1)
-    for t in TABLES:
-        if t.get("db") == db and t.get("table") == table:
-            return t.get("field_mapping", {}) or {}
-    return {}
+    return t.get("http_spec")
 
 
 def get_http_tables() -> list:
@@ -241,7 +268,7 @@ def get_http_tables() -> list:
     用途：query.py 路由层启动期可检查"含 HTTP 表 → 必须设 KNOT_HTTP_ALLOWED_HOSTS env"。
     """
     return [
-        f"{t['db']}.{t['table']}" for t in TABLES
+        f"{t['db']}.{t['table']}" for t in catalog_state.get_state()["tables"]
         if t.get("source_type", "db") == "http"
     ]
 

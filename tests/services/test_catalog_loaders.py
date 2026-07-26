@@ -97,6 +97,39 @@ def test_catalog_py_has_no_bare_name_read_of_carrier():
     )
 
 
+def test_no_setattr_on_carrier_names_anywhere():
+    """⭐ v0.9.3 R-9 哨兵④（守护者 F-5'(c)，**顺序无关**）：全仓禁 `setattr(<any>, "<载体名>", ...)`。
+
+    实测机制（比"污染后续测试"更糟）：`monkeypatch.setattr(catalog, "LEXICON", x)` 时 monkeypatch 先
+    `getattr` 存"原值" —— **PEP 562 代理会响应它** → monkeypatch 认定该属性本就在 `__dict__` →
+    teardown 时把存下的值 **`setattr` 回 `__dict__`**（而非 `delattr`）→ 该名**永久驻留**且成为**冻结快照**
+    ⇒ 代理静默死亡 + 恢复本仓原哨兵要防的 facade-freeze，只是改从 monkeypatch 进来。
+    本哨兵与「顺序」无关（纯 AST，不依赖测执行序）—— 这点重要：v0.9.3 前的 3 处 poisoner 位于
+    `tests/services/`（收集序早于 `tests/` 根），靠运行期断言只能在**它们之后**的测里发现。
+    """
+    offenders = []
+    for p in _py_files():
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and len(node.args) >= 2):
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+            if name != "setattr":
+                continue
+            arg = node.args[1]
+            if isinstance(arg, ast.Constant) and arg.value in _MUTABLE_GLOBALS:
+                offenders.append(f"{p.relative_to(_REPO)}:{node.lineno} setattr(..., {arg.value!r}, ...)")
+    assert not offenders, (
+        "setattr 载体名会把该名写进模块 __dict__ → PEP 562 代理永久失效（monkeypatch teardown 亦不会 "
+        "delattr，反而把冻结快照 setattr 回去）。改用 catalog_state.publish(...) 显式发布整槽：\n  "
+        + "\n  ".join(offenders)
+    )
+
+
 def test_catalog_loaders_does_not_import_catalog():
     """副哨（本地 ast）：catalog_loaders 不 import 有状态 catalog（Contract 8 测试侧冗余 + 纯-loader 单向）。"""
     src = (_REPO / "knot" / "services" / "agents" / "catalog_loaders.py").read_text(encoding="utf-8")
