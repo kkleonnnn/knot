@@ -15,6 +15,7 @@ from fastapi.security.utils import get_authorization_scheme_param
 
 from knot.api.deps import JWT_ALGORITHM, _get_secret
 from knot.core import tenant_context as _tenant_ctx
+from knot.core.logging_setup import logger
 from knot.repositories import tenant_repo
 
 # ⚠️ **临时表 —— 每一项都写明摘除条件；不得增项，`test_R14_legacy_paths_exact` 断言精确内容。**
@@ -84,7 +85,14 @@ def resolve_for_request(request) -> dict | None:
         return None
 
     # 停用 / 不存在 → None（**绝不回退**到任何默认租户 —— 回退 = 静默跨租户供数，OOS-1v2）
-    return tenant_repo.resolve_tenant_by_id(tid)
+    tenant = tenant_repo.resolve_tenant_by_id(tid)
+    if tenant is None:
+        # v0.9.4 step 6：记一行 INFO —— 运维要能把「租户停用/已删」与「坏 token」分开。
+        # 只记 tid，不记 token / 路径 / 业务内容。**不是 WARN**：这是预期的 fail-closed 路径
+        #（真·漂移才 WARN，见 core/tenant_context.assert_tenant_context）。
+        # 触发前提是**已验签**的 token + 正整数 tid ⇒ 只有真实（或曾经真实）用户会走到，无扫描噪音。
+        logger.info(f"[tenant-resolve] 不可服务的租户 tid={tid}（停用或不存在）→ 不设 ctx")
+    return tenant
 
 
 async def tenant_context_middleware(request, call_next):

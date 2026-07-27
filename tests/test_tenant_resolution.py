@@ -292,3 +292,105 @@ def test_B4_drift_detected(tmp_db_path):
             assert_tenant_context(2)      # ctx 是 1、token 声明 2 → 抛
     finally:
         tc.reset_active_tenant(tok)
+
+
+# ─── 7. step 6：漂移告警（结构化 WARN + 计数器） ──────────────────────────
+
+
+def _loguru_sink():
+    """挂 loguru sink 抓日志。
+
+    ⚠️ **必须挂 loguru sink，不能用 `caplog`** —— 本仓 logger 是 loguru（`core/logging_setup`），
+    `caplog` 只抓 stdlib logging ⇒ 用它写这类测是**同义反复**（v0.9.3 F-3' 已实证：把内容拼进
+    日志后 caplog 版仍绿）。
+    """
+    from loguru import logger as _lg
+    sink: list = []
+    hid = _lg.add(lambda m: sink.append(str(m)), level="DEBUG", format="{message}")
+    return sink, hid
+
+
+def test_drift_emits_structured_warning_and_increments_counter(tmp_db_path):
+    """⭐ 真漂移（ctx 设了但对不上）→ 固定事件名 WARN + 计数器 +1。
+
+    事件名 `tenant_ctx_drift` 是**固定串**，便于运维 grep / 挂告警规则。
+    revert-to-bad：删掉 `assert_tenant_context` 里的 `logger.warning(...)` → 本测转红。
+    """
+    from loguru import logger as _lg
+    sink, hid = _loguru_sink()
+    before = tc.tenant_drift_count()
+    tok = tc.set_active_tenant({"id": 1, "db_dir": "."})
+    try:
+        with pytest.raises(TenantContextError, match="漂移"):
+            tc.assert_tenant_context(2)
+    finally:
+        tc.reset_active_tenant(tok)
+        _lg.remove(hid)
+    blob = "".join(sink)
+    assert "tenant_ctx_drift" in blob, f"没抓到固定事件名（sink 失效则本测退化为同义反复）：{blob[:200]}"
+    assert "expected=2" in blob and "actual=1" in blob, blob[:200]
+    assert tc.tenant_drift_count() == before + 1, "计数器未 +1"
+
+
+def test_unset_ctx_is_not_reported_as_drift(tmp_db_path):
+    """⭐ **未 set ≠ 漂移**：不告警、不计数。
+
+    这是**噪音抑制契约**，不是洁癖：step 5 起「token 声明的租户已停用/不存在 → middleware 不设 ctx」
+    是**预期路径**。若把它算成漂移，每个这类请求刷一条 WARN ⇒ **真漂移信号被淹没**。
+    revert-to-bad：把 `assert_tenant_context` 里 `current is None` 那支也走 WARN+计数 → 本测转红。
+    """
+    from loguru import logger as _lg
+    sink, hid = _loguru_sink()
+    before = tc.tenant_drift_count()
+    tok = tc._active_tenant_ctx.set(None)
+    try:
+        with pytest.raises(TenantContextError):
+            tc.assert_tenant_context(1)
+    finally:
+        tc.reset_active_tenant(tok)
+        _lg.remove(hid)
+    assert "tenant_ctx_drift" not in "".join(sink), "未 set 被误报成漂移 → 真信号会被噪音淹没"
+    assert tc.tenant_drift_count() == before, "未 set 被误计入漂移计数"
+
+
+def test_drift_log_never_leaks_db_dir_or_paths(tmp_db_path):
+    """漂移日志**只记 id**，不得记 `db_dir` / 路径（同 v0.9.3 F-3' 观测纪律：只记规模/来源，不记内容）。
+
+    钉死方式：把 db_dir 设成可检索标记串，断言它不出现在任何一行日志里。
+    revert-to-bad：把 `current` 整个 dict 拼进 log → 本测转红。
+    """
+    from loguru import logger as _lg
+    sink, hid = _loguru_sink()
+    tok = tc.set_active_tenant({"id": 1, "db_dir": "tenants/MARKER_SECRET_DBDIR_9x"})
+    try:
+        with pytest.raises(TenantContextError):
+            tc.assert_tenant_context(2)
+    finally:
+        tc.reset_active_tenant(tok)
+        _lg.remove(hid)
+    blob = "".join(sink)
+    assert "tenant_ctx_drift" in blob, "sink 失效（否则下一条断言退化为同义反复）"
+    assert "MARKER_SECRET_DBDIR_9x" not in blob, f"漂移日志泄漏 db_dir：{blob[:300]}"
+
+
+def test_R10_no_drift_audit_action_added():
+    """⭐ R-10：本片**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**。
+
+    审计要写「哪个平台租户」，依赖 v0.9.5 platform/tenant admin 鉴权拆分的口径；且 `core` 层零
+    services 依赖也让 audit 写入不能落在 `tenant_context`。本片的替代物 = WARN + 计数器。
+
+    断言写成「**没有任何 action 含 drift**」而非「action 总数 == N」—— 后者会被将来任何无关的
+    新 action 打红（假红），前者精确对应 R-10 的主张。同时断言替代机制**存在**（否则「没加审计」
+    可能只是「什么都没做」）。
+    """
+    import typing
+
+    from knot.models.audit import AuditAction
+    actions = typing.get_args(AuditAction)
+    assert actions, "AuditAction Literal 取不到成员 —— 断言已失效"
+    drifty = [a for a in actions if "drift" in a.lower()]
+    assert not drifty, (
+        f"新增了漂移相关 AuditAction {drifty} —— R-10 明示本片不结清 audit-on-drift；"
+        f"若确要结清，须走 v0.9.5 platform admin 拆分并同步撤掉本断言 + 撤掉未结清登记。"
+    )
+    assert callable(tc.tenant_drift_count), "替代机制（计数器）缺失 —— 「没加审计」不能等于「什么都没做」"
