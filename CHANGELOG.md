@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > 守护者 Stage 3 concur major-revise（3 blocking + 8 should-fix + F 裁定）→ Stage 1' → 守护者复核 **PASS 放行**（1 机械必修）。
 
 ### Security（hotfix · riding v0.9.3 不 bump 版本）
+- **⭐ 修 interim_token 不参与吊销比对 —— 「注销所有会话」对登录中途的人无效**（`knot/api/totp.py`
+  `_decode_interim`）：吊销机制 = `users.token_version + 1`（`user_repo.py:174/192`，由改密 / 管理员
+  TOTP reset / rollout 触发），`deps.py:134-136` 比对 `payload.ver` 使旧 token 作废。但 `_decode_interim`
+  **只验签 + 只看 `totp_pending`，从不读 `ver`** —— 而 `create_interim_token` 明明把 `ver` 放进了 payload（:49）。
+  ⇒ 受害者改密后，攻击者手里 5 分钟窗口内的旧 interim **仍能通过校验**，并经 verify 端点 `create_token()`
+  **换出一张当前有效的完整 JWT**（实测：bump 1→2 后旧 interim 仍过、换出的 JWT `ver=2`）
+  ⇒ **改密救不了受害者**，作废的凭证被升级成有效凭证。与 `579b0f4`（2FA 绕过）落在**同一条路径**上，
+  是该路径的第二个洞。
+  **修**：`_decode_interim` 补吊销比对（与 `deps.py:134-136` 同口径）+ `ver`/`sub` 类型严格化
+  （`type(ver) is int` —— `bool` 是 `int` 子类且 `True == 1`、`1.0 == 1`，宽松比较会让 `{"ver": true}` 误过）。
+  校验放在 `_decode_interim` 而非 verify 端点 = 守在**收敛点**（将来新增第二个 interim 消费点自动受保护，
+  同 `579b0f4` 选「一律拒绝」而非「路径白名单」的理由）。
+
 - **⭐ 修两步验证（2FA）绕过 —— interim_token 作用域从未被执行**（`knot/api/deps.py` `get_current_user`）：
   interim_token（`totp_pending=true`）只在「口令已过、**TOTP 尚未过**」时签发（`api/auth.py:30-36`），
   其 docstring 与模块设计注释都写明「仅 `/api/totp/verify` 接受」—— 但**从未有任何代码执行该限制**：
@@ -57,6 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   （`tests/services/test_knot_catalog.py:67` 是活调用者）· `_template_catalog.py:106` 同名物不动。
 
 ### Tests
+- **安全回归（吊销覆盖面）**：`tests/api/test_totp_2fa.py` +6 —— 吊销后旧 interim 必 401 · **反向守护**
+  （未吊销时仍能换出完整 JWT）· `ver` 类型 4 参数（缺失/bool/数字串/浮点）。
+  三组 revert-to-bad：去掉 ver 比对 → 吊销测红 / 放宽类型判定 → 精确打红 `True` 与 `1.0`
+  （`"1"` 由吊销门拦、`None` 由类型门拦，各有其守卫）/ 改一律拒绝 → **两条反向测**红。
+  ⚠️ **该类型测初版是 tautology 已修**：初版用必然错误的码 `"000000"` ⇒ 无论类型门是否生效都会因
+  「TOTP 验证失败」返 401、测恒绿（实测放宽后 `ver=True` 确实溜过但测无反应）。改用**正确的 6 位码**
+  使类型门成为唯一拦截者，并加第二条断言「拒绝不得来自验码失败」防它退化回假测。
 - **安全回归（2FA 绕过）**：`tests/api/test_totp_2fa.py` +4 —— interim_token 在 3 个业务端点（`/api/conversations`、`/api/admin/users`、`/api/auth/me`）**各自**被拒（参数化，非聚合）+ **反向守护**（合法 verify 路径仍通、换出的完整 JWT 仍可用 —— 防「一律拒绝所有 token」把 2FA 登录整条打断还误判修好）。revert-to-bad 实证：恢复原形态 → 3 条拒收测各自转红、反向测保持绿。
 - 新 `tests/test_catalog_tenant_isolation.py`（17）：跨租户串供关闭（复刻测绘**已实证串供**的双租户形态）·
   代理未被静默旁路 · identity 契约 · B-2 非对称（槽数不因 active catalog 增加）· **冷槽两形态**（有/无 catalog
