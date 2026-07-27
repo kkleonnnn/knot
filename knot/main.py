@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from knot.api import admin, auth, conversations, database, knowledge, query, uploads
+from knot.api import admin, auth, conversations, database, knowledge, query, tenant_resolution, uploads
 from knot.api import audit as audit_router
 from knot.api import bi_reports as bi_reports_router
 from knot.api import bi_schedule as bi_schedule_router
@@ -59,19 +59,10 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def _tenant_context_middleware(request, call_next):
-    """v0.9.0 C2 请求作用域 tenant ctx（set-without-reset）。
-
-    传播机制（Starlette 1.3.1 BaseHTTPMiddleware 源码 + 20 并发实证 · 守护者 Stage 4 V1 亲验）：本函数于
-    call_next 前 set → BaseHTTPMiddleware 在 set **之后** `start_soon` spawn 下游子任务 → 子任务 copy_context
-    含本 tenant → endpoint + SSE `async def generate()`（AsyncIterable 非 threadpool）均继承；20 并发
-    distinct-tenant = 20/20 无泄漏。get_conn 每连接读 current_tenant() → 传播断即 raise（非 fail-open）。
-    **禁 reset**（executor fork 场景丢 ctx → 那 3 处走 copy_context().run 显式传播）。单租户解析器
-    （platform.db 恰 1 active，0/>1 → raise = R-T-GATE 请求侧兜底）；多租户 = 0.1 JWT tid 解析。
-    """
-    _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())  # set-without-reset
-    return await call_next(request)
+# v0.9.0 C2 请求作用域 tenant ctx —— 本体在 `knot/api/tenant_resolution.py`（v0.9.4 step 3 抽出）。
+# ⚠️ **注册位置承重**：Starlette 反向包裹（后注册 = 更外层）→ 本行必须留在 CORS 之后、
+#    request_id_middleware 之前，使 tenant ctx 对 request_id 之内的全部下游可见。
+app.middleware("http")(tenant_resolution.tenant_context_middleware)
 
 # v0.6.0 F12：DB rename startup migration 已撤回（v0.5.0 R-67/68/74 公开承诺撤回；详 CHANGELOG）；
 # _DATA_DIR.mkdir 保留 — sqlite3.connect 需要父目录存在
