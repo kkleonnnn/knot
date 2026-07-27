@@ -468,3 +468,80 @@ def test_SEC_interim_token_still_works_on_verify(client, auth_headers):
     full = r.json()["token"]
     ok = client.get("/api/auth/me", headers={"Authorization": f"Bearer {full}"})
     assert ok.status_code == 200, f"verify 换出的完整 JWT 应可用；实际 {ok.status_code} {ok.text[:150]}"
+
+
+# ─── ⭐ SECURITY：interim_token 必须参与吊销比对（「注销所有会话」须覆盖登录中途） ────
+
+
+def test_SEC_interim_token_revoked_after_token_version_bump(client, auth_headers):
+    """⭐ 吊销漏洞修：bump token_version（= 改密 / TOTP reset / rollout 的统一吊销动作）之后，
+    旧 interim_token 必须失效。
+
+    洞的形态：`_decode_interim` 只验签 + 只看 `totp_pending`，**从不读 `ver`** —— 而签发时明明放了。
+    ⇒ 「注销所有会话」对**登录中途**的人无效：受害者改密后，攻击者手里 5 分钟窗口内的旧 interim
+    仍能通过校验，并经 verify 端点 `create_token()` **换出一张当前有效的完整 JWT**
+    （实测 bump 1→2 后换出的 JWT ver=2）⇒ 作废的凭证被升级成有效凭证、改密救不了受害者。
+    revert（去掉 ver 比对）→ 本测转红。
+    """
+    interim, secret = _enroll_then_get_interim(client, auth_headers)
+
+    # 吊销所有会话（生产触发者：改密 / 管理员 TOTP reset / rollout）
+    from knot.repositories import base, user_repo
+    conn = base.get_conn()
+    try:
+        user_repo.bump_token_version_in_tx(conn, 1)
+        conn.commit()
+    finally:
+        conn.close()
+    from knot.services import totp_service
+    totp_service.invalidate_token_version_cache(1)   # 生产写路径同样须失效缓存
+
+    r = client.post("/api/totp/verify",
+                    json={"interim_token": interim, "code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 401, (
+        f"吊销后旧 interim 仍被接受（可换出有效 JWT ⇒ 改密救不了受害者）→ {r.status_code} {r.text[:200]}"
+    )
+    assert "INTERIM_TOKEN_REVOKED" in r.text, r.text[:200]
+
+
+def test_SEC_interim_token_valid_before_revocation(client, auth_headers):
+    """反向守护（防上一条被「一律拒绝」糊弄过去）：**未**吊销时 interim 必须仍能正常换出完整 JWT。
+
+    与上一条成对 —— 只有「吊销后拒 + 未吊销通」同时成立，才说明修的是**吊销覆盖面**而非把 2FA 登录打断。
+    """
+    interim, secret = _enroll_then_get_interim(client, auth_headers)
+    r = client.post("/api/totp/verify",
+                    json={"interim_token": interim, "code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 200, f"未吊销时 verify 应通过：{r.status_code} {r.text[:200]}"
+    assert r.json().get("token"), "应换出完整 JWT"
+
+
+@pytest.mark.parametrize("bad_ver", [None, True, "1", 1.0])
+def test_SEC_interim_token_ver_type_strict(client, auth_headers, bad_ver):
+    """`ver` 类型严格化：缺失 / bool / 数字串 / 浮点一律 401。
+
+    ⚠️ 本测**必须用正确的 6 位码** —— 初版用必然错误的 `"000000"`，于是无论类型门是否生效都会因
+    「TOTP 验证失败」返 401 ⇒ **测恒绿 = tautology**（实测：把类型判定放宽成 `ver is None` 后，
+    `ver=True` 确实溜过类型门[`True == 1`]，但初版测抓不到）。用正确码后，类型门是**唯一**的拦截者：
+    门若放宽，伪造 token 会成功换出完整 JWT（200）→ 本测转红。
+    `bool` 是 `int` 子类、`1.0 == 1` ⇒ 宽松比较均会误过，故须 `type(ver) is int`。
+    """
+    import jwt as _jwt
+
+    from knot.api.deps import JWT_ALGORITHM, _get_secret
+    _interim, secret = _enroll_then_get_interim(client, auth_headers)   # 拿真 TOTP secret
+
+    payload = {"sub": "1", "totp_pending": True, "exp": 9999999999}
+    if bad_ver is not None:
+        payload["ver"] = bad_ver
+    forged = _jwt.encode(payload, _get_secret(), algorithm=JWT_ALGORITHM)
+
+    r = client.post("/api/totp/verify",
+                    json={"interim_token": forged, "code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 401, (
+        f"ver={bad_ver!r} 的伪造 interim 竟换出完整 JWT（类型门被绕过）→ {r.status_code} {r.text[:200]}"
+    )
+    # 拒绝必须来自类型/吊销门，**不是**验码失败（否则又退化成 tautology）
+    assert "TOTP 验证失败" not in r.text, (
+        f"ver={bad_ver!r} 通过了类型门、拒绝来自验码失败 ⇒ 本测未在测类型严格化：{r.text[:200]}"
+    )

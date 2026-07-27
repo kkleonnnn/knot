@@ -52,11 +52,31 @@ def create_interim_token(user_id: int, token_version: int) -> str:
 
 
 def _decode_interim(token: str) -> dict:
-    """仅本文件 verify 端点使用 — payload.totp_pending 必为 True。"""
+    """仅本文件 verify 端点使用 — payload.totp_pending 必为 True **且 ver 未被吊销**。
+
+    ⭐ SECURITY hotfix：此前本函数**只验签 + 只看 totp_pending，从不读 `ver`** —— 而
+    `create_interim_token` 明明把 `ver` 放进了 payload（:49）。后果是**「吊销所有会话」对登录中途的人无效**：
+    吊销机制 = `users.token_version + 1`（`user_repo.py:174/192`）使所有旧 token 作废（`deps.py:134-136`
+    比对 payload.ver）；但 interim token 不参与该比对 ⇒ 用户改密 / 管理员 TOTP reset 之后，攻击者手里
+    5 分钟窗口内的旧 interim **仍能通过本函数**，并经 verify 端点 `create_token()` **换出一张当前有效的
+    完整 JWT**（实测：bump 1→2 后旧 interim 仍过，换出的 JWT ver=2）⇒ **改密救不了受害者**，作废的凭证
+    被升级成有效凭证。与刚修的 2FA 绕过（`579b0f4`）落在同一条路径上，是该路径的第二个洞。
+
+    校验放在本函数（而非 verify 端点）= 守在**收敛点**：将来若新增第二个 interim 消费点自动受保护
+    （同 `579b0f4` 选「一律拒绝」而非「路径白名单」的理由 —— 少一个需要人记得同步的地方）。
+    `type(ver) is int` 严格化：`bool` 是 `int` 子类且 `True == 1`，宽松比较会让 `{"ver": true}` 误过。
+    """
     try:
         payload = jwt.decode(token, _get_secret(), algorithms=[JWT_ALGORITHM])
         if not payload.get("totp_pending"):
             raise HTTPException(status_code=401, detail="非 interim token")
+        sub = payload.get("sub")
+        ver = payload.get("ver")
+        if type(ver) is not int or not isinstance(sub, str) or not sub.isdigit():
+            raise HTTPException(status_code=401, detail="无效的 interim token")
+        # 吊销比对（与 deps.py:134-136 同口径）：payload.ver != users.token_version → 401
+        if ver != totp_service.get_token_version_cached(int(sub)):
+            raise HTTPException(status_code=401, detail="INTERIM_TOKEN_REVOKED")
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="TOTP 验证窗口超时，请重新登录")
