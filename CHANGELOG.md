@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   真正的载体读在 try 之外 ⇒ **本就 fail-closed**，我加的守卫是死代码，已删。
   **不覆盖副本维度**（R-10）：进程全局本就每副本一份，本片测只证同进程内隔离。
 
+### Chore（riding v0.9.3，不 bump 版本）
+- **R-53 stress 假红根治：绝对阈值 → 同 run 负载相对比较 + 15ms 绝对下限**（`test_audit_service_stress.py`，
+  改名 `test_R53_stress_1000_inserts_p95_load_aware`）：GH 共享 runner 负载高峰整机变慢时 p95=139ms 假红
+  （PR#256 实测：0 生产码 commit 两 run 均红、整 run 慢 50%+、本地 1.26s 过、0 改动重跑即绿）。
+  新判定 = `p95 < max(15ms, 同 run 裸 sqlite3 connect+WAL+INSERT+commit 周期 p95 × 10)`，基准取压测段
+  前后两窗口较高者。**守护力度不降（双向实证）**：本地基准 p95≈0.6ms → 下限 15ms 生效 = 与旧版等同；
+  revert-to-bad：仅 audit 层注入 +20ms（基准不动）→ 阈值回落 15ms → 断言确实转红；均匀 +18ms/连接
+  （模拟整机负载）→ 基准同膨胀 → 阈值 234ms → 假红被救。
+
 ### Deferred（R-T-GATE 就绪清单增补 —— 本片不做，已登记 CLAUDE.md + docs/plans）
 ⭐ **B-3（本片原理上修不了）**：file 层 `_local_catalog.py` + HTTP `http_spec` 凭据走**进程 env**
 （`adapters/http/executor.py:87-88` / `url_allowlist.py:30`）= 租户盲 → 租户#2 可用租户#1 凭据读其实时接口
