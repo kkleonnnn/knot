@@ -69,7 +69,13 @@ def test_no_cross_tenant_bleed_across_all_six_carrier_names(two_tenants):
     try:
         assert catalog.reload(strict=False).startswith("db")
         assert "租户1" in catalog.BUSINESS_RULES
-        assert catalog.get_table_full_names() == ["t1_db.secret_t1"]
+        # 守护者 Stage 4 §III-1：**存在/缺席断言**替代精确 `==` —— 有真 `_local_catalog.py` 的机器上
+        # （kk 开发机/内测服，gitignored 不随 worktree/CI 带过去），reload 的 file-HTTP 权威 merge 会
+        # 追加部署级 HTTP 表 → 槽内不止 1 张 ⇒ 精确 `==` 只在无该文件的环境绿 = 环境特定基线
+        # （与 $TMPDIR/knot.db 同类，本弧第 3 次）。隔离主张 = **本租户表在 + 别租户表不在**；
+        # 勿改成 stub `_load_from_files` —— 那会削弱 MUTANT-A 钉住的「槽 producer 含 file 层」接缝。
+        names_t1 = catalog.get_table_full_names()
+        assert "t1_db.secret_t1" in names_t1 and "t2_db.secret_t2" not in names_t1, names_t1
     finally:
         reset_active_tenant(tok)
 
@@ -77,7 +83,8 @@ def test_no_cross_tenant_bleed_across_all_six_carrier_names(two_tenants):
     try:
         # 关键：**不 reload**，直接读 —— v0.9.3 前此处会拿到租户#1 的全部内容
         assert "租户2" in catalog.BUSINESS_RULES, "租户#2 读到别租户 business_rules（跨租户串供）"
-        assert catalog.get_table_full_names() == ["t2_db.secret_t2"]
+        names_t2 = catalog.get_table_full_names()
+        assert "t2_db.secret_t2" in names_t2 and "t1_db.secret_t1" not in names_t2, names_t2
         assert "t2词" in catalog.LEXICON and "t1词" not in catalog.LEXICON
         assert catalog.current_catalog()["business_rules"].find("租户2") >= 0
     finally:
@@ -173,7 +180,8 @@ def test_cold_slot_lazy_loads_with_catalog_ctx(two_tenants):
         try:
             assert catalog.current_catalog()["business_rules"] == "from-ctx"   # ctx 优先
             # 而绕 ctx 的 HTTP/表族仍须能工作（走租户槽 → 触发 lazy load）
-            assert catalog.get_table_full_names() == ["t1_db.secret_t1"]
+            names = catalog.get_table_full_names()   # §III-1 存在/缺席（同上）
+            assert "t1_db.secret_t1" in names and "t2_db.secret_t2" not in names, names
         finally:
             catalog._active_catalog_ctx.reset(ctok)
     finally:

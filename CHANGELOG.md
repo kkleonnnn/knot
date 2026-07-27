@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.7.27 引入后一直在哨兵外）· **禁 `global <载体名>`** · **禁模块内裸名读** · **禁 `setattr` 载体名**（顺序无关）。
 - ⚠️ **测覆盖口径（勿笼罩）**：跨租户串供 / 代理旁路 / 槽 producer 两接缝 / lazy loader / 4 处 fail-closed 守卫
   均经 revert-to-bad 实证转红（fail-closed 用**单点 revert**：helper 变 no-op → 4 条同时红）。
-  **未证明**：`admin/datasources` 守卫（无测覆盖）· `catalog_loaders` 第二处守卫（legacy→MetadataError 路径未触达）。
+  **未证明**：**双检+RLock（并发首访不重复加载）零测覆盖 = correct-but-untested**（`tests/` 内 threading/Barrier 0 命中；对抗自核与守护者 Stage 4 各自真线程实测 reload 恰 1 次/无死锁，但无 committed 测 —— 「读者不见半成品」由 `publish()` 整槽替换结构性提供、与锁无关，`catalog_state.py` 代码内已标注）。~~`admin/datasources` 守卫 · `catalog_loaders` 第二处守卫~~（对抗自核纠：非「缺测」而是**不可达死守卫**，已删）。
   **不适用**：`sql_planner_prompts` —— 原 Stage 3 清单列它需守卫，实测其 `try` 只包**函数属性**查找、不经代理，
   真正的载体读在 try 之外 ⇒ **本就 fail-closed**，我加的守卫是死代码，已删。
   **不覆盖副本维度**（R-10）：进程全局本就每副本一份，本片测只证同进程内隔离。
