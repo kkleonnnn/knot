@@ -74,6 +74,46 @@ def seed_default_tenant(db_dir: str = DEFAULT_TENANT_DB_DIR) -> None:
     conn.close()
 
 
+def resolve_tenant_by_id(tenant_id: int) -> dict | None:
+    """v0.9.4 D6：按 tid 解析**可服务**租户 —— 存在**且** `status=='active'` 才返，否则 `None`。
+
+    为何不改 `get_tenant` 本身：`tests/test_tenant_isolation.py:56` 依赖它能取出 suspended 行来验文件级隔离。
+    ⭐ **B-2 承重**：`get_tenant` 不过滤 status（`SELECT * WHERE id=?`）⇒ 若 tenant_resolution 直接用它，
+    平台方停用租户后，该租户用户手里 **7 天有效期**（`deps.py:78` `JWT_EXPIRE_HOURS=24*7`）内的 JWT
+    **继续正常查询** —— 停用形同虚设。故解析路径必须走本函数。
+    返 `None`（而非 raise）让调用方决定语义：受保护 API → 401；不在此处表达 HTTP 语义。
+    """
+    t = get_tenant(tenant_id)
+    if t is None or t.get("status") != "active":
+        return None
+    return t
+
+
+def assert_no_second_active_tenant_served() -> None:
+    """R-T-GATE 请求侧硬门（v0.9.4 D5 —— **首次真实现**）：active 租户 **>1** 即 fail-closed。
+
+    ⭐ **B-1 承重**：LOCKED（`docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md:150`）把本函数指定为硬 CI，
+    但**此前全仓无任何实现** —— 真正在挡的只是 `resolve_single_tenant()` 抛错的**副作用**。v0.9.4 把请求
+    路径改为「按 JWT tid 解析」后，`len(active)` 这条判定就不在请求路径上了 ⇒ 必须显式补，否则 R-T-GATE
+    在请求侧**无声消失**。
+
+    ⭐ **只对 `>1`**（守护者 Stage 3 R3/MF3 裁定，**不是** `!=1`）：
+      - 名副其实（"no **second** active"）；
+      - `0 active` 交给上层语义：受保护 API 因无可解析租户自然 401，**登录端点得以返回锁定的
+        `401 账号或密码错误`**（②统一错误）而不是 500。若此处对 0 也 raise，唯一租户被 suspend 时
+        整站含 login 全部 500，与②直接打架。
+
+    **v0.9.5 lift = 删掉本函数的唯一调用点（一行）** —— 语义单点、可 review。
+    """
+    n = len(list_active_tenants())
+    if n > 1:
+        raise TenantContextError(
+            f"R-T-GATE：检测到 {n} 个 active 租户，隔离栈就绪前不得同时服务多租户 —— 拒绝服务（fail-closed）。"
+            "就绪清单见 CLAUDE.md §R-T-GATE（per-tenant file catalog / http_spec 凭据 / egress 域化 / "
+            "开通口令 / 鉴权拆分 / audit-on-drift）"
+        )
+
+
 def resolve_single_tenant() -> dict:
     """v0.9.0 单租户解析器：platform.db tenants 恰 1 active → 返之；0 或 >1 → raise（fail-closed）。
 
