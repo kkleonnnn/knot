@@ -37,7 +37,28 @@ _REQUIRES_KEY = pytest.mark.skipif(
 _CATALOG, _CASES = load_semantic_corpus()
 # 保真度（2026-07-18）：模型 = 生产 sql_planner（非 haiku 默认）+ 带 business_rules；否则假回归。
 _MODEL = resolve_eval_model()[0]
-_BUSINESS_RULES = resolve_business_rules(_CATALOG)[0]
+_BR_CACHE: dict = {}
+
+
+def _business_rules() -> str:
+    """⭐ v0.9.3 R-8'：**必须在测执行期求值，不能在模块 import / pytest collection 期**。
+
+    collection 期 conftest 的 autouse tenant ctx 尚未起 ⇒ catalog 载体 per-tenant 后读
+    `_cl.BUSINESS_RULES` 会抛 `TenantContextError` → 被 harness 吞成 "" → live 门在
+    **business_rules 缺失**下跑 → 命中率下滑会被误判成「语义层回归」。
+    这正是 2026-07-18 假回归的同型复发 —— 而本参数本身就是那次事故的产物，绝不能被静默拆掉。
+    故：① 延迟到测体内求值（此时有 ctx）；② `[0]` 会丢掉唯一诊断，这里把 source 标签打出来
+    并对「缺 ctx」硬断言，让降级**响亮失败**而非静默改变门禁语义。
+    """
+    if "v" not in _BR_CACHE:
+        rules, src = resolve_business_rules(_CATALOG)
+        print(f"[eval] business_rules 来源={src} 长度={len(rules)}")
+        assert "缺 tenant ctx" not in src, (
+            f"business_rules 因缺 tenant ctx 静默为空（src={src}）—— 会造成假回归（R-8'）；"
+            "eval 入口须在有 tenant ctx 时求值"
+        )
+        _BR_CACHE["v"] = rules
+    return _BR_CACHE["v"]
 
 # 门禁阈值（守护者 §E-1 护栏 b：假域留 buffer，稳 ≥95% 再 assert ≥90%）
 _HIT_RATE_GATE = 0.90
@@ -47,7 +68,7 @@ _MISJUDGE_GATE = 0   # 误判=0 硬安全线（守护者 §E-1 护栏 c）
 async def _parse_one(question: str, metrics: list[dict]):
     res = await parser.parse_to_logicform(
         question, metrics, model_key=_MODEL, openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
-        business_rules=_BUSINESS_RULES,  # 生产同参（query_steps.py:235）
+        business_rules=_business_rules(),  # 生产同参（query_steps.py:235）；测执行期求值 — R-8'
     )
     return res.get("logicform")
 

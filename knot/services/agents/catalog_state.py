@@ -42,7 +42,8 @@ _SLOT_KEYS = ("lexicon", "tables", "business_rules", "relations", "field_labels"
 
 #: {tenant_cache_key("catalog"): {6 slot 键}} —— 进程内，按租户分槽
 _state: dict = {}
-#: lazy miss load 与原子发布共用；**RLock**（reentrant）—— get_state 持锁调 reload，reload 内再调 publish
+#: lazy miss load 与发布共用；**RLock**（reentrant）—— get_state 持锁调 reload，reload 内再调 publish。
+#: 注意职责边界：本锁只防**冷槽重复加载**；「读者永不见半成品」由 `publish()` 的**整槽替换**（GIL）提供，与锁无关。
 _lock = threading.RLock()
 
 
@@ -82,7 +83,9 @@ def get_state() -> dict:
 
     冷槽在「每租户第一次 query 的 clarifier」时**保证发生**（时序：clarifier `query.py:242` 早于
     reload `query.py:290`）—— 故 lazy loader 不是边角优化，是 F-1'「删 warm-up」的前提。
-    双检 + RLock：并发首访只加载一次，且不会看到半成品（reload 内部构造完才 publish）。
+    双检 + RLock 只保证**并发首访不重复加载**（实测 4/24 线程各自 barrier 冷访 → reload 恰 1 次、无死锁）。
+    「读者不见半成品」**不是**锁提供的 —— 是 `publish()` 整槽替换 + reload 内部构造完才发布提供的
+    （对抗自核纠：删双检 / 锁换 no-op 后 26 测全绿 ⇒ 锁不承担正确性，仅省一次重复加载）。
     """
     k = _key()
     slot = _state.get(k)

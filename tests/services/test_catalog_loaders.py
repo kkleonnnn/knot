@@ -17,7 +17,9 @@ _MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_L
 
 
 def _py_files():
-    for base in ("knot", "tests"):
+    # v0.9.3 对抗自核：加 scripts/ —— 两个 eval CLI 正是本片新接 tenant ctx 的 catalog 读者，
+    # 将来在那里写值绑 / setattr 载体名不该逃过哨兵。
+    for base in ("knot", "tests", "scripts"):
         yield from (_REPO / base).rglob("*.py")
 
 
@@ -123,6 +125,32 @@ def test_no_setattr_on_carrier_names_anywhere():
             arg = node.args[1]
             if isinstance(arg, ast.Constant) and arg.value in _MUTABLE_GLOBALS:
                 offenders.append(f"{p.relative_to(_REPO)}:{node.lineno} setattr(..., {arg.value!r}, ...)")
+    # v0.9.3 对抗自核补两条**实测可达**的绕过形（原哨兵只匹配 `setattr(x, "<字面名>", v)`）：
+    #   (a) pytest 单字符串 target 形 `monkeypatch.setattr("....catalog.TABLES", v)` —— args[1] 是**值**不是名字
+    #   (b) 普通属性赋值 `catalog.TABLES = v` —— 是 ast.Attribute store，根本没有 setattr 调用节点
+    # 两形都会把名字写进模块 __dict__ ⇒ 代理永久死亡（且旁路是静默的，只在后续 reload 才炸、且炸在别的测上）。
+    for p in _py_files():
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            # (a) 单字符串 target："<dotted.path>.<载体名>"
+            if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
+                t = node.args[0].value
+                fn = node.func
+                name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+                if (name == "setattr" and isinstance(t, str)
+                        and t.rsplit(".", 1)[-1] in _MUTABLE_GLOBALS and "catalog" in t):
+                    offenders.append(f"{p.relative_to(_REPO)}:{node.lineno} setattr({t!r}, ...) 单字符串 target 形")
+            # (b) 普通属性赋值 `<x>.<载体名> = ...`（x 名字里含 catalog / _cl / _cat 才算，避免误报同名字段）
+            if isinstance(node, ast.Assign):
+                for tgt in node.targets:
+                    if (isinstance(tgt, ast.Attribute) and tgt.attr in _MUTABLE_GLOBALS
+                            and isinstance(tgt.value, ast.Name)
+                            and any(k in tgt.value.id.lower() for k in ("catalog", "_cl", "_cat"))):
+                        offenders.append(
+                            f"{p.relative_to(_REPO)}:{node.lineno} {tgt.value.id}.{tgt.attr} = ... 属性赋值形")
     assert not offenders, (
         "setattr 载体名会把该名写进模块 __dict__ → PEP 562 代理永久失效（monkeypatch teardown 亦不会 "
         "delattr，反而把冻结快照 setattr 回去）。改用 catalog_state.publish(...) 显式发布整槽：\n  "

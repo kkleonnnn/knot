@@ -47,11 +47,12 @@ _active_catalog_ctx: contextvars.ContextVar = contextvars.ContextVar(
 
 
 def current_catalog() -> dict:
-    """当前请求生效的 catalog 内容（ContextVar 优先 + 模块全局回退）。
+    """当前请求生效的 catalog 内容（ContextVar 优先 + **当前租户默认槽**回退）。
 
     query 链路（query_helper 入口捕获 per-user active catalog → set_active_catalog_ctx）→ 读 ContextVar；
-    非 query 路径（startup / admin reload / http_planner / conversations 脱敏）→ ContextVar 未 set →
-    回退模块全局（D1 / R-PB-A1-15 — 与直读 LEXICON/TABLES/... 等价 byte-equal）。
+    非 query 路径（admin reload / http_planner / conversations 脱敏）→ ContextVar 未 set →
+    **v0.9.3 起回退到当前租户的默认 catalog 槽**（此前回退进程全局 = 跨租户默认供数通道）；
+    无 **tenant** ctx 则 fail-closed raise。
     返回 {lexicon, tables, business_rules, relations, field_labels, catalog_id}（catalog_id 全局回退时 None）。
     """
     ctx = _active_catalog_ctx.get()

@@ -381,7 +381,7 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 > v0.9.3 catalog 载体 ✅ · **B-3 三项（v0.9.3 原理上修不了，必须单独做）**：per-tenant file catalog
 > （`_local_catalog.py` 现为单一进程级模块，空-DB 租户会被注入部署方真实业务规则+库表）+ **per-tenant
 > `http_spec` 凭据**（`adapters/http/executor.py:87-88` 走进程 env = 租户盲 → 租户#2 可用租户#1 凭据读其
-> 实时接口 = **跨租户数据出境**）+ **egress 租户域化**（`url_allowlist.py:30` host 白名单同为进程 env）·
+> 实时接口 = **跨租户数据出境**）+ **egress 租户域化**（`url_allowlist.py:30` host 白名单同为进程 env）+ **`/api/admin/catalog` 的 `defaults` 字段**（`api/catalog.py:52` → `get_defaults_from_files()` **绕过租户槽**直吐部署级 file catalog 全文 ⇒ lift 后租户#2 admin 即可见部署方真实库表+业务口径；分槽挡不住它）·
 > prompt seed / TOTP rollout 的 `resolve_single_tenant`（`main.py:103/169`）· `replicas=1` 运维门（进程全局
 > 每副本一份，分布式失效前）· `_business_rules` 归正 · JWT tid 解析 + 鉴权拆分（v0.9.4-5）。修订程序：v0.8→v0.9 整体审核三方（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ 本仪式 Stage 1-3 + CHANGELOG 修订声明；不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8）。
 >

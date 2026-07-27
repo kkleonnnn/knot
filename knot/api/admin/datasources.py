@@ -12,7 +12,6 @@ from knot.api._audit_helpers import audit
 from knot.api.deps import require_admin
 from knot.api.schemas import DataSourceRequest, UpdateDataSourceRequest
 from knot.core.tenant_context import current_tenant, tenant_cache_key
-from knot.core.tenant_context import reraise_if_tenant_error as _reraise_if_tenant_error
 from knot.repositories import data_source_repo
 
 
@@ -288,8 +287,8 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
     try:
         from knot.services.agents import catalog as _catalog
         tables_total += len(_catalog.get_http_tables())
-    except Exception as e:
-        _reraise_if_tenant_error(e)   # D8'：缺 ctx 不得静默把 HTTP 表数记成 0（观测失真 + 被 tid 缓存固化）
+    except Exception:
+        pass  # v0.9.3：此处不放 TenantContextError 守卫 —— 本函数早在 :236 `current_tenant()` 就会 raise，放了是死代码
 
     result = {
         "total_schemas": schemas,
