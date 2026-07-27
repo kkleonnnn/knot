@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > 评审链：4 面 grounded 测绘 + completeness critic → Stage 1 → Codex Stage 2 major-revise（10 redline）→
 > 守护者 Stage 3 concur major-revise（3 blocking + 8 should-fix + F 裁定）→ Stage 1' → 守护者复核 **PASS 放行**（1 机械必修）。
 
+### Security（hotfix · riding v0.9.3 不 bump 版本）
+- **⭐ 修两步验证（2FA）绕过 —— interim_token 作用域从未被执行**（`knot/api/deps.py` `get_current_user`）：
+  interim_token（`totp_pending=true`）只在「口令已过、**TOTP 尚未过**」时签发（`api/auth.py:30-36`），
+  其 docstring 与模块设计注释都写明「仅 `/api/totp/verify` 接受」—— 但**从未有任何代码执行该限制**：
+  `get_current_user` 原先仅对它「跳过吊销检查」（`if not payload.get("totp_pending")`），**从不拒绝它**。
+  ⇒ 只掌握口令的人 login 拿到 interim_token 后，可在 5 分钟有效期内以该用户身份访问**任意端点**
+  （含 `/api/admin/*`）；且因签发前提是「用户已 enroll」，`deps.py:141-148` 的强制 enroll 门恒放行
+  ⇒ **第二因子在这条路径上完全失效**。已实测复现：仅凭口令拿 interim_token → `GET /api/admin/users` 200。
+  **修**：`get_current_user` 对 `totp_pending` token **一律 401**（`INTERIM_TOKEN_NOT_ACCEPTED`）。
+  **无需路径白名单** —— 唯一合法消费者 `/api/totp/verify` 从**请求体**读 token 并走 `_decode_interim`
+  自校验（`totp.py:118-124`），根本不经 `get_current_user`。附带收紧：吊销检查现对所有被接受的 token
+  无条件生效（此前 interim 会整段跳过）。
+- 修 `frontend/src/api.js` 陈旧注释（称 enroll-init「interim_token 或正常 JWT」皆收 —— v0.6.5.2 把
+  interim 从 header 挪到 body 后已不成立；留着会误导后人以为 interim 本该到处可用）。
+
 ### Security / Changed
 - **6 个模块全局 → per-tenant 载体**：新 `services/agents/catalog_state.py`（**tid 单键单默认槽** + keyword-only
   `publish()` 整槽原子替换 + 双检 RLock + **lazy miss loader** + 运行期断言）。`catalog.py` 6 名**物理删除**，
@@ -42,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   （`tests/services/test_knot_catalog.py:67` 是活调用者）· `_template_catalog.py:106` 同名物不动。
 
 ### Tests
+- **安全回归（2FA 绕过）**：`tests/api/test_totp_2fa.py` +4 —— interim_token 在 3 个业务端点（`/api/conversations`、`/api/admin/users`、`/api/auth/me`）**各自**被拒（参数化，非聚合）+ **反向守护**（合法 verify 路径仍通、换出的完整 JWT 仍可用 —— 防「一律拒绝所有 token」把 2FA 登录整条打断还误判修好）。revert-to-bad 实证：恢复原形态 → 3 条拒收测各自转红、反向测保持绿。
 - 新 `tests/test_catalog_tenant_isolation.py`（17）：跨租户串供关闭（复刻测绘**已实证串供**的双租户形态）·
   代理未被静默旁路 · identity 契约 · B-2 非对称（槽数不因 active catalog 增加）· **冷槽两形态**（有/无 catalog
   ctx —— 守护者 F-1' 硬条件，明示「只测 query 路径不算普适」）· fail-closed 穷举 · **file HTTP 表在槽里存活** +

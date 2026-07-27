@@ -119,13 +119,24 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         payload = jwt.decode(creds.credentials, _get_secret(), algorithms=[JWT_ALGORITHM])
         user_id = int(payload["sub"])
 
+        # ⭐ SECURITY hotfix（v0.9.3.x）：**interim_token 一律不得用于业务请求**。
+        # interim_token（totp_pending=true）只在「口令已过、TOTP 尚未过」时签发（api/auth.py:30-36），
+        # 其 docstring 与设计意图都是「仅 /api/totp/verify 接受」——但此前**从未有任何代码执行该限制**：
+        # 本函数原先只是对它「跳过吊销检查」，从不拒绝它，于是它在任意端点都被当作有效凭证。
+        # 后果 = **两步验证被绕过**：只掌握口令的人 login 拿到 interim_token 后，可在 5 分钟内以该用户
+        # 身份访问任意端点（含 /api/admin/*）；且因签发前提是「用户已 enroll」，:141-148 的 enroll 门
+        # 也恒放行 ⇒ 第二因子在这条路径上完全失效（已实测复现 /api/admin/users 200）。
+        # 修法**无需路径白名单**：唯一合法消费者 /api/totp/verify 从**请求体**读 token 并走
+        # api/totp._decode_interim 自校验（totp.py:118-124），根本不经本函数 ⇒ 这里一律拒绝即可。
+        if payload.get("totp_pending"):
+            raise HTTPException(status_code=401, detail="INTERIM_TOKEN_NOT_ACCEPTED")
+
         # v0.6.2.0 R-PB-B1-13：JWT 吊销 — payload.ver != users.token_version → 401
-        # interim_token (totp_pending=true) 不走此检查（由 api/totp.verify 单独处理）
-        if not payload.get("totp_pending"):
-            from knot.services.totp_service import get_token_version_cached
-            current_ver = get_token_version_cached(user_id)
-            if int(payload.get("ver", 0)) != current_ver:
-                raise HTTPException(status_code=401, detail="JWT_REVOKED")
+        # （上面已拒 interim ⇒ 此处对所有被接受的 token 无条件生效；此前 interim 会整段跳过吊销检查）
+        from knot.services.totp_service import get_token_version_cached
+        current_ver = get_token_version_cached(user_id)
+        if int(payload.get("ver", 0)) != current_ver:
+            raise HTTPException(status_code=401, detail="JWT_REVOKED")
 
         user = get_user_by_id(user_id)
         if not user or not user["is_active"]:

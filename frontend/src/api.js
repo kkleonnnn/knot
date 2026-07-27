@@ -5,7 +5,7 @@
  * 错误抛出含 .status + .detail 字段供调用方区分（如 403 totp_enroll_required）
  *
  * v0.6.2.0 加 4 TOTP endpoints（v0.6.5.2 P2-a：删过期 status 注释，前后端均无该端点）：
- *   enrollInit  → POST /api/totp/enroll-init       interim_token 或正常 JWT
+ *   enrollInit  → POST /api/totp/enroll-init       **完整 JWT**（interim_token 自 v0.9.3.x 起被后端拒收）
  *   enrollComplete → POST /api/totp/enroll-complete + 1 个 6 位码 → recovery_codes[10]
  *   verify      → POST /api/totp/verify  interim_token 在 body（v0.6.5.2 C1）→ 完整 JWT
  *   reset       → POST /api/totp/reset (admin only) — target_user_id（v0.6.5.2 C2）
