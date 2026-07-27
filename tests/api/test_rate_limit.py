@@ -13,7 +13,8 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
+
+from tests.conftest import NoAmbientTenantTestClient
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def client(tmp_db_path):  # noqa: ARG001 — tmp_db_path 用于创建带 admin �
     from knot.api._rate_limit import _reset_for_tests
     from knot.main import app
     _reset_for_tests()
-    yield TestClient(app)
+    yield NoAmbientTenantTestClient(app)
     _reset_for_tests()  # 测试间隔离
 
 

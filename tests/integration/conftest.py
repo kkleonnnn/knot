@@ -6,7 +6,8 @@ import os
 import tempfile
 
 import pytest
-from fastapi.testclient import TestClient
+
+from tests.conftest import NoAmbientTenantTestClient
 
 
 @pytest.fixture()
@@ -33,7 +34,7 @@ def client(monkeypatch):
 
     # 重新 import main 触发 app factory（模块级启动序已跑过；TestClient 共用 app）
     from knot.main import app
-    with TestClient(app) as c:
+    with NoAmbientTenantTestClient(app) as c:
         yield c
 
     import shutil
