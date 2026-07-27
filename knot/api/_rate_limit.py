@@ -94,7 +94,12 @@ def _tenant_authed_key(kind: str, user_id: int) -> str:
     """v0.9.1 MF8：authed（user_id 键）桶的租户前缀键 `{tid}:{kind}:{user_id}`。
 
     tid 源同 tenant_cache_key（`current_tenant()["id"]`）—— 防跨租户同 user_id 撞桶（DoS）。
-    tenant middleware 对每请求已 set ctx（含 auth 前的 totp-verify interim 阶段）→ current_tenant() 可用。
+    ⚠️ **v0.9.4 step 5 订正**：原文写「tenant middleware 对每请求已 set ctx（含 auth 前的
+    totp-verify interim 阶段）」—— **该前提自 v0.9.4 起不再普遍成立**：middleware 只在「凭证可用
+    且租户可服务」时设 ctx，否则不设（见 api/tenant_resolution.resolve_for_request）。
+    本函数 4 个调用点各自的 ctx 来源改为**显式**：`totp_verify` 在 `totp.interim_session` 内（该 CM
+    自建 ctx）；`totp_enroll` / `enroll_complete` / `query` 在 `get_current_user` 之后（token 有 tid
+    ⇒ middleware 已设 + `assert_tenant_context` 已比对）。**无 ctx 仍 raise（fail-closed，符合预期）。**
     """
     return f"{current_tenant()['id']}:{kind}:{user_id}"
 

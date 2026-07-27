@@ -10,22 +10,81 @@
 step 5 只改 `resolve_for_request` 内部（单租户解析器 → 读 JWT tid），中间件外壳不动。
 """
 
+import jwt
+from fastapi.security.utils import get_authorization_scheme_param
+
+from knot.api.deps import JWT_ALGORITHM, _get_secret
 from knot.core import tenant_context as _tenant_ctx
 from knot.repositories import tenant_repo
 
+# ⚠️ **临时表 —— 每一项都写明摘除条件；不得增项，`test_R14_legacy_paths_exact` 断言精确内容。**
+# 这两条路径**没有可用于决定租户的 JWT**，本步暂留旧的单租户解析器。
+# 之所以敢留：R-T-GATE 仍硬锁第二租户（`assert_no_second_active_tenant_served`）⇒ 单租户下二者等价；
+# 之所以必须写成**显式表而不是「解析不出就回退单租户」**：后者就是 OOS-1v2 禁的 fail-open 全局回退，
+# 一旦写成通用回退，将来任何解析失败都会静默落到某个默认租户 = 跨租户供数。
+_LEGACY_SINGLE_TENANT_PATHS = frozenset({
+    # step 7 改为端点内按 `?c=<slug>` 自建 ctx → 届时**删本行**
+    "/api/auth/login",
+    # 无 JWT（调度器共享密钥）⇒ tid 不适用。已登记 R-T-GATE 就绪清单「调度器 tick 租户域化」，
+    # 本片不动（且「一个全局密钥能 fan-out 所有租户」是独立的跨租户操作权问题，不在本片范围）
+    "/api/bi/scheduler/tick",
+})
 
-def resolve_for_request(request) -> dict:
-    """解析本请求所属租户 → tenant dict。
 
-    step 3 = 原样搬迁：仍走**单租户解析器**（platform.db 恰 1 active，0/>1 → raise
-    = R-T-GATE 请求侧兜底），故 `request` 形参此刻未被读取 —— 它是 step 5 的接口预留位
-    （届时从 `Authorization` 里的 JWT 取 tid）。**签名先定、内部后换**，让 step 5 的 diff
-    只落在本函数体内、不再触碰中间件与 app 工厂。
+def _bearer_payload(request) -> dict | None:
+    """从 `Authorization` 取 JWT payload（验签）；取不到 / 不可用 → None（**不抛**）。
 
-    fail-closed 契约（step 5 后仍守）：**解析不出租户就 raise，绝不回退到某个默认租户**
-    —— 回退 = 静默跨租户供数（OOS-1v2）。
+    ⚠️ **解析必须至少与 `fastapi.security.HTTPBearer` 一样宽松**，故直接复用它的
+    `get_authorization_scheme_param`：若本函数比 `get_current_user` 依赖的 HTTPBearer **更严**，
+    就会出现「middleware 认为没凭证 → 不设 ctx；HTTPBearer 认为有凭证 → 鉴权通过 → 端点碰 DB
+    → fail-closed **500**」的组合。更宽松无害（最坏是设了 ctx 而随后 401）；更严则制造 500。
+    D9「Bearer 精确匹配」在此的正确读法是「不要 `startswith` 式糊弄」，不是「比 HTTPBearer 更严」。
+
+    `InvalidKeyError`（我们自己的密钥有问题 = 服务端配置错）**刻意不吞** —— 那不是凭证问题。
     """
-    return tenant_repo.resolve_single_tenant()
+    scheme, token = get_authorization_scheme_param(request.headers.get("authorization") or "")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    try:
+        return jwt.decode(token, _get_secret(), algorithms=[JWT_ALGORITHM])
+    except jwt.InvalidTokenError:
+        return None      # 畸形 / 过期 / 签名不符 → 不设 ctx；401 由 get_current_user 出
+
+
+def resolve_for_request(request) -> dict | None:
+    """解析本请求所属租户 → tenant dict，**无法解析则返回 None（中间件届时不设 ctx）**。
+
+    ⭐ **本步的核心设计选择（偏离草案 D9 的字面，理由如下）：中间件永不 401。**
+    草案写「缺失/畸形一律 401」。若真由中间件出 401，就必须让它知道「哪些路径本来就没 token」
+    —— SPA / 静态挂载 / docs / OPTIONS 预检 / login —— 那是**一份会漂移的路径清单**，正是 #258
+    刻意避开的东西（漏一条 = 打断跨域前端或把用户锁在登录页外）。
+    → 改为：**中间件只在「凭证可用且租户可服务」时设 ctx，否则什么都不做**；401 的责任回到
+    `get_current_user`（鉴权本来就该在那），它对 tid 缺失/畸形/租户不可服务一律 401。
+    效果等价、且**不需要任何「无 token 端点」清单**。
+    ⚠️ 不设 ctx **不等于**放行：下游任何碰 DB 的代码都会撞 fail-closed（`current_tenant()` raise）
+    ⇒ 漏网只会**响亮崩掉**，不会静默跨租户供数。
+
+    顺序：**先 R-T-GATE 硬门，再解析 tid**（D5）。gate 只对 **>1 个 active 租户** raise；
+    0 active 交由上层语义（受保护 API 因无可解析租户自然 401；login 得以返回统一的
+    「账号或密码错误」而不是 500）。v0.9.5 lift = 删 gate 那一行。
+    """
+    tenant_repo.assert_no_second_active_tenant_served()          # D5 · R-T-GATE 请求侧硬门
+
+    if request.url.path in _LEGACY_SINGLE_TENANT_PATHS:
+        return tenant_repo.resolve_single_tenant()
+
+    payload = _bearer_payload(request)
+    if payload is None:
+        return None
+
+    tid = payload.get("tid")
+    # R-10 D9 严格化：`type(tid) is int and tid > 0`。实测 sqlite3 INTEGER affinity 会把
+    # `'1'` / `1.0` / `True` 三者都匹配到整型 id=1 ⇒ 松了就是可伪造的租户选择。
+    if type(tid) is not int or tid <= 0:
+        return None
+
+    # 停用 / 不存在 → None（**绝不回退**到任何默认租户 —— 回退 = 静默跨租户供数，OOS-1v2）
+    return tenant_repo.resolve_tenant_by_id(tid)
 
 
 async def tenant_context_middleware(request, call_next):
@@ -36,6 +95,11 @@ async def tenant_context_middleware(request, call_next):
     含本 tenant → endpoint + SSE `async def generate()`（AsyncIterable 非 threadpool）均继承；20 并发
     distinct-tenant = 20/20 无泄漏。get_conn 每连接读 current_tenant() → 传播断即 raise（非 fail-open）。
     **禁 reset**（executor fork 场景丢 ctx → 那 3 处走 copy_context().run 显式传播）。
+
+    v0.9.4 step 5：`resolve_for_request` 可能返 **None**（无可用凭证 / 租户不可服务）⇒ 此时
+    **不设 ctx**，让 fail-closed 接管（见 resolve_for_request docstring：中间件永不 401）。
     """
-    _tenant_ctx.set_active_tenant(resolve_for_request(request))  # set-without-reset
+    tenant = resolve_for_request(request)
+    if tenant is not None:
+        _tenant_ctx.set_active_tenant(tenant)   # set-without-reset
     return await call_next(request)

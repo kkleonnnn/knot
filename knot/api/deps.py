@@ -11,6 +11,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from knot.core.tenant_context import TenantContextError, assert_tenant_context
 from knot.repositories.user_repo import get_user_by_id
 
 # v0.6.0.8 MUST-1：废除 fallback 默认值。任何下列情况 → sys.exit(1)：
@@ -141,6 +142,26 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         # interim 的校验全在 api/totp.interim_session（v0.9.4 R-12 唯一入口），根本不经本函数 ⇒ 这里一律拒绝即可。
         if payload.get("totp_pending"):
             raise HTTPException(status_code=401, detail="INTERIM_TOKEN_NOT_ACCEPTED")
+
+        # ⭐ v0.9.4 D8/D9/B-4：**tid 门 + 租户漂移 tripwire**，必须在**任何读租户库之前**
+        # （下一句 get_token_version_cached 就读 users 表）。
+        # ① 严格类型（D9）：sqlite3 INTEGER affinity 实测把 `'1'`/`1.0`/`True` 都匹配到 id=1
+        #    ⇒ 松了 tid 就是可伪造的「选公司」参数。
+        # ② **判别式是 tid 有无、不是 ver**（R8 裁定）：升级前签发的存量 token 无 tid → 401 全员重登一次
+        #    （现网部署 = `Recreate` 关掉再起，新旧版本不同时 serving ⇒ 无登录抖动循环，详 DEPLOY）。
+        # ③ 漂移检查（kk 2026-07-27 决策②「做，要接上」）：本片引入的新失败模式是
+        #    「**ctx 非 None 但是错的租户**」—— `get_conn` 只判 None，对它免疫。`assert_tenant_context`
+        #    比对 ctx 里的 id 与本 token 声明的 tid，不一致即 fail-closed。它此前 **0 生产调用点**，
+        #    自此接上。中间件设 ctx 与本处比对**同源同 token** ⇒ 正常路径恒相等；不等即代表
+        #    中间件没设（租户停用/不存在）或 ctx 被别处污染。
+        tid = payload.get("tid")
+        if type(tid) is not int or tid <= 0:
+            raise HTTPException(status_code=401, detail="JWT_NO_TID")
+        try:
+            assert_tenant_context(tid)
+        except TenantContextError:
+            # 显式 401（不靠函末 `except Exception` 兜）—— 运维要能把「租户不可服务」与「坏 token」分开
+            raise HTTPException(status_code=401, detail="TENANT_UNAVAILABLE")
 
         # v0.6.2.0 R-PB-B1-13：JWT 吊销 — payload.ver != users.token_version → 401
         # （上面已拒 interim ⇒ 此处对所有被接受的 token 无条件生效；此前 interim 会整段跳过吊销检查）
