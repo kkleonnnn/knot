@@ -6,16 +6,20 @@ import pytest
 
 
 @pytest.fixture()
-def tmp_db_path(monkeypatch):
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_test_")
-    os.close(fd)
-    os.unlink(path)
+def tmp_db_path(tmp_path, monkeypatch):
+    """v0.9.3 对抗自核修：原用 `tempfile.mkstemp` —— 那是 v0.9.0 前的单文件布局写法。
+
+    v0.9.0 起 `base.get_conn` = `Path(SQLITE_DB_PATH).parent / current_tenant()["db_dir"] / "knot.db"`，
+    conftest autouse ctx 的 `db_dir='.'` ⇒ mkstemp 的**随机文件名被整个丢弃**，本模块 8 个测实际读写
+    `$TMPDIR/knot.db` —— 一个跨测、跨 run、**从不删除**的机器级共享库 ⇒ 局部/中断/`-k` 跑法会把 catalogs
+    内容留下、污染此后每一次全量跑（正是我此前那条「_SOURCE=='db' 多文件序偶发」的机制）。
+    改用 pytest `tmp_path`（每测独立目录、自动清理）。
+    """
+    path = tmp_path / "knot.db"
     from knot.repositories import base as base_mod
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
+    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", str(path))
     base_mod.init_db()
-    yield path
-    if os.path.exists(path):
-        os.unlink(path)
+    yield str(path)
 
 
 def test_example_fallback_loaded_when_no_db_no_real(tmp_db_path):

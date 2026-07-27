@@ -5,7 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.2 — uploads.db per-tenant 化（隔离栈第二刀）
+## [Unreleased] - v0.9.3 — catalog 载体 per-tenant 化（隔离栈第三刀）
+
+> v0.9 多租户 MINOR 第四个 PATCH。catalog 是**现存唯一一处「读隔离、写不隔离」**的状态：`reload()` 读当前租户库
+> （全程经 tenant-scoped `get_conn`）、写**进程全局** —— 已端到端实证跨租户串供（租户#1 reload 后切租户#2 ctx，
+> 6 个 module global 全部双向串）。**定性：R-T-GATE 当前硬锁第二租户 ⇒ 今日线上无 live 泄漏**，本片是 lift 前置账。
+> 评审链：4 面 grounded 测绘 + completeness critic → Stage 1 → Codex Stage 2 major-revise（10 redline）→
+> 守护者 Stage 3 concur major-revise（3 blocking + 8 should-fix + F 裁定）→ Stage 1' → 守护者复核 **PASS 放行**（1 机械必修）。
+
+### Security / Changed
+- **6 个模块全局 → per-tenant 载体**：新 `services/agents/catalog_state.py`（**tid 单键单默认槽** + keyword-only
+  `publish()` 整槽原子替换 + 双检 RLock + **lazy miss loader** + 运行期断言）。`catalog.py` 6 名**物理删除**，
+  改由 **PEP 562 `__getattr__` 代理**到租户槽 → 13 个 importer 的 `catalog.TABLES` 写法 **byte-equal 即租户感知**
+  （可行性前提：全仓 0 处 `from ...catalog import <载体名>` 值绑，已有 AST 哨兵守着）。
+- **载体键刻意只有 tid 一维（R-2 非对称，承重）**：`catalog_loaders._load_from_db` 硬编 `get_catalog(1)`
+  ⇒ 若按 active catalog_id 分槽，active catalog=7 的用户**每发一次 query** 就把 catalog#1 的口径写进 (tid,7) 槽
+  = 租户内跨 catalog 口径污染且绿测。reload 只落租户默认槽；per-request active catalog 走 ContextVar（另一载体）。
+- **槽 producer 必须是完整 reload 流水线（R-3'）**：DB catalog#1 ⊕ file merge/fallback ⊕ source_type 推断。
+  **严禁**用 `query_helper._parse_catalog_content`（DB-only）造槽 —— 会丢 file 层：`business_rules` 变空、
+  `schema_filter` 丢 file lexicon、**最重的是 http_planner 丢 file HTTP 虚拟表 → `pick_http_route` 恒 None →
+  HTTP 查询静默落 SQL**（v0.7.29b bug 类复发）。
+- **`current_catalog()` 回退目标：进程全局 → 当前租户默认槽**；租户 ctx 本身仍 fail-closed。
+  identity 契约保持（`cur["tables"] is catalog.TABLES` 等三条 `is` 断言仍成立）。
+- **删 import 期无条件 `reload()`**（原在无 tenant ctx 下跑 → 静默降级加载 `_template_catalog` demo 表）
+  + **删启动 warm-up**（F-1'）；冷槽由 lazy miss loader 兜。
+- **fail-closed 穷举**：新 `core/tenant_context.reraise_if_tenant_error()` 单一 helper，6 处 catalog 读的
+  fail-soft 吞点接入 —— 其中 `desensitize.py`（**安全最重**：返 {} → alias_map 空 → scrub 全 no-op → 非 admin
+  裸看内部库表全名/错误原文）· `llm_prompt_builder`/relations 段（静默空 → LLM 无 JOIN → 隐式笛卡尔/错数）·
+  `catalog_loaders` ×2（降级 = 全体租户共用部署级 file/legacy catalog）· `query_helper.capture_active_catalog` ·
+  `admin/datasources` HTTP 表计数。
+- **`get_http_spec` 双解析窗口消除**：原先先经 `is_http_table` 扫一遍再自己扫，两次之间夹着每-query `reload()`
+  → 可能 `is_http_table=True` 而取 spec 返 None → 静默落 SQL。
+- **观测（F-3'：仅结构化日志，不加 `/metrics`、不新增 audit action）**：冷槽加载 INFO / 槽发布 DEBUG，
+  记 tenant/source/规模/耗时，**严禁记 catalog 内容**（business_rules/lexicon = 业务口径，敏感）。
+- **§II 机械必修（守护者）**：`get_field_mapping` 删（全仓 0 调用者）· `get_table_full_names` 转访问器
+  （`tests/services/test_knot_catalog.py:67` 是活调用者）· `_template_catalog.py:106` 同名物不动。
+
+### Tests
+- 新 `tests/test_catalog_tenant_isolation.py`（17）：跨租户串供关闭（复刻测绘**已实证串供**的双租户形态）·
+  代理未被静默旁路 · identity 契约 · B-2 非对称（槽数不因 active catalog 增加）· **冷槽两形态**（有/无 catalog
+  ctx —— 守护者 F-1' 硬条件，明示「只测 query 路径不算普适」）· fail-closed 穷举 · **file HTTP 表在槽里存活** +
+  **DB 置空时 file 规则 fallback**（两个接缝共同钉死「槽 producer 必须是完整流水线」）· 日志不含 catalog 内容 ·
+  OOS-1v2 无租户列。
+- **哨兵四件套**（`tests/services/test_catalog_loaders.py`）：禁 from-import 值绑（**补 `FIELD_LABELS`** ——
+  v0.7.27 引入后一直在哨兵外）· **禁 `global <载体名>`** · **禁模块内裸名读** · **禁 `setattr` 载体名**（顺序无关）。
+- ⚠️ **测覆盖口径（勿笼罩）**：跨租户串供 / 代理旁路 / 槽 producer 两接缝 / lazy loader / 4 处 fail-closed 守卫
+  均经 revert-to-bad 实证转红（fail-closed 用**单点 revert**：helper 变 no-op → 4 条同时红）。
+  **未证明**：**双检+RLock（并发首访不重复加载）零测覆盖 = correct-but-untested**（`tests/` 内 threading/Barrier 0 命中；对抗自核与守护者 Stage 4 各自真线程实测 reload 恰 1 次/无死锁，但无 committed 测 —— 「读者不见半成品」由 `publish()` 整槽替换结构性提供、与锁无关，`catalog_state.py` 代码内已标注）。~~`admin/datasources` 守卫 · `catalog_loaders` 第二处守卫~~（对抗自核纠：非「缺测」而是**不可达死守卫**，已删）。
+  **不适用**：`sql_planner_prompts` —— 原 Stage 3 清单列它需守卫，实测其 `try` 只包**函数属性**查找、不经代理，
+  真正的载体读在 try 之外 ⇒ **本就 fail-closed**，我加的守卫是死代码，已删。
+  **不覆盖副本维度**（R-10）：进程全局本就每副本一份，本片测只证同进程内隔离。
+
+### Deferred（R-T-GATE 就绪清单增补 —— 本片不做，已登记 CLAUDE.md + docs/plans）
+⭐ **B-3（本片原理上修不了）**：file 层 `_local_catalog.py` + HTTP `http_spec` 凭据走**进程 env**
+（`adapters/http/executor.py:87-88` / `url_allowlist.py:30`）= 租户盲 → 租户#2 可用租户#1 凭据读其实时接口
+= **跨租户数据出境**；且空-DB 租户会被注入部署方真实业务规则+库表 → **per-tenant file catalog /
+per-tenant http_spec 凭据 / egress 租户域化** 三项。
+其余：prompt seed + TOTP rollout 的 `resolve_single_tenant`（Codex R6）· `replicas=1` 运维门（分布式失效前）·
+`_business_rules` 归正（资深拍板：行为变更，另开）· 三处死码清理 PATCH。
+
+## [Released] - v0.9.2 — uploads.db per-tenant 化（隔离栈第二刀）
 
 > v0.9 多租户 MINOR 第三个 PATCH。上传问数库从数据根全局单库 → per-tenant `tenants/<id>/uploads.db`。单租户 tenant#1 下全行为 byte-equal；R-T-GATE 不动、0 UI 改。
 > 评审链：隔离面测绘序 → Stage 1 → Codex Stage 2 major-revise（抓 blocking R2：relocation 挂 `_migrate_locked` anchor-存在分支 → 真实升级 skip:migrated 早返 no-op）→ 守护者 Stage 3 concur-major-revise（MF1-10/G1-3）→ Stage 1' → 守护者复核 PASS → 实施 → 执行者 4-lens 对抗自核（修 3 medium）→ **守护者 Stage 4 final-diff PASS**（1 should-fix：skip:relocated 漏 C4-parity 健康探针；1 overclaim 纠正）→ **执行者第二轮 4-lens+critic 对抗**（补 3 defect：F1 boot crash-loop / F2 误导性恢复指引 / F3 写侧 db_dir 含容缺口）。

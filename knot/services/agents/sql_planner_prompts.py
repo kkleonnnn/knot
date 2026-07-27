@@ -56,6 +56,10 @@ def _relations_for_schema(schema_text: str) -> str:
         if not callable(get_rels):
             return ""
     except Exception:
+        # v0.9.3 D8' 核后**刻意不加** TenantContextError 守卫：本 try 只包 `getattr(_cl, "get_relations_for_tables")`
+        # —— 那是**函数属性**（在模块 __dict__ 里），不经 PEP 562 代理，永不抛 TenantContextError。
+        # 真正的载体读在下面 `get_rels(selected)`，它在 try **之外** → 本就 fail-closed（实证：加守卫后
+        # revert 该守卫，测无变化 = 死守卫）。
         return ""
     selected = re.findall(r"^##+\s*([\w.]+)\s*$", schema_text or "", re.MULTILINE)
     return get_rels(selected)

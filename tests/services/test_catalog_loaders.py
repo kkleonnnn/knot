@@ -11,11 +11,15 @@ import ast
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
-_MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "_SOURCE"}
+_CATALOG_MOD = "knot/services/agents/catalog.py"
+# v0.9.3 R-9 哨兵三件套：补 FIELD_LABELS（v0.7.27 引入后一直在哨兵外 —— 双向变异实验坐实漏检）。
+_MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_LABELS", "_SOURCE"}
 
 
 def _py_files():
-    for base in ("knot", "tests"):
+    # v0.9.3 对抗自核：加 scripts/ —— 两个 eval CLI 正是本片新接 tenant ctx 的 catalog 读者，
+    # 将来在那里写值绑 / setattr 载体名不该逃过哨兵。
+    for base in ("knot", "tests", "scripts"):
         yield from (_REPO / base).rglob("*.py")
 
 
@@ -48,6 +52,109 @@ def test_no_value_binding_from_import_of_catalog_globals():
     assert not offenders, (
         "facade-freeze 值绑定模式（reload reassign 后快照陈旧 → 静默空 catalog；须 `import catalog` "
         "module-attr live 读）：\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_catalog_py_has_no_global_statement_on_carrier_names():
+    """⭐ v0.9.3 R-9 哨兵②（B-1 实测推出）：catalog.py 内**禁** `global <6 名>` 语句。
+
+    实测过的失效机制（最小复刻模块）：PEP 562 模块 `__getattr__` 只在常规属性查找**失败**时触发；
+    一旦模块内出现 `global TABLES; TABLES = ...`，那 6 名就被**复活**进模块 `__dict__` →
+    代理**静默死亡**（不报错）、per-tenant 槽闲置、跨租户串供照旧。
+    **时序真相**：`reload()` 在启动期与每 query 都跑 ⇒ 一旦跑过就永久落在静默支
+    （NameError 那支只存在于首次 reload 之前，反而是幸运情况）。
+    → 故此哨兵与「禁 from-import 值绑」同等承重：后者防外部值绑，本条防内部复活。
+    """
+    tree = ast.parse((_REPO / _CATALOG_MOD).read_text(encoding="utf-8"))
+    offenders = [
+        f"{_CATALOG_MOD}:{n.lineno} global {sorted(set(n.names) & _MUTABLE_GLOBALS)}"
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Global) and (set(n.names) & _MUTABLE_GLOBALS)
+    ]
+    assert not offenders, (
+        "catalog.py 内 `global <载体名>` 会把该名复活进模块 __dict__ → PEP 562 代理静默失效、"
+        "租户槽闲置、跨租户串供照旧（且无任何异常）。reload 须用局部变量构造 + 原子发布到载体：\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_catalog_py_has_no_bare_name_read_of_carrier():
+    """⭐ v0.9.3 R-9 哨兵③：catalog.py 函数体内**禁裸名读**那 6 名（`LOAD_GLOBAL` 永不触发 `__getattr__`）。
+
+    B-1：模块内 `for t in TABLES` 这类读法在代理方案下要么 NameError（首次 reload 前），
+    要么读到被复活的进程全局（reload 后）—— 两支都错。内部一律走显式载体访问器。
+    """
+    tree = ast.parse((_REPO / _CATALOG_MOD).read_text(encoding="utf-8"))
+    offenders = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(fn):
+            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                    and node.id in _MUTABLE_GLOBALS):
+                offenders.append(f"{_CATALOG_MOD}:{node.lineno} in {fn.name}(): 裸名读 {node.id}")
+    assert not offenders, (
+        "catalog.py 内部裸名读载体名 → 编译成 LOAD_GLOBAL，永不触发 PEP 562 代理（B-1）。"
+        "改走显式载体访问器：\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_no_setattr_on_carrier_names_anywhere():
+    """⭐ v0.9.3 R-9 哨兵④（守护者 F-5'(c)，**顺序无关**）：全仓禁 `setattr(<any>, "<载体名>", ...)`。
+
+    实测机制（比"污染后续测试"更糟）：`monkeypatch.setattr(catalog, "LEXICON", x)` 时 monkeypatch 先
+    `getattr` 存"原值" —— **PEP 562 代理会响应它** → monkeypatch 认定该属性本就在 `__dict__` →
+    teardown 时把存下的值 **`setattr` 回 `__dict__`**（而非 `delattr`）→ 该名**永久驻留**且成为**冻结快照**
+    ⇒ 代理静默死亡 + 恢复本仓原哨兵要防的 facade-freeze，只是改从 monkeypatch 进来。
+    本哨兵与「顺序」无关（纯 AST，不依赖测执行序）—— 这点重要：v0.9.3 前的 3 处 poisoner 位于
+    `tests/services/`（收集序早于 `tests/` 根），靠运行期断言只能在**它们之后**的测里发现。
+    """
+    offenders = []
+    for p in _py_files():
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and len(node.args) >= 2):
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+            if name != "setattr":
+                continue
+            arg = node.args[1]
+            if isinstance(arg, ast.Constant) and arg.value in _MUTABLE_GLOBALS:
+                offenders.append(f"{p.relative_to(_REPO)}:{node.lineno} setattr(..., {arg.value!r}, ...)")
+    # v0.9.3 对抗自核补两条**实测可达**的绕过形（原哨兵只匹配 `setattr(x, "<字面名>", v)`）：
+    #   (a) pytest 单字符串 target 形 `monkeypatch.setattr("....catalog.TABLES", v)` —— args[1] 是**值**不是名字
+    #   (b) 普通属性赋值 `catalog.TABLES = v` —— 是 ast.Attribute store，根本没有 setattr 调用节点
+    # 两形都会把名字写进模块 __dict__ ⇒ 代理永久死亡（且旁路是静默的，只在后续 reload 才炸、且炸在别的测上）。
+    for p in _py_files():
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            # (a) 单字符串 target："<dotted.path>.<载体名>"
+            if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
+                t = node.args[0].value
+                fn = node.func
+                name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+                if (name == "setattr" and isinstance(t, str)
+                        and t.rsplit(".", 1)[-1] in _MUTABLE_GLOBALS and "catalog" in t):
+                    offenders.append(f"{p.relative_to(_REPO)}:{node.lineno} setattr({t!r}, ...) 单字符串 target 形")
+            # (b) 普通属性赋值 `<x>.<载体名> = ...`（x 名字里含 catalog / _cl / _cat 才算，避免误报同名字段）
+            if isinstance(node, ast.Assign):
+                for tgt in node.targets:
+                    if (isinstance(tgt, ast.Attribute) and tgt.attr in _MUTABLE_GLOBALS
+                            and isinstance(tgt.value, ast.Name)
+                            and any(k in tgt.value.id.lower() for k in ("catalog", "_cl", "_cat"))):
+                        offenders.append(
+                            f"{p.relative_to(_REPO)}:{node.lineno} {tgt.value.id}.{tgt.attr} = ... 属性赋值形")
+    assert not offenders, (
+        "setattr 载体名会把该名写进模块 __dict__ → PEP 562 代理永久失效（monkeypatch teardown 亦不会 "
+        "delattr，反而把冻结快照 setattr 回去）。改用 catalog_state.publish(...) 显式发布整槽：\n  "
+        + "\n  ".join(offenders)
     )
 
 

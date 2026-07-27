@@ -105,6 +105,15 @@ def _reset_module_level_caches():
     except (ImportError, AttributeError):
         pass
 
+    try:
+        # v0.9.3：per-tenant catalog 载体槽（键 tenant_cache_key("catalog")）→ 清空。
+        # 必需：槽内容取自 tmp 库 + tmp file 层，跨测残留会让「上一个测的 catalog」被下一个测读到
+        # （同 v0.9.2 `_upload_engines` 的理由）；亦是 3 处原 setattr poisoner 改走 publish 后的配套。
+        from knot.services.agents import catalog_state as _cs
+        _cs.invalidate_all()
+    except (ImportError, AttributeError):
+        pass
+
 
 @pytest.fixture(autouse=True)
 def _master_key_for_tests(monkeypatch):

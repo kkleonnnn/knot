@@ -28,7 +28,12 @@ _MOCK_SPEC = {"url_template": "https://admin.example/api/v1/position/list", "met
 def _mock_catalog(monkeypatch):
     """patch catalog_loader：reload no-op + LEXICON + is_http_table + get_http_spec。"""
     monkeypatch.setattr(http_planner.catalog_loader, "reload", lambda strict=False: "mock")
-    monkeypatch.setattr(http_planner.catalog_loader, "LEXICON", _MOCK_LEXICON)
+    # v0.9.3：LEXICON 已是 PEP 562 代理名 —— **禁 monkeypatch.setattr**（monkeypatch 先 getattr 存"原值"，
+    # 代理会响应它 → teardown 时把值 setattr 回模块 __dict__ 而非 delattr → 名字永久驻留 = 代理静默死亡
+    # + 冻结快照；实测坐实）。改为显式发布整槽（本测本意即整体 mock catalog；conftest 每测 invalidate）。
+    from knot.services.agents import catalog_state
+    catalog_state.publish(lexicon=_MOCK_LEXICON, tables=[], business_rules="",
+                          relations=[], field_labels={}, source="mock")
     monkeypatch.setattr(http_planner.catalog_loader, "is_http_table",
                         lambda t: t in _HTTP_TABLES)
     monkeypatch.setattr(http_planner.catalog_loader, "get_http_spec",

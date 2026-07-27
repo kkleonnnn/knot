@@ -533,6 +533,7 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 | `[uploads-reloc] … 拒绝以损坏库起服务` | 上传库 `data/tenants/1/uploads.db` 探针不健康（**fail-closed，故意不启动**）。① 错误信息里带 sqlite 原因：`OperationalError`（锁竞争/权限）→ **重启即恢复**，真损坏才持续复现；② 确损坏且有备份 → 还原到 **`tenants/1/uploads.db` 本身**（勿还原到 `data/`，那会撞下面那条安全阀）；③ 确损坏且不需历史上传 → 删除该文件后重启（走 `skip:fresh`，用户重新上传；上传元数据在 knot.db 内，源文件在用户本地） |
 | `[uploads-reloc] … 疑似 C1-C3 在 relocation 前上了现网写入。拒绝覆盖` | `data/uploads.db` 与 `data/tenants/1/uploads.db` **同时存在且后者已有上传表** → 迁移拒绝覆盖现网数据。人工核对哪份是最新（比 `t_*` 表与行数），保留最新的那份到 `tenants/1/`、把 data-root 那份改名挪走，再启动 |
 | `[C4] … 拒绝以空/损坏库起服务` | 租户主库 `data/tenants/1/knot.db` 空或损坏（同为 fail-closed）→ 若有 `data/knot.db.pre-tenancy.bak` 按「回滚」段人工恢复；否则排查掉电/磁盘故障 |
+| `[uploads-reloc]`/`[C4]` 之外：catalog 相关 `TenantContextError` | v0.9.3 起 catalog 载体 per-tenant 且 **fail-closed**：任何无 tenant ctx 的路径读 catalog 会抛而非静默降级（刻意的 —— 降级会让脱敏 no-op / 把部署级 file catalog 当成该租户内容）。排查：该请求/脚本是否漏 set tenant ctx；CLI 见 `scripts/eval_*.py` 的 `_with_tenant_ctx()` 写法 |
 
 ### 运行时问题
 
@@ -610,3 +611,15 @@ v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则�
 ---
 
 > 本文档跟随每次发版同步。最新版本通过 `git log -1 -- DEPLOY.md` 查看最近更新时间。
+
+---
+
+## ⚠️ 多租户运维门（v0.9.3 起 · lift R-T-GATE 前）
+
+- **`replicas=1`**：catalog / 部分进程内状态仍是**每副本一份**。多副本下不同副本可能停在不同租户的 catalog 上，
+  表现为**间歇性、不可复现**的现象（如脱敏偶发不全）。分布式失效（或 sticky routing）落地前，多租户场景请保持
+  单副本；单租户部署不受此限（今日 R-T-GATE 硬锁第二租户，故现网即单租户）。
+- **`_local_catalog.py` 是部署级、全体租户共享**：其中的真实业务表名/方言/HTTP endpoint 对**每个**租户可见；
+  且空-DB 租户会 fallback 到它（含 business_rules）。开通第二租户前必须先做 per-tenant file catalog。
+- **HTTP 虚拟表凭据走进程 env**（`KNOT_HTTP_*`）：租户盲。开通第二租户前必须先做 per-tenant `http_spec` 凭据
+  + egress 租户域化，否则租户 B 能用租户 A 的凭据读 A 的实时接口（**跨租户数据出境**）。

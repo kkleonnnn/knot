@@ -68,3 +68,15 @@ def assert_tenant_context(expected_tenant_id: int) -> None:
         raise TenantContextError(
             f"tenant context 漂移：expected={expected_tenant_id} actual={current.get('id')}"
         )
+
+
+def reraise_if_tenant_error(e: BaseException) -> None:
+    """v0.9.3 D8'：catalog 读的 fail-soft handler 里调用 —— e 是 `TenantContextError` 则**重抛**（fail-closed），
+    否则原样返回、让调用方走它既有的降级。
+
+    作用 = 把「**缺 tenant ctx**」从「其他异常」里分离：前者绝不能被降级吞掉（降级后果按站点不同 ——
+    脱敏静默 no-op / RELATIONS 段空致错数 / 把部署级 file catalog 当成该租户内容），后者保持既有可用性优先。
+    收成单一 helper 而非各站点 inline，因此 revert harness 也是单点（改此处即可验全部站点）。
+    """
+    if isinstance(e, TenantContextError):
+        raise e

@@ -288,7 +288,7 @@ async def admin_datasources_stats(admin=Depends(require_admin)):
         from knot.services.agents import catalog as _catalog
         tables_total += len(_catalog.get_http_tables())
     except Exception:
-        pass
+        pass  # v0.9.3：此处不放 TenantContextError 守卫 —— 本函数早在 :236 `current_tenant()` 就会 raise，放了是死代码
 
     result = {
         "total_schemas": schemas,

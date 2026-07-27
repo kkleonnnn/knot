@@ -72,16 +72,22 @@ def test_F2_stale_error_cleared_by_later_final(monkeypatch):
 
 
 def _seed_fresh_db(monkeypatch):
+    """v0.9.3 对抗自核修：原用 `tempfile.mkstemp` —— v0.9.0 双层库解析下
+    (`get_conn` = `SQLITE_DB_PATH.parent / db_dir / "knot.db"`，autouse ctx 的 db_dir='.')
+    随机文件名被整个丢弃，实际落 `$TMPDIR/knot.db`（机器级共享、从不删 → 污染后续全量跑）。
+    conftest 两处 v0.9.0 已改 mkdtemp（见 tests/conftest.py:177 注释），这个模块内 fixture 当时漏了。
+    """
+    import shutil
+
     from knot.repositories import base as base_mod
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="knot_f7_")
-    os.close(fd)
-    os.unlink(path)
-    monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", path)
-    base_mod.init_db()
-    from knot.repositories import user_repo
-    h = user_repo.get_user_by_username("admin")["password_hash"]
-    os.path.exists(path) and os.unlink(path)
-    return h
+    d = tempfile.mkdtemp(prefix="knot_f7_")
+    try:
+        monkeypatch.setattr(base_mod, "SQLITE_DB_PATH", os.path.join(d, "knot.db"))
+        base_mod.init_db()
+        from knot.repositories import user_repo
+        return user_repo.get_user_by_username("admin")["password_hash"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def test_F7_env_password_used_when_set(monkeypatch):

@@ -1,8 +1,8 @@
 """catalog_loaders — catalog 纯加载器（v0.6.5.12 收官③ 从 catalog.py 抽出）。
 
-4 个**纯函数**（无状态；不读/写 catalog.py 的 5 mutable globals）：从配置文件 / DB / DataSource
-推断 / lexicon 合并，计算并返 tuple，由 `catalog.reload()` 把返值经 `global` reassign 塞回
-catalog.py 自己的 globals（live-read 契约 = globals/reload 留 catalog.py 同模块，本模块只算不存）。
+4 个**纯函数**（无状态；不读/写 catalog 的载体）：从配置文件 / DB / DataSource 推断 / lexicon 合并，
+计算并返 tuple。**v0.9.3 起**返值由 `catalog.reload()` 经 `catalog_state.publish()` **原子发布到当前租户槽**
+（此前是 `global` reassign 塞回 catalog.py 的模块全局 —— 该形态已物理删除，并有静态哨兵禁 `global`）。
 
 ⚠️ R-CS-2/R-CS-7 + Contract 8（catalog-loaders-pure）：本模块**严禁 import catalog**
 （保 catalog → catalog_loaders 单向；防 facade-freeze 环 + 防未来反向读 global）。
@@ -73,8 +73,11 @@ def _load_from_db() -> tuple:
             raw_rel = cat.get("relations") or ""
             raw_field_labels = cat.get("field_labels") or ""   # v0.7.27（app_settings legacy 路径无此键 → 留 ""）
             got = True
-    except Exception:
-        pass  # catalogs 表访问失败 → 落 app_settings legacy 兜底
+    except Exception as e:
+        # D8'：漏 tenant ctx **不得**降级 —— 那会把「部署级 file/legacy catalog」当成该租户内容
+        # （全体租户共用一份，含部署方真实业务规则与库表清单）。
+        from knot.core.tenant_context import reraise_if_tenant_error as _rt
+        _rt(e)   # 非缺-ctx 的失败 → 落 app_settings legacy 兜底
     if not got:
         try:
             from knot.repositories.settings_repo import get_app_setting
@@ -83,9 +86,13 @@ def _load_from_db() -> tuple:
             rules = get_app_setting("catalog.business_rules") or ""
             raw_rel = get_app_setting("catalog.relations") or ""
         except Exception as e:
+            # v0.9.3 对抗自核：此处**不放** TenantContextError 守卫 —— 上面第一处守卫（本函数 DB 分支）
+            # 已把缺-ctx 抛出（traceback 坐实），走到这里的必然不是 TenantContextError ⇒ 放守卫是死代码
+            # （同我在 sql_planner_prompts 删死守卫的标准）。
             from knot.models.errors import MetadataError
             raise MetadataError(
-                "catalog 双源不可用（catalogs id=1 缺失 + app_settings legacy 无法读）— 真空期熔断",
+                "catalog 双源不可用（catalogs id=1 缺失 + app_settings legacy 无法读）— 真空期熔断。"
+                "若日志同期有 TenantContextError，真因是缺 tenant ctx 而非 catalogs 行缺失。",
             ) from e
 
     tables, lex, relations = [], {}, []
@@ -93,7 +100,11 @@ def _load_from_db() -> tuple:
         try:
             t = json.loads(raw_tables)
             if isinstance(t, list):
-                tables = t
+                # v0.9.3 对抗自核：只收 dict 元素 —— `PUT /api/admin/catalog` 只校 `isinstance(v, list)`
+                # 不校元素类型（api/catalog.py），传 ["db.t"] 这种字符串元素会先持久污染 DB，
+                # 随后每次 reload 都在 `t.get(...)` 撞 AttributeError；而 v0.9.3 删了 import 期 reload
+                # 与 warm-up ⇒ 进程内不再有 last-good ⇒ 读侧每次重试每次抛（脱敏等 fail-soft 点会静默降级）。
+                tables = [x for x in t if isinstance(x, dict)]
         except Exception:
             pass
     if raw_lex.strip():
