@@ -17,6 +17,9 @@ env/
 # v0.9.0 C2：per-tenant 库目录（platform.db 走上方 **/data/*.db；租户库/上传库在子目录）——
 # **/data/*.db 不匹配子目录，缺此则 tenants/<id>/knot.db 裸奔进 git（手册 C4 flag，提前至 C2）。
 **/data/tenants/
+# v0.9.0 C4：存量迁移的跨进程 flock 锁文件（tenancy_migration.py:359 在数据根建 .c4-migration.lock）——
+# 迁完留存无害但属 runtime 产物；缺此则永久挂在 git status 未跟踪区，易被顺手 commit 进仓。
+**/data/*.lock
 **/data/logs/
 
 # 业务隐私（v0.2.4 起）：真实业务目录 / few-shot / eval / schema fixture 不进 git

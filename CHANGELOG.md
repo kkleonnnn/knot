@@ -69,6 +69,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **§II 机械必修（守护者）**：`get_field_mapping` 删（全仓 0 调用者）· `get_table_full_names` 转访问器
   （`tests/services/test_knot_catalog.py:67` 是活调用者）· `_template_catalog.py:106` 同名物不动。
 
+### Chore（hygiene · riding v0.9.3 不 bump 版本）
+- **`.gitignore` 补数据根锁文件（`**/data/*.lock`）**：v0.9.0 C4 存量迁移在数据根建 `.c4-migration.lock`
+  （`tenancy_migration.py:359`，`O_CREAT` 建、`finally` 只 `flock(LOCK_UN)`+`close` 不删）；既有
+  `**/data/*.db` / `*.db-shm` / `*.db-wal` / `**/data/tenants/` 四条**都不匹配它** ⇒ 这个 runtime 产物永久
+  挂在 `git status` 未跟踪区（kk 开发机实测 `?? knot/data/.c4-migration.lock`），易被顺手 commit 进仓。
+  取**类通配**（同 `*.db-shm`/`*.db-wal` 口径）而非精确文件名，顺带覆盖将来数据根内的其他锁。
+  验证：`git check-ignore -v` 归因到该行 · 造出该文件后 `git status --porcelain` 不再出现它 ·
+  `git ls-files -i -c --exclude-standard` 空（无既跟踪文件被新规则吞掉；`knot/data/.gitkeep` 是该目录唯一
+  跟踪文件、不匹配 `*.lock`）。
+
 ### Tests
 - **安全回归（吊销覆盖面）**：`tests/api/test_totp_2fa.py` +6 —— 吊销后旧 interim 必 401 · **反向守护**
   （未吊销时仍能换出完整 JWT）· `ver` 类型 4 参数（缺失/bool/数字串/浮点）。
