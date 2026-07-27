@@ -36,6 +36,23 @@ def reset_active_tenant(token: contextvars.Token) -> None:
     _active_tenant_ctx.reset(token)
 
 
+def clear_active_tenant() -> contextvars.Token:
+    """**显式清空**当前作用域 ctx（返回 Token 供 finally reset）—— v0.9.4 R-13 入口不变量。
+
+    用途：**自建-ctx 端点**（login / totp-verify —— 它们必须从请求内容而非 Authorization 决定租户）
+    在入口无条件调用，把「可能是别的租户的 ctx」清掉，再从请求内容解析并 set 自己的。
+
+    为何不写 `set_active_tenant(None)`：那个函数签名收 `dict`，塞 None 是滥用；更重要的是
+    **本函数名就是 R-13 的标记** —— 「哪些端点自建 ctx」由调用本函数的地方**自证**，
+    不需要第二份会漂移的端点清单（正是 #258 刻意避开的东西）。
+
+    清掉之后 ctx 为 None ⇒ `current_tenant()` fail-closed raise ⇒ 「入口到 set-ctx 之间误调任何
+    依赖 ctx 的东西」会**当场响亮崩掉**，而不是静默串到别的租户。R-13 因此是**运行期自执行**的，
+    不靠静态清单去猜「哪些调用依赖 ctx」（那是个传递闭包，静态判不准）。
+    """
+    return _active_tenant_ctx.set(None)
+
+
 def current_tenant() -> dict:
     """当前 active tenant（**fail-closed**：未 set → raise TenantContextError，无全局回退）。"""
     t = _active_tenant_ctx.get()
