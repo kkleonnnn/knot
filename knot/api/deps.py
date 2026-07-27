@@ -81,12 +81,23 @@ security = HTTPBearer()
 
 
 def create_token(user_id: int) -> str:
-    """v0.6.2.0 R-PB-B1-13：payload 含 ver=token_version → 后续 reset/change_pwd 触发吊销。"""
+    """v0.6.2.0 R-PB-B1-13：payload 含 ver=token_version → 后续 reset/change_pwd 触发吊销。
+
+    v0.9.4 D1：payload 加 **`tid`**（租户 id）—— 之后每请求由 tenant middleware 从本 claim 解析租户，
+    替代「假设只有一家 active 租户」的 `resolve_single_tenant()`。
+    **零新解析器**：签发期 tid 本就在手 —— 本函数**今天已硬依赖 tenant ctx**（实测清 ctx 后调它抛
+    `TenantContextError`，链路 `create_token → get_token_version_cached → tenant_cache_key → current_tenant`），
+    故直接取 `current_tenant()["id"]`。
+    ⚠️ **签名保护完整性、不保密**：JWT payload 客户端可读（base64）。tid 是「**自声明但被签名**」的 claim
+    —— 改 tid 重放会验签失败（实测四种伪造全 401；全仓 **0 处**在验签前读 claim，须守住这个 0）。
+    """
     exp = datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)
     # lazy import 避免 circular（totp_service → user_repo → ... → deps）
+    from knot.core.tenant_context import current_tenant
     from knot.services.totp_service import get_token_version_cached
     ver = get_token_version_cached(user_id)
-    return jwt.encode({"sub": str(user_id), "ver": ver, "exp": exp},
+    tid = current_tenant()["id"]      # fail-closed：无 ctx 即 raise（不得签出无 tid 的 token）
+    return jwt.encode({"sub": str(user_id), "ver": ver, "tid": tid, "exp": exp},
                       _get_secret(), algorithm=JWT_ALGORITHM)
 
 

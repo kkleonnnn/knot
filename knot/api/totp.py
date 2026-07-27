@@ -43,10 +43,20 @@ _INTERIM_EXPIRE_MIN = 5
 
 
 def create_interim_token(user_id: int, token_version: int) -> str:
-    """login 成功 + totp_enrolled 后颁发 — 仅 /api/totp/verify 接受。"""
+    """login 成功 + totp_enrolled 后颁发 — 仅 /api/totp/verify 接受。
+
+    v0.9.4 D1/B-3：payload 加 **`tid`**。本函数是**第二条独立签发路径**（与 `create_token` 不共码：
+    不同文件、`ver` 由调用方传、此前**不依赖 tenant ctx**）⇒ 漏加 tid **不会崩、只会静默失能**
+    （TOTP 二阶段登录在多租户下无 tid 可用）。
+    ⭐ **F-4 裁定：tid 由本函数内部从 `current_tenant()` 取，不由调用方传** —— 守护者的理由：
+    `token_version` 本就是调用方传的参数，**正是这种签名风格让「漏传」变成静默**；内部取 ctx 把
+    静默失能变成**响亮崩溃**（无 ctx 即 raise）。
+    """
     exp = datetime.utcnow() + timedelta(minutes=_INTERIM_EXPIRE_MIN)
+    from knot.core.tenant_context import current_tenant
+    tid = current_tenant()["id"]      # fail-closed：无 ctx 即 raise
     return jwt.encode(
-        {"sub": str(user_id), "totp_pending": True, "ver": token_version, "exp": exp},
+        {"sub": str(user_id), "totp_pending": True, "ver": token_version, "tid": tid, "exp": exp},
         _get_secret(), algorithm=JWT_ALGORITHM,
     )
 
