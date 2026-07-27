@@ -18,7 +18,6 @@ from unittest.mock import patch
 import pyotp
 import pytest
 
-
 # ─── autouse：每个测试前清 rate_limit bucket + token_version cache ──
 
 
@@ -80,6 +79,7 @@ def test_R_PB_B1_12_service_layer_uses_valid_window():
     grep service 源码确认参数（防未来误改 default 0）。
     """
     import inspect
+
     from knot.services import totp_service
     src = inspect.getsource(totp_service)
     # enroll_complete + verify 必含 valid_window=1
@@ -319,7 +319,6 @@ def test_routes_count_v062_totp_endpoints():
     v0.6.2.5 commit 7：经 app_route_paths 动态展平（FastAPI 0.137+ _IncludedRouter 懒包装）。
     """
     from knot.main import app
-
     from tests._route_count import app_route_paths
     paths = app_route_paths(app)
     expected = {"/api/totp/enroll-init", "/api/totp/enroll-complete",
@@ -413,3 +412,59 @@ def test_F2_enroll_complete_retry_under_10_then_succeeds(client, auth_headers):
                     json={"secret": secret, "code": code})
     assert r.status_code == 200, \
         f"<10 错码后正确码应成功；实际 {r.status_code} {r.text}"
+
+
+# ─── ⭐ SECURITY（v0.9.3.x hotfix）：interim_token 只能用于 /api/totp/verify ─────
+
+
+def _enroll_then_get_interim(client, auth_headers):
+    """走真流程拿 (interim_token, 明文 secret)：enroll admin → 重登（后端返 need_totp + interim_token）。
+
+    明文 secret 在 enroll 时本来就在手（DB 里是 Fernet enc_v1: 密文），同本文件既有测的做法。
+    """
+    init = client.post("/api/totp/enroll-init", headers=auth_headers).json()
+    secret = init["secret"]
+    assert client.post("/api/totp/enroll-complete", headers=auth_headers,
+                       json={"secret": secret, "code": pyotp.TOTP(secret).now()}).status_code == 200
+    login = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert login.status_code == 200, login.text
+    body = login.json()
+    assert body.get("need_totp") is True, f"enroll 后 login 应返 need_totp；实际 {body}"
+    return body["interim_token"], secret
+
+
+@pytest.mark.parametrize("path", [
+    "/api/conversations",
+    "/api/admin/users",
+    "/api/auth/me",
+])
+def test_SEC_interim_token_rejected_on_business_endpoints(client, auth_headers, path):
+    """⭐ 两步验证绕过修（实测复现过的洞）：interim_token 不得用于任何业务端点。
+
+    洞的形态：interim_token 在「口令已过、**TOTP 未过**」时签发；`get_current_user` 此前只对它
+    「跳过吊销检查」、从不拒绝 ⇒ 只掌握口令的人可在 5 分钟内以该用户身份访问任意端点（含 admin 面），
+    且因签发前提是「已 enroll」，强制 enroll 门恒放行 ⇒ **第二因子在这条路径上完全失效**。
+    revert（恢复 `if not payload.get("totp_pending"):` 包裹形态）→ 本测转红。
+    """
+    interim, _secret = _enroll_then_get_interim(client, auth_headers)
+    r = client.get(path, headers={"Authorization": f"Bearer {interim}"})
+    assert r.status_code == 401, (
+        f"{path} 竟接受 interim_token（两步验证被绕过）→ {r.status_code} {r.text[:200]}"
+    )
+    assert "INTERIM_TOKEN_NOT_ACCEPTED" in r.text, r.text[:200]
+
+
+def test_SEC_interim_token_still_works_on_verify(client, auth_headers):
+    """反向守护（防上一条被「一律拒绝所有 token」糊弄过去）：合法路径必须仍走得通 ——
+    interim_token + 正确 6 位码 → /api/totp/verify 换完整 JWT，且该 JWT 能访问业务端点。
+
+    这条与上一条成对：只有「业务端点拒 + verify 路径通 + 换出的 JWT 可用」三者同时成立，
+    才说明修的是**作用域**而不是把 2FA 登录整条打断。
+    """
+    interim, secret = _enroll_then_get_interim(client, auth_headers)
+    r = client.post("/api/totp/verify",
+                    json={"interim_token": interim, "code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 200, f"合法 verify 路径被打断：{r.status_code} {r.text[:200]}"
+    full = r.json()["token"]
+    ok = client.get("/api/auth/me", headers={"Authorization": f"Bearer {full}"})
+    assert ok.status_code == 200, f"verify 换出的完整 JWT 应可用；实际 {ok.status_code} {ok.text[:150]}"
