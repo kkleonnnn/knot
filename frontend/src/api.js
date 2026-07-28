@@ -53,6 +53,18 @@ export function clearAuthSession({ keepNavigation = false } = {}) {
   } catch { /* sessionStorage 不可用降级 */ }
 }
 
+// v0.9.4 D4''/kk 决策①：**专属登录链接**的公司代号 `?c=<slug>`。
+// 放在 api.js 而非 Login.jsx：① 组件文件导出非组件函数会破 react-refresh（eslint 拦）；
+// ② 「登录请求里带什么」本就是本模块的契约；③ 可被 vitest 直接单测。
+// 只做 trim + 长度截断，**不做存在性校验** —— 界面上原样回显用户自己 URL 里的串，
+// 不能变成「这个代号存在吗」的探测口（那正是 kk 决策②要堵的公司枚举）。
+export function readCompanyFromUrl(search) {
+  try {
+    const src = search ?? (typeof window !== 'undefined' ? window.location.search : '');
+    return (new URLSearchParams(src).get('c') || '').trim().slice(0, 40);
+  } catch { return ''; }        // 极端环境无 URLSearchParams → 退化为不带代号
+}
+
 // v0.9.4 D11：**会话失效的唯一处置**。此前只存在于 `api.req` 的 401 分支里，而 SSE 走自己的
 // fetch（`chat/sse_handler.js`）⇒ 流式查询遇 401 只会把响应正文当普通错误显示
 //（升级后旧 token 会看到裸的 `{"detail":"JWT_NO_TID"}`，而不是被登出）。抽成一处供两边共用。

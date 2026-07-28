@@ -29,13 +29,26 @@ def test_C1_verify_sends_interim_token_in_body():
     已 enrolled 用户全员登录第二步卡死。后端契约要求 interim_token 在 body。
     """
     src = _read("api.js")
-    assert "async verify(code, interimToken)" in src
-    # 提取 verify 函数段（到下一个 reset 方法）
-    verify_seg = src.split("async verify(code, interimToken)", 1)[1].split("reset:", 1)[0]
+    # v0.9.4 step 8/9：verify 由自写裸 fetch 改为委托 `reqPublic`（去重）⇒ 哨兵**跟着搬**：
+    # 「不带 Authorization」的决策现在落在 reqPublic 里。若只核 verify 段，本哨兵覆盖面会
+    # **静默缩小** —— 有人在 reqPublic 里加回 Authorization，422 锁死全员登录的 bug 就复发而哨兵仍绿
+    #（v0.9.3 教训「修实例不修机制」的同一形状）。
+    assert "verify: (code, interimToken) =>" in src, \
+        "C1：verify 定义形状变了 —— 哨兵目标集失效，须同步本测（勿直接删断言）"
+    verify_seg = src.split("verify: (code, interimToken) =>", 1)[1].split("reset:", 1)[0]
     assert "interim_token: interimToken" in verify_seg, \
         "C1：verify body 必须含 interim_token（TotpVerifyRequest 必填字段）"
     assert "_hWith(interimToken)" not in verify_seg, \
         "C1：verify 严禁把 interim_token 放 Authorization header（致 422 锁死全员登录）"
+
+    # ⭐ 跟到 reqPublic：它是 verify 实际发请求的地方，必须**不带 Authorization**
+    assert "async reqPublic(method, path, body)" in src, \
+        "C1：reqPublic 不存在 —— verify 的委托对象变了，哨兵须同步"
+    pub_seg = src.split("async reqPublic(method, path, body)", 1)[1].split("get:", 1)[0]
+    for forbidden in ("Authorization", "_h()", "_hWith", "_token()"):
+        assert forbidden not in pub_seg, \
+            f"C1：reqPublic 严禁带凭据（命中 {forbidden!r}）—— 它服务 login/totp.verify 两个登录流程端点：" \
+            f"带 Authorization 会让 verify 回到 422 锁死全员登录，且让陈旧 token 参与登录（v0.9.4 B-5）"
 
 
 def test_C2_reset_uses_target_user_id():

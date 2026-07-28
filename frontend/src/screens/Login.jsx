@@ -16,7 +16,7 @@ import { APP_VERSION } from '../version.js';  // v0.6.4.11 task #44 — 前端�
 import { toast } from '../utils.jsx';
 import { Btn } from '../primitives.jsx';
 import NarrativeMotif from '../decor/NarrativeMotif.jsx';
-import { api } from '../api.js';
+import { api, readCompanyFromUrl } from '../api.js';
 
 export function LoginScreen({ T, onLogin, onToggleTheme }) {
   const [step, setStep] = useState('login');   // v0.6.2.0 'login' | 'totp_verify'
@@ -29,6 +29,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(localStorage.getItem('knot_remember') === '1');
   const [focused, setFocused] = useState(null);  // R-184 焦点 tracker
+  const company = readCompanyFromUrl();          // v0.9.4：专属登录链接的公司代号（可空）
 
   const submit = async (e) => {
     e.preventDefault();
@@ -36,7 +37,7 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
     if (!username.trim() || !password) return;
     setLoading(true); setError('');
     try {
-      const data = await api.login(username.trim(), password);
+      const data = await api.login(username.trim(), password, company);
       // v0.6.2.0 need_totp 二阶段：暂不写 cb_token，跳 totp_verify 步骤
       if (data.need_totp) {
         setInterimToken(data.interim_token);
@@ -47,8 +48,13 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
       localStorage.setItem('cb_token', data.token);
       localStorage.setItem('knot_remember', remember ? '1' : '0');  // Q3 仅 UI flag
       onLogin(data.user);
-    } catch {
-      setError('用户名或密码错误');
+    } catch (err) {
+      // v0.9.4 kk 决策②：失败一律「账号或密码错误」（后端五分支同一句 —— 防公司/账号枚举）。
+      // **优先用后端 detail** 而不是写死：① 两边文案不会 drift；② 限流(429) 会正确显示
+      // 「操作过于频繁，请 N 秒后再试」，此前一律写死成「用户名或密码错误」= 误导用户。
+      // R-PB-L-3「error 4 文案 byte-equal」在此**按 kk 决策②有意修订**（旧「用户名或密码错误」
+      // 保留为后端不可达/网络错时的兜底）。
+      setError(typeof err?.detail === 'string' && err.detail ? err.detail : '账号或密码错误');
     } finally { setLoading(false); }
   };
 
@@ -164,6 +170,15 @@ export function LoginScreen({ T, onLogin, onToggleTheme }) {
             <div style={{ fontSize: 13, color: T.subtext, marginTop: 6 }}>
               {step === 'login' ? '使用账号登录访问你的数据空间' : '请输入认证 APP 中显示的 6 位动态码（或 10 位 recovery code）'}
             </div>
+            {/* v0.9.4：仅在专属链接带 ?c= 时回显代号，帮用户确认「点对了链接」。
+                无代号 → 不渲染 ⇒ 当前单租户部署**零视觉变化**。
+                只回显代号本身，**绝不显示公司名** —— 显示名字等于确认该代号存在 = 公司枚举。 */}
+            {step === 'login' && company && (
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 8, fontFamily: 'var(--font-mono, monospace)',
+                            letterSpacing: '0.02em' }}>
+                {`公司代号 · ${company}`}
+              </div>
+            )}
           </div>
 
           {step === 'totp_verify' ? (

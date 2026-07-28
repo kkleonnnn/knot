@@ -5,7 +5,7 @@
 // `clearAuthSession() + window.location.reload()` ⇒ **密码错时整页重载，统一错误提示被冲掉**。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api, clearAuthSession } from './api.js'
+import { api, clearAuthSession, readCompanyFromUrl } from './api.js'
 
 // jsdom **未装**，且抗诱惑清单禁本 PATCH 新增 npm 依赖 ⇒ 内联最小 Storage/window stub。
 // 方法用 enumerable:false 定义，使 `Object.keys(sessionStorage)` 只列出真实 key
@@ -133,5 +133,23 @@ describe('clearAuthSession — 三份分叉的 key 清单收成一份', () => {
     expect(localStorage.getItem('cb_screen')).toBe('v')
     expect(localStorage.getItem('cb_conv')).toBe('v')
     expect(sessionStorage.getItem('cb_enroll_init_7')).toBeNull()
+  })
+})
+
+describe('readCompanyFromUrl — 专属登录链接的公司代号', () => {
+  it('取 ?c= 并 trim；缺失/空 → 空串', () => {
+    expect(readCompanyFromUrl('?c=acme')).toBe('acme')
+    expect(readCompanyFromUrl('?x=1&c=%20acme%20&y=2')).toBe('acme')
+    expect(readCompanyFromUrl('?c=')).toBe('')
+    expect(readCompanyFromUrl('')).toBe('')
+    expect(readCompanyFromUrl('?other=1')).toBe('')
+  })
+
+  it('截断到 40 字符（防超长串撑破布局）', () => {
+    expect(readCompanyFromUrl('?c=' + 'a'.repeat(80))).toHaveLength(40)
+  })
+
+  it('⭐ 不做存在性校验：原样返回用户输入（回显 ≠ 确认存在，否则就是公司枚举口）', () => {
+    expect(readCompanyFromUrl('?c=definitely-not-a-tenant')).toBe('definitely-not-a-tenant')
   })
 })
