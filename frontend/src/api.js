@@ -53,6 +53,14 @@ export function clearAuthSession({ keepNavigation = false } = {}) {
   } catch { /* sessionStorage 不可用降级 */ }
 }
 
+// v0.9.4 D11：**会话失效的唯一处置**。此前只存在于 `api.req` 的 401 分支里，而 SSE 走自己的
+// fetch（`chat/sse_handler.js`）⇒ 流式查询遇 401 只会把响应正文当普通错误显示
+//（升级后旧 token 会看到裸的 `{"detail":"JWT_NO_TID"}`，而不是被登出）。抽成一处供两边共用。
+export function handleUnauthorized() {
+  clearAuthSession();
+  window.location.reload();
+}
+
 export const api = {
   _token: () => localStorage.getItem('cb_token') || '',
   _h() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${this._token()}` }; },
@@ -66,8 +74,7 @@ export const api = {
       // 会话失效（含 JWT_REVOKED / v0.9.4 JWT_NO_TID / TENANT_UNAVAILABLE）→ 清会话 + 整页重载。
       // ⚠️ **登录流程的端点绝不能走这里** —— 它们的 401 是「密码错/验证码错」而非「会话过期」，
       // 重载会把错误提示冲掉。故 login / totp.verify 走 reqPublic（见下）。
-      clearAuthSession();
-      window.location.reload();
+      handleUnauthorized();
       return;
     }
     if (!r.ok) {

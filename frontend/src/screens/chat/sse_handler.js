@@ -26,7 +26,18 @@ export async function runQueryStream(url, body, token, callbacks) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
     });
-    if (!resp.ok) throw new Error(await resp.text());
+    if (!resp.ok) {
+      // v0.9.4 D11/D8：**只打标签，不做处置** —— 本模块 R-118 自陈纯函数（严禁新副作用）。
+      // 401 交由上层 `onException` 调 `handleUnauthorized()`；否则升级后旧 token（无 tid）发起的
+      // 流式查询只会把响应正文当普通错误显示（裸的 `{"detail":"JWT_NO_TID"}`），用户不会被登出。
+      const text = await resp.text();
+      let detail = text;
+      try { detail = (JSON.parse(text) || {}).detail ?? text; } catch { /* 非 JSON：原样 */ }
+      const err = new Error(typeof detail === 'string' ? detail : text);
+      err.status = resp.status;
+      err.detail = detail;
+      throw err;
+    }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
