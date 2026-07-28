@@ -11,6 +11,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from knot.core.logging_setup import logger
 from knot.core.tenant_context import TenantContextError, assert_tenant_context
 from knot.repositories.user_repo import get_user_by_id
 
@@ -194,7 +195,17 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
     except HTTPException:
         raise
-    except (jwt.InvalidTokenError, Exception):
+    except Exception:
+        # ⚠️ 本分支**接一切**，不只是 JWT 错误。原写法 `except (jwt.InvalidTokenError, Exception)`
+        # 是**冗余元组**（`Exception` 已涵盖前者），读起来像只接 JWT 错误而实际接一切 ——
+        # 守护者 Q5：这大概正是它一直没被注意到的原因，故按等价写法改直白（行为 byte-equal）。
+        # 它会把两类**真故障**折成「凭证无效」：`get_token_version_cached`（缓存 miss → 读租户库）
+        # 与 `get_user_by_id` 抛的 `sqlite3.Error` ⇒ 磁盘/权限/库损坏时该租户**全体用户**看到
+        # 「凭证无效」而非 503，且此前**零日志痕迹**（= 基础设施故障被静默误诊成认证问题）。
+        # 裁定 pre-existing 且非本片扩大（那两个 DB 调用本来就在 try 内；本片新增两处均显式处理）。
+        # **本片按 should-fix 只加日志**：把静默误诊变成可追溯，客户端行为不变。
+        # **窄化（真故障返 503、坏 token 返 401）留 backlog** —— 那会改客户端可见行为，须独立评估。
+        logger.exception("get_current_user 兜底分支吞异常 → 401（可能是基础设施故障，非坏 token）")
         raise HTTPException(status_code=401, detail="无效的登录凭证")
 
 

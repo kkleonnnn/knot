@@ -31,10 +31,15 @@ def _resolve_login_tenant(company: str | None) -> dict | None:
 
     ⚠️ **未带代号时回退到「唯一 active 租户」—— 这是有条件的临时允许，不是通则**：
     - 允许的**唯一理由**：R-T-GATE 仍硬锁第二租户（每请求 `assert_no_second_active_tenant_served`）
-      ⇒ 单租户下「唯一 active」与「按代号解析」等价。
+      ⇒ **【仅 R-T-GATE 锁死期间成立，lift 后即失效】** 单租户下「唯一 active」与「按代号解析」等价。
     - **已登记 R-T-GATE 就绪清单：lift 前必须把 `company` 改为必填**，否则回退就变成
       「不带代号 → 随便进某家公司」= OOS-1v2 fail-open。
     - 之所以现在不直接必填：会把**当前**内测部署的所有人挡在门外（老链接无 `?c=`）。
+    - ⭐ **让这个「可选」安全的是结构而非散文**（守护者 Q5/Q2 查明）：回退走的
+      `resolve_single_tenant()` 在 active **≠1** 时 **raise** ⇒ 第二租户一激活，无代号登录**立刻全部 401**，
+      **绝不会「挑一个」租户**。所以万一 lift 时忘了改必填，后果是**可用性**（老链接失效），
+      **不是跨租户访问**。该性质由 `tests/api/test_two_tenant_e2e_isolation.py::
+      test_no_slug_login_with_two_active_tenants_is_401` 守（守护者指出此前**未测**，v0.9.4 补）。
 
     0 active 租户 → `resolve_single_tenant` raise → 折成 `None` → 统一 401
     （D5 明示：此处**不得 500**，否则「整站崩」与「密码错」可区分，且运维排障时被误导为 bug）。

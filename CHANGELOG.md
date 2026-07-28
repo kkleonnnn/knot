@@ -85,7 +85,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **「未 set」与「set 了但对不上」刻意分开**：前者自 step 5 起是**预期路径**（租户停用/不存在 → 不设 ctx），
   若也告警则**真漂移信号被噪音淹没**。日志**只记 id，不记 db_dir / 路径 / 业务内容**（配泄漏守护测）。
 
+### Stage 4 期间按守护者**已定裁定**落实（Q2 / Q5 / Q6 三条）
+- **Q5（should-fix · 廉价）**：`get_current_user` 函末兜底分支加 `logger.exception`。
+  守护者查明：该分支把 `get_token_version_cached`（缓存 miss → 读租户库）与 `get_user_by_id` 抛的
+  `sqlite3.Error` 折成「凭证无效」⇒ 磁盘/权限/库损坏时该租户**全体用户**看到认证错误，且此前
+  **零日志痕迹** = 基础设施故障被静默误诊成认证问题。**客户端行为 byte-equal**（仍 401）。
+  同时把 `except (jwt.InvalidTokenError, Exception)` 写成等价的 `except Exception`
+  —— 冗余元组「读起来像只接 JWT 错误而实际接一切」，守护者判断这正是它长期没被注意到的原因。
+  裁定 **pre-existing 且非本片扩大**（那两个 DB 调用本来就在 try 内；本片新增两处均显式处理）。
+- **Q2（should-fix）**：补测「**无代号 + 2 个 active 租户 → 统一 401，绝不挑一个**」——
+  守护者指出：让「`company` 可选」得以接受的正是这条**结构性** fail-closed 性质
+  （回退走的 `resolve_single_tenant()` 在 active ≠1 时 raise），**而它此前没有任何测**。
+  一并补「带代号登录选对公司」（正向）+「未知代号与密码错响应逐字相同」（真双租户环境下再验一次防公司枚举）。
+- **Q6（文档）**：两处把「单租户等价」当永久前提的注释补 **gate 作用域标注** ——
+  `api/auth.py` 的等价论证 + `DEPLOY.md` 的「漂移告警单租户下不应出现」基线（lift 后该基线会变）。
+  DEPLOY 另补**开通第二租户当天的症状形状**（老链接用户会同时收到统一 401，看起来像一次大规模密码错误事件；
+  按决策②文案不能区分 ⇒ 须在开通**之前**换链接，别指望事后从日志区分）。
+
 ### 未结清（显式登记，勿当已完成）
+- **窄化 `get_current_user` 兜底分支（真故障返 503 / 坏 token 返 401）** —— Q5 裁定留 backlog：
+  会改客户端可见行为（前端 401 拦截器会清 token 跳登录，503 不会）须独立评估。本片只加日志。
 - **LOCKED audit-on-drift 仍未结清**（R-10）：本片**刻意不新增 `AuditAction`** —— 审计要写「哪个平台租户」，
   依赖 v0.9.5 platform/tenant admin 鉴权拆分的口径；且 `core` 层零 services 依赖也让 audit 写入不能落在
   `tenant_context`。配守护测断言「**没有任何 action 含 drift**」（不断言总数 —— 那会被无关新 action 打成假红）。

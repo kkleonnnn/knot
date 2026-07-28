@@ -192,3 +192,99 @@ def test_malformed_authorization_headers_never_5xx(two_tenants):
         if r.status_code >= 500:
             bad.append((h[:40], r.status_code))
     assert not bad, f"以下 Authorization 写法致 5xx（合法用户会整站不可用）：{bad}"
+
+
+# ─── 4. ⭐ 守护者 Q2：让「company 可选」安全的**承重性质**（此前未测） ──────
+
+
+def test_no_slug_login_with_two_active_tenants_is_401(two_tenants):
+    """⭐ **无代号 + 2 个 active 租户 → 统一 401，绝不「挑一个」租户。**
+
+    守护者 Q2 指出：让「`company` 可选」得以接受的，正是这条**结构性**性质 ——
+    `_resolve_login_tenant` 无 slug 时走 `resolve_single_tenant()`，而它在 active **≠1** 时 **raise**
+    ⇒ 第二租户一激活，无代号登录**立刻全部 401**。所以万一 lift 时忘了把 `company` 改必填，
+    后果是**可用性**（老链接失效），**不是跨租户访问**。
+    **而这条性质此前没有任何测**（守护者 grep `company|no_slug|without` 全空）—— 本测补齐，
+    并作为 **lift 前的 positive check**。
+
+    本测跑在 gate 已（测内）解除的双租户环境 = **模拟 lift 后的状态**，正是要证的那个场景。
+    revert-to-bad：把 `_resolve_login_tenant` 的无 slug 分支改成
+    `return tenant_repo.list_active_tenants()[0]`（「挑第一个」）→ 本测转红（会返 200 + token）。
+    """
+    c, _tokens = two_tenants
+    r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert r.status_code == 401, f"无代号 + 2 租户应统一 401，实得 {r.status_code} {r.text[:200]}"
+    assert r.json()["detail"] == "账号或密码错误", r.text[:200]
+    # 绝不能「挑一个」把 token 发出去 —— 那就是 OOS-1v2 fail-open
+    assert "token" not in r.text and "need_totp" not in r.text, r.text[:200]
+
+
+@pytest.mark.parametrize("tid,slug", [(1, "t1"), (2, "t2")])
+def test_slug_login_selects_the_right_tenant(two_tenants, tid, slug):
+    """⭐ 正向：带代号登录 → 进**对应**那家公司（签出 token 的 tid 与库内数据都对）。
+
+    与上一条互补：那条证「没代号时不乱猜」，这条证「有代号时选对」。两条合起来才是
+    「专属登录链接」的完整契约。
+    revert-to-bad：把 `resolve_tenant_by_slug` 的 `WHERE slug=?` 改成 `WHERE id=1` → tid=2 组转红。
+    """
+    c, _tokens = two_tenants
+    r = c.post("/api/auth/login",
+               json={"username": "admin", "password": "admin123", "company": slug})
+    assert r.status_code == 200, r.text[:200]
+    tok = r.json()["token"]
+    assert jwt.decode(tok, options={"verify_signature": False})["tid"] == tid, r.text[:200]
+    assert r.json()["user"]["display_name"] == _MARK_USER.format(tid=tid), r.text[:200]
+    # 再用它读业务表，确认真落在该租户的库文件上
+    r2 = c.get("/api/knowledge", headers=_h(tok))
+    assert _MARK_DOC.format(tid=tid) in r2.text, r2.text[:300]
+    assert _MARK_DOC.format(tid=2 if tid == 1 else 1) not in r2.text, r2.text[:300]
+
+
+def test_unknown_slug_login_is_401_and_indistinguishable(two_tenants):
+    """未知代号 → 与「密码错」**逐字相同**的 401（防公司枚举 —— 在**真有两家**的环境下再验一次）。"""
+    c, _tokens = two_tenants
+    bad_slug = c.post("/api/auth/login",
+                      json={"username": "admin", "password": "admin123", "company": "t3-nope"})
+    bad_pw = c.post("/api/auth/login",
+                    json={"username": "admin", "password": "wrong-pw-zz", "company": "t1"})
+    assert bad_slug.status_code == bad_pw.status_code == 401
+    assert bad_slug.text == bad_pw.text, (
+        f"「代号不存在」与「密码错」响应不同 ⇒ 可枚举公司：\n  {bad_slug.text[:120]}\n  {bad_pw.text[:120]}"
+    )
+
+
+# ─── 5. 守护者 Q5：兜底分支的可追溯性（基础设施故障不得静默变 401） ────────
+
+
+def test_infra_failure_is_logged_not_silently_401(two_tenants, monkeypatch):
+    """⭐ Q5：读租户库抛 `sqlite3.Error` 时仍返 401（客户端行为不变），但**必须留日志**。
+
+    守护者裁定：`get_current_user` 函末 `except Exception` 把 `get_token_version_cached` /
+    `get_user_by_id` 的 `sqlite3.Error` 折成「凭证无效」⇒ 磁盘/权限/库损坏时该租户**全体用户**
+    看到认证错误，而此前**零日志痕迹** = 基础设施故障被静默误诊成认证问题。
+    本片按 should-fix **只加日志**（窄化成 503 留 backlog，那会改客户端可见行为）。
+    revert-to-bad：删掉那句 `logger.exception` → 本测转红。
+    """
+    import sqlite3
+
+    from loguru import logger as _lg
+
+    from knot.services import totp_service
+    c, tokens = two_tenants
+
+    def boom(_uid):
+        raise sqlite3.OperationalError("disk I/O error（模拟磁盘/权限故障）")
+
+    monkeypatch.setattr(totp_service, "get_token_version_cached", boom)
+    sink: list = []
+    hid = _lg.add(lambda m: sink.append(str(m)), level="DEBUG", format="{message}")
+    try:
+        r = c.get("/api/auth/me", headers=_h(tokens[1]))
+    finally:
+        _lg.remove(hid)
+    assert r.status_code == 401, f"行为须不变（仍 401），实得 {r.status_code}"
+    blob = "".join(sink)
+    assert "兜底分支吞异常" in blob, (
+        f"基础设施故障被静默折成 401 且无日志痕迹（运维无法追溯）：{blob[-400:]}"
+    )
+    assert "disk I/O error" in blob, f"日志未含原始异常（`logger.exception` 才带 traceback）：{blob[-400:]}"
