@@ -89,6 +89,29 @@ def resolve_tenant_by_id(tenant_id: int) -> dict | None:
     return t
 
 
+def resolve_tenant_by_slug(slug: str) -> dict | None:
+    """v0.9.4 D4''：按**公司代号**（`tenants.slug`）解析**可服务**租户 —— 存在且 active 才返，否则 `None`。
+
+    kk 2026-07-27 决策①「每家公司一条专属登录链接」的落点：链接携带 `?c=<slug>`，登录端点据此
+    在**建 ctx 之前**（ctx-free，读平台库）定位租户。
+    ⭐ **复用已存在的 `tenants.slug`**（`NOT NULL UNIQUE`）带来的最大连带收益：**不需要**新建
+    user_directory 表、**不需要**用户名全局唯一 ⇒ 各租户照样可各有 `admin`
+    （避开与 seed 逻辑的正面冲突）。
+
+    **精确匹配（大小写敏感）**：`slug` 的 UNIQUE 是大小写敏感的 ⇒ 若这里做大小写不敏感匹配，
+    理论上 `abc` 与 `ABC` 两行都可能存在而本函数只能返一行 = **不确定地把用户送进某个租户**。
+    链接是系统生成的、不靠人手打 ⇒ 精确匹配代价可忽略，换来「绝不会解析歧义」。
+    返 `None` 而非 raise：调用方（登录端点）要把它折进**统一的**「账号或密码错误」，
+    否则「代号不存在」与「代号存在但口令错」可区分 = **公司枚举**（kk 决策②）。
+    """
+    conn = get_platform_conn()
+    row = conn.execute(
+        "SELECT * FROM tenants WHERE slug=? AND status='active'", (slug,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def assert_no_second_active_tenant_served() -> None:
     """R-T-GATE 请求侧硬门（v0.9.4 D5 —— **首次真实现**）：active 租户 **>1** 即 fail-closed。
 

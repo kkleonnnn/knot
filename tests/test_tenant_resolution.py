@@ -162,10 +162,10 @@ def test_R14_legacy_paths_exact():
     """⭐ 临时表**精确内容**断言 —— 增项必须是显式决策，不能顺手加。
 
     表里每一项都是「本请求没有能决定租户的 JWT」的例外；每加一项就多一条绕过 tid 解析的路径。
-    step 7 会摘掉 `/api/auth/login`（改为按 `?c=<slug>` 自建 ctx），届时本测同步改为 1 项。
+    **step 7 已摘掉 `/api/auth/login`**（改为端点内按 `?c=<slug>` 自建 ctx）⇒ 现仅剩 1 项。
+    剩下那项（调度器 tick）无 JWT，已登记 R-T-GATE 就绪清单「调度器 tick 租户域化」。
     """
     assert tr._LEGACY_SINGLE_TENANT_PATHS == frozenset({
-        "/api/auth/login",
         "/api/bi/scheduler/tick",
     }), (
         "临时路径表变了。增项 = 多一条绕过 tid 解析的路径，必须走显式决策 + 写明摘除条件；"

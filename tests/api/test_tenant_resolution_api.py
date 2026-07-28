@@ -176,21 +176,21 @@ def test_two_active_tenants_blocks_every_request(client, admin_token):
         client.get("/api/auth/me", headers=_bearer(admin_token))
 
 
-def test_zero_active_tenants_current_behavior_is_documented(client):
-    """0 active 租户时**当前**行为：受保护端点 401；登录端点走临时表的 `resolve_single_tenant` → raise。
+def test_zero_active_tenants_login_returns_401_not_500(client):
+    """⭐ 0 active 租户：受保护端点 401；**登录端点返回统一 401，不是 500**（D5 明示）。
 
-    ⚠️ **本测记录的是 step 5 的实况，不是终态。** 计划（D5）要求 0 active 时登录返回统一的
-    「账号或密码错误」而非崩 —— 那要等 step 7 把 login 改成按 `?c=<slug>` 自建 ctx（届时本测改断言 401）。
-    留此测是为了让 step 7 有个**必然会红的标记**，而不是让这个中间态悄悄留存。
+    step 5 时本测记录的是中间态（登录走临时表 `resolve_single_tenant` ⇒ 0 active 时 raise = 500），
+    并刻意留成「step 7 必然会红的标记」。**step 7 已兑现**：登录自建 ctx，0 active 折成统一 401。
+    为何不许 500：「整站崩」与「密码错」可区分 ⇒ 攻击者据此判断部署状态；且运维排障会被误导为 bug。
+    revert-to-bad：把 `_resolve_login_tenant` 的 `except TenantContextError: return None` 删掉 → 本测转红。
     """
     from knot.repositories import tenant_repo
     conn = tenant_repo.get_platform_conn()
     conn.execute("UPDATE tenants SET status='suspended'")
     conn.commit()
     conn.close()
-    # 受保护端点：无可解析租户 → 401（不回退）
     assert client.get("/api/auth/me",
                       headers=_bearer(_sign(sub="1", ver=1, tid=1))).status_code == 401
-    # 登录端点：step 5 仍走 resolve_single_tenant ⇒ 0 active 抛（step 7 改为 401）
-    with pytest.raises(TenantContextError):
-        client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert r.status_code == 401, f"0 active 时登录应统一 401，实得 {r.status_code} {r.text[:160]}"
+    assert r.json()["detail"] == "账号或密码错误", r.text[:160]

@@ -6,6 +6,10 @@ from pydantic import BaseModel
 class LoginRequest(BaseModel):
     username: str
     password: str
+    # v0.9.4 D4''：公司代号（= tenants.slug）。前端从专属登录链接的 `?c=<slug>` 读并回传。
+    # **可选**：未带时仅在 R-T-GATE 仍锁死单租户期间回退到唯一 active 租户（已登记 R-T-GATE 清单，
+    # lift 前必须改为必填）。放**请求体**而非 query：query 会进访问日志/Referer，body 不会。
+    company: str | None = None
 
 
 # v0.6.0.20 admin 强制改密
