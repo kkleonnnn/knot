@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { AppShell } from '../Shell.jsx';
 import { usePersist, Modal, ModalHeader, Input, toast, confirmDialog } from '../utils.jsx';
-import { api } from '../api.js';
+import { api, fetchAuthed } from '../api.js';
 import { ReportDirectory } from './bi/ReportDirectory.jsx';
 import { WideTableReport } from './bi/WideTableReport.jsx';
 import { DashboardReport } from './bi/DashboardReport.jsx';
@@ -18,7 +18,7 @@ import { ScheduleModal } from './bi/ScheduleModal.jsx';
 
 async function download(path, filename) {
   try {
-    const r = await fetch(path, { headers: { Authorization: `Bearer ${localStorage.getItem('cb_token') || ''}` } });
+    const r = await fetchAuthed(path);
     if (!r.ok) { toast(`导出失败（${r.status}）`, true); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);

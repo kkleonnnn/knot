@@ -42,7 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   正是 #258 刻意避开的东西（漏一条 = 打断所有跨域前端，或把带旧 token 的用户永久锁在登录页外）。
   改为**只在「凭证可用且租户可服务」时设 ctx**，否则不设；401 责任回 `get_current_user`。
   「不设 ctx」**不等于放行**：下游碰 DB 一律撞 fail-closed ⇒ 漏网**响亮崩掉**，不静默跨租户供数。
-  实测清点：138 条 API 路由中恰 4 条无鉴权（login / totp-verify / scheduler-tick / SPA），
+  实测清点：**138 条 APIRoute + 6 个 Mount**，其中恰 4 条 APIRoute 无鉴权（login / totp-verify /
+  scheduler-tick / SPA）。**测法**（写明以便复核）：`tests/_route_count.flatten_app_routes` 穿透
+  FastAPI 0.137+ `_IncludedRouter` 懒包装后按 `isinstance(APIRoute)` 分类；原始 `app.routes` 仅 27 项
+  （20 懒包装 + 2 Mount + 4 Route + 1 APIRoute），不能直接数。
+  ⚠️ 守护者 Stage 4 报「实为 142/8」，我用三种口径（原始 27 / flatten 144 = 138+6 / 深展开 27）**均未复现**
+  ⇒ 保留可复现的 138/6 + 附测法，分歧待守护者给测法（**不写自己复现不出的数**），
   逐条 + Mount + 预检实测**无 5xx**。
 - **`get_current_user` 加两道门**（在任何读租户库之前）：**tid 门**（`type(tid) is int and tid > 0` ——
   实测 sqlite3 INTEGER affinity 把 `'1'` / `1.0` / `True` 都匹配到整型 id=1 ⇒ 松了 tid 就是可伪造的「选公司」参数）
@@ -73,12 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **⭐ 测试盲区：`conftest` 的环境 tenant ctx 渗进 TestClient ⇒ 中间件可被整体改死而全量仍绿。**
   `_master_key_for_tests`（autouse）给每个测试 set tenant#1 ctx，TestClient 在**同一 contextvars 上下文**
   跑 app ⇒ app **继承**那份 ctx。实测把 `resolve_for_request` 整体改成 `return None`（永不解析租户）：
-  修前 **1437 passed 0 failed**；装 `NoAmbientTenantTestClient`（HTTP 调用期间清环境 ctx，`finally` 复原）后
+  修前 **1437 passed 0 failed**（**当时**的全量基数；本片终值见文末闸门行）；装 `NoAmbientTenantTestClient`（HTTP 调用期间清环境 ctx，`finally` 复原）后
   同一 sabotage → **262 failed**。修前**没有任何测试**在验「中间件真的解析了租户」。
   生产环境无环境 ctx（每请求干净 asyncio task）⇒ 被削弱的是**测试的证明力**，不是产品行为。
   已核：v0.9.0~v0.9.3 的 fail-closed 测都是直接调仓库/服务函数并各自显式 set ctx ⇒ **有效，无需撤回**。
   修法守在收敛点：TestClient 全仓仅 2 处构造 ⇒ 一次改动覆盖 **579 个 client 调用点 / 44 个文件**，
-  且全量 **1437 → 1437 逐字相同**（零测被打红）。
+  且全量 **1437 → 1437 逐字相同**（零测被打红 —— 同为**当时**基数；此二数是 A/B 证据，**不随后续 PATCH 更新**）。
 
 ### Security
 - 漂移 tripwire 接**结构化 WARN**（固定事件名 `tenant_ctx_drift`，便于运维 grep / 挂告警）+ 进程计数器。

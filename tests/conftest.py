@@ -61,13 +61,19 @@ class NoAmbientTenantTestClient(TestClient):
     ⇒ 测试比生产宽松 = 假绿。
 
     只在 HTTP 调用期间清（`finally` 复原）⇒ 测试自己在 client 调用之外直接调仓库函数不受影响。
+
+    ⚠️ **override `send()` 而非 `request()`**（守护者 MF7）：`httpx.Client.stream()` 走 `send()`
+    **不经** `request()` ⇒ 只挂 `request()` 的话，将来任何人写 `client.stream(...)` 就绕过本子类，
+    而盲区正好在 **SSE 这条最关键路径**回来（今天全仓 `client.stream(` 0 命中、SSE 测走 `post()`，
+    所以是**潜在**而非现存漏洞 —— 但一行改动就能一次覆盖两者，没有理由留着）。
+    ASGI app 在 `send()` 内经 portal 启动、继承此刻的 contextvars ⇒ 在 `send()` 期间清即足够。
     """
 
-    def request(self, *args, **kwargs):
+    def send(self, *args, **kwargs):
         from knot.core import tenant_context as _tc
         _tok = _tc._active_tenant_ctx.set(None)
         try:
-            return super().request(*args, **kwargs)
+            return super().send(*args, **kwargs)
         finally:
             _tc._active_tenant_ctx.reset(_tok)
 

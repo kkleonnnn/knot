@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import { I, pillBtn } from '../Shared.jsx';
 import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
-import { api } from '../api.js';
+import { api, fetchAuthed } from '../api.js';
 import { TabAccess } from './admin/tab_access.jsx';
 import { TabResources } from './admin/tab_resources.jsx';
 import { TabKnowledge } from './admin/tab_knowledge.jsx';
@@ -122,9 +122,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const r = await fetch('/api/knowledge/upload', {
-        method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd,
-      });
+      const r = await fetchAuthed('/api/knowledge/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       toast(`已上传「${d.name}」· ${d.chunk_count} 块${d.embedded_count < d.chunk_count ? '（部分未 embedding，将使用关键词检索）' : ''}`);
@@ -207,7 +205,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
 
   const downloadTemplate = (kind, filename) => {
     const url = `/api/templates/${kind}`;
-    fetch(url, { headers: { Authorization: `Bearer ${api._token()}` } })
+    fetchAuthed(url)
       .then(r => r.ok ? r.blob() : Promise.reject(new Error('下载失败')))
       .then(blob => {
         const a = document.createElement('a');
@@ -226,9 +224,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     setFsUploading(true);
     const fd = new FormData(); fd.append('file', file);
     try {
-      const r = await fetch('/api/few-shots/upload', {
-        method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd,
-      });
+      const r = await fetchAuthed('/api/few-shots/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       toast(`已导入 ${d.inserted} 条`);
@@ -263,9 +259,7 @@ export function AdminScreen({ T, user, onToggleTheme, onNavigate, onLogout, scre
     setPmUploading(true);
     const fd = new FormData(); fd.append('file', file);
     try {
-      const r = await fetch('/api/prompts/upload', {
-        method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd,
-      });
+      const r = await fetchAuthed('/api/prompts/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       toast(`已更新 ${d.updated} 个 agent 模板`);

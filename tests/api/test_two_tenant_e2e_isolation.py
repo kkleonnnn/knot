@@ -288,3 +288,67 @@ def test_infra_failure_is_logged_not_silently_401(two_tenants, monkeypatch):
         f"基础设施故障被静默折成 401 且无日志痕迹（运维无法追溯）：{blob[-400:]}"
     )
     assert "disk I/O error" in blob, f"日志未含原始异常（`logger.exception` 才带 traceback）：{blob[-400:]}"
+
+
+# ─── 6. 守护者 §IV note：两条「本片赖以成立却零正向覆盖」的主张 ────────────
+
+
+@pytest.mark.parametrize("tid,slug", [(1, "t1"), (2, "t2")])
+def test_login_audit_row_lands_in_the_right_tenant_db(two_tenants, tid, slug):
+    """⭐ B-5 audit 路由：登录成功的审计行必须落在**该公司自己的**库里，不能串到另一家。
+
+    守护者 §IV 指出这条零正向覆盖。它承重是因为：登录端点**自建 ctx**，而 audit 在 set 之后调 ——
+    若 set 用错租户（或 audit 早于 set），审计行就写进别家公司的库 = 安全记录错位且难察觉。
+    revert-to-bad：把 `login` 里的 `audit(...)` 移到 `set_active_tenant` **之前** → 本测转红
+    （MF3 修后它会直接抛 `TenantContextError`；R-13 哨兵亦会红 = 双重覆盖）。
+    """
+    from knot.core import tenant_context as tc
+    from knot.repositories import audit_repo, tenant_repo
+    c, _tokens = two_tenants
+    r = c.post("/api/auth/login",
+               json={"username": "admin", "password": "admin123", "company": slug})
+    assert r.status_code == 200, r.text[:200]
+
+    def _login_rows(t):
+        tok = tc.set_active_tenant(tenant_repo.get_tenant(t))
+        try:
+            return [x for x in audit_repo.list_filtered(page=1, size=200)
+                    if x["action"] == "auth.login_success"]
+        finally:
+            tc.reset_active_tenant(tok)
+
+    assert _login_rows(tid), f"租户 {tid} 库内没有本次登录的审计行"
+    other = 2 if tid == 1 else 1
+    assert not _login_rows(other), f"⭐ 审计行串到了租户 {other} 的库（安全记录错位）"
+
+
+@pytest.mark.parametrize("tid", [1, 2])
+def test_interim_tid_selects_the_tenant_for_2fa_path(two_tenants, tid):
+    """⭐ 「2FA 也走公司代号」：interim 里的 tid **就是**决定 verify 阶段读哪家库的东西。
+
+    守护者 §IV 指出这条零正向覆盖。链条：带代号登录 → 该租户 ctx 内签发 interim（tid=该租户）
+    → verify 时 `interim_session` **只**靠 interim 的 tid 重建 ctx（不靠 Authorization、不靠单租户回退）。
+    本测直接钉中间那一跳：在租户 N 的 ctx 内签 interim，然后**从 ctx 之外**进 `interim_session`，
+    块内必须是租户 N 且读到租户 N 的用户。
+    revert-to-bad：把 `interim_session` 的 `resolve_tenant_by_id(payload["tid"])` 换成
+    `resolve_single_tenant()` → 双 active 下抛错/选错 → 本测转红。
+    """
+    from knot.api.totp import create_interim_token, interim_session
+    from knot.core import tenant_context as tc
+    from knot.repositories import tenant_repo, user_repo
+    _c, _tokens = two_tenants
+
+    tok = tc.set_active_tenant(tenant_repo.get_tenant(tid))
+    try:
+        interim = create_interim_token(1, 1)          # 在租户 N 的 ctx 内签发
+    finally:
+        tc.reset_active_tenant(tok)
+
+    outer = tc.set_active_tenant(None)                 # 刻意从「无 ctx」进入
+    try:
+        with interim_session(interim) as (payload, user_id):
+            assert payload["tid"] == tid, payload
+            assert tc.current_tenant()["id"] == tid, tc.current_tenant()
+            assert user_repo.get_user_by_id(user_id)["display_name"] == _MARK_USER.format(tid=tid)
+    finally:
+        tc.reset_active_tenant(outer)

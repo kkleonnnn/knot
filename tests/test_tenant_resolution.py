@@ -394,3 +394,36 @@ def test_R10_no_drift_audit_action_added():
         f"若确要结清，须走 v0.9.5 platform admin 拆分并同步撤掉本断言 + 撤掉未结清登记。"
     )
     assert callable(tc.tenant_drift_count), "替代机制（计数器）缺失 —— 「没加审计」不能等于「什么都没做」"
+
+
+# ─── 7. ⭐ MF7：NoAmbient 覆盖面不得被裸 TestClient 悄悄恢复盲区 ──────────
+
+
+def test_R17_no_bare_testclient_construction_in_tests():
+    """⭐ 守护者 MF7：`tests/` 内构造 TestClient **只允许** `NoAmbientTenantTestClient(...)`。
+
+    没有这条守护，将来任何人写一句 `TestClient(app)` 就**悄悄恢复**本片声称修掉的最大盲区
+    （测试进程 ctx 渗进 app ⇒ 中间件设不设都一样；实测：中间件整体改死仍 1437 全绿）。
+    **顺序无关**：纯静态扫描，不依赖测试执行顺序或 fixture 先后。
+    子类定义行 `class NoAmbientTenantTestClient(TestClient):` 不命中 —— 那里是 `TestClient)`。
+    """
+    # ⚠️ 用 **AST 而非文本匹配**：初版用正则扫行，立刻被**自己 docstring 里的那句示例**命中
+    # （假阳性）。同 MF2 的教训 —— 结构解析比文本匹配可靠；顺带天然排除注释/字符串。
+    bad = []
+    for py in sorted((_REPO / "tests").rglob("*.py")):
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name == "TestClient":
+                bad.append(f"{py.relative_to(_REPO)}:{node.lineno}")
+    assert not bad, (
+        "发现裸 TestClient 构造 —— 它会绕过 NoAmbientTenantTestClient，"
+        "使该测试进程的 tenant ctx 渗进 app、令中间件的解析结果无关紧要：\n  "
+        + "\n  ".join(bad)
+        + "\n改用 `from tests.conftest import NoAmbientTenantTestClient`。"
+    )

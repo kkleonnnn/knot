@@ -73,6 +73,28 @@ export function handleUnauthorized() {
   window.location.reload();
 }
 
+/**
+ * ⭐ v0.9.4 MF9（守护者 Stage 4）：**带鉴权的裸 fetch 唯一入口**。
+ *
+ * `api.req` 只处理 JSON；文件上传 / blob 下载 / 导出这些场景必须用裸 fetch，于是全仓有 9 处
+ * 各自手拼 `Authorization` —— 且**没有一处处置 401**。这在平时只是「导出失败」的小事，
+ * 但 v0.9.4 会**把所有人的存量 token 一次性 401**（判别式是 tid 有无）⇒ 恰在那一刻，
+ * 走这些路径的用户既不会被登出、也看不懂为什么失败（`api.req` 那条会登出、这些不会 = 行为分裂）。
+ *
+ * 故收成一处：附 token + 401 → `handleUnauthorized()`（清会话 + 重载，与 `api.req` / SSE 同一实现）。
+ * **刻意不 throw**：9 个调用点里有 `.then()` 链（无 catch），throw 会变成未处理 rejection；
+ * 且 `handleUnauthorized` 本身就会重载页面，后续控制流无意义 ⇒ 原样返回 response，
+ * 让各调用点既有的 `!r.ok` 分支照旧工作。
+ */
+export async function fetchAuthed(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: { ...(opts.headers || {}), Authorization: `Bearer ${api._token()}` },
+  });
+  if (r.status === 401) handleUnauthorized();
+  return r;
+}
+
 export const api = {
   _token: () => localStorage.getItem('cb_token') || '',
   _h() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${this._token()}` }; },

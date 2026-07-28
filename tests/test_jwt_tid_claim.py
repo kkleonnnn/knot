@@ -51,7 +51,13 @@ def _jwt_encode_calls():
         if not mods and not funcs:
             continue
         for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and node.args):
+            if not isinstance(node, ast.Call):
+                continue
+            # ⚠️ **MF8**：`jwt.encode(payload={...}, key=...)` 是**关键字形**，旧版只看 `node.args`
+            # ⇒ 关键字调用整条逃出哨兵。首参取「位置首参 **或** `payload=` 关键字」。
+            first = node.args[0] if node.args else next(
+                (kw.value for kw in node.keywords if kw.arg == "payload"), None)
+            if first is None:
                 continue
             fn = node.func
             hit = (
@@ -60,7 +66,7 @@ def _jwt_encode_calls():
                 or (isinstance(fn, ast.Name) and fn.id in funcs)
             )
             if hit:
-                yield py.relative_to(_REPO), node.lineno, node.args[0]
+                yield py.relative_to(_REPO), node.lineno, first
 
 
 def test_R8_every_jwt_encode_payload_declares_tid():

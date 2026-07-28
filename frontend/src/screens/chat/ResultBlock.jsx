@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { I, iconBtn, SvgPath } from '../../Shared.jsx';
 import { toast } from '../../utils.jsx';
-import { api } from '../../api.js';
+import { fetchAuthed } from '../../api.js';
 import { resolveEffectiveHint } from './intent_helpers.js';
 import { MetricCard } from './ResultBlock/MetricCard.jsx';
 import { InsightCard } from './ResultBlock/InsightCard.jsx';
@@ -288,9 +288,7 @@ export function ResultBlock({ T, msg, user, onCopy, onDownload, onFollowup, onPi
 // v0.4.0: detail intent 服务端 CSV 导出（utf-8-sig BOM, Excel 直开）
 async function exportMessageCsv(messageId) {
   try {
-    const r = await fetch(`/api/messages/${messageId}/export.csv`, {
-      headers: { Authorization: `Bearer ${api._token()}` },
-    });
+    const r = await fetchAuthed(`/api/messages/${messageId}/export.csv`);
     if (!r.ok) {
       toast(`导出失败: ${r.status}`, true);
       return;

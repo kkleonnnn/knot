@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { I, iconBtn } from '../Shared.jsx';
 import { usePersist, toast } from '../utils.jsx';
 import { AppShell, SideHeading } from '../Shell.jsx';
-import { api, handleUnauthorized } from '../api.js';
+import { api, handleUnauthorized, fetchAuthed } from '../api.js';
 import { ChatEmpty } from './chat/ChatEmpty.jsx';
 import { ChatConversation } from './chat/Conversation.jsx';
 import { runQueryStream } from './chat/sse_handler.js';
@@ -220,7 +220,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const r = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      const r = await fetchAuthed('/api/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       setActiveUpload(d);

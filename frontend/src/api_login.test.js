@@ -5,7 +5,7 @@
 // `clearAuthSession() + window.location.reload()` ⇒ **密码错时整页重载，统一错误提示被冲掉**。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api, clearAuthSession, readCompanyFromUrl } from './api.js'
+import { api, clearAuthSession, fetchAuthed, readCompanyFromUrl } from './api.js'
 
 // jsdom **未装**，且抗诱惑清单禁本 PATCH 新增 npm 依赖 ⇒ 内联最小 Storage/window stub。
 // 方法用 enumerable:false 定义，使 `Object.keys(sessionStorage)` 只列出真实 key
@@ -151,5 +151,40 @@ describe('readCompanyFromUrl — 专属登录链接的公司代号', () => {
 
   it('⭐ 不做存在性校验：原样返回用户输入（回显 ≠ 确认存在，否则就是公司枚举口）', () => {
     expect(readCompanyFromUrl('?c=definitely-not-a-tenant')).toBe('definitely-not-a-tenant')
+  })
+})
+
+// ─── v0.9.4 MF9（守护者 Stage 4）：fetchAuthed —— 带鉴权裸 fetch 的唯一入口 ───
+describe('fetchAuthed — 401 必接单一处置（MF9）', () => {
+  it('⭐ 401 → clearAuthSession + reload（此前 10 处裸 fetch 一处都不做）', async () => {
+    localStorage.setItem('cb_token', 'tok-abc')
+    localStorage.setItem('cb_user', '{"id":1}')
+    globalThis.fetch = vi.fn(async () => ({ status: 401, ok: false, text: async () => 'x' }))
+    const r = await fetchAuthed('/api/messages/1/export.csv')
+    expect(r.status).toBe(401)
+    expect(localStorage.getItem('cb_token')).toBeNull()   // 会话已清
+    expect(reloadSpy).toHaveBeenCalled()
+  })
+
+  it('非 401 不触发登出（500 只是普通失败，调用点自己提示）', async () => {
+    localStorage.setItem('cb_token', 'tok-abc')
+    globalThis.fetch = vi.fn(async () => ({ status: 500, ok: false, text: async () => 'boom' }))
+    const r = await fetchAuthed('/api/x')
+    expect(r.status).toBe(500)
+    expect(localStorage.getItem('cb_token')).toBe('tok-abc')
+    expect(reloadSpy).not.toHaveBeenCalled()
+  })
+
+  it('自动带上 Authorization，且**不覆盖**调用方给的其它 header', async () => {
+    localStorage.setItem('cb_token', 'tok-xyz')
+    const seen = []
+    globalThis.fetch = vi.fn(async (url, opts) => { seen.push([url, opts]); return { status: 200, ok: true } })
+    await fetchAuthed('/api/upload', { method: 'POST', headers: { 'X-Trace': 't1' }, body: 'B' })
+    const [url, opts] = seen[0]
+    expect(url).toBe('/api/upload')
+    expect(opts.method).toBe('POST')
+    expect(opts.body).toBe('B')
+    expect(opts.headers.Authorization).toBe('Bearer tok-xyz')
+    expect(opts.headers['X-Trace']).toBe('t1')          // 调用方 header 保留
   })
 })
