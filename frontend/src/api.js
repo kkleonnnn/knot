@@ -28,6 +28,31 @@ export function normalizeDetail(detail) {
   try { return JSON.stringify(detail); } catch { return String(detail); }
 }
 
+// v0.9.4 D11：会话清理**单一实现**。此前三处各清一份不同的 key 清单：
+//   api.js 401 拦截器 → cb_token/cb_user/cb_screen/cb_conv/cb_loading + sessionStorage enroll 缓存
+//   App.jsx handleLogout → …+ cb_home_mode，但**不清** cb_loading、**不清** enroll 缓存
+//   App.jsx me() catch  → 只清 cb_token/cb_user
+// 后果不是洁癖问题：**从登出走会残留作废的 `cb_enroll_init_*`** ⇒ 同 tab 重进 Enroll 命中作废
+// secret → enroll-complete 必 400（v0.6.5.2 F5 修过的那个 bug 能从登出路径复发）。
+// `keepNavigation` 供「网络错/500 落 Login」场景保留浏览位置（再登录后回到原屏）——
+// 用一个开关而不是第二份清单，避免分叉再长回来。
+export function clearAuthSession({ keepNavigation = false } = {}) {
+  localStorage.removeItem('cb_token');
+  localStorage.removeItem('cb_user');
+  if (!keepNavigation) {
+    localStorage.removeItem('cb_screen');
+    localStorage.removeItem('cb_conv');
+    localStorage.removeItem('cb_loading');
+    localStorage.removeItem('cb_home_mode');
+  }
+  // v0.6.5.2 F5 硬伤2：清 sessionStorage enroll secret 缓存 —— admin reset / rollout bump
+  // → 旧 JWT 401 → 同 tab 重进 Enroll 若命中作废 secret 则 enroll-complete 必 400。
+  try {
+    Object.keys(sessionStorage).filter(k => k.startsWith('cb_enroll_init_'))
+      .forEach(k => sessionStorage.removeItem(k));
+  } catch { /* sessionStorage 不可用降级 */ }
+}
+
 export const api = {
   _token: () => localStorage.getItem('cb_token') || '',
   _h() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${this._token()}` }; },
@@ -38,17 +63,10 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (r.status === 401) {
-      localStorage.removeItem('cb_token');
-      localStorage.removeItem('cb_user');
-      localStorage.removeItem('cb_screen');
-      localStorage.removeItem('cb_conv');
-      localStorage.removeItem('cb_loading');
-      // v0.6.5.2 F5 硬伤2：清 sessionStorage enroll secret 缓存 —— admin reset / rollout bump
-      // → 旧 JWT 401 → 同 tab 重进 Enroll 若命中作废 secret 则 enroll-complete 必 400。
-      try {
-        Object.keys(sessionStorage).filter(k => k.startsWith('cb_enroll_init_'))
-          .forEach(k => sessionStorage.removeItem(k));
-      } catch { /* sessionStorage 不可用降级 */ }
+      // 会话失效（含 JWT_REVOKED / v0.9.4 JWT_NO_TID / TENANT_UNAVAILABLE）→ 清会话 + 整页重载。
+      // ⚠️ **登录流程的端点绝不能走这里** —— 它们的 401 是「密码错/验证码错」而非「会话过期」，
+      // 重载会把错误提示冲掉。故 login / totp.verify 走 reqPublic（见下）。
+      clearAuthSession();
       window.location.reload();
       return;
     }
@@ -67,11 +85,37 @@ export const api = {
     if (r.status === 204) return {};
     return r.json();
   },
+  // v0.9.4 D11/B-5②：**登录流程专用**请求 —— ① 不带 Authorization（陈旧 token 不该参与登录：
+  // 后端 middleware 会据它把租户 ctx 设成别家公司，虽有端点入口清 ctx 兜底，但客户端本就不该发）；
+  // ② **不触发 401 拦截器** —— 登录/验证码的 401 是「凭据错」不是「会话过期」，重载会把
+  // 统一错误提示（「账号或密码错误」）直接冲掉，用户什么都看不到。
+  // 抛错形状与 `req` 一致（.status/.detail/.detailRaw），调用方无需分支。
+  async reqPublic(method, path, body) {
+    const r = await fetch(path, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!r.ok) {
+      let detail = r.statusText;
+      try { const j = await r.json(); detail = j.detail ?? j.message ?? detail; } catch { /* not JSON */ }
+      const detailStr = normalizeDetail(detail);   // v0.6.5.2 F3：恒 string 防 React #31 白屏
+      const err = new Error(detailStr);
+      err.status = r.status;
+      err.detail = detailStr;
+      err.detailRaw = detail;
+      throw err;
+    }
+    if (r.status === 204) return {};
+    return r.json();
+  },
   get:   (p)    => api.req('GET',    p),
   post:  (p, b) => api.req('POST',   p, b),
   put:   (p, b) => api.req('PUT',    p, b),
   del:   (p)    => api.req('DELETE', p),
-  login: (u, p) => api.req('POST', '/api/auth/login', { username: u, password: p }),
+  // v0.9.4 D4''：`company` = 公司代号（专属登录链接的 `?c=<slug>`）。未带时后端回退到唯一 active
+  // 租户 —— 仅在 R-T-GATE 锁死单租户期间成立（lift 前后端会改必填，届时本处必须带上）。
+  login: (u, p, company) => api.reqPublic('POST', '/api/auth/login',
+    company ? { username: u, password: p, company } : { username: u, password: p }),
   me:    ()     => api.get('/api/auth/me'),
   // v0.6.0.20 admin 默认账号强制改密
   changePassword: (oldPw, newPw) => api.req('POST', '/api/auth/change-password',
@@ -82,24 +126,13 @@ export const api = {
     // secret 由 enrollInit 返回，前端原样回传（KNOT 不持久化中间态 — 防 secret 提前暴露）
     enrollComplete: (secret, code) => api.post('/api/totp/enroll-complete', { secret, code }),
     // verify 用 interim_token（login 时拿到）
-    async verify(code, interimToken) {
-      // v0.6.5.2 C1：interim_token 必须在 body（TotpVerifyRequest 必填字段）。
-      // 旧版放 Authorization header（verify 端点无 get_current_user 不读 header）→ Pydantic
-      // 报 interim_token field required → 422 → 已 enrolled 用户全员登录第二步卡死。
-      const r = await fetch('/api/totp/verify', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interim_token: interimToken, code }),
-      });
-      if (!r.ok) {
-        let detail = r.statusText;
-        try { const j = await r.json(); detail = j.detail ?? detail; } catch { /* */ }
-        const detailStr = normalizeDetail(detail);  // v0.6.5.2 F3
-        const err = new Error(detailStr);
-        err.status = r.status; err.detail = detailStr; err.detailRaw = detail;
-        throw err;
-      }
-      return r.json();
-    },
+    // v0.6.5.2 C1：interim_token 必须在 **body**（TotpVerifyRequest 必填字段）。
+    // 旧版放 Authorization header（verify 端点无 get_current_user 不读 header）→ Pydantic
+    // 报 interim_token field required → 422 → 已 enrolled 用户全员登录第二步卡死。
+    // v0.9.4 D11：原先此处自己写了一份裸 fetch + 错误规整（与 reqPublic 逐行等价）——
+    // 收成一份实现（它本来就是「不带 Authorization + 不触发 401 拦截器」的先例）。
+    verify: (code, interimToken) => api.reqPublic('POST', '/api/totp/verify',
+      { interim_token: interimToken, code }),
     // v0.6.5.2 C2：字段名 target_user_id（TotpResetRequest）；旧版 user_id 致 422 → admin 无法救援
     reset: (userId) => api.post('/api/totp/reset', { target_user_id: userId }),
   },
