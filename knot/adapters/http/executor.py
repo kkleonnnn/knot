@@ -87,9 +87,23 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
         header_name = os.environ.get(auth_header_env, "") if auth_header_env else ""
         header_value = os.environ.get(auth_value_env, "") if auth_value_env else ""
         if (auth_header_env or auth_value_env) and (not header_name or not header_value):
+            # ⭐ SECURITY：**只报 env 名，绝不报 env 值**。
+            # 原写法 `{auth_value_env}={header_value!r}` 把**读到的 env 明文**插进异常消息 ——
+            # 而 spec 里的 env 名由 catalog（admin 可写）提供、服务端零校验 ⇒ 完整链条：
+            #   admin 在 http 表里填 `auth_value_env="JWT_SECRET"` + `auth_header_env="<不存在的名>"`
+            #   → 条件成立 → 本处抛错，消息含 JWT_SECRET 明文
+            #   → `services/http_planner.run_http_step` 把 `str(e)` 放进 `result["error"]`
+            #   → `api/query.py` 把该字段**原样 yield 给客户端**
+            # ⇒ admin 可读出进程内任意 env（`JWT_SECRET` → 伪造任意用户的完整 token，
+            #    因伪造的完整 token 无 `totp_pending` 故**绕过 2FA**；`KNOT_MASTER_KEY` → 解密全部已存凭据）。
+            # 本处**在 allowlist 守护之前**，所以出境限制也挡不住它。
+            # 只列「确实缺失/为空」的名字：对运维更有用（直接指出该配哪个），且不含任何值。
+            _missing = [n for n, v in ((auth_header_env, header_name),
+                                       (auth_value_env, header_value)) if n and not v]
             raise HTTPAuthError(
-                f"auth env 缺失: {auth_header_env}={header_name!r} "
-                f"{auth_value_env}={header_value!r} (R-PB2-3)"
+                "auth env 未设置或为空: "
+                + (", ".join(_missing) or "(spec 未指定 auth env 名)")
+                + " (R-PB2-3)"
             )
 
     # URL 拼接 + allowlist 守护
