@@ -47,7 +47,6 @@ async def get_catalog(admin=Depends(require_tenant_admin)):
             "relations": [list(r) for r in catalog_loader.RELATIONS],
             "field_labels": catalog_loader.FIELD_LABELS,   # v0.7.27 维度中文标签 {列名:中文}
         },
-        "defaults": catalog_loader.get_defaults_from_files(),
         "db_overrides": {
             "tables": _has_override("tables"),
             "lexicon": _has_override("lexicon"),

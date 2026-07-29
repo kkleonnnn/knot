@@ -182,7 +182,11 @@ def reload(strict: bool = False) -> str:
 
 
 def get_defaults_from_files() -> dict:
-    """admin "恢复默认"按钮预填值。v0.5.44 加 relations。"""
+    """⚠️ **v0.9.5 起生产零调用者**（原唯一调用点 = `/api/admin/catalog` 的 `defaults`，已删）。
+
+    ⛔ **不得未过评审就重新接到 HTTP 响应** —— 它返**部署级** `_local_catalog` 全文、绕过 per-tenant 槽
+    （详 `docs/plans/v0.9.5-auth-split-platform-tenant-admin.md` D4'）。本片不删它，已登记 backlog。
+    """
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     return {
         "lexicon": f_lex,
