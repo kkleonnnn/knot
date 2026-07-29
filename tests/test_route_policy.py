@@ -42,6 +42,41 @@ from _route_policy import (  # noqa: E402
 _REGEN = "PYTHONPATH=. python3 scripts/gen_route_policy_snapshot.py"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 🔴🔴 v0.9.5 硬注记（守护者 Stage 4 §II-1 要求写死；**动授权的那片必须先读这段**）
+#
+# **本快照绿 ≠ 授权完好。它只 ≠「依赖层策略漂移」。**
+# v0.9.5 恰恰是**动授权**的那片（拆 platform admin / tenant admin）。若它重构下面两类
+# **函数体内**的授权逻辑，**这份快照会全程保持绿** —— 因为分类器只 introspect `Depends(...)`。
+#
+# ⇒ **v0.9.5 必须为「函数体内授权」另配覆盖，且严禁引用本快照作为其覆盖依据。**
+#
+# 体内授权有两类，都对本快照不可见，**别只想到第一类**：
+#
+# 【第一类 · 归属检查】（守护者 Stage 4 §II-1 点名的残留）
+#   `DELETE /api/conversations/{conv_id}` · `DELETE /api/saved-reports/{report_id}` ·
+#   `DELETE /api/uploads/{upload_id}` 等标 `AUTHENTICATED` 的 `{id}` 型端点，
+#   真实授权是体内的 `delete_owned(...)` 那类（不属于你 → 404）。
+#   实例：`knot/api/saved_reports.py:113`。
+#
+# 【第二类 · 角色分流】（执行者补 —— **拆 admin 时这类才是真正的作业面**）
+#   全仓 **13 处** `role == "admin"` 比较 / **8 文件**（AST 口径实测），其中 1 处是
+#   `require_admin` 本体（`deps.py:213`）⇒ **12 处体内分流**：
+#     `api/deps.py:191`            admin TOTP enroll 应急后门（R-2FA-3）
+#     `api/query.py:166,197`       非 admin 脱敏（agent_steps / SQL / 表名 → 业务别名）
+#     `api/conversations.py:46`    非 admin 脱敏（历史消息 sql_text）
+#     `api/saved_reports.py:47,55,75`  非 admin 脱敏 + 归属-或-admin
+#     `api/exports.py:29`          归属-或-admin
+#     `api/bi_reports.py:99`       非 admin 脱敏（→ `bi_report_service.to_dto` 透传 `is_admin`）
+#     `services/saved_report_service.py:108,194`  归属-或-admin
+#     `services/bi_permission_service.py:19`      **admin 绕过整套 BI 权限判定**
+#   ⚠️ admin 一拆两半，**这 12 处每一处都要回答「哪一种 admin」**。只改那 90 个
+#   `Depends(require_admin)` 的话，脱敏与权限绕过会继续按旧的二元 `role == "admin"` 跑
+#   —— 而其中 `bi_permission_service.py:19` 是**整套 BI RBAC 的旁路**。
+#   （另有若干**下游透传**点接收 `is_admin: bool` 参数，如 `bi_report_service.py:308-315`；
+#     它们不是独立判定点，但改口径时同样要跟着走。）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # D10' 意图复核 —— **23 条挂 admin 守护却在 `/api/admin/` 之外**的路由，逐条一行理由
 #
 # 为什么必须逐条过：**快照会把今天的状态祝福成正确；钉住之后就查不出来了。**
@@ -104,6 +139,16 @@ _NO_USER_JWT_DEPENDENCY = {
     # SPA catch-all：只回静态壳，**不碰 DB**（v0.9.4 实测无 ctx 也不 5xx）
     "GET /{full_path:path}",
 }
+
+# ⚠️ 守护者 Stage 4 §II-2：**`POST /api/catalog/switch` 标 `AUTHENTICATED` 是对的，但理由不显然。**
+# 它名字里带 catalog、看着像部署级全局配置 ⇒ 下一个人**很可能「顺手改成 ADMIN」**。
+# 事实（v0.9.3 grounded）：它改的是 **`users.active_catalog_id`，per-user 的**
+# （`api/catalog.py:259` → `catalog_repo.set_user_active_catalog(user["id"], catalog_id)`）
+# —— 任意登录用户切**自己**的 active catalog，不影响别人、不改部署级配置。
+# ⇒ 改成 ADMIN 会**破坏正常功能**（普通用户再也换不了自己的目录）。
+# 附带（自述 OOS-2，`api/catalog.py:253`）：无 catalog 级 RBAC，用户可切到本租户内**任一** catalog。
+# 那是**已登记的开放设计缺口**，**不是**本条标签的错 —— 别用「改成 ADMIN」去补它。
+# 注：本注释写在这里而**不在** `route_policy.json` 里，因为 **JSON 不支持注释**。
 
 
 def test_D1_route_policy_matches_snapshot():
@@ -168,6 +213,11 @@ def test_D2_factory_produced_dep_is_matched_by_code_identity():
     `require_report_perm(action)` 每次返回**不同**的 `_dep` 闭包（实测 `is` 为 False），
     但同一工厂产出的闭包**共享同一 code 对象**（编译期唯一）。
     `__code__` 同样**不可被 `__name__` 伪装**（伪装后 `__code__` 仍不同）—— 故仍守 D2' 的实质。
+    ⚠️ 关于「`__code__` 到底强在哪」的**精确**结论（三条实测：本工厂的字节码搬运**物理封死**；
+    普通函数可搬但 fail-closed 是**碰巧**不是结构性；真正承重的是 `functools.wraps` 会
+    **无辜地**复制 `__name__` 而不碰 `__code__`）见 `_route_policy.py` 模块 docstring。
+    **刻意不把「自由变量非空」写成断言** —— 那是解释性度量而非承重不变量：
+    若将来 `require_report_perm` 改成类/无闭包实现，分类器**照样工作**，而那条断言会假红。
     ⚠️ 这是**实施期发现的 LOCKED 设计洞**：D2' 原文只写了 `dep.call is X`，对工厂形态不适用；
     若照字面实现，**10 条有 RBAC 细粒度权限的报表路由会被错标成 `AUTHENTICATED`**。
     """

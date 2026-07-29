@@ -334,3 +334,45 @@ commit 1 的 D1'/D2'/D3'/D7' 取材见该 commit message。mutation 后 `git dif
    （「快照会把今天的状态祝福成正确」的风险，在我这一层同样成立）。
 5. **镜像面扫描**（34 条 AUTHENTICATED + 10 条 REPORT_PERMISSION）我只发现 1 条已登记开放项，
    请核有没有漏 —— 我的分类器**看不见函数体内的守护**，这个盲区已写进两处 docstring。
+
+---
+
+## §9 Stage 4 记录（守护者终审 · **PASS — merge-clear**）
+
+守护者**未跑 workflow，直读 + 亲验**（理由：该路径本会话连续 3 次不可用 —— 2 次执行者 + 1 次资深，
+后两次收尾 403、合计 ~130 万 token 零可回收；v0.9.4 §V 流程结论 = 别再把它当可依赖的一层）。
+**执行者第 4 次尝试同样零可回收**（Stage 4 期间起了 5 lens 对抗审查，资深指令后主动 kill；
+journal 5 条全 `started` / 0 完成，5 × ~250KB transcript 定向捞取**零 agent 结论**，
+命中全是 prompt 回声与被读文件内容；另留 12 个脏工作树残骸已清）⇒ **该结论第 4 次得到实证。**
+
+### §9.1 五条裁定（全过）
+1. **IV-4(c) 放测不放生产 → 解读正确，不改。** 守护者原话「运行期」是指**反射**（对举 (b) 的 AST 机器），
+   非生产 import 期。执行者两条理由独立成立（放生产破 commit 2 的「行为不变」声明；裸 `assert` 被 `-O` 剥离）。
+2. **移交那条哨兵 → 接受。** 包含关系已实测；唯一条件（失效机制 + 时序真相 docstring 随迁）已做。
+3. **`__code__` → 守住 D2' 实质，且比 LOCKED 字面更对。** 守护者自认 `dep.call is X` 对依赖工厂按构造不成立；
+   收益可验：REPORT_PERMISSION 那 10 条全是 `/api/bi/reports/{report_id}/*`，正是照字面实现会被祝福成
+   AUTHENTICATED 的那组。
+4. **23 条理由 → 攻过，未找到「误挂 + 编理由」。** 守护者如实标边界：读分类摘要 + 抽查 3 条，非逐条审 23。
+   抽查坐实 `/api/db/test` 的理由不是编的（v0.8.20 F4 刻意决定，当时同时加 host allowlist，可追溯）。
+5. **镜像面 → 守护者独立扫，0 条 admin 形状的欠守护**（18 条写操作全 per-user 资源；启发式 0 命中）。
+
+### §9.2 §II 两条增量（doc 级，守护者免复核）→ 本片已落
+- **v0.9.5 硬注记**：本快照绿 ≠ 授权完好；v0.9.5 必须为体内授权另配覆盖，**严禁引用本快照当覆盖依据**。
+  执行者补上**第二类**（守护者只点了第一类归属检查）：**12 处体内角色分流 / 8 文件**（AST 实测），
+  其中 `bi_permission_service.py:19` 是**整套 BI RBAC 的 admin 旁路** —— 拆 admin 时这类才是真作业面。
+- **`POST /api/catalog/switch` 注释**：标 AUTHENTICATED 对但理由不显然（per-user `active_catalog_id`，
+  改成 ADMIN 会破坏功能）。⚠️ 落点不是 fixture 而是 `test_route_policy.py` —— **JSON 不支持注释**。
+
+### §9.3 执行者对守护者一条论证的修正（`__code__` 的性质）
+守护者 §I-③ 说「伪装 `__code__` 不是绕过、是合规 —— 你把字节码换成真守护，那守护就真的在跑」。
+**结论对，理由不成立。** 实测：函数语义 = `__code__` + `__globals__` + `__defaults__` + `__closure__`，
+伪装**只搬第一项** ⇒ `__defaults__` 丢失（`Depends` 默认值消失，FastAPI 把 `user` 读成查询参数）、
+`__globals__` 是冒充者模块的（非 admin 分支抛 `NameError: HTTPException` 而非 403）。
+**fail-closed 是碰巧不是结构性**；换个模块里恰好定义了无害 `HTTPException` 的冒充者，该论证即失效。
+- 更强的一半（守护者未说）：**对本工厂字节码搬运物理封死** ——
+  `_dep.__code__.co_freevars == ('action',)` ⇒ `weak.__code__ = _dep.__code__` 直接 `ValueError`。
+- **真正承重的优势（双方都没写对）**：`__name__` 会被**无辜机制**复制 —— `@functools.wraps(real_guard)`
+  后 `wrapper.__name__ == "real_guard"`（实测）⇒ **不需要攻击者，按名匹配自己就会误标 ADMIN**。
+⇒ 准确定性：**`__code__` 是对「意外别名」免疫的漂移探测器，不是攻击屏障**（威胁模型是手误非攻击）。
+已替换 `_route_policy.py` 模块 docstring 里那句偏弱论证。**刻意不把「自由变量非空」写成断言** ——
+那是解释性度量非承重不变量：若 `require_report_perm` 改成类实现，分类器照样工作而该断言会假红。

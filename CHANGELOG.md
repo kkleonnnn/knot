@@ -173,6 +173,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **D8' 重复清单哨兵阈值 4** 可被「拆成两个二元组」绕过 —— **它是提醒，不是完备性保证**（完备性归 D6'）。
   阈值取 4 而非 3 是刻意的：≥3 会误伤只验三个属性的正当测，而**噪音大的提醒会被关掉**。
 
+#### 🔴 v0.9.5 硬注记（守护者 Stage 4 §II 要求写死）
+- **本快照绿 ≠ 授权完好，只 ≠「依赖层策略漂移」。** v0.9.5 恰是**动授权**的那片；若它重构
+  **函数体内**的授权逻辑，**这份快照会全程保持绿**（分类器只 introspect `Depends(...)`）。
+  ⇒ **v0.9.5 必须为「函数体内授权」另配覆盖，且严禁引用本快照作为其覆盖依据。**
+  体内授权有**两类**，别只想到第一类：
+  ① **归属检查**（守护者点名）：`DELETE /api/conversations/{id}` · `/api/saved-reports/{id}` ·
+     `/api/uploads/{id}` 等 `{id}` 型端点，真实授权是体内 `delete_owned(...)`（`saved_reports.py:113`）。
+  ② **角色分流**（执行者补 —— **拆 admin 时这类才是真作业面**）：全仓 **13 处** `role == "admin"`
+     比较 / **8 文件**（AST 实测），减去 `require_admin` 本体（`deps.py:213`）⇒ **12 处体内分流**：
+     `deps.py:191`（admin TOTP 应急后门 R-2FA-3）· `query.py:166,197` + `conversations.py:46` +
+     `saved_reports.py:47,55,75` + `bi_reports.py:99`（非 admin **脱敏** SQL/表名）·
+     `exports.py:29` + `saved_report_service.py:108,194`（归属-或-admin）·
+     **`bi_permission_service.py:19`（admin **绕过整套 BI RBAC**）**。
+     ⚠️ admin 一拆两半，**这 12 处每处都要回答「哪一种 admin」**；只改那 90 个
+     `Depends(require_admin)`，脱敏与权限旁路会继续按旧的二元 `role == "admin"` 跑。
+- **`POST /api/catalog/switch` 标 `AUTHENTICATED` 是对的但理由不显然**（守护者 §II-2）：名字带 catalog、
+  看着像部署级全局，实则改 **per-user 的 `users.active_catalog_id`**（`api/catalog.py:259`）⇒
+  「顺手改成 ADMIN」会**破坏正常功能**。已就地加注释（写在 `test_route_policy.py`，因 **JSON 不支持注释**）。
+- **`__code__` 的论证已精确化**（守护者 §I-③ 提出，执行者实测修正）：它是**对「意外别名」免疫的
+  漂移探测器，不是攻击屏障**。三条实测：① 对本工厂字节码搬运**物理封死**（`_dep` 自由变量
+  `('action',)` ⇒ 赋值直接 `ValueError`）· ② 对普通函数可搬，fail-closed 但**是碰巧不是结构性**
+  （只搬 `__code__`，`__defaults__`/`__globals__` 不跟 ⇒ `Depends` 默认值丢失、非 admin 分支抛
+  `NameError` 而非 403）⇒ **不能写「伪装 `__code__` 等于合规」** · ③ 真正承重的是
+  `@functools.wraps` 会**无辜地**复制 `__name__` 而不碰 `__code__` ⇒ **不需要攻击者，
+  按名匹配自己就会误标出 ADMIN**。
+
 ## [Released] - v0.9.3 — catalog 载体 per-tenant 化（隔离栈第三刀）
 
 > v0.9 多租户 MINOR 第四个 PATCH。catalog 是**现存唯一一处「读隔离、写不隔离」**的状态：`reload()` 读当前租户库

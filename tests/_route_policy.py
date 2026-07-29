@@ -63,8 +63,23 @@ def _report_perm_code():
     （实测 `factory("a") is factory("b")` → False）。评审双方给的类名 `require_report_permission`
     在仓里**不存在**，真名是 `require_report_perm`。
     **解法仍守 D2' 的实质（身份而非名字）**：比 **`__code__` 身份** —— 同一工厂产出的所有闭包共享
-    同一个 code 对象（实测 `factory("a").__code__ is factory("b").__code__` → True），
-    而它**不可被 `__name__` 伪装**（实测：把 `weak.__name__` 改成 `_dep` 后 `weak.__code__` 仍不同）。
+    同一个 code 对象（实测 `factory("a").__code__ is factory("b").__code__` → True）。
+
+    ## ⭐ `__code__` 到底强在哪（守护者 Stage 4 §I-③ 提出 + 执行者实测精确化）
+    **定性：它是对「意外别名」免疫的漂移探测器，不是攻击屏障。** 能改代码的人能打败任何哨兵；
+    这里的威胁模型是**手误，不是攻击者**。三条实测：
+    1. **对本工厂，字节码搬运物理封死**：`_dep` 闭包自由变量 `('action',)` ⇒
+       `weak.__code__ = _dep.__code__` 直接
+       `ValueError: requires a code object with 0 free vars, not 1`。
+    2. **对普通函数（如 `require_admin`）赋值会成功**，结果**碰巧** fail-closed 而**非结构性**：
+       函数语义 = `__code__` + `__globals__` + `__defaults__` + `__closure__`，伪装**只搬第一项**。
+       实测：`__defaults__` 丢失 ⇒ `Depends(get_current_user)` 消失、FastAPI 会把 `user` 读成
+       **查询参数**；`__globals__` 是冒充者模块的 ⇒ 非 admin 分支抛
+       `NameError: HTTPException` 而不是 403。**所以别写「伪装 `__code__` 等于合规」** ——
+       换个模块里恰好定义了无害 `HTTPException` 的冒充者，这个论证就不成立了。
+    3. **真正承重的优势**：`__name__` 会被**无辜机制**顺手复制 —— 实测
+       `@functools.wraps(real_guard)` 之后 `wrapper.__name__ == "real_guard"`，
+       ⇒ **不需要攻击者，按名匹配自己就会误标出 ADMIN**（而 `wraps` 不碰 `__code__`）。
     """
     from knot.api.bi_reports import require_report_perm
     return require_report_perm("__probe__").__code__
