@@ -78,6 +78,26 @@ class NoAmbientTenantTestClient(TestClient):
             _tc._active_tenant_ctx.reset(_tok)
 
 
+@pytest.fixture(autouse=True)
+def _restore_dependency_overrides():
+    """per-test 快照/复原 `app.dependency_overrides`（chore D7' 硬条件，不是建议）。
+
+    **为何必须**：`tests/test_route_policy.py::test_D7_named_guards_not_overridden` 断言
+    「具名守护不在 overrides 里」。测自己会**合法**使用 override ⇒ 若某条测漏清，
+    该断言会变成**时绿时红**（取决于执行顺序）—— v0.9.3 验收测 #2 踩过同一个坑。
+    本 fixture 让每条测结束后 overrides 回到入场时的样子 ⇒ **新哨兵不引入测序依赖**（R-C6）。
+
+    刻意**不**断言「overrides 必须为空」：那会禁掉一个合法的测试手段。
+    """
+    from knot.main import app
+    before = dict(app.dependency_overrides)
+    try:
+        yield
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(before)
+
+
 def _reset_module_level_caches():
     """v0.6.5.3 flaky 修：清三类模块级可变缓存（跨测试 state 泄露根因 class）。
 
