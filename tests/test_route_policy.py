@@ -2,7 +2,7 @@
 
 ## 为什么需要它
 v0.9.5 要动 **90 处** `require_tenant_admin` 依赖。此前全仓的路由守护只有**条数**断言
-（`== 144` / `== 53` / `>= 80`）+ **8 条**行为 403 spot check，**0 处** introspect 路由的依赖身份
+（`== 145` / `== 53` / `>= 80`）+ **8 条**行为 403 spot check，**0 处** introspect 路由的依赖身份
 ⇒ **没有任何测能断言「某条路由仍受 `require_tenant_admin` 守护」，漏一个不会红。**
 
 ## 两条最容易被后人「好心修坏」的地方（D11'）
@@ -29,10 +29,11 @@ if str(_TESTS) not in sys.path:
     sys.path.insert(0, str(_TESTS))
 
 from _route_policy import (  # noqa: E402
-    TENANT_ADMIN,
     AUTHENTICATED,
+    PLATFORM_SECRET,
     PUBLIC_OR_OUT_OF_BAND,
     REPORT_PERMISSION,
+    TENANT_ADMIN,
     build_actual_policy_map,
     diff,
     load_expected,
@@ -180,7 +181,8 @@ def test_D1_policy_class_counts_are_pinned():
     actual = build_actual_policy_map()
     import collections
     got = collections.Counter(actual.values())
-    want = {TENANT_ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34, PUBLIC_OR_OUT_OF_BAND: 4}
+    want = {TENANT_ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34,
+            PLATFORM_SECRET: 1, PUBLIC_OR_OUT_OF_BAND: 4}
     assert dict(got) == want, (
         f"策略类分布漂移：\n  实际 {dict(sorted(got.items()))}\n  期望 {dict(sorted(want.items()))}\n"
         f"若有意：跑 `{_REGEN}` 并同步本测的 want。"
@@ -254,6 +256,56 @@ def test_D3_no_user_jwt_dependency_set_is_pinned():
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ⚠️ 分类学债（v0.9.5 加-2 · Stage 3 要求写明，**本片刻意不动**）
+#
+# `POST /api/bi/scheduler/tick` 今天落在 `PUBLIC_OR_OUT_OF_BAND`，但它的**信任形状**
+# 与新的 `PLATFORM_SECRET` **同类**：同为 out-of-band 共享密钥（`KNOT_SCHEDULER_TOKEN`）、
+# 同样 `compare_digest` + 未配 503，而且它 **fan-out 全租户**
+# （R-T-GATE 已登记「一个全局密钥能 fan-out 所有租户」是独立的跨租户操作权问题）。
+#
+# **为什么本片不把它并进 `PLATFORM_SECRET`**：范围外 —— 另一枚密钥、另一用途
+# （CronJob 敲钟 vs 平台只读），并且它的租户域化本身是 R-T-GATE 清单里的独立条目。
+# ⚠️ **但下一个人很可能「顺手统一」** —— 那会**静默改掉 `_NO_USER_JWT_DEPENDENCY` 这个
+# 被钉住的 4 条集合的含义**（它现在的语义是「无用户 JWT 依赖」，不是「无认证」）。
+# ⇒ 要动它，先改上面那个常量的注释与语义，再改分类器；别只挪一个标签。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_D5_mixed_trust_domain_refuses_to_classify():
+    """⭐ 7b：一条路由同时挂**平台域**与**租户域**守护 → 生成器**直接失败**（不标类、不标 MIXED）。
+
+    平台身份与租户身份是**互斥信任域**，不是可排序权限 ⇒ 单标签是范畴错误。
+    而只要给它一个类名，它就会被**写进 fixture = 被祝福** —— 正是前置 chore 要治的病。
+    取材=注入，**走真实注册 API**（`app.get`），不手搓 route 对象（R-C3 附加条件 2）。
+    """
+    from _route_policy import MixedTrustDomainError, _classify
+    from fastapi import Depends, FastAPI
+
+    from knot.api.deps import require_tenant_admin
+    from knot.api.platform_admin import require_platform_secret
+
+    # ① 分类器层：混合 → raise
+    with pytest.raises(MixedTrustDomainError, match="互斥信任域"):
+        _classify([require_platform_secret, require_tenant_admin])
+    # ② 纯平台 → PLATFORM_SECRET（前提：不是「凡有平台守护就 raise」）
+    assert _classify([require_platform_secret]) == PLATFORM_SECRET
+
+    # ③ 真实注册一条混合根路由 → 派生策略表时必须炸（而不是静默给它一个类）
+    probe = FastAPI()
+
+    @probe.get("/api/platform/mixed-probe")
+    async def _mixed(_p=Depends(require_platform_secret), _t=Depends(require_tenant_admin)):
+        return {}
+
+    from _route_policy import _dep_calls
+    from fastapi.routing import APIRoute
+    route = next(r for r in probe.routes
+                 if isinstance(r, APIRoute) and r.path == "/api/platform/mixed-probe")
+    with pytest.raises(MixedTrustDomainError):
+        _classify(_dep_calls(route))
+
+
 def test_D3_no_unclassified_websocket_routes():
     """`APIWebSocketRoute` 不在策略表覆盖范围内 ⇒ 必须为 0，否则它会**静默逃出策略表**。
 
@@ -281,9 +333,13 @@ def test_D7_named_guards_not_overridden():
     只针对**具名守护函数**，不断言整个 overrides 字典为空 —— 测自己会合法用 override（D7' 硬条件）。
     """
     from knot.api.deps import get_current_user, require_tenant_admin
+    from knot.api.platform_admin import require_platform_secret
     from knot.main import app
 
-    overridden = [f.__name__ for f in (require_tenant_admin, get_current_user)
+    # v0.9.5 D9'：平台守护一并纳入 —— override 它等于**换掉整个平台面的认证**，
+    # 而策略快照对 override **无感**（注册期持原对象 / 请求期解析替身，chore 已实测）。
+    overridden = [f.__name__ for f in (require_tenant_admin, get_current_user,
+                                       require_platform_secret)
                   if f in app.dependency_overrides]
     assert not overridden, (
         f"具名守护被 override：{overridden}\n"

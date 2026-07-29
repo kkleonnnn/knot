@@ -36,6 +36,8 @@ if str(_TESTS) not in sys.path:
 PUBLIC_OR_OUT_OF_BAND = "PUBLIC_OR_OUT_OF_BAND"
 AUTHENTICATED = "AUTHENTICATED"
 TENANT_ADMIN = "TENANT_ADMIN"
+#: v0.9.5：平台面（out-of-band 共享密钥）。**与租户三类互斥** —— 见 `MixedTrustDomainError`。
+PLATFORM_SECRET = "PLATFORM_SECRET"
 REPORT_PERMISSION = "REPORT_PERMISSION"
 
 FIXTURE = _TESTS / "fixtures" / "route_policy.json"
@@ -85,9 +87,34 @@ def _report_perm_code():
     return require_report_perm("__probe__").__code__
 
 
+class MixedTrustDomainError(AssertionError):
+    """一条路由同时挂了**平台域**与**租户域**守护 —— 无法用单标签表达（v0.9.5 D5' / Stage 3 R4）。
+
+    ⭐ **为什么必须让生成器直接失败，而不是标个 `MIXED` 或只在分类器里记一笔**：
+    平台身份与租户身份是**互斥信任域**，不是可排序的权限等级 ⇒ 有序单标签分类对它是**范畴错误**。
+    而只要给它一个类名，它就会被**写进 fixture = 被祝福** —— 正是前置 chore 要治的那个病
+    （「快照把今天的状态祝福成正确」）。⇒ 拒绝分类、拒绝生成快照，逼人来回答这条路由该属于哪一域。
+    """
+
+
 def _classify(calls: list) -> str:
-    """按依赖**对象身份**定策略。顺序承重：TENANT_ADMIN 最强，故先判。"""
+    """按依赖**对象身份**定策略。顺序承重：TENANT_ADMIN 最强，故先判（**平台域先于一切判互斥**）。"""
     from knot.api.deps import get_current_user, require_tenant_admin
+    from knot.api.platform_admin import require_platform_secret
+
+    has_platform = any(c is require_platform_secret for c in calls)
+    if has_platform:
+        tenant_side = [c for c in calls
+                       if c is require_tenant_admin or c is get_current_user
+                       or getattr(c, "__code__", None) is _report_perm_code()]
+        if tenant_side:
+            raise MixedTrustDomainError(
+                "路由同时挂平台域（require_platform_secret）与租户域守护 "
+                f"{[getattr(c, '__name__', repr(c)) for c in tenant_side]} —— **拒绝分类**。\n"
+                "平台身份与租户身份是互斥信任域，非可排序权限 ⇒ 单标签是范畴错误；\n"
+                "标任一类（或 MIXED）都会被写进 fixture = 被祝福。请先决定这条路由属于哪一域。"
+            )
+        return PLATFORM_SECRET
 
     if any(c is require_tenant_admin for c in calls):
         return TENANT_ADMIN

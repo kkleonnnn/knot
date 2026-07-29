@@ -65,6 +65,7 @@
  "GET /api/messages/{message_id}/export.csv": "AUTHENTICATED",
  "GET /api/messages/{message_id}/export.xlsx": "AUTHENTICATED",
  "GET /api/messages/{message_id}/feedback": "AUTHENTICATED",
+ "GET /api/platform/tenants": "PLATFORM_SECRET",
  "GET /api/prompts": "TENANT_ADMIN",
  "GET /api/prompts/{agent_name}": "TENANT_ADMIN",
  "GET /api/saved-reports": "AUTHENTICATED",

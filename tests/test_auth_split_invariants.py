@@ -43,27 +43,36 @@ def test_old_require_admin_name_is_gone_everywhere():
 
     **只扫 `.py`**：`CHANGELOG.md` / `docs/plans/**` 里合法引用旧名（历史记录 + 评审留痕），
     扫它们会因历史而红 —— 那是「让守护逼着改历史」，反了。
-    ⚠️ **needle 在运行期拼出来**（`"require_" + "admin"`），故本文件源码里**不含**那个字面
-    ⇒ 不会自匹配。这不是花招：v0.9.4 的 `test_R17` 初版正是**匹配到自己的 docstring**而假红，
-    同类坑本仓已踩过；构造式 needle 比「排除自己」的清单更不易漂移。
+
+    ⚠️⚠️ **用 AST 只看标识符，不做文本匹配** —— 这是本测第二版。
+    第一版用「运行期拼 needle + 逐 token 比对」，自以为躲开了自匹配，结果**仍然自匹配**：
+    本文件的 docstring / 注释里以 prose 形式提到旧名（`` `旧名` `` 带反引号），
+    而 tokenizer 会 strip 反引号 ⇒ 命中自己两处（实测 full suite 转红）。
+    更难看的是第一版的 docstring **正引用了 v0.9.4 `test_R17` 匹配到自己 docstring 的教训**，
+    然后犯了同一个错。⇒ **结论：讨论一个名字的文件必然含有那个名字；判「标识符是否存在」只能用 AST。**
+    （本仓第三次「文本匹配 → 改 AST」：v0.9.3 载体名 · v0.9.4 `test_R17` · 本次。）
+    「复活」的定义因此也更准：**存在一个叫这个名字的标识符**（import / 调用 / 定义 / 参数），
+    而不是「源码里出现过这串字符」。
     取材=revert：把任一处改回旧名 → 本测红并点名 `file:line`。
     """
-    needle = "require_" + "admin"
+    needle = "require_" + "admin"          # 仍构造式：避免本行自己成为一个「字面」被将来的 grep 误判
     hits = []
     for p in _tracked_py():
         try:
-            text = p.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, SyntaxError):
             continue
-        if needle not in text:
-            continue
-        for i, line in enumerate(text.splitlines(), 1):
-            # 词边界：`require_tenant_admin` 不含 `require_admin` 子串（实测），故朴素 in 即可；
-            # 但仍逐 token 核一次，防 `require_admins` 这类前缀式新名被误报/漏报。
-            for tok in line.replace("(", " ").replace(")", " ").replace(",", " ").split():
-                if tok.strip("'\"`:.") == needle:
-                    hits.append(f"{p.relative_to(_REPO)}:{i}")
-                    break
+        for n in ast.walk(tree):
+            found = (
+                (isinstance(n, ast.Name) and n.id == needle)
+                or (isinstance(n, ast.Attribute) and n.attr == needle)
+                or (isinstance(n, ast.alias) and needle in (n.name, n.asname))
+                or (isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef) and n.name == needle)
+                or (isinstance(n, ast.arg) and n.arg == needle)
+                or (isinstance(n, ast.keyword) and n.arg == needle)
+            )
+            if found:
+                hits.append(f"{p.relative_to(_REPO)}:{getattr(n, 'lineno', '?')}")
     assert not hits, (
         f"旧名 `{needle}` 复活于：\n  " + "\n  ".join(hits)
         + "\n\nv0.9.5 已把它改名为 `require_tenant_admin`（platform admin 走平行认证路径 —— E1）。"
