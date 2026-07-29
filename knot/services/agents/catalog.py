@@ -25,15 +25,13 @@ from knot.services.agents.catalog_loaders import (
 
 # v0.9.3：6 个原模块全局 → `catalog_state` 租户槽。这 6 名**必须不存在于本模块命名空间**，
 # 否则下方代理永不触发（机制、实测与三道守护详见 `catalog_state` 模块 docstring + `assert_no_resurrected_globals`）。
-_ATTR_TO_SLOT = {
-    "LEXICON": "lexicon", "TABLES": "tables", "BUSINESS_RULES": "business_rules",
-    "RELATIONS": "relations", "FIELD_LABELS": "field_labels", "_SOURCE": "source",
-}
+# chore D4'：**载体注册表已移入 `catalog_state`（单一真相源）** —— 本模块是**消费方**，
+# 不再持自己那份副本（反向落户会与 `catalog → catalog_state` 的 import 方向冲突）。
 
 
 def __getattr__(name: str):
     """PEP 562 代理 —— 13 个 importer 的 `catalog.TABLES` 写法一行不改即租户感知（D2'）。仅供模块外读。"""
-    slot_key = _ATTR_TO_SLOT.get(name)
+    slot_key = catalog_state._ATTR_TO_SLOT.get(name)
     if slot_key is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     return catalog_state.get_state()[slot_key]
