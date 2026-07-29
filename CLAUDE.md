@@ -384,7 +384,21 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 > `http_spec` 凭据**（`adapters/http/executor.py:87-88` 走进程 env = 租户盲 → 租户#2 可用租户#1 凭据读其
 > 实时接口 = **跨租户数据出境**）+ **egress 租户域化**（`url_allowlist.py:30` host 白名单同为进程 env）+ **`/api/admin/catalog` 的 `defaults` 字段**（`api/catalog.py:52` → `get_defaults_from_files()` **绕过租户槽**直吐部署级 file catalog 全文 ⇒ lift 后租户#2 admin 即可见部署方真实库表+业务口径；分槽挡不住它）·
 > prompt seed / TOTP rollout 的 `resolve_single_tenant`（`main.py:103/169`）· `replicas=1` 运维门（进程全局
-> 每副本一份，分布式失效前）· `_business_rules` 归正 · 鉴权拆分 platform/tenant admin（v0.9.5）。
+> 每副本一份，分布式失效前）· `_business_rules` 归正。
+>
+> **⭐ 清单分项（v0.9.5 D8'' —— 此前一串挂在同一个版本号下，与 5 处代码注释互相矛盾）**：
+> 每项给**具名目标片**，不再统挂 v0.9.5；治理依据 = 版本号里装的东西与代码注释/CLAUDE.md/CHANGELOG
+> 不一致，正是 R-LP-v3-EX-3 要防的「**承诺静默蒸发**」起点。
+> - ✅ **鉴权拆分 platform/tenant admin = v0.9.5 已完成**（`require_tenant_admin` 90 站点改名 +
+>   平台面 out-of-band 平行认证路径 + `PLATFORM_SECRET` 策略类 + 死 `defaults` 字段已删）。
+>   ⚠️ 但 v0.9.5 **刻意零平台写操作**（E2）⇒ **平台侧审计仍无落点** ⇒ **R-10 audit-on-drift 未解开**。
+> - ▶ **`db_dir` UNIQUE + 格式约束** → **provisioning 片**（非 v0.9.5）。
+> - ▶ **B-3 三项**（per-tenant file catalog / per-tenant `http_spec` 凭据 / egress 租户域化）→ **独立片**。
+>   ⚠️ `/api/admin/catalog` 的 `defaults` 字段已于 v0.9.5 删除（**部分**减暴露）——
+>   但 `current` **仍含 file 层**且「让它不含」被 v0.7.29b 不变量**禁止** ⇒ **本条 blocker 未关闭**。
+> - ▶ **prompt seed / TOTP rollout 的 `resolve_single_tenant`** → **lift 前**（4 处，非 2 处）。
+> - ▶ **`replicas=1` 运维门** · **`_business_rules` 归正** · **平台审计落点 `platform_audit`** → 各自独立片。
+> - ▶ **lift 本身**（删 `assert_no_second_active_tenant_served` 的唯一调用点）→ **lift 片**，上列全绿才放行。
 > **v0.9.4 新增 5 项**：① **登录 `company` 改必填**（现未带则回退唯一 active 租户 —— 仅在本 gate 锁死
 > 单租户期间成立，lift 后回退 = 「不带代号 → 随便进某家公司」fail-open）· ② **per-tenant 初始口令 /
 > 一次性邀请流**（单一 `KNOT_INITIAL_ADMIN_PASSWORD` ⇒ 每个新租户 seed 同一口令 = 「A 能进 B」的真实入口；

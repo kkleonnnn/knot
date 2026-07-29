@@ -294,7 +294,9 @@ def _guard_fragments(lf) -> None:
     monitor_eval —— 后者 metrics-only LF 无片段 → guard no-op）。fragment_guard 抛 `FragmentUnsafe`
     → 此处翻译成 `CompileError` → 各调用点既有 `except CompileError` 回退 LLM（R-SL-14 fail-closed）。
     别名类可见集 = metrics ∪ dimensions ∪ window as_names；window 内层 = metrics ∪ dimensions（Finding 11 内层作用域）。
-    admin 信任面（metric.caliber / metric.filters）不在 lf → 天然免验（require_tenant_admin gated）。
+    **租户** admin 信任面（metric.caliber / metric.filters）不在 lf → 天然免验（require_tenant_admin gated）。
+    ⚠️ v0.9.5 语义重述：被信任的是「**租户 admin 对自己租户的 SQL 面**」—— 跨租户**不靠**这层信任，
+    而由 per-tenant 文件边界（OOS-1v2 C 方案）结构性挡住；平台身份走**平行**认证路径、**不进**本信任面。
     """
     from knot.services.semantic import fragment_guard as fg
 

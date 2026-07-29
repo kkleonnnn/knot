@@ -7,8 +7,10 @@
 core 横切层：api/services/repositories 均可依赖；本模块**零 services 依赖**
 （import-linter 9 contracts 零新增方向）。
 v0.9.4 step 6：漂移已接**结构化 WARN + 进程计数器**（`assert_tenant_context` / `tenant_drift_count`）；
-**LOCKED 的 audit-on-drift 仍未结清**（R-10 显式登记）—— 审计要写「哪个平台租户」，依赖 v0.9.5
-platform/tenant admin 鉴权拆分的口径，且 core 层零 services 依赖也让 audit 写入不能落在本模块。
+**LOCKED 的 audit-on-drift 仍未结清**（R-10 显式登记）—— 审计要写「哪个平台租户」，
+而 **v0.9.5 鉴权拆分已落地却仍不足**：E1 选 out-of-band 共享密钥（无「谁做的」身份）+ E2 零平台写操作
+⇒ **平台侧仍无审计落点**（`audit_service.log` → `get_conn` = 租户库）。
+⇒ **随平台审计落点（`platform_audit`，B-3 之后）一起做**；core 层零 services 依赖也让 audit 写入不落本模块。
 """
 from __future__ import annotations
 
@@ -99,8 +101,9 @@ def assert_tenant_context(expected_tenant_id: int) -> None:
     - **set 了但对不上** → **真漂移**：结构化 WARN + 进程计数器。单租户下**不应发生**（同源同 token）；
       发生即代表 ctx 被别处污染 / async 传播串了 / 有第二条设 ctx 的路径。
 
-    R-10：本片**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**，随 v0.9.5
-    platform/tenant admin 鉴权拆分一起做（审计要写「哪个平台租户」，依赖那次拆分的口径）。
+    R-10：**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**。
+    ⚠️ v0.9.5 鉴权拆分**已落地，但没解开这一条**：E1 = out-of-band 共享密钥（**无身份**）+
+    E2 = 零平台写操作 ⇒ 平台侧**仍无审计落点**。⇒ **随平台审计落点（`platform_audit`，B-3 之后）**。
     core 层零 services 依赖的约束也让 audit 写入不能落在本模块。
     """
     current = _active_tenant_ctx.get()

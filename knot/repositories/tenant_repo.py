@@ -143,7 +143,8 @@ def assert_no_second_active_tenant_served() -> None:
         `401 账号或密码错误`**（②统一错误）而不是 500。若此处对 0 也 raise，唯一租户被 suspend 时
         整站含 login 全部 500，与②直接打架。
 
-    **v0.9.5 lift = 删掉本函数的唯一调用点（一行）** —— 语义单点、可 review。
+    **lift 片**（**非 v0.9.5** —— 那片只做鉴权拆分、R-T-GATE 一行不动）**= 删掉本函数的唯一调用点
+    （一行）** —— 语义单点、可 review。⚠️ lift 的前置条件见 CLAUDE.md 的 R-T-GATE 就绪清单。
     """
     n = len(list_active_tenants())
     if n > 1:
