@@ -15,6 +15,13 @@
 ⚠️ **`is` 比较不代表对 `dependency_overrides` 免疫** —— dependant 树在**注册期**构建、持的是原对象，
 override 在**请求期**解析。实测：override 后本模块仍报 `ADMIN`，而实际执行的是 `weak`。
 ⇒ 那条旁路由 `test_route_policy.py::test_D7_named_guards_not_overridden` 独立守；**二者正交，谁也替代不了谁**。
+
+## ⚠️ 分类器只看**依赖层**，函数体内的守护不可见（D10' 复核结论）
+`AUTHENTICATED` **不等于**「任何登录用户能动任何行」—— 归属检查普遍写在**函数体内**
+（实例：`DELETE /api/saved-reports/{id}` 标 `AUTHENTICATED`，真守护在 `saved_reports.py:113`
+`delete_owned(...)` → 不属于你就 404）。反过来也成立：**本快照绿不代表体内授权没被改坏**。
+逐条意图复核（23 条 admin-guarded-but-outside-`/api/admin/` + 镜像面扫描）见
+`test_route_policy.py` 的 D10' 注释块。
 """
 from __future__ import annotations
 

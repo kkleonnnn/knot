@@ -266,3 +266,71 @@ MF7→D3' · MF8→D7' · MF9→D10' · MF10→D9' · MF11→D11'。
 - **没动** `== 53`、没动任何被守护的路由/依赖（R-C5）。
 - **没把 D6' 与 D4' 混为一条** —— 你 §II-1 的要点是「派生只消除抄写、完备性另需结构守护」，
   我把它写成两条独立决议 + §6 自检末条「不因为『派生了』就认为完备」。
+
+---
+
+## §8 实施记录（4 步落地 · 供 Stage 4 复核）
+
+**分支** `chore/route-guard-sentinel-and-carrier-derive` · **4 commit** `e7353c7`..(本 commit) ·
+**全量 1560 passed 0 failed** · **生产码仅 commit 2 的 2 文件**（行为不变，全量与前一 commit 逐字相同）。
+
+| # | commit | 内容 | 全量 |
+|---|---|---|---|
+| 1 | `e7353c7` | `test(guard)` 路由授权策略哨兵（D1'~D3' + D7'）+ fixture + 再生成脚本 + conftest 复原 fixture | 1554 |
+| 2 | `c2b2a77` | `refactor(catalog)` 注册表移入 `catalog_state` + `carrier_names()` + 删 `_SLOT_KEYS`（**唯一动生产码**） | 1554（逐字相同） |
+| 3 | `b69c9f3` | `test(guard)` D5'/D6'/D8' + IV-4(c) + 两处测清单改派生 + 移交一条被包含的哨兵 | 1560 |
+| 4 | 本 commit | `docs` D10' 23 条意图复核 + D12' 注释 + CHANGELOG + 本段 | 1560 |
+
+### §8.1 偏离 Stage 1' 之处（逐条列，请裁）
+
+1. **D2' 的 `dep.call is X` 对 `require_report_perm` 按构造不可能成立** —— 它是**依赖工厂**，
+   每条路由拿到不同闭包（实测 `factory("a") is factory("b")` → False）；且评审双方给的名字
+   `require_report_permission` 在仓里**不存在**（真名 `require_report_perm`，`bi_reports.py:100`）。
+   **照字面实现会把 10 条有 RBAC 细粒度权限的报表路由错标成 `AUTHENTICATED`，快照再把这个错祝福成正确。**
+   改用 **`__code__` 身份**（同工厂闭包共享 compile-time 唯一 code 对象；**不可被 `__name__` 伪装**）
+   ⇒ 仍守 D2' 实质。已在 commit 1 报过，kk 判「继续做完」。
+2. **IV-4 (c) 放测不放生产**：守护者原文「一行**运行期**断言」，我理解为「用 `inspect.signature` **反射**」
+   （相对 (b) 的 AST 机器），**不是** import 期生产断言 —— 放生产会给 commit 2 引入非 0 行为改动，
+   且裸 `assert` 可被 `python -O` 剥离（v0.9.3 教训：用显式 raise）。**此解读若有误，改动一行。**
+3. **移交（而非保留）一条哨兵**：`test_catalog_loaders::test_catalog_py_has_no_global_statement_on_carrier_names`
+   是**按名过滤**版，而按名过滤正是 MUTANT-E 的逃逸口；D6' 版不看名字 ⇒ **严格更强**
+   （实测：`global TABLES` 两版皆红 / `global XNEW` 仅新版红）。留一份在原处 = 重新引入
+   「同一件事两处判据」= 本片要治的病。原 docstring 的失效机制 + 时序真相已整段随迁。
+4. **D5' 加了一条对照组** `test_D5_alias_mutant_is_weaker`：把「mutant 必须是**真 slot** 不得别名」
+   从注释变成可执行证明（否则后人照抄 v0.9.3 的别名形，测照样绿、以为覆盖了）。
+5. **D12' 注释内容与我的初稿相反** —— 见 §8.2。
+
+### §8.2 我自己在本片犯的错（全部自查发现并已修）
+
+1. **D12' 初稿的恒等式是错的**：我写「53 route 对象展开 method 得 67」，实测 **admin 包 0 条多 method
+   路由**（53 对象 == 53 个 (method,path)）。真相是**三个不同的轴**：包归属 53 / 路径前缀 67
+   （= 53 + **14 条定义在 admin 包之外**：`catalog` 7 · `audit` 5 · `feedback` 1 · `frontend_errors` 1）
+   / 守护 90。**这个纠正比原注释有用得多** —— 它直接给出 v0.9.5 的作业面：
+   **要动的是 90 条、横跨 5 个模块，只改 admin 包会漏 37 条。**
+2. **差点造一个假发现**：见 `catalog.py:253` 自述「无 catalog 级 RBAC」，而 CLAUDE.md 说 v0.8 上了
+   「**目录** RBAC」→ 疑其陈旧。查实：`bi_reports.set_permission` 只收 `folder_id`/`report_id`
+   ⇒ 「目录」= folder 粒度，**不是** catalog 粒度 ⇒ 那句自述**实质仍准确**，只有版本指针陈旧。
+   （教训重复：CLAUDE.md 的措辞不能当 grounded 事实用。）
+3. **R2 revert 锚点写错**（`source: str,` 命中 0 次）→ 脚本报 `BADMUT` 而非假红，用正确锚点重跑。
+   （v0.9.4 教训生效：坏 revert 的假红与绿测的假绿同样没用，故脚本对锚点命中数硬校验。）
+4. **D5' 的注入手法第一版触发了被测代理**：`monkeypatch.setattr(mod, x, raising=False)` 也会先
+   `getattr` 探一次 → 命中 PEP 562 代理 → `KeyError: 'xnew_slot'`。改走 `__dict__` setitem。
+   踩出来的**副产物**已记 CHANGELOG（代理裸下标 ⇒ `hasattr` 会炸而非返 False；今天不可能发生，只记不修）。
+
+### §8.3 R-C3 取材汇总：**12 组逐条实跑，12/12 符合期望**
+
+R1 冻结 revert · R2 签名加未登记参 · R2' 签名删已登记参 · R3 去派生 · R4 别名→真 slot 反证 ·
+R5 `global XNEW`（未登记名） · R6 `global TABLES`（已登记名，证包含关系） · R7 `_CACHE={}` ·
+R8 `_CACHE=dict()`（调用形） · R9 抄 4 名清单 · **R10 抄 3 名边界（刻意 green）** · R11 派生链路复合
+（注册表加第 7 名 + 别处 from-import 它 → 派生的哨兵真红）。
+commit 1 的 D1'/D2'/D3'/D7' 取材见该 commit message。mutation 后 `git diff knot/` 实测零残留。
+
+### §8.4 Stage 4 请重点看
+
+1. **§8.1-2 那条解读**（IV-4(c) 放测不放生产）—— 若判我理解错，是一行改动。
+2. **§8.1-3 移交一条哨兵**是否可接受（我认为包含关系已实测坐实，但删/移交哨兵该由你裁）。
+3. **`__code__` 身份**这个 LOCKED 洞的补法是否守住了 D2' 的实质。
+4. **D10' 的 23 条理由**有没有哪条其实是**误挂**而我替它编了理由 —— 这是本片最该被对抗的地方
+   （「快照会把今天的状态祝福成正确」的风险，在我这一层同样成立）。
+5. **镜像面扫描**（34 条 AUTHENTICATED + 10 条 REPORT_PERMISSION）我只发现 1 条已登记开放项，
+   请核有没有漏 —— 我的分类器**看不见函数体内的守护**，这个盲区已写进两处 docstring。

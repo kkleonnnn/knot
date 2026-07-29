@@ -41,6 +41,56 @@ from _route_policy import (  # noqa: E402
 
 _REGEN = "PYTHONPATH=. python3 scripts/gen_route_policy_snapshot.py"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# D10' 意图复核 —— **23 条挂 admin 守护却在 `/api/admin/` 之外**的路由，逐条一行理由
+#
+# 为什么必须逐条过：**快照会把今天的状态祝福成正确；钉住之后就查不出来了。**
+# 分布实测：ADMIN 90 = `/api/admin/` 内 67 + **外 23**。
+# 复核结论：**23 条全部有正当理由，无一条误挂**。理由归三类：
+#   (A) 改的是**全体用户共享的结构** → 单人改动影响所有人；
+#   (B) 改的是**喂给 LLM 的内容** → prompt 注入面，影响每个用户的每次查询；
+#   (C) 拿的是**凭据/第二因子**这类高权面。
+#
+# 【/api/bi】7 —— (A) 文件夹树与排序是**全站共享导航结构**
+#   POST/PUT/DELETE /api/bi/folders[/{id}]     建/改/删文件夹 = 改所有人看到的树
+#   PUT /api/bi/reorder/{folders,reports}      改**全局显示顺序**（对比：改单份报表内容只需 report perm，
+#                                              因为那只影响该报表；排序影响所有人 ⇒ 不对称是有意的）
+#   GET/PUT /api/bi/permissions                RBAC 授权面**本身** —— 能改它就能给自己发权限
+# 【/api/db】1
+#   POST /api/db/test                          (C) 带**调用方提供的凭据**去连任意主机 = 凭据探测 + 出网面
+#                                              （对比 `/api/db/{status,schema}` 只读**已配置**源 ⇒ 仅需登录）
+# 【/api/few-shots】5 —— (B) few-shot 直接进 sql_planner prompt
+#   GET/POST/PUT/DELETE /api/few-shots[/{fid}] + POST /upload
+#   GET 也是 admin：few-shot 正文含**业务口径**（与 `/api/prompts` GET 同口径，非疏漏）
+# 【/api/knowledge】3 —— (B) 知识文档进 RAG 检索 → 同样影响每次查询
+#   POST /api/knowledge/upload · GET /api/knowledge · DELETE /api/knowledge/{doc_id}
+# 【/api/prompts】5 —— (B) **3 个 agent 的 system prompt 本体** = 杠杆最高的 prompt 面
+#   GET /api/prompts · GET/PUT/DELETE /api/prompts/{agent_name} · POST /api/prompts/upload
+# 【/api/templates】1
+#   GET /api/templates/{kind}                  下载 few-shots/knowledge 的**上传模板** xlsx。
+#                                              乍看「下个空模板为何要 admin」→ 它是**仅 admin 可用的上传端点的
+#                                              配套物**，非 admin 拿到也无处可用 ⇒ 同权限是自洽的，非过严。
+# 【/api/totp】1
+#   POST /api/totp/reset                       (C) admin 清除**他人的第二因子**。权限正确，但请注意这是
+#                                              admin 能力里最接近「绕过 2FA」的一条（本就内含于 admin 权力，
+#                                              记此一笔是为让读者别把它当普通 CRUD）。
+#
+# ── 镜像面也扫了（同一个「祝福」风险的反面：**本该 admin 却只要登录**的）──
+# 结论：**无新发现**，一条已登记的开放项：
+#   `POST /api/catalog/switch` 无 catalog 级 RBAC —— 任意登录用户可把自己的 active catalog 切到
+#   本租户内**任一** catalog。这是**自述的** OOS-2 设计缺口（`knot/api/catalog.py:253`），
+#   且**不是租户隔离洞**（catalog_id = 租户内水平切分；跨租户由 v0.9.3 的 per-tenant 文件边界结构性挡住）。
+#   ⚠️ 唯一陈旧处是它的版本指针「留 v0.7+」（现已 v0.9 仍未做）→ 已登记 backlog，本片不改代码。
+#   （差点误判：CLAUDE.md 说 v0.8 上了「**目录** RBAC」—— 实为 folder/report 粒度 grant
+#     （`bi_reports.set_permission` 只收 `folder_id`/`report_id`），**不是** catalog 粒度 ⇒ 那句自述仍准确。）
+#
+# ⚠️⚠️ **读快照的人必须知道的分类器局限**：本快照只看**依赖层**（`Depends(...)`）守护。
+# **函数体内**的守护对它完全不可见 —— 例如 `DELETE /api/saved-reports/{id}` 标 `AUTHENTICATED`，
+# 但真正的归属检查在体内（`saved_reports.py:113` `delete_owned(...)` → 不属于你就 404）。
+# ⇒ **`AUTHENTICATED` 不等于「任何登录用户能动任何行」**。反过来也成立：本快照转绿
+# **不代表**体内授权没被改坏；那是各自的行为测在守。
+# ═══════════════════════════════════════════════════════════════════════════════
+
 # D3'：**无用户 JWT 依赖**的路由（原名「无鉴权」不实 —— 它们各有认证来源，只是不经
 # `get_current_user`）。每条必须写明认证来源；新增一条即红，强制显式决策。
 _NO_USER_JWT_DEPENDENCY = {
