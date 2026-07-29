@@ -1,6 +1,6 @@
 """knot/api/admin/monitors.py — 事件/规则/动作监控路由（v0.7.7 C4 语义层第八刀）。
 
-route `/api/admin/monitors`（避撞既有 admin 屏）。全 require_admin（继承 R-2FA enroll gate R-SL-65）。
+route `/api/admin/monitors`（避撞既有 admin 屏）。全 require_tenant_admin（继承 R-2FA enroll gate R-SL-65）。
 CRUD 经 monitor_repo（OOS-1v2 死锁）+ monitor.create/update/delete audit（R-SL-66）。
 
 ⭐ check-now（手动「立即检查」，D1 绕调度器卡点）：
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.models.errors import MetadataError
 from knot.repositories import monitor_repo
 
@@ -48,12 +48,12 @@ class MonitorUpdateRequest(BaseModel):
 
 
 @router.get("/api/admin/monitors")
-async def admin_list_monitors(catalog_id: int | None = None, admin=Depends(require_admin)):
+async def admin_list_monitors(catalog_id: int | None = None, admin=Depends(require_tenant_admin)):
     return monitor_repo.list_monitors(catalog_id)
 
 
 @router.post("/api/admin/monitors")
-async def admin_create_monitor(req: MonitorCreateRequest, request: Request, admin=Depends(require_admin)):
+async def admin_create_monitor(req: MonitorCreateRequest, request: Request, admin=Depends(require_tenant_admin)):
     payload = req.dict()
     catalog_id = payload.pop("catalog_id", 1)
     try:
@@ -67,7 +67,7 @@ async def admin_create_monitor(req: MonitorCreateRequest, request: Request, admi
 
 @router.put("/api/admin/monitors/{monitor_id}")
 async def admin_update_monitor(monitor_id: int, req: MonitorUpdateRequest, request: Request,
-                               admin=Depends(require_admin)):
+                               admin=Depends(require_tenant_admin)):
     fields = {k: v for k, v in req.dict().items() if v is not None}
     try:
         monitor_repo.update_monitor(monitor_id, **fields)
@@ -79,19 +79,19 @@ async def admin_update_monitor(monitor_id: int, req: MonitorUpdateRequest, reque
 
 
 @router.delete("/api/admin/monitors/{monitor_id}")
-async def admin_delete_monitor(monitor_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_delete_monitor(monitor_id: int, request: Request, admin=Depends(require_tenant_admin)):
     monitor_repo.delete_monitor(monitor_id)
     audit(request, admin, action="monitor.delete", resource_type="monitor", resource_id=monitor_id)
     return {"ok": True}
 
 
 @router.get("/api/admin/monitors/{monitor_id}/triggers")
-async def admin_monitor_triggers(monitor_id: int, admin=Depends(require_admin)):
+async def admin_monitor_triggers(monitor_id: int, admin=Depends(require_tenant_admin)):
     return monitor_repo.list_triggers(monitor_id)
 
 
 @router.post("/api/admin/monitors/check-now")
-async def admin_monitors_check_now(request: Request, admin=Depends(require_admin)):
+async def admin_monitors_check_now(request: Request, admin=Depends(require_tenant_admin)):
     """手动「立即检查」所有 enabled monitor（D1）。R-SL-77 flag-gate：flag off → 不 fire。"""
     import os
 

@@ -1,6 +1,6 @@
 """v0.6.0.18 — /api/admin/query-history 守护测试。
 
-- require_admin（非 admin 401）
+- require_tenant_admin（非 admin 401）
 - 返回结构 {items, total, page, size}
 - period 解析（7d/30d/90d/裸数字/非法）
 - 过滤 by user_id / agent_kind / has_error

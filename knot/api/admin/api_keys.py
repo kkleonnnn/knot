@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, Request
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import settings_repo
 
 router = APIRouter()
@@ -14,7 +14,7 @@ router = APIRouter()
 # ── API Keys (app-level, admin-only) ───────────────────────────────────
 
 @router.get("/api/admin/api-keys")
-async def get_api_keys(admin=Depends(require_admin)):
+async def get_api_keys(admin=Depends(require_tenant_admin)):
     """v0.4.5 R-39：返回 masked 形式（••••••••last4），不漏明文。"""
     from knot.api._secret import mask_secret
     return {
@@ -24,7 +24,7 @@ async def get_api_keys(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/api-keys")
-async def set_api_keys(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def set_api_keys(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     """v0.4.5 R-39：PATCH 空字符串 / mask 占位 → 保留原值；新明文 → 加密更新。
     v0.4.6：变更入审计（detail 不含明文也不含密文，只记 action 类型 + 字段名）。
     """

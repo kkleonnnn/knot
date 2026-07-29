@@ -1,7 +1,7 @@
 """knot/api/audit.py — 审计列表与配置路由（v0.4.6 commit #3 + #5）。
 
 红线：
-- R-56 越权：require_admin（不是 get_current_user）
+- R-56 越权：require_tenant_admin（不是 get_current_user）
 - R-61 强制分页：limit cap 200，超过自动截断（不抛错，兼容前端误传）
 - R-49 retention 7~3650 区间校验
 - R-57 meta-audit：retention_change 入 audit_log
@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import audit_repo, settings_repo
 
 router = APIRouter()
@@ -34,7 +34,7 @@ async def list_audit_log(
     resource_type: str | None = None,
     since: str | None = None,
     until: str | None = None,
-    admin=Depends(require_admin),
+    admin=Depends(require_tenant_admin),
 ):
     """admin 只读；强制分页（R-61 上限 200）。
 
@@ -62,7 +62,7 @@ async def list_audit_log(
 
 
 @router.get("/api/admin/audit-config")
-async def get_audit_config(admin=Depends(require_admin)):
+async def get_audit_config(admin=Depends(require_tenant_admin)):
     """R-49 retention 配置（默认 90 天）。"""
     raw = settings_repo.get_app_setting(_RETENTION_KEY, str(_RETENTION_DEFAULT))
     try:
@@ -73,7 +73,7 @@ async def get_audit_config(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/audit-config")
-async def update_audit_config(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def update_audit_config(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     """R-49 + R-57 meta-audit：retention 调整本身入 audit_log。"""
     new_days = payload.get("retention_days")
     try:
@@ -99,7 +99,7 @@ async def update_audit_config(payload: dict = Body(...), request: Request = None
 
 # v0.6.0.5 F-C — admin 立即清理 + last_purge_at 查询
 @router.post("/api/admin/audit/purge")
-async def trigger_audit_purge(request: Request = None, admin=Depends(require_admin)):
+async def trigger_audit_purge(request: Request = None, admin=Depends(require_tenant_admin)):
     """admin UI 立即触发 audit retention 清理（守护者 M-C2 meta-audit + trigger="manual"）。
 
     chunk DELETE 1000/批（守护者 M-C1 防 SQLite 锁表）；阻塞返回 stats。
@@ -111,7 +111,7 @@ async def trigger_audit_purge(request: Request = None, admin=Depends(require_adm
 
 
 @router.get("/api/admin/audit/purge-status")
-async def get_audit_purge_status(admin=Depends(require_admin)):
+async def get_audit_purge_status(admin=Depends(require_tenant_admin)):
     """admin UI 顶部 "上次清理 N 天前" 状态栏数据源。"""
     last_at = settings_repo.get_app_setting("audit.last_purge_at", "")
     return {"last_purge_at": last_at or None}

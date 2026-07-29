@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import budget_repo, settings_repo
 from knot.services import budget_service
 
@@ -30,12 +30,12 @@ class BudgetUpdateRequest(BaseModel):
 
 
 @router.get("/api/admin/budgets")
-async def admin_list_budgets(admin=Depends(require_admin)):
+async def admin_list_budgets(admin=Depends(require_tenant_admin)):
     return budget_repo.list_all()
 
 
 @router.post("/api/admin/budgets")
-async def admin_upsert_budget(req: BudgetUpsertRequest, request: Request, admin=Depends(require_admin)):
+async def admin_upsert_budget(req: BudgetUpsertRequest, request: Request, admin=Depends(require_tenant_admin)):
     """v0.4.3 R-18 幂等：UNIQUE 冲突时 INSERT OR REPLACE 覆盖；返 already_existed flag。
     R-21 守护：拒 (agent_kind, legacy) + 'block' 范围限制。"""
     err = budget_service.validate_budget_input(
@@ -60,7 +60,7 @@ async def admin_upsert_budget(req: BudgetUpsertRequest, request: Request, admin=
 
 
 @router.put("/api/admin/budgets/{budget_id}")
-async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, request: Request, admin=Depends(require_admin)):
+async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, request: Request, admin=Depends(require_tenant_admin)):
     if budget_repo.get(budget_id) is None:
         raise HTTPException(status_code=404, detail="预算不存在")
     # action 改动需重跑校验（避免改成 block + 错配 scope）
@@ -79,7 +79,7 @@ async def admin_update_budget(budget_id: int, req: BudgetUpdateRequest, request:
 
 
 @router.delete("/api/admin/budgets/{budget_id}")
-async def admin_delete_budget(budget_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_delete_budget(budget_id: int, request: Request, admin=Depends(require_tenant_admin)):
     if budget_repo.get(budget_id) is None:
         raise HTTPException(status_code=404, detail="预算不存在")
     budget_repo.delete(budget_id)
@@ -107,7 +107,7 @@ _BUDGET_DEFAULTS = {
 
 
 @router.get("/api/admin/budget-config")
-async def admin_get_budget_config(admin=Depends(require_admin)):
+async def admin_get_budget_config(admin=Depends(require_tenant_admin)):
     """v0.5.42 — 单 global 预算配置 5 字段（demo budget.jsx 模式）。"""
     return {
         "monthly_token_cap":   int(settings_repo.get_app_setting("budget_monthly_token_cap",   _BUDGET_DEFAULTS["budget_monthly_token_cap"])),
@@ -119,7 +119,7 @@ async def admin_get_budget_config(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/budget-config")
-async def admin_update_budget_config(req: BudgetConfigRequest, request: Request, admin=Depends(require_admin)):
+async def admin_update_budget_config(req: BudgetConfigRequest, request: Request, admin=Depends(require_tenant_admin)):
     """v0.5.42 — 保存 5 字段（app_settings KV upsert）。"""
     if req.monthly_token_cap < 1 or req.per_conv_token_cap < 1 or req.rate_limit_per_min < 1:
         raise HTTPException(status_code=400, detail="数值字段必须 ≥ 1")

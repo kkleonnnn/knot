@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, Uplo
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import prompt_repo
 
 router = APIRouter()
@@ -16,20 +16,20 @@ VALID_AGENTS = {"clarifier", "sql_planner", "presenter"}
 
 
 @router.get("/api/prompts")
-async def list_prompts(admin=Depends(require_admin)):
+async def list_prompts(admin=Depends(require_tenant_admin)):
     rows = prompt_repo.list_prompt_templates()
     return rows
 
 
 @router.get("/api/prompts/{agent_name}")
-async def get_prompt(agent_name: str, admin=Depends(require_admin)):
+async def get_prompt(agent_name: str, admin=Depends(require_tenant_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     return {"agent_name": agent_name, "content": prompt_repo.get_prompt_template(agent_name)}
 
 
 @router.put("/api/prompts/{agent_name}")
-async def set_prompt(agent_name: str, payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def set_prompt(agent_name: str, payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     content = payload.get("content", "")
@@ -40,7 +40,7 @@ async def set_prompt(agent_name: str, payload: dict = Body(...), request: Reques
 
 
 @router.delete("/api/prompts/{agent_name}")
-async def delete_prompt(agent_name: str, request: Request, admin=Depends(require_admin)):
+async def delete_prompt(agent_name: str, request: Request, admin=Depends(require_tenant_admin)):
     if agent_name not in VALID_AGENTS:
         raise HTTPException(status_code=404, detail="未知 agent")
     prompt_repo.delete_prompt_template(agent_name)
@@ -50,7 +50,7 @@ async def delete_prompt(agent_name: str, request: Request, admin=Depends(require
 
 
 @router.post("/api/prompts/upload")
-async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_admin)):
+async def upload_prompts(file: UploadFile = File(...), admin=Depends(require_tenant_admin)):
     """xlsx：列名 agent_name / content"""
     fname = (file.filename or "").lower()
     if not fname.endswith((".xlsx", ".xls")):

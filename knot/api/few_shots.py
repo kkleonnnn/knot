@@ -5,19 +5,19 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, Uplo
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import few_shot_repo
 
 router = APIRouter()
 
 
 @router.get("/api/few-shots")
-async def list_few_shots(admin=Depends(require_admin)):
+async def list_few_shots(admin=Depends(require_tenant_admin)):
     return few_shot_repo.list_few_shots()
 
 
 @router.post("/api/few-shots")
-async def create_few_shot(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def create_few_shot(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     q = (payload.get("question") or "").strip()
     s = (payload.get("sql") or "").strip()
     t = (payload.get("type") or "").strip()
@@ -30,7 +30,7 @@ async def create_few_shot(payload: dict = Body(...), request: Request = None, ad
 
 
 @router.put("/api/few-shots/{fid}")
-async def update_few_shot(fid: int, payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def update_few_shot(fid: int, payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     fields = {k: v for k, v in payload.items() if k in {"question", "sql", "type", "is_active"}}
     few_shot_repo.update_few_shot(fid, **fields)
     audit(request, admin, action="config.few_shots_change", resource_type="few_shots",
@@ -39,7 +39,7 @@ async def update_few_shot(fid: int, payload: dict = Body(...), request: Request 
 
 
 @router.delete("/api/few-shots/{fid}")
-async def delete_few_shot(fid: int, request: Request, admin=Depends(require_admin)):
+async def delete_few_shot(fid: int, request: Request, admin=Depends(require_tenant_admin)):
     few_shot_repo.delete_few_shot(fid)
     audit(request, admin, action="config.few_shots_change", resource_type="few_shots",
           resource_id=fid, detail={"op": "delete"})
@@ -47,7 +47,7 @@ async def delete_few_shot(fid: int, request: Request, admin=Depends(require_admi
 
 
 @router.post("/api/few-shots/upload")
-async def upload_few_shots(file: UploadFile = File(...), admin=Depends(require_admin)):
+async def upload_few_shots(file: UploadFile = File(...), admin=Depends(require_tenant_admin)):
     """xlsx：列名 question / sql / type（可选）/ is_active（可选）"""
     fname = (file.filename or "").lower()
     if not fname.endswith((".xlsx", ".xls")):

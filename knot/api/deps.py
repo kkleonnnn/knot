@@ -209,7 +209,7 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         raise HTTPException(status_code=401, detail="无效的登录凭证")
 
 
-def require_admin(user=Depends(get_current_user)):
+def require_tenant_admin(user=Depends(get_current_user)):
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user

@@ -1,7 +1,7 @@
 """bi_report_service — v0.8.5 (②a) BI 报表业务编排。
 
 职责：
-- 报表 CRUD + 文件夹 CRUD（admin 授权；权限门在 api 层 require_admin）
+- 报表 CRUD + 文件夹 CRUD（admin 授权；权限门在 api 层 require_tenant_admin）
 - SQL 只读**存前预校验**（D7 = doris.is_safe_sql，fail-closed；admin 即时见错）
 - refresh：冻结快照 + admin 控刷新（D6，不实时跑；②c 调度器复用同 refresh）
 - 脱敏 DTO：非 admin 读 **不下发 sql_text**（R-BI-6）

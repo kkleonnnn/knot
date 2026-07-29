@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 # v0.3.0: import persistence → 直接 import 各 repo（保留"persistence.X"调用形态）
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import knowledge_repo, settings_repo
 from knot.services import rag_service as doc_rag
 
@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/api/knowledge/upload")
-async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_admin)):
+async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_tenant_admin)):
     fname = file.filename or "doc"
     ext = Path(fname).suffix.lower()
     if ext not in (".pdf", ".md", ".markdown", ".txt"):
@@ -49,11 +49,11 @@ async def knowledge_upload(file: UploadFile = File(...), admin=Depends(require_a
 
 
 @router.get("/api/knowledge")
-async def knowledge_list(admin=Depends(require_admin)):
+async def knowledge_list(admin=Depends(require_tenant_admin)):
     return knowledge_repo.list_knowledge_docs()
 
 
 @router.delete("/api/knowledge/{doc_id}")
-async def knowledge_delete(doc_id: int, admin=Depends(require_admin)):
+async def knowledge_delete(doc_id: int, admin=Depends(require_tenant_admin)):
     knowledge_repo.delete_knowledge_doc(doc_id)
     return {"ok": True}

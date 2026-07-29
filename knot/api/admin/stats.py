@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import settings_repo
 from knot.services import budget_service, cost_service
 
@@ -14,7 +14,7 @@ router = APIRouter()
 # ── Cost Stats (v0.4.2 admin 看板) ─────────────────────────────────────
 
 @router.get("/api/admin/cost-stats")
-async def admin_cost_stats(period: str = "7d", admin=Depends(require_admin)):
+async def admin_cost_stats(period: str = "7d", admin=Depends(require_tenant_admin)):
     """v0.4.2 成本归因汇总（按 agent_kind 分桶 + 按 user 分组）。
 
     Query params:
@@ -31,7 +31,7 @@ async def admin_cost_stats(period: str = "7d", admin=Depends(require_admin)):
 # ── System Recovery 趋势（v0.4.3 R-19）──────────────────────────────────
 
 @router.get("/api/admin/recovery-stats")
-async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)):
+async def admin_recovery_stats(period: str = "30d", admin=Depends(require_tenant_admin)):
     """v0.4.3 自纠正趋势（R-19 过滤 legacy + v0.4.2 上线日起点）。
 
     Query params:
@@ -54,7 +54,7 @@ async def admin_recovery_stats(period: str = "30d", admin=Depends(require_admin)
 # ─── v0.5.40 后端真数据 stats endpoints ──────────────────────────────────
 
 @router.get("/api/admin/metrics")
-async def admin_internal_metrics(period: str = "7d", admin=Depends(require_admin)):
+async def admin_internal_metrics(period: str = "7d", admin=Depends(require_tenant_admin)):
     """v0.6.1.0 — 内测健康指标：一次成功率 / 澄清率 / P95 latency / cost。
 
     Query params:
@@ -174,7 +174,7 @@ async def admin_query_history(
     has_error: bool | None = None,
     page: int = 1,
     size: int = 50,
-    admin=Depends(require_admin),
+    admin=Depends(require_tenant_admin),
 ):
     """v0.6.0.18 — admin 用户查询历史屏数据源（脱敏链 2/3）。
 
@@ -210,7 +210,7 @@ async def admin_query_history(
 
 
 @router.get("/api/admin/audit-stats")
-async def admin_audit_stats(admin=Depends(require_admin)):
+async def admin_audit_stats(admin=Depends(require_tenant_admin)):
     """v0.5.40 — 审计日志聚合 stats（总记录数/今日/失败数/涉及用户）。"""
     from knot.repositories import get_conn
     conn = get_conn()
@@ -234,7 +234,7 @@ async def admin_audit_stats(admin=Depends(require_admin)):
 
 
 @router.get("/api/admin/budgets-stats")
-async def admin_budgets_stats(admin=Depends(require_admin)):
+async def admin_budgets_stats(admin=Depends(require_tenant_admin)):
     """v0.5.40 — 预算 Hero card 聚合 stats（本月已用 token / 预计花费 / 使用率）。
 
     本月已用 token: SUM(input_tokens + output_tokens) 当月 messages

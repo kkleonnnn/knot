@@ -53,7 +53,7 @@ def test_rerun_rejects_non_admin(client, auth_headers):
 def test_rerun_2fa_enroll_carrier(client, auth_headers, monkeypatch):
     """R-SL-41 R-2FA 正向 carrier：default-on + 未 enroll admin → 403 totp_enroll_required（仿 v0.7.2 R-SL-6）。
 
-    gate 在 require_admin 依赖层先于 handler body 触发 → audit_id 不必存在。
+    gate 在 require_tenant_admin 依赖层先于 handler body 触发 → audit_id 不必存在。
     """
     monkeypatch.delenv("KNOT_TOTP_REQUIRED", raising=False)
     monkeypatch.delenv("KNOT_TOTP_BYPASS_ADMIN", raising=False)

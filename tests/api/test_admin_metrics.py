@@ -6,7 +6,7 @@ KPI 计算逻辑验证：
 - P50/P95/P99 latency（有 latency_ms 的消息）
 - cost_usd 聚合
 
-require_admin 守护：非 admin 401。
+require_tenant_admin 守护：非 admin 401。
 """
 from __future__ import annotations
 

@@ -6,7 +6,7 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 
 router = APIRouter()
 
@@ -24,7 +24,7 @@ def _xlsx_bytes(header: list, sample_rows: list) -> bytes:
 
 
 @router.get("/api/templates/{kind}")
-async def download_template(kind: str, admin=Depends(require_admin)):
+async def download_template(kind: str, admin=Depends(require_tenant_admin)):
     if kind == "few_shots":
         data = _xlsx_bytes(
             ["question", "sql", "type", "is_active"],

@@ -10,10 +10,10 @@
 > 这里硬编的是**期望值**，而期望值本就必须被钉住，否则无从检测漂移。
 
 ## 守护者身份用 `is` 比较，不用 `__name__`（D2'）
-`weak.__name__ = "require_admin"` 一行即可骗过名字匹配（实测：名字匹配 True / `is` 比较 False）。
+`weak.__name__ = "require_tenant_admin"` 一行即可骗过名字匹配（实测：名字匹配 True / `is` 比较 False）。
 ⇒ 一律 `dep.call is <函数对象>`。
 ⚠️ **`is` 比较不代表对 `dependency_overrides` 免疫** —— dependant 树在**注册期**构建、持的是原对象，
-override 在**请求期**解析。实测：override 后本模块仍报 `ADMIN`，而实际执行的是 `weak`。
+override 在**请求期**解析。实测：override 后本模块仍报 `TENANT_ADMIN`，而实际执行的是 `weak`。
 ⇒ 那条旁路由 `test_route_policy.py::test_D7_named_guards_not_overridden` 独立守；**二者正交，谁也替代不了谁**。
 
 ## ⚠️ 分类器只看**依赖层**，函数体内的守护不可见（D10' 复核结论）
@@ -35,7 +35,7 @@ if str(_TESTS) not in sys.path:
 # 四类策略（D1'）
 PUBLIC_OR_OUT_OF_BAND = "PUBLIC_OR_OUT_OF_BAND"
 AUTHENTICATED = "AUTHENTICATED"
-ADMIN = "ADMIN"
+TENANT_ADMIN = "TENANT_ADMIN"
 REPORT_PERMISSION = "REPORT_PERMISSION"
 
 FIXTURE = _TESTS / "fixtures" / "route_policy.json"
@@ -71,7 +71,7 @@ def _report_perm_code():
     1. **对本工厂，字节码搬运物理封死**：`_dep` 闭包自由变量 `('action',)` ⇒
        `weak.__code__ = _dep.__code__` 直接
        `ValueError: requires a code object with 0 free vars, not 1`。
-    2. **对普通函数（如 `require_admin`）赋值会成功**，结果**碰巧** fail-closed 而**非结构性**：
+    2. **对普通函数（如 `require_tenant_admin`）赋值会成功**，结果**碰巧** fail-closed 而**非结构性**：
        函数语义 = `__code__` + `__globals__` + `__defaults__` + `__closure__`，伪装**只搬第一项**。
        实测：`__defaults__` 丢失 ⇒ `Depends(get_current_user)` 消失、FastAPI 会把 `user` 读成
        **查询参数**；`__globals__` 是冒充者模块的 ⇒ 非 admin 分支抛
@@ -79,18 +79,18 @@ def _report_perm_code():
        换个模块里恰好定义了无害 `HTTPException` 的冒充者，这个论证就不成立了。
     3. **真正承重的优势**：`__name__` 会被**无辜机制**顺手复制 —— 实测
        `@functools.wraps(real_guard)` 之后 `wrapper.__name__ == "real_guard"`，
-       ⇒ **不需要攻击者，按名匹配自己就会误标出 ADMIN**（而 `wraps` 不碰 `__code__`）。
+       ⇒ **不需要攻击者，按名匹配自己就会误标出 TENANT_ADMIN**（而 `wraps` 不碰 `__code__`）。
     """
     from knot.api.bi_reports import require_report_perm
     return require_report_perm("__probe__").__code__
 
 
 def _classify(calls: list) -> str:
-    """按依赖**对象身份**定策略。顺序承重：ADMIN 最强，故先判。"""
-    from knot.api.deps import get_current_user, require_admin
+    """按依赖**对象身份**定策略。顺序承重：TENANT_ADMIN 最强，故先判。"""
+    from knot.api.deps import get_current_user, require_tenant_admin
 
-    if any(c is require_admin for c in calls):
-        return ADMIN
+    if any(c is require_tenant_admin for c in calls):
+        return TENANT_ADMIN
     rp = _report_perm_code()
     if any(getattr(c, "__code__", None) is rp for c in calls):
         return REPORT_PERMISSION

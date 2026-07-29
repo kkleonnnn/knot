@@ -1,7 +1,7 @@
 """tests/api/test_metrics_admin.py — v0.7.0 C2 指标注册表 admin 路由不变量 carrier。
 
 §4.5 不变量 API 层守护（C2 同址而生）：
-- gate 鉴权 + R-2FA：metric 端点全 require_admin（→ get_current_user 链含 2FA enroll gate）；
+- gate 鉴权 + R-2FA：metric 端点全 require_tenant_admin（→ get_current_user 链含 2FA enroll gate）；
   无 token 401/403 + 非 admin 403 + **R-SL-6 正向 carrier**（default-on + 未 enroll admin →
   403 totp_enroll_required）—— 把 2FA 继承转成**命名守护**（§4.5 同址而生，不靠「假设未来不偏移」）。
 - 审计接线：create/update/delete 各落对应 AuditAction Literal（metric.create/update/delete）。
@@ -27,7 +27,7 @@ def test_metric_endpoint_requires_auth(client):
 
 
 def test_metric_endpoint_rejects_non_admin(client, auth_headers):
-    """非 admin（analyst）→ 403（require_admin）。
+    """非 admin（analyst）→ 403（require_tenant_admin）。
 
     （R-2FA 正向 carrier 见 test_metric_endpoint_carries_2fa_enroll_gate — 命名守护非注释豁免。）
     """
@@ -48,7 +48,7 @@ def test_metric_endpoint_rejects_non_admin(client, auth_headers):
 def test_metric_endpoint_carries_2fa_enroll_gate(client, auth_headers, monkeypatch):
     """⭐ R-SL-6 §4.5 R-2FA 正向 carrier：default-on + 未 enroll admin → metric 端点 403 totp_enroll_required.
 
-    把 require_admin → get_current_user 的 2FA enroll gate「继承」转成**命名守护**（§4.5 同址而生）：
+    把 require_tenant_admin → get_current_user 的 2FA enroll gate「继承」转成**命名守护**（§4.5 同址而生）：
     未来若 metric 端点改自定义 dep / 漏挂 Depends，2FA 静默回退会被本测试拦截（非靠逻辑推断）。
     delenv 揭真 default-on（守护者 C3 模式；conftest autouse 默认 false 隔离全套 — 复用
     test_totp_mandatory R-2FA-2 同模式）。seed admin 未 enroll（fresh tmp DB）。

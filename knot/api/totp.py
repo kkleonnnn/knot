@@ -28,7 +28,7 @@ from knot.api.deps import (
     _get_secret,
     create_token,
     get_current_user,
-    require_admin,
+    require_tenant_admin,
 )
 from knot.api.schemas import (
     TotpEnrollCompleteRequest,
@@ -255,7 +255,7 @@ async def verify(req: TotpVerifyRequest, request: Request):
 
 @router.post("/api/totp/reset")
 async def reset(req: TotpResetRequest, request: Request,
-                admin=Depends(require_admin)):
+                admin=Depends(require_tenant_admin)):
     """admin 重置 user TOTP — R-PB-B1-5：audit + recovery_codes 全清 + token_version +1。
 
     R-PB-B1-13：reset 必触发被重置用户的旧 JWT 立即 401（cache invalidate +

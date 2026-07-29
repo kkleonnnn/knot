@@ -1,16 +1,16 @@
 """闸门：**每条路由的授权策略**必须与钉住的快照一致（D1'~D3' + D7'）。
 
 ## 为什么需要它
-v0.9.5 要动 **90 处** `require_admin` 依赖。此前全仓的路由守护只有**条数**断言
+v0.9.5 要动 **90 处** `require_tenant_admin` 依赖。此前全仓的路由守护只有**条数**断言
 （`== 144` / `== 53` / `>= 80`）+ **8 条**行为 403 spot check，**0 处** introspect 路由的依赖身份
-⇒ **没有任何测能断言「某条路由仍受 `require_admin` 守护」，漏一个不会红。**
+⇒ **没有任何测能断言「某条路由仍受 `require_tenant_admin` 守护」，漏一个不会红。**
 
 ## 两条最容易被后人「好心修坏」的地方（D11'）
 1. **期望值必须是字面**（`tests/fixtures/route_policy.json`）。
    **从被检对象派生期望 = 自我实现的 tautology，测永远绿**。若你想「让测自动跟上代码」——
    那正是本测要防的事。改动路由/守护后请跑 `scripts/gen_route_policy_snapshot.py`，
    **把 diff 当 review 材料**。
-2. **v0.9.5 拆 `require_admin`（platform admin / tenant admin）时本测会按设计必红。**
+2. **v0.9.5 拆 `require_tenant_admin`（platform admin / tenant admin）时本测会按设计必红。**
    那是**强制显式重登记** —— 每条路由都要重新回答「它属于哪一类」。
    **严禁**用「放宽成子串 / 名字匹配 / 从 app 派生期望」来把它弄绿。
 
@@ -29,7 +29,7 @@ if str(_TESTS) not in sys.path:
     sys.path.insert(0, str(_TESTS))
 
 from _route_policy import (  # noqa: E402
-    ADMIN,
+    TENANT_ADMIN,
     AUTHENTICATED,
     PUBLIC_OR_OUT_OF_BAND,
     REPORT_PERMISSION,
@@ -60,7 +60,7 @@ _REGEN = "PYTHONPATH=. python3 scripts/gen_route_policy_snapshot.py"
 #
 # 【第二类 · 角色分流】（执行者补 —— **拆 admin 时这类才是真正的作业面**）
 #   全仓 **13 处** `role == "admin"` 比较 / **8 文件**（AST 口径实测），其中 1 处是
-#   `require_admin` 本体（`deps.py:213`）⇒ **12 处体内分流**：
+#   `require_tenant_admin` 本体（`deps.py:213`）⇒ **12 处体内分流**：
 #     `api/deps.py:191`            admin TOTP enroll 应急后门（R-2FA-3）
 #     `api/query.py:166,197`       非 admin 脱敏（agent_steps / SQL / 表名 → 业务别名）
 #     `api/conversations.py:46`    非 admin 脱敏（历史消息 sql_text）
@@ -70,7 +70,7 @@ _REGEN = "PYTHONPATH=. python3 scripts/gen_route_policy_snapshot.py"
 #     `services/saved_report_service.py:108,194`  归属-或-admin
 #     `services/bi_permission_service.py:19`      **admin 绕过整套 BI 权限判定**
 #   ⚠️ admin 一拆两半，**这 12 处每一处都要回答「哪一种 admin」**。只改那 90 个
-#   `Depends(require_admin)` 的话，脱敏与权限绕过会继续按旧的二元 `role == "admin"` 跑
+#   `Depends(require_tenant_admin)` 的话，脱敏与权限绕过会继续按旧的二元 `role == "admin"` 跑
 #   —— 而其中 `bi_permission_service.py:19` 是**整套 BI RBAC 的旁路**。
 #   （另有若干**下游透传**点接收 `is_admin: bool` 参数，如 `bi_report_service.py:308-315`；
 #     它们不是独立判定点，但改口径时同样要跟着走。）
@@ -80,7 +80,7 @@ _REGEN = "PYTHONPATH=. python3 scripts/gen_route_policy_snapshot.py"
 # D10' 意图复核 —— **23 条挂 admin 守护却在 `/api/admin/` 之外**的路由，逐条一行理由
 #
 # 为什么必须逐条过：**快照会把今天的状态祝福成正确；钉住之后就查不出来了。**
-# 分布实测：ADMIN 90 = `/api/admin/` 内 67 + **外 23**。
+# 分布实测：TENANT_ADMIN 90 = `/api/admin/` 内 67 + **外 23**。
 # 复核结论：**23 条全部有正当理由，无一条误挂**。理由归三类：
 #   (A) 改的是**全体用户共享的结构** → 单人改动影响所有人；
 #   (B) 改的是**喂给 LLM 的内容** → prompt 注入面，影响每个用户的每次查询；
@@ -141,20 +141,20 @@ _NO_USER_JWT_DEPENDENCY = {
 }
 
 # ⚠️ 守护者 Stage 4 §II-2：**`POST /api/catalog/switch` 标 `AUTHENTICATED` 是对的，但理由不显然。**
-# 它名字里带 catalog、看着像部署级全局配置 ⇒ 下一个人**很可能「顺手改成 ADMIN」**。
+# 它名字里带 catalog、看着像部署级全局配置 ⇒ 下一个人**很可能「顺手改成 TENANT_ADMIN」**。
 # 事实（v0.9.3 grounded）：它改的是 **`users.active_catalog_id`，per-user 的**
 # （`api/catalog.py:259` → `catalog_repo.set_user_active_catalog(user["id"], catalog_id)`）
 # —— 任意登录用户切**自己**的 active catalog，不影响别人、不改部署级配置。
-# ⇒ 改成 ADMIN 会**破坏正常功能**（普通用户再也换不了自己的目录）。
+# ⇒ 改成 TENANT_ADMIN 会**破坏正常功能**（普通用户再也换不了自己的目录）。
 # 附带（自述 OOS-2，`api/catalog.py:253`）：无 catalog 级 RBAC，用户可切到本租户内**任一** catalog。
-# 那是**已登记的开放设计缺口**，**不是**本条标签的错 —— 别用「改成 ADMIN」去补它。
+# 那是**已登记的开放设计缺口**，**不是**本条标签的错 —— 别用「改成 TENANT_ADMIN」去补它。
 # 注：本注释写在这里而**不在** `route_policy.json` 里，因为 **JSON 不支持注释**。
 
 
 def test_D1_route_policy_matches_snapshot():
     """⭐ 全 138 条路由的授权策略 == 钉住的快照；差集报 added / removed / policy-changed。
 
-    验收（R-C3 取材=revert）：去掉某条 admin 路由的 `Depends(require_admin)` → 本测红且**点名该路由**。
+    验收（R-C3 取材=revert）：去掉某条 admin 路由的 `Depends(require_tenant_admin)` → 本测红且**点名该路由**。
     """
     actual = build_actual_policy_map()
     expected = load_expected()
@@ -167,7 +167,7 @@ def test_D1_route_policy_matches_snapshot():
             f"  ➖ removed（路由消失）: {d['removed'] or '—'}\n"
             f"  ⚠️ policy-changed（**守护被改动**）: {d['policy_changed'] or '—'}\n\n"
             "若改动是有意的：跑 `" + _REGEN + "` 重生成，并把 diff 当 review 材料逐条过。\n"
-            "⚠️ policy-changed 里出现 ADMIN → 其它 = 有路由**失去了 admin 守护**，先确认这是有意的。\n"
+            "⚠️ policy-changed 里出现 TENANT_ADMIN → 其它 = 有路由**失去了 admin 守护**，先确认这是有意的。\n"
             "—— 可直接粘贴的新快照 ——\n" + block
         )
 
@@ -180,7 +180,7 @@ def test_D1_policy_class_counts_are_pinned():
     actual = build_actual_policy_map()
     import collections
     got = collections.Counter(actual.values())
-    want = {ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34, PUBLIC_OR_OUT_OF_BAND: 4}
+    want = {TENANT_ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34, PUBLIC_OR_OUT_OF_BAND: 4}
     assert dict(got) == want, (
         f"策略类分布漂移：\n  实际 {dict(sorted(got.items()))}\n  期望 {dict(sorted(want.items()))}\n"
         f"若有意：跑 `{_REGEN}` 并同步本测的 want。"
@@ -190,21 +190,21 @@ def test_D1_policy_class_counts_are_pinned():
 def test_D2_guard_identity_not_name_based():
     """⭐ 守护者身份用 **`is` / `__code__` 比较**，不用 `__name__`（一行即可伪装）。
 
-    本测直接检验分类器**不被伪装骗**：造一个 `weak`，把 `__name__` 伪装成 `require_admin`，
-    看它是否被分类成 ADMIN。
+    本测直接检验分类器**不被伪装骗**：造一个 `weak`，把 `__name__` 伪装成 `require_tenant_admin`，
+    看它是否被分类成 TENANT_ADMIN。
     验收（取材=revert）：把 `_route_policy._classify` 改成按 `__name__` 匹配 → 本测红。
     """
     from _route_policy import _classify
 
-    from knot.api.deps import get_current_user, require_admin
+    from knot.api.deps import get_current_user, require_tenant_admin
 
     def weak():
         ...
 
-    weak.__name__ = "require_admin"          # 一行伪装
-    assert _classify([weak]) != ADMIN, "按名字匹配被伪装骗过 —— 必须用对象身份（is / __code__）"
+    weak.__name__ = "require_tenant_admin"          # 一行伪装
+    assert _classify([weak]) != TENANT_ADMIN, "按名字匹配被伪装骗过 —— 必须用对象身份（is / __code__）"
     assert _classify([weak, get_current_user]) == AUTHENTICATED
-    assert _classify([require_admin]) == ADMIN, "真 require_admin 必须被认出"
+    assert _classify([require_tenant_admin]) == TENANT_ADMIN, "真 require_tenant_admin 必须被认出"
 
 
 def test_D2_factory_produced_dep_is_matched_by_code_identity():
@@ -274,16 +274,16 @@ def test_D7_named_guards_not_overridden():
     """⭐ 具名守护函数**不得**出现在 `app.dependency_overrides`（D1' 对此**免疫不了**）。
 
     ⚠️ **D2'/D7' 正交，谁也替代不了谁**（实测）：dependant 树在**注册期**构建、持的是原对象；
-    override 在**请求期**解析 ⇒ override 之后 D1' **仍报 ADMIN**，而实际执行的是替身。
+    override 在**请求期**解析 ⇒ override 之后 D1' **仍报 TENANT_ADMIN**，而实际执行的是替身。
     ⇒ **「用了 `is` 比较所以对 override 免疫」是错的。** 本测就是那条正交性的守护，
     `test_D7_orthogonal_to_D1` 进一步钉住它 —— **删掉本测 = 打开一条静默换守护的旁路**。
 
     只针对**具名守护函数**，不断言整个 overrides 字典为空 —— 测自己会合法用 override（D7' 硬条件）。
     """
-    from knot.api.deps import get_current_user, require_admin
+    from knot.api.deps import get_current_user, require_tenant_admin
     from knot.main import app
 
-    overridden = [f.__name__ for f in (require_admin, get_current_user)
+    overridden = [f.__name__ for f in (require_tenant_admin, get_current_user)
                   if f in app.dependency_overrides]
     assert not overridden, (
         f"具名守护被 override：{overridden}\n"
@@ -300,20 +300,20 @@ def test_D7_orthogonal_to_D1(monkeypatch):
     （「D1' 已经用 `is` 比较了，D7' 多余」是个很容易犯的误推）。
     取材=注入（override 是未来状态，不是某个已做的修）。
     """
-    from knot.api.deps import require_admin
+    from knot.api.deps import require_tenant_admin
     from knot.main import app
 
     def weak():
         return {"id": 1, "role": "analyst"}
 
-    weak.__name__ = "require_admin"                      # 连名字一起伪装
-    monkeypatch.setitem(app.dependency_overrides, require_admin, weak)
+    weak.__name__ = "require_tenant_admin"                      # 连名字一起伪装
+    monkeypatch.setitem(app.dependency_overrides, require_tenant_admin, weak)
 
     # D1' 侧：策略快照**察觉不到** override
     actual = build_actual_policy_map()
-    assert actual.get("GET /api/admin/users") == ADMIN, (
+    assert actual.get("GET /api/admin/users") == TENANT_ADMIN, (
         "前提不成立：D1' 本应对 override **无感**（注册期持原对象）。"
         "若此断言红，说明 FastAPI 行为变了 —— 正交性论证需重做。"
     )
     # D7' 侧：能察觉
-    assert require_admin in app.dependency_overrides
+    assert require_tenant_admin in app.dependency_overrides

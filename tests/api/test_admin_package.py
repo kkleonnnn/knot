@@ -34,13 +34,13 @@ def test_admin_router_aggregates_53_routes():
         if getattr(r, "path", "").startswith("/api/admin/")
     ]
     # ⚠️ chore D12'（三方一致：**保留 `== 53` 不动**，只加注释）——
-    # 本断言的 **53** 与 `tests/test_route_policy.py` 的 ADMIN 类 **90** 都对，量的是**三个不同的轴**：
+    # 本断言的 **53** 与 `tests/test_route_policy.py` 的 TENANT_ADMIN 类 **90** 都对，量的是**三个不同的轴**：
     #   ① **包归属**（本断言）：`admin.router` 聚合的路由 = **53**。本测挂的是**裸 app**，
     #      故此处的 `/api/admin/` 前缀过滤只是防杂项，53 的实义是「admin **包**里有多少条」。
     #   ② **路径前缀**：主 app 里 `/api/admin/*` 共 **67** 条 = 53 + **14 条定义在 admin 包之外**
     #      （实测：`knot.api.catalog` 7 · `knot.api.audit` 5 · `knot.api.feedback` 1 ·
     #        `knot.api.frontend_errors` 1）⇒ **「admin 前缀」≠「admin 包」，差 14 条。**
-    #   ③ **守护**：挂 `require_admin` 的 = **90** = 67（前缀内，实测前缀内 100% 都挂）+ 23（前缀外）。
+    #   ③ **守护**：挂 `require_tenant_admin` 的 = **90** = 67（前缀内，实测前缀内 100% 都挂）+ 23（前缀外）。
     # 恒等式（全部实测）：**53 →(+14 包外) 67 →(+23 前缀外) 90**；admin 包内 0 条多 method 路由，
     # 故 ① 这一轴上 route 对象数 == (method,path) 数。**别去「对齐」这三个数**，它们本就不该相等。
     # 📌 对 v0.9.5 的直接影响：拆 platform/tenant admin 要动的是**轴 ③ 的 90 条**，

@@ -2,7 +2,7 @@
 
 权限（R-BI-4）：
 - 读（list folders/reports, get report）：`get_current_user`（全体已认证）
-- 写（folder/report create/update/delete, refresh）：`require_admin`（analyst → 403）
+- 写（folder/report create/update/delete, refresh）：`require_tenant_admin`（analyst → 403）
 非 admin 读报表 **不下发 sql_text**（R-BI-6，svc.to_dto）。
 
 审计（R-BI-8）：每个 bi_report.* / report_folder.* Literal 均 `audit(request, admin, action=<常量>)`
@@ -24,7 +24,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import get_current_user, require_admin
+from knot.api.deps import get_current_user, require_tenant_admin
 from knot.repositories import bi_permission_repo
 from knot.services import bi_permission_service as perm_svc
 from knot.services import bi_report_service as svc
@@ -276,10 +276,10 @@ async def refresh_report(report_id: int, request: Request, user=Depends(require_
     return out
 
 
-# ── 写：文件夹（require_admin）────────────────────────────────────────────────────
+# ── 写：文件夹（require_tenant_admin）────────────────────────────────────────────────────
 
 @router.post("/api/bi/folders")
-async def create_folder(req: FolderCreateRequest, request: Request, admin=Depends(require_admin)):
+async def create_folder(req: FolderCreateRequest, request: Request, admin=Depends(require_tenant_admin)):
     f = svc.create_folder(admin, name=req.name, parent_id=req.parent_id, sort_order=req.sort_order)
     audit(request, admin, action="report_folder.create", resource_type="report_folder",
           resource_id=f["id"], detail={"name": f["name"]})
@@ -288,7 +288,7 @@ async def create_folder(req: FolderCreateRequest, request: Request, admin=Depend
 
 @router.put("/api/bi/folders/{folder_id}")
 async def update_folder(folder_id: int, req: FolderUpdateRequest, request: Request,
-                       admin=Depends(require_admin)):
+                       admin=Depends(require_tenant_admin)):
     fields = req.model_fields_set
     kw = {k: getattr(req, k) for k in ("name", "parent_id", "sort_order") if k in fields}
     f = svc.update_folder(folder_id, **kw)
@@ -300,19 +300,19 @@ async def update_folder(folder_id: int, req: FolderUpdateRequest, request: Reque
 
 
 @router.delete("/api/bi/folders/{folder_id}")
-async def delete_folder(folder_id: int, request: Request, admin=Depends(require_admin)):
+async def delete_folder(folder_id: int, request: Request, admin=Depends(require_tenant_admin)):
     if not svc.delete_folder(folder_id):
         raise HTTPException(status_code=404, detail="文件夹不存在")
     audit(request, admin, action="report_folder.delete", resource_type="report_folder", resource_id=folder_id)
     return {"ok": True}
 
 
-# ── 目录拖拽排序（v0.8.8 ③；require_admin）——────────────────────────────────────
+# ── 目录拖拽排序（v0.8.8 ③；require_tenant_admin）——────────────────────────────────────
 # 非碰撞前缀 /api/bi/reorder/*（不与 {report_id}/{folder_id} int 路径争路由）。
 # 审计复用 bi_report.update / report_folder.update（sort_order 属更新语义 → 不新增 Literal）。
 
 @router.put("/api/bi/reorder/reports")
-async def reorder_reports(req: ReorderRequest, request: Request, admin=Depends(require_admin)):
+async def reorder_reports(req: ReorderRequest, request: Request, admin=Depends(require_tenant_admin)):
     _check_reorder_size(req.ordered_ids)
     svc.reorder_reports(req.ordered_ids)
     audit(request, admin, action="bi_report.update", resource_type="bi_report",
@@ -321,7 +321,7 @@ async def reorder_reports(req: ReorderRequest, request: Request, admin=Depends(r
 
 
 @router.put("/api/bi/reorder/folders")
-async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(require_admin)):
+async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(require_tenant_admin)):
     _check_reorder_size(req.ordered_ids)
     svc.reorder_folders(req.ordered_ids)
     audit(request, admin, action="report_folder.update", resource_type="report_folder",
@@ -332,13 +332,13 @@ async def reorder_folders(req: ReorderRequest, request: Request, admin=Depends(r
 # ── 权限 RBAC 管理（v0.8.12；admin 授权角色×目录 / ×报表）─────────────────────────────
 
 @router.get("/api/bi/permissions")
-async def list_permissions(admin=Depends(require_admin)):
+async def list_permissions(admin=Depends(require_tenant_admin)):
     """所有 grant（admin 管理 UI 渲染角色×资源矩阵）。"""
     return bi_permission_repo.list_all()
 
 
 @router.put("/api/bi/permissions")
-async def set_permission(req: PermissionSetRequest, request: Request, admin=Depends(require_admin)):
+async def set_permission(req: PermissionSetRequest, request: Request, admin=Depends(require_tenant_admin)):
     """设一条 grant（folder_id / report_id 二选一）；4 权限全 0 = 撤销（删行）。emit bi_permission.change。"""
     if (req.folder_id is None) == (req.report_id is None):
         raise HTTPException(status_code=400, detail="folder_id / report_id 须且仅提供一个")

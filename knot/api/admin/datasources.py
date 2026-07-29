@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot.adapters.db import doris as db_connector
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.api.schemas import DataSourceRequest, UpdateDataSourceRequest
 from knot.core.tenant_context import current_tenant, tenant_cache_key
 from knot.repositories import data_source_repo
@@ -108,7 +108,7 @@ def _cached_status(sid) -> str:
 
 
 @router.get("/api/admin/datasources")
-async def admin_list_datasources(admin=Depends(require_admin)):
+async def admin_list_datasources(admin=Depends(require_tenant_admin)):
     # v0.8.21 体验：**列表不阻塞探测** —— 原每次加载对每个源实时建连（不可达源 TCP 可卡分钟级 →
     # 数据源/用户页各卡 >1min）。改：即时返元数据 + status 取缓存（无/过期→"checking"）；真探测
     # 由前端异步调 GET /status 更新。→ 页面秒开，源挂了也不拖。
@@ -129,7 +129,7 @@ async def admin_list_datasources(admin=Depends(require_admin)):
 
 
 @router.get("/api/admin/datasources/status")
-async def admin_datasources_status(admin=Depends(require_admin)):
+async def admin_datasources_status(admin=Depends(require_tenant_admin)):
     # v0.8.21：实时探测所有源（并发；可能慢，前端异步调不阻塞列表）+ 写缓存 → 返 {id: status}。
     sources = data_source_repo.list_datasources()
     loop = asyncio.get_event_loop()
@@ -146,7 +146,7 @@ async def admin_datasources_status(admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/datasources")
-async def admin_create_datasource(req: DataSourceRequest, request: Request, admin=Depends(require_admin)):
+async def admin_create_datasource(req: DataSourceRequest, request: Request, admin=Depends(require_tenant_admin)):
     _assert_http_base_url_allowed(req.db_type, req.http_config)  # v0.8.20 F4：存前校验 egress allowlist
     sid = data_source_repo.create_datasource(
         user_id=admin["id"], name=req.name, description=req.description,
@@ -161,7 +161,7 @@ async def admin_create_datasource(req: DataSourceRequest, request: Request, admi
 
 
 @router.put("/api/admin/datasources/{source_id}")
-async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, request: Request, admin=Depends(require_admin)):
+async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, request: Request, admin=Depends(require_tenant_admin)):
     kwargs = {k: v for k, v in req.dict().items() if v is not None}
     # v0.4.5 R-39：db_password 空/mask 占位 → 保留原值
     if "db_password" in kwargs:
@@ -207,7 +207,7 @@ async def admin_update_datasource(source_id: int, req: UpdateDataSourceRequest, 
 
 
 @router.delete("/api/admin/datasources/{source_id}")
-async def admin_delete_datasource(source_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_delete_datasource(source_id: int, request: Request, admin=Depends(require_tenant_admin)):
     data_source_repo.delete_datasource(source_id)
     from knot.services.engine_cache import invalidate_tenant_engine_cache
     invalidate_tenant_engine_cache()  # v0.8.24 R2 + v0.9.1 MF3：删源撤权，清当前租户 (tid,uid,group)+(tid,"source",id) 两命名空间
@@ -217,7 +217,7 @@ async def admin_delete_datasource(source_id: int, request: Request, admin=Depend
 
 
 @router.get("/api/admin/datasources-stats")
-async def admin_datasources_stats(admin=Depends(require_admin)):
+async def admin_datasources_stats(admin=Depends(require_tenant_admin)):
     """v0.6.1.3 — DataSources Hero card 真实 stats（修 v0.5.40 broken impl 500）。
 
     总 schema: COUNT(DISTINCT db_database) WHERE is_active=1

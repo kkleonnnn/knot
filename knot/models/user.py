@@ -42,7 +42,7 @@ class AuthClaim:
     """已通过 JWT 校验的调用者身份凭证。
 
     生命周期：仅存在于单次 HTTP 请求处理过程中（FastAPI Depends 注入），不持久化。
-    上层 admin 路由用 role 字段做权限分流（require_admin）。
+    上层 admin 路由用 role 字段做权限分流（require_tenant_admin）。
     """
     user_id: int
     username: str
