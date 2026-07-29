@@ -21,8 +21,12 @@ import pytest
 from knot.core import tenant_context as tc
 from knot.core.tenant_context import reset_active_tenant, set_active_tenant
 from knot.services.agents import catalog, catalog_state
+from knot.services.agents.catalog_state import carrier_names
 
-_CARRIER = ("LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_LABELS", "_SOURCE")
+# chore D4'：**从载体注册表派生**（原为字面副本之一 —— 4 份清单里的第 4 份）。
+# ⚠️ 这是**扫描面**派生（该查哪些名），不是期望值派生 —— 期望值仍是「一个都不许出现在
+# 模块命名空间」这个字面断言。二者的区别见 `tests/_route_policy.py` 头注释。
+_CARRIER = carrier_names()
 
 
 @pytest.fixture

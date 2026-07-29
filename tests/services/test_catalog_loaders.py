@@ -10,10 +10,16 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from knot.services.agents.catalog_state import carrier_names
+
 _REPO = Path(__file__).resolve().parents[2]
 _CATALOG_MOD = "knot/services/agents/catalog.py"
 # v0.9.3 R-9 哨兵三件套：补 FIELD_LABELS（v0.7.27 引入后一直在哨兵外 —— 双向变异实验坐实漏检）。
-_MUTABLE_GLOBALS = {"LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_LABELS", "_SOURCE"}
+# chore D4'：**从载体注册表派生**（原为字面副本之一）。下方 4 条哨兵共用它 ⇒ 注册表加名即全部自动覆盖。
+# MUTANT-E 实证：字面副本时代加第 7 名 + 在 reload 里 `global` 它 → **26 测全绿逃逸**。
+# ⚠️ 派生只治「抄写漂移」，**不治「登记漂移」**（没进注册表的新载体对本清单同样不可见）——
+# 完备性由 `tests/test_catalog_carrier_registry.py::test_D6_*` 的结构守护承担（禁 catalog.py 内**任何** `global`）。
+_MUTABLE_GLOBALS = set(carrier_names())
 
 
 def _py_files():
@@ -55,27 +61,12 @@ def test_no_value_binding_from_import_of_catalog_globals():
     )
 
 
-def test_catalog_py_has_no_global_statement_on_carrier_names():
-    """⭐ v0.9.3 R-9 哨兵②（B-1 实测推出）：catalog.py 内**禁** `global <6 名>` 语句。
-
-    实测过的失效机制（最小复刻模块）：PEP 562 模块 `__getattr__` 只在常规属性查找**失败**时触发；
-    一旦模块内出现 `global TABLES; TABLES = ...`，那 6 名就被**复活**进模块 `__dict__` →
-    代理**静默死亡**（不报错）、per-tenant 槽闲置、跨租户串供照旧。
-    **时序真相**：`reload()` 在启动期与每 query 都跑 ⇒ 一旦跑过就永久落在静默支
-    （NameError 那支只存在于首次 reload 之前，反而是幸运情况）。
-    → 故此哨兵与「禁 from-import 值绑」同等承重：后者防外部值绑，本条防内部复活。
-    """
-    tree = ast.parse((_REPO / _CATALOG_MOD).read_text(encoding="utf-8"))
-    offenders = [
-        f"{_CATALOG_MOD}:{n.lineno} global {sorted(set(n.names) & _MUTABLE_GLOBALS)}"
-        for n in ast.walk(tree)
-        if isinstance(n, ast.Global) and (set(n.names) & _MUTABLE_GLOBALS)
-    ]
-    assert not offenders, (
-        "catalog.py 内 `global <载体名>` 会把该名复活进模块 __dict__ → PEP 562 代理静默失效、"
-        "租户槽闲置、跨租户串供照旧（且无任何异常）。reload 须用局部变量构造 + 原子发布到载体：\n  "
-        + "\n  ".join(offenders)
-    )
+# ⛔ v0.9.3 R-9 哨兵②（`test_catalog_py_has_no_global_statement_on_carrier_names`）已**移交**
+#    → `tests/test_catalog_carrier_registry.py::test_D6_catalog_module_has_no_global_statement`（chore D6'）。
+#    **移交而非删除**：原版按名过滤（只禁 `global <注册表内的名>`），而**按名过滤正是 MUTANT-E 的逃逸口**
+#    —— 加一个**未登记**的第 7 名再 `global` 它，原版看不见。新版**不看名字、禁任何 `global`** ⇒ 严格更强
+#    （实测：注入 `global TABLES` 两版皆红；注入 `global XNEW` 仅新版红）。留一份在此处会重新引入
+#    「同一件事两处判据」，正是本片要治的病。原 docstring 里的失效机制与时序真相已整段随迁。
 
 
 def test_catalog_py_has_no_bare_name_read_of_carrier():
