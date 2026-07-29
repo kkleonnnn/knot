@@ -117,6 +117,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 分支①②（代号不存在 / 租户停用）**无租户库可写审计** ⇒ 只落 INFO 日志；平台侧审计随 R-T-GATE 清单做。
 - `/api/bi/scheduler/tick` 仍走单租户解析（无 JWT），已在 R-T-GATE 清单。
 
+### Chore（guard 加固 · riding v0.9.4，不 bump 版本）
+
+> **v0.9.5 的前置账，不是 v0.9.5 本身。** v0.9.5 要动 **90 处** `require_admin`；开工前先补上
+> 「改坏了会红」的能力 —— 此前全仓的路由守护只有**条数**断言（`== 144` / `== 53` / `>= 80`）
+> + 8 条行为 403 spot check，**0 处** introspect 路由的依赖身份 ⇒ **漏掉一个 `require_admin` 不会红。**
+> 顺带兑现 v0.9.3 §IV-1 登记的 backlog（载体名 4 份硬编清单）。
+> 评审链：grounded 测绘 → Stage 1 → Codex Stage 2（3 blocking）→ 守护者 Stage 3（concur major-revise）
+> → Stage 1' → 守护者复核 **PASS 放行** → 4 步实施。**0 新增红线**。
+
+#### Added
+- **`tests/fixtures/route_policy.json` + `tests/_route_policy.py` + `tests/test_route_policy.py`**：
+  **全 138 条路由的授权策略快照**（ADMIN 90 / REPORT_PERMISSION 10 / AUTHENTICATED 34 /
+  PUBLIC_OR_OUT_OF_BAND 4）。**扫描面派生**（遍历全量路由 ⇒ 新路由自动纳入）而**期望值字面**
+  （从被检对象派生期望 = 自我实现的 tautology）。失败信息给 added / removed / **policy_changed**
+  三类差集，不是「90 != 91」这种不可行动的数字。再生成：`scripts/gen_route_policy_snapshot.py`。
+- **⭐ 实施期发现 LOCKED 设计洞**：D2' 原文规定按 `dep.call is X` 比身份，但
+  `require_report_perm(action)` 是**依赖工厂**，每条路由拿到**不同**闭包 ⇒ `is` 按构造不可能成立
+  （评审双方给的名字 `require_report_permission` 在仓里**不存在**，真名 `require_report_perm`）。
+  照字面实现会把 **10 条有 RBAC 细粒度权限的报表路由错标成 `AUTHENTICATED`**，而快照会把这个错
+  **祝福成正确**。解法仍守 D2' 实质（身份而非名字）：比 **`__code__` 身份**（同工厂闭包共享
+  compile-time 唯一的 code 对象，且**不可被 `__name__` 伪装**）。
+- **`test_D7_named_guards_not_overridden`**（+ 正交性证明测）：`dependency_overrides` 是 D1' **免疫不了**的
+  旁路 —— dependant 树在**注册期**建、持原对象；override 在**请求期**解析 ⇒ 实测 override 后
+  **D1' 仍报 ADMIN** 而实际执行替身。「用了 `is` 比较所以对 override 免疫」是**错的**。
+  配根 conftest 的 `_restore_dependency_overrides`（per-test 快照/复原；**刻意不**断言字典为空 —— 测会合法用它）。
+- **`tests/test_catalog_carrier_registry.py`**：载体注册表的结构守护。**D6'（禁 `catalog.py` 内任何
+  `global` + 禁模块级可变容器）才是安全来源** —— 守护者认账其 v0.9.3 §IV-1 处方的不足：
+  全部 oracle 从注册表派生后，**没进注册表的新载体对所有守护不可见**，会把「4 个弱守护」变成
+  「1 个强但**盲**的守护」。派生只治抄写漂移，完备性另需结构守护。
+
+#### Changed
+- **载体名 4 份硬编清单 → 1 份真相源**（兑现 v0.9.3 §IV-1）：`_ATTR_TO_SLOT` 移入 `catalog_state`
+  （载体所有者是槽；反向落户会与 `catalog → catalog_state` 的 import 方向冲突），
+  新 **`carrier_names()` 函数**取代 `CARRIER_NAMES` eager tuple，删死常量 `_SLOT_KEYS`（全仓 0 引用），
+  两处**测**清单改派生（其中一处被 4 条哨兵共用 ⇒ 一处派生即全覆盖）。**行为不变**：
+  全量与前一 commit **逐字相同**。
+  ⚠️ **刻意做成函数不是常量**：eager tuple 在 import 期冻结 ⇒ 依赖它的 MUTANT-E 回归测
+  **按设计不可能通过**且会**静默地绿**；`.keys()` 活视图能解决冻结，但把活视图挂在
+  `CARRIER_NAMES` 这种常量样的名字下是陷阱（下一个人「顺手改回 `tuple(...)`」就静默重新废掉那条测，
+  **与本片要治的病同型**）。函数名把动态性写在每个调用点上。
+- **`== 53` 保留不动，只加注释**（三方一致）：实测坐实 **53 / 67 / 90 是三个不同的轴** ——
+  ① admin **包**里 53 条；② `/api/admin/` **前缀**下 67 条 = 53 + **14 条定义在 admin 包之外**
+  （`catalog` 7 · `audit` 5 · `feedback` 1 · `frontend_errors` 1）；③ 挂 `require_admin` 的 90 条。
+  📌 **对 v0.9.5 的直接影响：要动的是轴 ③ 的 90 条，横跨 5 个模块；只改 admin 包会漏 37 条。**
+
+#### 未结清（显式登记，勿当已完成）
+- **`POST /api/catalog/switch` 无 catalog 级 RBAC**（D10' 镜像面扫描所得）：任意登录用户可把自己的
+  active catalog 切到本租户内**任一** catalog。是**自述的** OOS-2 缺口（`api/catalog.py:253`），
+  **非租户隔离洞**（catalog_id = 租户内水平切分；跨租户由 v0.9.3 per-tenant 文件边界结构性挡住）。
+  陈旧处仅是它的版本指针「留 v0.7+」（现 v0.9 仍未做）。本片 0 生产码改动，不动它。
+- **代理的 `KeyError` 而非 `AttributeError`**：`catalog.__getattr__` 是 `get_state()[slot_key]` 裸下标 ⇒
+  注册表登记了而 publish 没产出的 slot 被读到时 `hasattr(catalog, X)` **会炸**而非返 False。
+  今天不可能发生（由 `test_IV4c_*` 守注册表 values == publish 参数）⇒ 只记不修。
+- **D8' 重复清单哨兵阈值 4** 可被「拆成两个二元组」绕过 —— **它是提醒，不是完备性保证**（完备性归 D6'）。
+  阈值取 4 而非 3 是刻意的：≥3 会误伤只验三个属性的正当测，而**噪音大的提醒会被关掉**。
+
+#### 🔴 v0.9.5 硬注记（守护者 Stage 4 §II 要求写死）
+- **本快照绿 ≠ 授权完好，只 ≠「依赖层策略漂移」。** v0.9.5 恰是**动授权**的那片；若它重构
+  **函数体内**的授权逻辑，**这份快照会全程保持绿**（分类器只 introspect `Depends(...)`）。
+  ⇒ **v0.9.5 必须为「函数体内授权」另配覆盖，且严禁引用本快照作为其覆盖依据。**
+  体内授权有**两类**，别只想到第一类：
+  ① **归属检查**（守护者点名）：`DELETE /api/conversations/{id}` · `/api/saved-reports/{id}` ·
+     `/api/uploads/{id}` 等 `{id}` 型端点，真实授权是体内 `delete_owned(...)`（`saved_reports.py:113`）。
+  ② **角色分流**（执行者补 —— **拆 admin 时这类才是真作业面**）：全仓 **13 处** `role == "admin"`
+     比较 / **8 文件**（AST 实测），减去 `require_admin` 本体（`deps.py:213`）⇒ **12 处体内分流**：
+     `deps.py:191`（admin TOTP 应急后门 R-2FA-3）· `query.py:166,197` + `conversations.py:46` +
+     `saved_reports.py:47,55,75` + `bi_reports.py:99`（非 admin **脱敏** SQL/表名）·
+     `exports.py:29` + `saved_report_service.py:108,194`（归属-或-admin）·
+     **`bi_permission_service.py:19`（admin **绕过整套 BI RBAC**）**。
+     ⚠️ admin 一拆两半，**这 12 处每处都要回答「哪一种 admin」**；只改那 90 个
+     `Depends(require_admin)`，脱敏与权限旁路会继续按旧的二元 `role == "admin"` 跑。
+- **`POST /api/catalog/switch` 标 `AUTHENTICATED` 是对的但理由不显然**（守护者 §II-2）：名字带 catalog、
+  看着像部署级全局，实则改 **per-user 的 `users.active_catalog_id`**（`api/catalog.py:259`）⇒
+  「顺手改成 ADMIN」会**破坏正常功能**。已就地加注释（写在 `test_route_policy.py`，因 **JSON 不支持注释**）。
+- **`__code__` 的论证已精确化**（守护者 §I-③ 提出，执行者实测修正）：它是**对「意外别名」免疫的
+  漂移探测器，不是攻击屏障**。三条实测：① 对本工厂字节码搬运**物理封死**（`_dep` 自由变量
+  `('action',)` ⇒ 赋值直接 `ValueError`）· ② 对普通函数可搬，fail-closed 但**是碰巧不是结构性**
+  （只搬 `__code__`，`__defaults__`/`__globals__` 不跟 ⇒ `Depends` 默认值丢失、非 admin 分支抛
+  `NameError` 而非 403）⇒ **不能写「伪装 `__code__` 等于合规」** · ③ 真正承重的是
+  `@functools.wraps` 会**无辜地**复制 `__name__` 而不碰 `__code__` ⇒ **不需要攻击者，
+  按名匹配自己就会误标出 ADMIN**。
+
 ## [Released] - v0.9.3 — catalog 载体 per-tenant 化（隔离栈第三刀）
 
 > v0.9 多租户 MINOR 第四个 PATCH。catalog 是**现存唯一一处「读隔离、写不隔离」**的状态：`reload()` 读当前租户库

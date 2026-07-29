@@ -35,10 +35,34 @@ import time
 from knot.core.logging_setup import logger
 from knot.core.tenant_context import tenant_cache_key
 
-#: 载体 6 键（与 `catalog` 模块对外暴露的 6 个名字一一对应；顺序无语义）
-CARRIER_NAMES = ("LEXICON", "TABLES", "BUSINESS_RULES", "RELATIONS", "FIELD_LABELS", "_SOURCE")
+#: ⭐ **载体注册表 —— 单一真相源**（chore D4'）：`catalog` 模块对外暴露的名字 → 本模块槽键。
+#:
+#: **为何落户在 `catalog_state` 而不是 `catalog`**：`catalog.py` import 本模块 ⇒ 反向 import 会循环。
+#: 载体的**所有者**是槽，注册表跟着所有者走；`catalog.__getattr__` 是**消费方**。
+#:
+#: v0.9.3 之前这 6 个名字被抄在 **4 个地方**（本模块 `CARRIER_NAMES` + `catalog._ATTR_TO_SLOT`
+#: + 两处测清单），改一漏一不会红 —— MUTANT-E 实证：加第 7 名 + `reload()` 里 `global` 它
+#: → **26 测全绿逃逸**，代理对该名静默死。现全部从本注册表派生。
+#: ⚠️ 但**派生只消除「抄写漂移」**：任何**没进本注册表**的新载体对所有派生 oracle 都不可见
+#: （= 「登记漂移」）。完备性由 `tests/test_catalog_carrier_registry.py` 的**结构守护**承担
+#: （禁 `catalog.py` 内任何 `global`），不由派生承担。
+_ATTR_TO_SLOT = {
+    "LEXICON": "lexicon", "TABLES": "tables", "BUSINESS_RULES": "business_rules",
+    "RELATIONS": "relations", "FIELD_LABELS": "field_labels", "_SOURCE": "source",
+}
 
-_SLOT_KEYS = ("lexicon", "tables", "business_rules", "relations", "field_labels", "source")
+
+def carrier_names() -> tuple:
+    """载体名（**每次调用现算** —— 刻意做成函数而非常量）。
+
+    ⚠️ **不要改成 `CARRIER_NAMES = tuple(_ATTR_TO_SLOT)`**：那会在 **import 期冻结**
+    （实测：运行期往注册表注入第 7 名后，eager tuple 仍只有 6 个）⇒ 依赖它的
+    MUTANT-E 回归测**按设计不可能通过**，而它会静默地绿。
+    ⚠️ 也不要改成 `CARRIER_NAMES = _ATTR_TO_SLOT.keys()`：活视图能解决冻结，但
+    **把活视图挂在常量样的名字下是陷阱** —— 读者当它是 tuple，下一个人「顺手改回 `tuple(...)`」
+    就静默重新废掉那条回归测。**函数名把动态性写在每个调用点上**，这是刻意的。
+    """
+    return tuple(_ATTR_TO_SLOT)
 
 #: {tenant_cache_key("catalog"): {6 slot 键}} —— 进程内，按租户分槽
 _state: dict = {}
@@ -125,7 +149,7 @@ def assert_no_resurrected_globals() -> None:
     （NameError 那支只存在于首次 reload 之前，反而是幸运情况）→ 静态哨兵之外必须再有运行期断言。
     """
     from knot.services.agents import catalog as _cat
-    resurrected = sorted(set(CARRIER_NAMES) & set(vars(_cat)))
+    resurrected = sorted(set(carrier_names()) & set(vars(_cat)))
     if resurrected:
         raise AssertionError(
             f"catalog 模块命名空间出现载体名 {resurrected} —— PEP 562 代理已被静默旁路"
