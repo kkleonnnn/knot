@@ -11,6 +11,8 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from knot.core.logging_setup import logger
+from knot.core.tenant_context import TenantContextError, assert_tenant_context
 from knot.repositories.user_repo import get_user_by_id
 
 # v0.6.0.8 MUST-1：废除 fallback 默认值。任何下列情况 → sys.exit(1)：
@@ -81,12 +83,23 @@ security = HTTPBearer()
 
 
 def create_token(user_id: int) -> str:
-    """v0.6.2.0 R-PB-B1-13：payload 含 ver=token_version → 后续 reset/change_pwd 触发吊销。"""
+    """v0.6.2.0 R-PB-B1-13：payload 含 ver=token_version → 后续 reset/change_pwd 触发吊销。
+
+    v0.9.4 D1：payload 加 **`tid`**（租户 id）—— 之后每请求由 tenant middleware 从本 claim 解析租户，
+    替代「假设只有一家 active 租户」的 `resolve_single_tenant()`。
+    **零新解析器**：签发期 tid 本就在手 —— 本函数**今天已硬依赖 tenant ctx**（实测清 ctx 后调它抛
+    `TenantContextError`，链路 `create_token → get_token_version_cached → tenant_cache_key → current_tenant`），
+    故直接取 `current_tenant()["id"]`。
+    ⚠️ **签名保护完整性、不保密**：JWT payload 客户端可读（base64）。tid 是「**自声明但被签名**」的 claim
+    —— 改 tid 重放会验签失败（实测四种伪造全 401；全仓 **0 处**在验签前读 claim，须守住这个 0）。
+    """
     exp = datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)
     # lazy import 避免 circular（totp_service → user_repo → ... → deps）
+    from knot.core.tenant_context import current_tenant
     from knot.services.totp_service import get_token_version_cached
     ver = get_token_version_cached(user_id)
-    return jwt.encode({"sub": str(user_id), "ver": ver, "exp": exp},
+    tid = current_tenant()["id"]      # fail-closed：无 ctx 即 raise（不得签出无 tid 的 token）
+    return jwt.encode({"sub": str(user_id), "ver": ver, "tid": tid, "exp": exp},
                       _get_secret(), algorithm=JWT_ALGORITHM)
 
 
@@ -127,9 +140,29 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         # 身份访问任意端点（含 /api/admin/*）；且因签发前提是「用户已 enroll」，:141-148 的 enroll 门
         # 也恒放行 ⇒ 第二因子在这条路径上完全失效（已实测复现 /api/admin/users 200）。
         # 修法**无需路径白名单**：唯一合法消费者 /api/totp/verify 从**请求体**读 token 并走
-        # api/totp._decode_interim 自校验（totp.py:118-124），根本不经本函数 ⇒ 这里一律拒绝即可。
+        # interim 的校验全在 api/totp.interim_session（v0.9.4 R-12 唯一入口），根本不经本函数 ⇒ 这里一律拒绝即可。
         if payload.get("totp_pending"):
             raise HTTPException(status_code=401, detail="INTERIM_TOKEN_NOT_ACCEPTED")
+
+        # ⭐ v0.9.4 D8/D9/B-4：**tid 门 + 租户漂移 tripwire**，必须在**任何读租户库之前**
+        # （下一句 get_token_version_cached 就读 users 表）。
+        # ① 严格类型（D9）：sqlite3 INTEGER affinity 实测把 `'1'`/`1.0`/`True` 都匹配到 id=1
+        #    ⇒ 松了 tid 就是可伪造的「选公司」参数。
+        # ② **判别式是 tid 有无、不是 ver**（R8 裁定）：升级前签发的存量 token 无 tid → 401 全员重登一次
+        #    （现网部署 = `Recreate` 关掉再起，新旧版本不同时 serving ⇒ 无登录抖动循环，详 DEPLOY）。
+        # ③ 漂移检查（kk 2026-07-27 决策②「做，要接上」）：本片引入的新失败模式是
+        #    「**ctx 非 None 但是错的租户**」—— `get_conn` 只判 None，对它免疫。`assert_tenant_context`
+        #    比对 ctx 里的 id 与本 token 声明的 tid，不一致即 fail-closed。它此前 **0 生产调用点**，
+        #    自此接上。中间件设 ctx 与本处比对**同源同 token** ⇒ 正常路径恒相等；不等即代表
+        #    中间件没设（租户停用/不存在）或 ctx 被别处污染。
+        tid = payload.get("tid")
+        if type(tid) is not int or tid <= 0:
+            raise HTTPException(status_code=401, detail="JWT_NO_TID")
+        try:
+            assert_tenant_context(tid)
+        except TenantContextError:
+            # 显式 401（不靠函末 `except Exception` 兜）—— 运维要能把「租户不可服务」与「坏 token」分开
+            raise HTTPException(status_code=401, detail="TENANT_UNAVAILABLE")
 
         # v0.6.2.0 R-PB-B1-13：JWT 吊销 — payload.ver != users.token_version → 401
         # （上面已拒 interim ⇒ 此处对所有被接受的 token 无条件生效；此前 interim 会整段跳过吊销检查）
@@ -162,7 +195,17 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
     except HTTPException:
         raise
-    except (jwt.InvalidTokenError, Exception):
+    except Exception:
+        # ⚠️ 本分支**接一切**，不只是 JWT 错误。原写法 `except (jwt.InvalidTokenError, Exception)`
+        # 是**冗余元组**（`Exception` 已涵盖前者），读起来像只接 JWT 错误而实际接一切 ——
+        # 守护者 Q5：这大概正是它一直没被注意到的原因，故按等价写法改直白（行为 byte-equal）。
+        # 它会把两类**真故障**折成「凭证无效」：`get_token_version_cached`（缓存 miss → 读租户库）
+        # 与 `get_user_by_id` 抛的 `sqlite3.Error` ⇒ 磁盘/权限/库损坏时该租户**全体用户**看到
+        # 「凭证无效」而非 503，且此前**零日志痕迹**（= 基础设施故障被静默误诊成认证问题）。
+        # 裁定 pre-existing 且非本片扩大（那两个 DB 调用本来就在 try 内；本片新增两处均显式处理）。
+        # **本片按 should-fix 只加日志**：把静默误诊变成可追溯，客户端行为不变。
+        # **窄化（真故障返 503、坏 token 返 401）留 backlog** —— 那会改客户端可见行为，须独立评估。
+        logger.exception("get_current_user 兜底分支吞异常 → 401（可能是基础设施故障，非坏 token）")
         raise HTTPException(status_code=401, detail="无效的登录凭证")
 
 

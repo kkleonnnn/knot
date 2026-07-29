@@ -8,6 +8,7 @@ import os
 import tempfile
 
 import pytest
+from fastapi.testclient import TestClient
 
 # 固定测试 master key — 守护者 Q4 决策：硬编码胜过 env-driven。
 # ⚠️ 该 key 仅用于测试；严禁用于任何生产环境 / staging / 真实部署。
@@ -47,6 +48,34 @@ os.environ.setdefault("KNOT_INITIAL_ADMIN_PASSWORD", "admin123")
 # 外部已设的非 "1" 值（如误 export=0 / 子进程自建 env dict）不覆盖 → main 会对真实目录跑迁移。
 # 同 JWT_SECRET 的 import-timing pin 策略。迁移逻辑由 tests/test_tenancy_migration.py 直调 tmp 目录验证。
 os.environ["KNOT_SKIP_STARTUP_MIGRATION"] = "1"
+
+
+class NoAmbientTenantTestClient(TestClient):
+    """⭐ 请求期间清空**测试进程自己的** tenant ctx，逼 TestClient 里的 app 走真中间件。
+
+    **为何必须这么做（v0.9.4 step 5 实测）**：`_master_key_for_tests`（autouse）给每个测试都设了
+    tenant#1 ctx；TestClient 在同一 contextvars 上下文里跑 app ⇒ **app 会继承这份「环境 ctx」**。
+    后果是中间件设不设 ctx 结果一样 —— 实测把 `resolve_for_request` 整个改成 `return None`
+    （中间件永不解析租户）后，**全量 1437 测全绿**。也就是说：无此子类时，
+    **没有任何一个测试在验「中间件真的解析了租户」**，而生产环境没有环境 ctx（每请求干净 task）
+    ⇒ 测试比生产宽松 = 假绿。
+
+    只在 HTTP 调用期间清（`finally` 复原）⇒ 测试自己在 client 调用之外直接调仓库函数不受影响。
+
+    ⚠️ **override `send()` 而非 `request()`**（守护者 MF7）：`httpx.Client.stream()` 走 `send()`
+    **不经** `request()` ⇒ 只挂 `request()` 的话，将来任何人写 `client.stream(...)` 就绕过本子类，
+    而盲区正好在 **SSE 这条最关键路径**回来（今天全仓 `client.stream(` 0 命中、SSE 测走 `post()`，
+    所以是**潜在**而非现存漏洞 —— 但一行改动就能一次覆盖两者，没有理由留着）。
+    ASGI app 在 `send()` 内经 portal 启动、继承此刻的 contextvars ⇒ 在 `send()` 期间清即足够。
+    """
+
+    def send(self, *args, **kwargs):
+        from knot.core import tenant_context as _tc
+        _tok = _tc._active_tenant_ctx.set(None)
+        try:
+            return super().send(*args, **kwargs)
+        finally:
+            _tc._active_tenant_ctx.reset(_tok)
 
 
 def _reset_module_level_caches():

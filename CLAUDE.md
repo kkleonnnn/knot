@@ -377,13 +377,24 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 
 > **OOS-1v2（v0.9.0 红线修订仪式改立 · 原 OOS-1 单租户死线正式翻转）**：多租户隔离模型 = **C 方案（平台库 + per-tenant SQLite 文件，fail-closed）**。**租户库内严禁 tenant_id/project_id 列**——行级租户列对 LogicForm 编译器 fail-open（漏注一条 = 静默跨租户供数），文件边界是唯一隔离载体；租户归属列仅允许存在于平台库（tenants 等平台元数据表）。catalog_id 仍 = 租户内水平切分 ≠ 租户隔离。tenant 上下文 fail-closed（无 ctx → raise，严禁全局回退）。配套 **R-T-GATE**：隔离栈就绪（uploads/凭据/egress/catalog/调度器/缓存与限流键/开通口令）前严禁放开第二租户开通。
 >
-> **⭐ R-T-GATE 就绪清单（v0.9.3 增补 · lift 前必清）**：v0.9.1 进程内缓存 ✅ · v0.9.2 uploads ✅ ·
-> v0.9.3 catalog 载体 ✅ · **B-3 三项（v0.9.3 原理上修不了，必须单独做）**：per-tenant file catalog
+> **⭐ R-T-GATE 就绪清单（v0.9.4 增补 · lift 前必清）**：v0.9.1 进程内缓存 ✅ · v0.9.2 uploads ✅ ·
+> v0.9.3 catalog 载体 ✅ · **v0.9.4 JWT tid 请求级解析 ✅**（middleware 读 tid + `get_current_user`
+> tid 门 + 漂移 tripwire + 登录按 slug 自建 ctx）· **B-3 三项（v0.9.3 原理上修不了，必须单独做）**：per-tenant file catalog
 > （`_local_catalog.py` 现为单一进程级模块，空-DB 租户会被注入部署方真实业务规则+库表）+ **per-tenant
 > `http_spec` 凭据**（`adapters/http/executor.py:87-88` 走进程 env = 租户盲 → 租户#2 可用租户#1 凭据读其
 > 实时接口 = **跨租户数据出境**）+ **egress 租户域化**（`url_allowlist.py:30` host 白名单同为进程 env）+ **`/api/admin/catalog` 的 `defaults` 字段**（`api/catalog.py:52` → `get_defaults_from_files()` **绕过租户槽**直吐部署级 file catalog 全文 ⇒ lift 后租户#2 admin 即可见部署方真实库表+业务口径；分槽挡不住它）·
 > prompt seed / TOTP rollout 的 `resolve_single_tenant`（`main.py:103/169`）· `replicas=1` 运维门（进程全局
-> 每副本一份，分布式失效前）· `_business_rules` 归正 · JWT tid 解析 + 鉴权拆分（v0.9.4-5）。修订程序：v0.8→v0.9 整体审核三方（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ 本仪式 Stage 1-3 + CHANGELOG 修订声明；不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8）。
+> 每副本一份，分布式失效前）· `_business_rules` 归正 · 鉴权拆分 platform/tenant admin（v0.9.5）。
+> **v0.9.4 新增 5 项**：① **登录 `company` 改必填**（现未带则回退唯一 active 租户 —— 仅在本 gate 锁死
+> 单租户期间成立，lift 后回退 = 「不带代号 → 随便进某家公司」fail-open）· ② **per-tenant 初始口令 /
+> 一次性邀请流**（单一 `KNOT_INITIAL_ADMIN_PASSWORD` ⇒ 每个新租户 seed 同一口令 = 「A 能进 B」的真实入口；
+> kk 2026-07-27 决策③延后）· ③ **平台侧审计**（登录失败分支「代号不存在 / 租户停用」无租户库可写审计，
+> 现仅 INFO 日志；`tenants.updated_at` 亦缺 ⇒ 「谁改了 db_dir」无时间线）· ④ **`/api/bi/scheduler/tick`
+> 租户域化**（无 JWT ⇒ tid 不适用，仍走单租户解析；且「一个全局密钥能 fan-out 所有租户」是独立的
+> 跨租户操作权问题）· ⑤ **`_get_secret` 单一全局 + 回退公开默认值** —— 标 `escalated-by-v0.9.4`：
+> 本片**加重**了它（此前伪造默认 key 只能拿到唯一那个租户；有了 `tid` 这个「自声明但被签名」的 claim，
+> 伪造者**可任选 tid** ⇒ 从「全权访问唯一租户」升级为「**全权访问任意租户、可选**」。公允：启动期
+> fail-fast，活窗口窄）。**LOCKED audit-on-drift 仍未结清**（R-10；本片降级为 WARN + 计数器）。修订程序：v0.8→v0.9 整体审核三方（执行者 v0.8 + 守护者 v0.7 + 远古守护者 v0.6）+ 资深仲裁 LOCKED（A3/C1/D1）+ 本仪式 Stage 1-3 + CHANGELOG 修订声明；不计入 OVERRIDE 维度 A 累计（override-cumulative-log §8）。
 >
 > **完整 LOCKED 设计**（4 产物 + 迁移 + R-T-GATE 就绪清单）：[`docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md`](docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md)（Stage 3 守护者复核 PASS · 放行）+ [`v0.9.0-stage3-recheck-brief.md`](docs/plans/v0.9.0-stage3-recheck-brief.md)。
 

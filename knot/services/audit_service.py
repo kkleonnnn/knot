@@ -113,6 +113,19 @@ def log(
             catalog_id=catalog_id,
         )
     except Exception as e:
+        # ⭐ v0.9.4 MF3（守护者 Stage 4）：**缺 tenant ctx 必须重抛，不得 fail-soft 吞掉**。
+        # 这是 v0.9.3 D8' 立的范式（`query_helper` / `desensitize` / `llm_prompt_builder` /
+        # `catalog_loaders` 已各用一处），本处是**第 5 个**站点 —— 守护者在 Stage 3 逮过同一个
+        # fail-soft，v0.9.4 又咬第二次：
+        #   我在 Q1 声称「middleware 不 set ctx ⇒ 下游碰 DB 会**响亮崩掉**」，
+        #   但 audit 这条路径上**不成立** —— 无 ctx 时 `audit_repo.insert` 抛 `TenantContextError`，
+        #   被本处 R-47 fail-soft 吞成一行 `logger.error` ⇒ 调用方拿到**正常的 401**，
+        #   而那条**安全审计记录静默丢失**（登录失败/越权尝试查无此事）。
+        # ⇒ 「审计写不进去」与「缺租户上下文」必须分开：前者可 fail-soft（业务不阻断，R-47 原意），
+        #    后者是**隔离边界失效**，绝不能降级（v0.9.3 同款判断：降级后果按站点不同，
+        #    此处后果 = 安全记录丢失且无人知情）。
+        from knot.core.tenant_context import reraise_if_tenant_error as _rt
+        _rt(e)
         # R-47 fail-soft：业务不阻断
         logger.error(
             f"[audit] 写入失败 action={action} resource={resource_type} error={e}"

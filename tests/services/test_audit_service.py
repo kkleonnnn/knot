@@ -14,7 +14,6 @@ import pytest
 
 from knot.services import audit_service
 
-
 _REDACTED = "••••redacted••••"
 
 
@@ -203,3 +202,46 @@ def test_service_does_not_validate_business_schema(tmp_db_path):
     from knot.repositories import audit_repo
     rows = audit_repo.list_filtered(page=1, size=10)
     assert len(rows) == 3
+
+
+# ─── v0.9.4 MF3（守护者 Stage 4）：缺 tenant ctx 必须重抛，不得 fail-soft 吞掉 ──
+
+
+def test_MF3_missing_tenant_ctx_reraises_not_failsoft(tmp_db_path):
+    """⭐ 缺 tenant ctx → **重抛** `TenantContextError`（不得被 R-47 fail-soft 吞成一行日志）。
+
+    我在 Q1 声称「middleware 不 set ctx ⇒ 下游碰 DB 会**响亮崩掉**」，守护者 MF3 证伪了这条路径：
+    `audit_repo.insert` 抛的 `TenantContextError` 被本模块的 `except Exception` 吞掉 ⇒ 调用方拿到
+    **正常返回**，而那条**安全审计记录静默丢失**（登录失败 / 越权尝试查无此事）。
+    与守护者 Stage 3 逮到的是同一个 fail-soft，v0.9.4 第二次咬 ⇒ 接 v0.9.3 已立的
+    `reraise_if_tenant_error` 范式（本处是第 5 个站点）。
+
+    ⚠️ 本测是 **Stage 4 revise 时补的**：MF3 的修一开始**只有手工脚本验过、零测覆盖**
+    —— 实测把修回退（重新吞掉）后**两个测试文件 42 测全绿**，等于没人守着它。
+    revert-to-bad：删掉 `audit_service.log` 里的 `_rt(e)` 两行 → 本测转红。
+    """
+    from knot.core import tenant_context as tc
+    from knot.services import audit_service
+
+    tok = tc._active_tenant_ctx.set(None)
+    try:
+        with pytest.raises(tc.TenantContextError):
+            audit_service.log(actor=None, action="auth.login_fail", resource_type="user",
+                              success=False, detail={"attempted_username": "victim"})
+    finally:
+        tc._active_tenant_ctx.reset(tok)
+
+
+def test_MF3_normal_write_failure_still_failsoft(tmp_db_path, monkeypatch):
+    """**反向守护**：非-ctx 的写入失败仍必须 fail-soft（R-47 原意 —— 业务不阻断）。
+
+    防「一律重抛」把 R-47 改坏 —— 那会让一次审计表写失败连带打断业务请求。
+    """
+    from knot.repositories import audit_repo
+    from knot.services import audit_service
+
+    def boom(**_kw):
+        raise RuntimeError("audit 表写失败（非 ctx 问题）")
+
+    monkeypatch.setattr(audit_repo, "insert", boom)
+    audit_service.log(actor=None, action="auth.login_fail", resource_type="user", success=False)

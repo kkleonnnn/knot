@@ -17,11 +17,50 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def authenticate(username: str, password: str):
+# v0.9.4 D4'-b：常量时间对齐用的假 hash（**懒建 + 进程内缓存**）。
+# 懒建而非模块级常量：① 不给启动期加一次 bcrypt（默认 cost 12 约 0.25s）；
+# ② 用**当前 bcrypt 默认 rounds** 生成 ⇒ 将来 bcrypt 提高默认 cost 时，假 hash 与真用户 hash
+#    自动同步变贵，耗时对齐不会悄悄失效（硬编一个 `$2b$12$...` 字面就会失效）。
+_dummy_hash: list = []
+
+
+def consume_password_time(password: str) -> None:
+    """对一个固定假 hash 跑**一次** bcrypt —— 抹平「租户/用户不存在」与「口令错」的耗时差。
+
+    ⭐ **为什么必须显式做**（R4 实测）：`authenticate` 原本是短路 `and` ⇒ 五个失败分支
+    （代号不存在 / 租户停用 / 用户不存在 / 用户停用 / 口令错）里**只有最后一支跑 bcrypt**。
+    统一错误文案只堵住了「读得到的差异」，**耗时差异仍是可测的旁路**：攻击者据此判断
+    「这个公司代号存在吗」「这个用户名存在吗」= 公司/账号枚举。
+    故非口令分支须各补一次 bcrypt。
+    """
+    if not _dummy_hash:
+        _dummy_hash.append(hash_password("timing-alignment-only-never-a-real-password"))
+    verify_password(password, _dummy_hash[0])
+
+
+def authenticate_with_reason(username: str, password: str) -> tuple:
+    """→ `(user | None, reason | None)`；**每条失败分支恰跑一次 bcrypt**（D4'-b）。
+
+    `reason` 仅供审计/日志区分，**绝不进 HTTP 响应**（进了就是账号枚举）。
+    调用方须把所有失败折成同一句「账号或密码错误」+ 同一状态码。
+    """
     user = get_user_by_username(username)
-    if user and user["is_active"] and verify_password(password, user["password_hash"]):
-        return user
-    return None
+    if user is None:
+        consume_password_time(password)          # 分支③：用户不存在
+        return None, "user_not_found"
+    if not user["is_active"]:
+        consume_password_time(password)          # 分支④：用户已停用
+        return None, "user_inactive"
+    if not verify_password(password, user["password_hash"]):
+        return None, "bad_password"              # 分支⑤：bcrypt 已在此跑过
+    return user, None
+
+
+def authenticate(username: str, password: str):
+    """薄封装（保留原签名/语义供其它调用方）—— 实现走 `authenticate_with_reason`，
+    以免「常量时间」只在登录端点成立、别处又退回短路。"""
+    user, _ = authenticate_with_reason(username, password)
+    return user
 
 
 # v0.6.0.20 admin 强制改密 — 红线（CLAUDE.md R-FCPW-* 候选）

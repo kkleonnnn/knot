@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
 import { I, iconBtn, pillBtn, theadStyle, FormRow, inputStyleMono } from '../Shared.jsx';
-import { api } from '../api.js';
+import { api, fetchAuthed } from '../api.js';
 
 // op/left/right = UI-only 派生字段（提交时组装 lineage JSON；编辑时从 lineage 反解）
 const _EMPTY = {
@@ -52,7 +52,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   function downloadTemplate() {
-    fetch('/api/templates/metrics', { headers: { Authorization: `Bearer ${api._token()}` } })
+    fetchAuthed('/api/templates/metrics')
       .then(r => r.ok ? r.blob() : Promise.reject(new Error('下载失败')))
       .then(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'metrics_template.xlsx'; document.body.appendChild(a); a.click(); a.remove(); })
       .catch(e => toast(String(e), true));
@@ -61,7 +61,7 @@ export function AdminMetricRegistryScreen({ T, user, onToggleTheme, onNavigate, 
     setUploading(true);
     const fd = new FormData(); fd.append('file', f);
     try {
-      const r = await fetch('/api/admin/metrics-registry/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      const r = await fetchAuthed('/api/admin/metrics-registry/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       toast(`已导入 ${d.inserted} 个指标${d.errors && d.errors.length ? `，${d.errors.length} 行有误（见控制台）` : ''}`);

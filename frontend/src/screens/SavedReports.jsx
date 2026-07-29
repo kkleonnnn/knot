@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { I, iconBtn, SvgPath, pillBtnCompact } from '../Shared.jsx';
 import { toast, Spinner, confirmDialog } from '../utils.jsx';
 import { AppShell } from '../Shell.jsx';
-import { api } from '../api.js';
+import { api, fetchAuthed } from '../api.js';
 
 const SAVED_SVG = {
   bookmark:   'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
@@ -185,9 +185,7 @@ function DetailView({ T, report, onChanged }) {
 
   async function handleExport(format) {
     try {
-      const r = await fetch(`/api/saved-reports/${report.id}/export.${format}`, {
-        headers: { Authorization: `Bearer ${api._token()}` },
-      });
+      const r = await fetchAuthed(`/api/saved-reports/${report.id}/export.${format}`);
       if (!r.ok) { toast(`导出失败: ${r.status}`, true); return; }
       const truncated = r.headers.get('x-export-truncated') === 'true';
       const total = r.headers.get('x-export-total-rows');

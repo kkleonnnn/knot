@@ -93,14 +93,57 @@ def test_iso_executor_copy_context_isolation(tmp_db_path):
 
 # ─────────────────────── R-T-GATE ───────────────────────
 
-def test_iso6_r_t_gate_single_active_tenant(tmp_db_path):
-    """⑥ R-T-GATE `assert_no_second_active_tenant_served`：resolve_single_tenant 恰 1 active；>1 → raise。"""
-    assert tenant_repo.resolve_single_tenant()["id"] == 1
+def _add_second_active_tenant():
     conn = tenant_repo.get_platform_conn()
     conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) VALUES (2,'t2','T2','active','tenants/2')")
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
+
+
+def test_iso6_r_t_gate_single_active_tenant(tmp_db_path):
+    """⑥ R-T-GATE：**`assert_no_second_active_tenant_served` 本尊**（v0.9.4 D5 首次真实现）。
+
+    ⚠️ **v0.9.4 §II-4 重指**：本测此前 docstring 写着该函数名、**实际测的是 `resolve_single_tenant`**
+    —— 即「文档声称 vs 实际」的同一 gap 在测层复制了一遍。D5 真实现后重指本尊。
+    **只对 >1**（R3）：1 active 通过；2 active → raise。
+    """
+    tenant_repo.assert_no_second_active_tenant_served()      # 1 active → 通过（不 raise）
+    _add_second_active_tenant()
+    with pytest.raises(tc.TenantContextError, match="R-T-GATE"):
+        tenant_repo.assert_no_second_active_tenant_served()  # 2 active → fail-closed
+
+
+def test_iso6_gate_allows_zero_active(tmp_db_path):
+    """⑥ 续 · **R3 裁定**：门**只对 >1** —— `0 active` 必须**放过**（不 raise）。
+
+    若对 0 也 raise（原 `resolve_single_tenant` 的 `!=1`），唯一租户被 suspend 时整站含
+    `POST /api/auth/login` 全部 500 ⇒ 与②「登录失败统一返 401 账号或密码错误」直接打架。
+    0 active 的语义交上层：受保护 API 因无可解析租户自然 401。
+    """
+    conn = tenant_repo.get_platform_conn()
+    conn.execute("UPDATE tenants SET status='suspended'")
+    conn.commit()
+    conn.close()
+    assert tenant_repo.list_active_tenants() == []
+    tenant_repo.assert_no_second_active_tenant_served()      # 0 active → 不得 raise
     with pytest.raises(tc.TenantContextError):
-        tenant_repo.resolve_single_tenant()   # 2 active → fail-closed（隔离栈未就绪，不放第二租户）
+        tenant_repo.resolve_single_tenant()                   # 对照：旧解析器对 0 仍 raise（未改其语义）
+
+
+def test_iso6_resolve_tenant_by_id_filters_status(tmp_db_path):
+    """⑥ 续 · **B-2 承重**：`resolve_tenant_by_id` 必须过滤 status —— suspended 返 None。
+
+    否则平台方停用租户后，其用户手里 7 天有效期内的 JWT 继续正常查询（停用形同虚设）。
+    对照断言 `get_tenant` **仍返** suspended 行（`test_iso3` 依赖该行为，本片刻意不改它）。
+    """
+    assert tenant_repo.resolve_tenant_by_id(1)["id"] == 1
+    assert tenant_repo.resolve_tenant_by_id(999) is None      # 不存在
+    conn = tenant_repo.get_platform_conn()
+    conn.execute("UPDATE tenants SET status='suspended' WHERE id=1")
+    conn.commit()
+    conn.close()
+    assert tenant_repo.resolve_tenant_by_id(1) is None, "suspended 租户不得被解析为可服务"
+    assert tenant_repo.get_tenant(1)["status"] == "suspended", "get_tenant 语义不变（test_iso3 依赖）"
 
 
 def test_iso6_no_platform_tenants_route():

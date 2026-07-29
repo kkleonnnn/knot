@@ -5,7 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.3 — catalog 载体 per-tenant 化（隔离栈第三刀）
+## [Unreleased] - v0.9.4 — JWT 带 tid + 请求级租户解析（隔离栈第四刀）
+
+> v0.9 多租户 MINOR 第五个 PATCH。前四刀把**状态**按租户切开（ctx/缓存/uploads/catalog）；本刀切**入口**：
+> 每请求「读哪家公司的库」不再靠「假设全站只有一家 active 租户」，而是读 JWT 的 `tid` claim。
+> **定性：R-T-GATE 当前硬锁第二租户 ⇒ 今日线上无 live 泄漏**，本片是 lift 前置账。
+> 评审链：JWT/鉴权面 grounded 测绘 → Stage 1（kk 三条拍板：专属登录链接 / 统一失败文案 / 初始口令延后）
+> → Codex Stage 2 → 守护者 Stage 3 → Stage 1' → 守护者 D4''-c 复核 → 11 步实施。
+
+### Added
+- **`tid` claim 进两条签发路径**（`api/deps.create_token` / `api/totp.create_interim_token`）。
+  后者**由内部取 `current_tenant()` 而非调用方传**（守护者 F-4 裁定：`token_version` 那种传参风格
+  **正是让「漏传」变成静默失能的原因**；内部取 ctx 把静默变成响亮崩溃）。配 AST 哨兵
+  `test_R8_every_jwt_encode_payload_declares_tid`：目标集**从全仓 `jwt.encode` 调用派生**（非硬编清单）
+  ⇒ 将来第三条签发路径自动受覆盖。⚠️ 哨兵初版只认字面 `jwt.encode`，`import jwt as _j` **直接绕过**
+  （revert 实测毫无反应）→ 改为**从 import 语句派生别名集**（`import jwt as X` / `from jwt import encode` 均覆盖）。
+- **`knot/api/tenant_resolution.py`**（新）：请求级租户解析 + tenant ctx 中间件（从 `main.py` 抽出，
+  抽时**行为完全不变** —— 守护者 Q3 通则「旧机制还在时先重构，再切机制」，每 commit 独立绿）。
+- **`tenant_repo.resolve_tenant_by_slug`**：按公司代号解析**可服务**租户（过滤 `status='active'`）。
+  **精确匹配（大小写敏感）**：`slug` 的 UNIQUE 本身大小写敏感 ⇒ 不敏感匹配在 `abc`/`ABC` 并存时
+  只能返一行 = **不确定地把用户送进某家公司**。
+- **`tenant_repo.assert_no_second_active_tenant_served`**：R-T-GATE 请求侧硬门**首次真实现**
+  （LOCKED 指定它为硬 CI，但此前全仓无实现，靠 `resolve_single_tenant` 抛错的副作用兜）。只对 **>1** raise
+  （0 active 交上层语义：受保护 API 自然 401、登录端点得以返回统一 401 而非 500）。
+- **`tenant_context.clear_active_tenant`**（新原语）+ **`tenant_drift_count`**（漂移计数器）。
+- **`api/totp.interim_session`**：interim token 的**唯一对外入口**（context manager）。
+- **登录带公司代号**：`LoginRequest.company`（= `tenants.slug`），前端从专属链接 `?c=<slug>` 读并回传
+  **请求体**（query 会进访问日志 / Referer，body 不会）。
+- **`auth_service.consume_password_time` / `authenticate_with_reason`**：五个失败分支**各恰一次 bcrypt**。
+- 前端：`api.reqPublic`（登录流程专用请求）· `api.clearAuthSession` · `api.handleUnauthorized` ·
+  `api.readCompanyFromUrl` · `tests` 侧 `NoAmbientTenantTestClient`。
+
+### Changed
+- **middleware 永不 401**（偏离草案 D9 字面，理由入码）：若由中间件出 401，它就必须知道
+  「哪些路径本来就没 token」（SPA / 静态 Mount / docs / OPTIONS 预检 / 登录）—— **那是一份会漂移的清单**，
+  正是 #258 刻意避开的东西（漏一条 = 打断所有跨域前端，或把带旧 token 的用户永久锁在登录页外）。
+  改为**只在「凭证可用且租户可服务」时设 ctx**，否则不设；401 责任回 `get_current_user`。
+  「不设 ctx」**不等于放行**：下游碰 DB 一律撞 fail-closed ⇒ 漏网**响亮崩掉**，不静默跨租户供数。
+  实测清点：**138 条 APIRoute + 6 个 Mount**，其中恰 4 条 APIRoute 无鉴权（login / totp-verify /
+  scheduler-tick / SPA）。**测法**（写明以便复核）：`tests/_route_count.flatten_app_routes` 穿透
+  FastAPI 0.137+ `_IncludedRouter` 懒包装后按 `isinstance(APIRoute)` 分类；原始 `app.routes` 仅 27 项
+  （20 懒包装 + 2 Mount + 4 Route + 1 APIRoute），不能直接数。
+  ⚠️ 守护者 Stage 4 报「实为 142/8」，我用三种口径（原始 27 / flatten 144 = 138+6 / 深展开 27）**均未复现**
+  ⇒ 保留可复现的 138/6 + 附测法，分歧待守护者给测法（**不写自己复现不出的数**），
+  逐条 + Mount + 预检实测**无 5xx**。
+- **`get_current_user` 加两道门**（在任何读租户库之前）：**tid 门**（`type(tid) is int and tid > 0` ——
+  实测 sqlite3 INTEGER affinity 把 `'1'` / `1.0` / `True` 都匹配到整型 id=1 ⇒ 松了 tid 就是可伪造的「选公司」参数）
+  + **`assert_tenant_context(tid)` 漂移比对**（该函数此前 **0 生产调用点**）。
+- **`_decode_interim` 两段化**（`_verify_interim_signature` / `_assert_interim_not_revoked`，**两段均私有**）
+  + 单一组合入口。守护者 Q1 裁定：我原提的「marker 类型让漏调在类型层面暴露」**在本仓不成立**
+  （闸门只有 ruff + import-linter + pytest，**无类型检查器**）⇒ 拆成两个 public 函数会把 #259 的
+  「守在收敛点」性质拆掉。顺序按 I-1 定为 `① 清 ctx → ② 验签取 tid（ctx-free）→ ③ 建 ctx → ⑤ 限流 → ④ 吊销`。
+  契约表述（I-2）：**「ctx-free 前缀恰为 [验签, 取 tid]，此后一切在已建 ctx 内」** —— 不列举 N 项。
+- **登录五个失败分支统一响应**（kk 决策②）：代号不存在 / 租户停用 / 用户不存在 / 用户停用 / 口令错
+  → 同一 401 + 同一句「账号或密码错误」；`reason` 只进审计 detail。**且各恰一次 bcrypt** —— 原
+  `authenticate` 是短路 `and`，只有口令错那支跑 bcrypt ⇒ **耗时差本身就是枚举通道**。
+  CI 主门用**确定性的 bcrypt 调用计数**（F-5：不用墙钟阈值 —— `test_R53` 绝对阈值假红是实证）。
+- 前端 `api.login` / `api.totp.verify` 改走 `reqPublic`：**不带 Authorization** + **不触发 401 拦截器**。
+  顺带修一个既有 UX bug：原先登录 401 会 `清会话 + window.location.reload()` ⇒ **密码错时整页重载，
+  错误提示被冲掉** —— 这直接决定 kk 决策②能不能被看见。
+- 前端会话清理**三份分叉的 key 清单收成一份**（`clearAuthSession`）：此前登出**漏清** `cb_loading`
+  与 sessionStorage 的 `cb_enroll_init_*` ⇒ 同 tab 重进 Enroll 命中作废 secret → enroll-complete 400
+  （v0.6.5.2 F5 修过的 bug **能从登出路径复发**）。
+- SSE (`chat/sse_handler.js`) 非 200 改**打标签**（`.status`/`.detail`）：它自陈 R-118 纯函数不含副作用 ⇒
+  处置在 `Chat.jsx onException` 调 `handleUnauthorized()`（与 `api.req` 共用同一实现）。
+- `Login.jsx`：读 `?c=`、错误文案**优先用后端 detail**（原写死串会把限流 429 显示成「密码错」= 误导）、
+  有代号时回显代号本身（**绝不显示公司名** —— 显示名字等于确认该代号存在 = 公司枚举）。
+- `_rate_limit._tenant_authed_key` docstring 订正：原文明写依赖「middleware 对每请求已 set ctx」，
+  该前提自本片起**不再普遍成立**，改为逐调用点写明 ctx 来源。
+
+### Fixed
+- **⭐ 测试盲区：`conftest` 的环境 tenant ctx 渗进 TestClient ⇒ 中间件可被整体改死而全量仍绿。**
+  `_master_key_for_tests`（autouse）给每个测试 set tenant#1 ctx，TestClient 在**同一 contextvars 上下文**
+  跑 app ⇒ app **继承**那份 ctx。实测把 `resolve_for_request` 整体改成 `return None`（永不解析租户）：
+  修前 **1437 passed 0 failed**（**当时**的全量基数；本片终值见文末闸门行）；装 `NoAmbientTenantTestClient`（HTTP 调用期间清环境 ctx，`finally` 复原）后
+  同一 sabotage → **262 failed**。修前**没有任何测试**在验「中间件真的解析了租户」。
+  生产环境无环境 ctx（每请求干净 asyncio task）⇒ 被削弱的是**测试的证明力**，不是产品行为。
+  已核：v0.9.0~v0.9.3 的 fail-closed 测都是直接调仓库/服务函数并各自显式 set ctx ⇒ **有效，无需撤回**。
+  修法守在收敛点：TestClient 全仓仅 2 处构造 ⇒ 一次改动覆盖 **579 个 client 调用点 / 44 个文件**，
+  且全量 **1437 → 1437 逐字相同**（零测被打红 —— 同为**当时**基数；此二数是 A/B 证据，**不随后续 PATCH 更新**）。
+
+### Security
+- 漂移 tripwire 接**结构化 WARN**（固定事件名 `tenant_ctx_drift`，便于运维 grep / 挂告警）+ 进程计数器。
+  **「未 set」与「set 了但对不上」刻意分开**：前者自 step 5 起是**预期路径**（租户停用/不存在 → 不设 ctx），
+  若也告警则**真漂移信号被噪音淹没**。日志**只记 id，不记 db_dir / 路径 / 业务内容**（配泄漏守护测）。
+
+### Stage 4 期间按守护者**已定裁定**落实（Q2 / Q5 / Q6 三条）
+- **Q5（should-fix · 廉价）**：`get_current_user` 函末兜底分支加 `logger.exception`。
+  守护者查明：该分支把 `get_token_version_cached`（缓存 miss → 读租户库）与 `get_user_by_id` 抛的
+  `sqlite3.Error` 折成「凭证无效」⇒ 磁盘/权限/库损坏时该租户**全体用户**看到认证错误，且此前
+  **零日志痕迹** = 基础设施故障被静默误诊成认证问题。**客户端行为 byte-equal**（仍 401）。
+  同时把 `except (jwt.InvalidTokenError, Exception)` 写成等价的 `except Exception`
+  —— 冗余元组「读起来像只接 JWT 错误而实际接一切」，守护者判断这正是它长期没被注意到的原因。
+  裁定 **pre-existing 且非本片扩大**（那两个 DB 调用本来就在 try 内；本片新增两处均显式处理）。
+- **Q2（should-fix）**：补测「**无代号 + 2 个 active 租户 → 统一 401，绝不挑一个**」——
+  守护者指出：让「`company` 可选」得以接受的正是这条**结构性** fail-closed 性质
+  （回退走的 `resolve_single_tenant()` 在 active ≠1 时 raise），**而它此前没有任何测**。
+  一并补「带代号登录选对公司」（正向）+「未知代号与密码错响应逐字相同」（真双租户环境下再验一次防公司枚举）。
+- **Q6（文档）**：两处把「单租户等价」当永久前提的注释补 **gate 作用域标注** ——
+  `api/auth.py` 的等价论证 + `DEPLOY.md` 的「漂移告警单租户下不应出现」基线（lift 后该基线会变）。
+  DEPLOY 另补**开通第二租户当天的症状形状**（老链接用户会同时收到统一 401，看起来像一次大规模密码错误事件；
+  按决策②文案不能区分 ⇒ 须在开通**之前**换链接，别指望事后从日志区分）。
+
+### 未结清（显式登记，勿当已完成）
+- **窄化 `get_current_user` 兜底分支（真故障返 503 / 坏 token 返 401）** —— Q5 裁定留 backlog：
+  会改客户端可见行为（前端 401 拦截器会清 token 跳登录，503 不会）须独立评估。本片只加日志。
+- **LOCKED audit-on-drift 仍未结清**（R-10）：本片**刻意不新增 `AuditAction`** —— 审计要写「哪个平台租户」，
+  依赖 v0.9.5 platform/tenant admin 鉴权拆分的口径；且 `core` 层零 services 依赖也让 audit 写入不能落在
+  `tenant_context`。配守护测断言「**没有任何 action 含 drift**」（不断言总数 —— 那会被无关新 action 打成假红）。
+- **登录未带 `company` 时回退唯一 active 租户** —— 仅在 R-T-GATE 锁死单租户期间成立，**lift 前必须改必填**。
+- 分支①②（代号不存在 / 租户停用）**无租户库可写审计** ⇒ 只落 INFO 日志；平台侧审计随 R-T-GATE 清单做。
+- `/api/bi/scheduler/tick` 仍走单租户解析（无 JWT），已在 R-T-GATE 清单。
+
+## [Released] - v0.9.3 — catalog 载体 per-tenant 化（隔离栈第三刀）
 
 > v0.9 多租户 MINOR 第四个 PATCH。catalog 是**现存唯一一处「读隔离、写不隔离」**的状态：`reload()` 读当前租户库
 > （全程经 tenant-scoped `get_conn`）、写**进程全局** —— 已端到端实证跨租户串供（租户#1 reload 后切租户#2 ctx，

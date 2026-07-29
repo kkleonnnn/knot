@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTheme, usePersist, Spinner } from './utils.jsx';
-import { api } from './api.js';
+import { api, clearAuthSession } from './api.js';
 import { LoginScreen } from './screens/Login.jsx';
 import { ForceChangePasswordScreen } from './screens/ForceChangePassword.jsx';
 import { EnrollScreen } from './screens/Enroll.jsx';
@@ -54,8 +54,9 @@ export default function App() {
       // （deps.py:144 /api/auth/ 前缀）永不返 403 totp_enroll_required。enroll 触发由
       // user-ready 后的 prefetch onErr（下方 useEffect）负责。401（含 rollout bump JWT_REVOKED）
       // 已由 api.js 拦截器清 token+reload。本 catch 仅兜 500/网络错 → 清 token 落 Login。
-      localStorage.removeItem('cb_token');
-      localStorage.removeItem('cb_user');
+      // v0.9.4 D11：走单一实现。`keepNavigation` 保留浏览位置 —— 本分支是 500/网络错落 Login，
+      // 再登录后应回到原屏（与「会话过期」不同，那种要连浏览状态一起清）。
+      clearAuthSession({ keepNavigation: true });
       setUser(null);
       setLoading(false);
     });
@@ -92,11 +93,10 @@ export default function App() {
     setHomeMode('chat');
   };
   const handleLogout = () => {
-    localStorage.removeItem('cb_token');
-    localStorage.removeItem('cb_user');
-    localStorage.removeItem('cb_screen');
-    localStorage.removeItem('cb_conv');
-    localStorage.removeItem('cb_home_mode');
+    // v0.9.4 D11：走单一实现。此前这里**漏清** cb_loading 与 sessionStorage 的 enroll 缓存
+    // ⇒ 登出后同 tab 重进 Enroll 可能命中作废 secret → enroll-complete 400（v0.6.5.2 F5 那个 bug
+    // 从登出路径复发）。收成一份实现后自动带上。
+    clearAuthSession();
     setUser(null);
     setScreen('chat');
     setHomeMode('chat');

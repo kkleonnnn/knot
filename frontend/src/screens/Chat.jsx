@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { I, iconBtn } from '../Shared.jsx';
 import { usePersist, toast } from '../utils.jsx';
 import { AppShell, SideHeading } from '../Shell.jsx';
-import { api } from '../api.js';
+import { api, handleUnauthorized, fetchAuthed } from '../api.js';
 import { ChatEmpty } from './chat/ChatEmpty.jsx';
 import { ChatConversation } from './chat/Conversation.jsx';
 import { runQueryStream } from './chat/sse_handler.js';
@@ -167,6 +167,9 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
         setLoading(false);
       },
       onException: (err) => {
+        // v0.9.4 D11：SSE 的 401 = 会话失效（JWT_REVOKED / JWT_NO_TID / TENANT_UNAVAILABLE）。
+        // handler 是纯函数只打标签 ⇒ 处置在此，走与 `api.req` **同一个** `handleUnauthorized`。
+        if (err && err.status === 401) { handleUnauthorized(); return; }
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, loading: false, error: String(err) } : m));
         setLoading(false);
       },
@@ -217,7 +220,7 @@ export function ChatScreen({ T, user, onToggleTheme, onNavigate, onLogout,
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const r = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${api._token()}` }, body: fd });
+      const r = await fetchAuthed('/api/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       setActiveUpload(d);

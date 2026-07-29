@@ -531,7 +531,11 @@ def test_SEC_interim_token_ver_type_strict(client, auth_headers, bad_ver):
     from knot.api.deps import JWT_ALGORITHM, _get_secret
     _interim, secret = _enroll_then_get_interim(client, auth_headers)   # 拿真 TOTP secret
 
-    payload = {"sub": "1", "totp_pending": True, "exp": 9999999999}
+    # ⭐ v0.9.4 MF1：**必须带合法 tid** —— 否则 v0.9.4 新加的 tid 门会**抢在** ver 类型门之前拒掉，
+    # 本测就退化成 tautology（不再证明它命名的东西）。实测 A/B：放宽 ver 类型门后，
+    # 无 tid 版本在 v0.9.4 分支上 **4 passed**（证明力全失），而同一 revert 在 v0.9.4 之前的 main 上
+    # **2 failed**（[True]/[1.0]）。带上 tid 后恢复与 main 同等的判别力（见下方 revert 记录）。
+    payload = {"sub": "1", "totp_pending": True, "exp": 9999999999, "tid": 1}
     if bad_ver is not None:
         payload["ver"] = bad_ver
     forged = _jwt.encode(payload, _get_secret(), algorithm=JWT_ALGORITHM)
