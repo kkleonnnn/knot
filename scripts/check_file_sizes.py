@@ -31,7 +31,7 @@ BACKEND_ACK = {
     "knot/services/engine_cache.py":       361,  # v0.9.1 失效器三拆（user/tenant 版 + tid 前缀键，346→361，MF3）；v0.8.24 +invalidate_all（340→346）
     # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）
     "knot/repositories/migrations.py":     395,  # v0.9.2 MF2 + 对抗加固：_migrate_uploads_to_isolated 双修（conn-路径派生 + 同名归一化列签名比 + 两 commit/表 + metadata↔physical + fail-closed，357→395）
-    "knot/main.py":                        315,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK
+    "knot/main.py":                        324,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK；v0.9.5 +平台密钥合规 WARN 钩子（→314）；v0.9.6 +起源租户未被服务 WARN 钩子（6 行 = 装配下限：decorator/def/docstring/2 行体）314→321（headroom 3）
     "knot/repositories/tenancy_migration.py": 370,  # v0.9.0 C4 存量迁移：crash-safe + 并发-safe + 校验/fsync/resume-保全/denylist 防御纵深（守护者 Stage 4 两轮对抗加固）；v0.9.2 +db_dir 含容守卫（一处守 C4+uploads 两条写侧路径）；13 fn 单一内聚迁移关注点，拆分反损可读性 → ACK
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）

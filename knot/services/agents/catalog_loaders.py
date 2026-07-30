@@ -77,6 +77,35 @@ def load_file_layer() -> tuple:
     return _load_from_files()
 
 
+def warn_if_owner_tenant_not_served() -> None:
+    """启动期钩子：**被服务的租户不是起源租户**时响亮告警（G14 的静默失败）。
+
+    ⚠️ **为什么需要它**：`tenant_repo.resolve_single_tenant()` 只要求 **恰 1 个 active**、
+    **不要求 `id == OWNER_TENANT_ID`**（实读）⇒ 停用 tenant#1 + active tenant#2 ⇒ **boot 成功**，
+    而 owner-gate 下 **file 层对被服务的那个租户静默消失**（表/词典/口径/relations 全空）
+    ⇒ 部署方自己的 catalog 没了却**没有任何声音**。
+    ⇒ 照 v0.9.5 `platform_admin.warn_if_noncompliant` 的范式：**只在异常情形告警**，正常静默。
+
+    ⚠️ 无 active 租户 / >1 active（R-T-GATE）时 `resolve_single_tenant()` 自己 raise ——
+    本函数**吞掉**那种情况（不是本函数要诊断的事，且启动序另有处理）。
+    ⚠️ 消息只含租户 id 与后果，**不含**部署方表名 / env 名（#262 纪律）。
+    """
+    from knot.core.logging_setup import logger
+    from knot.core.tenant_context import OWNER_TENANT_ID
+    from knot.repositories import tenant_repo
+    try:
+        served = tenant_repo.resolve_single_tenant()
+    except Exception:
+        return                      # 0 / >1 active：启动序另有处理，不是本函数的诊断面
+    tid = served.get("id")
+    if tid != OWNER_TENANT_ID:
+        logger.warning(
+            f"[catalog] 被服务的租户 id={tid} **不是起源租户**（{OWNER_TENANT_ID}）⇒ "
+            f"file 层 catalog 对它为空（表/词典/业务口径/relations 全空）、HTTP 路由被门挡住。"
+            f"若这不是预期：起源租户可能被停用/删除 —— 见 CLAUDE.md R-T-GATE 就绪清单。"
+        )
+
+
 def _load_from_db() -> tuple:
     """v0.6.2.5 段 4 — 改读 catalogs 表默认行（id=1）；app_settings 4-key 降级 legacy 兜底。
 

@@ -200,6 +200,13 @@ async def _bump_threadpool():
 
 # v0.6.0.5 F-C — audit 自动清理 startup hook（守护者 M-C1 chunk DELETE + fire-and-forget）
 @app.on_event("startup")
+async def _warn_if_owner_tenant_not_served():
+    """v0.9.6：被服务租户不是起源租户 → 响亮 WARN（否则 file 层静默变空）。理由见该函数 docstring。"""
+    from knot.services.agents import catalog_loaders
+    catalog_loaders.warn_if_owner_tenant_not_served()
+
+
+@app.on_event("startup")
 async def _warn_if_platform_secret_noncompliant():
     """v0.9.5：平台密钥「设了但不合规」→ 启动期 WARN（未配置静默）。理由见 `api/platform_admin`。"""
     from knot.api import platform_admin
