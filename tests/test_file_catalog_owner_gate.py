@@ -431,13 +431,26 @@ def test_coupling_gate_exists_implies_rtgate_not_lifted(two_tenants):
         headers: dict = {}
         url = type("U", (), {"path": "/api/conversations"})()
 
-    with pytest.raises(TenantContextError, match="R-T-GATE") as ei:
+    # ⚠️⚠️ **必须 `try/except/else`，不能用 `pytest.raises(..., match=...)`**（守护者 Stage 4 §II）：
+    # `match=` 本身已保证「异常消息含 R-T-GATE」⇒ 紧随其后的 `assert ... , "<说明>"` **永不失败**
+    # ⇒ 那段精心写的说明**永远不会被显示**；而**真实的**失败模式（有人 lift ⇒ 不抛）只会得到
+    # pytest 的 `DID NOT RAISE TenantContextError`，**不点名任何门** ⇒ 「lift 就撞一条点名这个门的红测」
+    # 这个设计意图在最后一寸失效。
+    # ⭐ **这是同一个错的第四次**：门放「决定处」而非「能力处」（三次）→ 说明放「**成功路径**」
+    # 而非「**失败路径**」（本次）。**统一判据：门装在能力被行使的那一行；消息挂在事情真的出错的那一行。**
+    try:
         tr.resolve_for_request(_Req())
-    assert "R-T-GATE" in str(ei.value), (
-        "两个 active 租户时请求未 fail-closed —— R-T-GATE 事实上已不生效。\n"
-        "⚠️ 而 v0.9.6 的 owner 门是**代偿控制**：它只关掉非 owner 的 HTTP 出网，"
-        "**凭据（②）与 egress（③）仍是部署方那一套** ⇒ lift 前必须先落地 ②③。"
-    )
+    except TenantContextError as e:
+        assert "R-T-GATE" in str(e), f"fail-closed 了但不是 R-T-GATE 挡的：{e}"
+    else:
+        pytest.fail(
+            "两个 active 租户时请求**未** fail-closed —— **R-T-GATE 事实上已不生效**。\n"
+            "⚠️ 而 v0.9.6 的 owner 门（`adapters/http/executor.execute` 内）是**代偿控制**：\n"
+            "   它只关掉非 owner 的 **HTTP 出网**，而 **② per-tenant `http_spec` 凭据** 与\n"
+            "   **③ egress 租户域化** 仍是**部署方那一套** ⇒ **lift 前必须先落地 ②③**。\n"
+            "⇒ 若你正在 lift R-T-GATE：先读 CLAUDE.md 的 R-T-GATE 就绪清单 B-3 分项，\n"
+            "   以及 `executor.execute` 里那段「只有 ②③ 都落地才可移除本门」的注释。"
+        )
 
 
 # ─── 已知现状登记（验收 12 · xfail 非 strict）──────────────────────────
