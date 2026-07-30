@@ -5,7 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.5 — 鉴权拆分 platform / tenant admin（隔离栈第五刀 · 权限层）
+## [Unreleased] - v0.9.6 — file catalog owner-gate（B-3 ① · 隔离栈第六刀 · 数据面）
+
+> v0.9 多租户 MINOR 第七个 PATCH。切**数据面**：file 层 catalog（部署方写的 `_local_catalog.py`）
+> 此前是**进程级、租户无关**的 ⇒ **每个**租户的槽都被注入部署方的真实业务表/词典/口径。
+> **定性：R-T-GATE 当前硬锁第二租户 ⇒ 今日线上无 live 泄漏**；本片闭合的是 **lift 后立即成真**的一条。
+> 评审链：19 组 grounded 测绘 → Stage 1（kk 拍板 owner-gate）→ Codex Stage 2（8 条，**R1 阻断**）
+> → 守护者 Stage 3 `major-revise`（**并撤回其上一轮预核的一条**）→ Stage 1' → 守护者复核
+> `revise-before-implementation`（**门装错位置**）→ Stage 1''（4 条 must-fix）→ 4+1 步实施。
+
+### Added
+- **`core.tenant_context`：`OWNER_TENANT_ID` + `is_owner_tenant()`** —— 「**起源租户**」这个
+  **租户身份事实**（`seed_default_tenant` 硬编 `id=1` 且只在 `tenants` 空时 seed；`tenancy_migration`
+  把 pre-tenancy 的 `knot.db` 搬进它 ⇒ 它就是部署方本人）。`db_dir` **不可用作标识**
+  （生产 `tenants/1` / 测试 `.` = 环境相关）。**严格 int**：`type(tid) is int`（接 v0.9.4 教训 ——
+  `True == 1` 且 `1.0 == 1`）。无 ctx → **raise**（fail-closed，不静默返 False）。
+  ⭐ **落 `core` 是结构性唯一解**：`.importlinter` 的 `adapters-no-business` **禁 `knot.services`**
+  ⇒ 谓词若放 services 层，`adapters/http/executor` **根本 import 不到**。
+- **三层门，一个谓词**：`catalog_loaders.load_file_layer()`（文件闸，唯一 choke point）+
+  `adapters/http/executor.execute` **内**的**硬边界** + `pick_http_route` Layer 0 **软降级**（+ 日志）。
+- **起源租户未被服务时的启动期 WARN** —— `resolve_single_tenant()` 只要求恰 1 active、
+  **不要求 `id == OWNER_TENANT_ID`** ⇒ 停用 tenant#1 + active tenant#2 ⇒ boot 成功而 file 层
+  **静默变空**。照 v0.9.5 `warn_if_noncompliant` 范式（未配静默、只对异常告警），
+  且**实测钩子真接上**（`app.router.on_startup` 含它 —— 没接上 = WARN 死码 = 可诊断性归零）。
+- **`tests/test_file_catalog_owner_gate.py`（24 测）** —— **非 owner 路径唯一的覆盖**
+  （既有套件触及 HTTP 路径的 8 个测文件**全在 tid=1 下跑**）。含两条**正对照**
+  （owner 侧 file 层逐字不变 / owner 过门后走到后续关卡）—— 没有它们，门可以靠「拦住所有人」通过。
+- **两条结构哨兵**：`adapters/http/**` 的 `requests.*` **全在 `execute` 内**（门在能力里 ⇒ 哨兵守
+  「**这个能力没有兄弟**」）+ **禁第二个 HTTP 客户端**（**放行 `urllib.parse`** —— 解析器不是客户端）。
+- **行为级耦合 tripwire**：「**门存在 ⇒ R-T-GATE 未 lift**」。⚠️ **刻意不用存在性断言**
+  （「那一行还在」只能抓删除，抓不住 `if False:` 包起来 / 本体改 no-op / **移到 tid 解析之后** /
+  前插 early return 这四种「事实上 lift 了而行还在」）。
+
+### Changed
+- `catalog.reload()` 与 `get_defaults_from_files()` 改经 `load_file_layer()`；
+  **4 处**测的 `monkeypatch` 目标从 facade 迁到源模块 —— 迁后那两条 v0.7.29b 守护
+  **升级为「判据的 owner 路径守护」**（它们跑在 tid=1，判据若误挡 owner 就立刻转红）。
+- `catalog_loaders` 模块 docstring 明写 **v0.9.6 起不再是「纯 loader」**（它现在读租户策略）。
+- ACK 行数上限：`http_planner.py` 579→588（+8 行软降级门，已压到下限）·
+  `main.py` 314→321（+6 行启动钩子 = 装配下限）。**两处都注明是什么顶上去的**。
+
+### Security
+- **file 层只归起源租户**：非起源租户返**完整 empty 五元组**。**禁半空** ——
+  实读 `catalog.reload()` 的五种合并策略：`business_rules = db_rules if db_rules.strip() else f_rules`
+  ⇒ 只清 `tables` 而留 `f_rules`，**空-DB 的非 owner 仍会拿到部署方业务口径**；`lexicon` 更是**无条件合并**。
+- **硬边界在 `execute` 内（能力行使处）**，非 `pick_http_route`（决策点）——
+  `run_http_step(refined_question, table_full_name, **http_spec**)` 是**公开函数、自带 spec、
+  不重新求 route**；`query.py:292/332` 是**两次独立调用**、中间只隔一个 `if`
+  ⇒ 门只放决策点时，monitor / 定时报表 / LogicForm 混合路由 / re-run 任一条接进来都能绕过。
+  **实施期实证**：只写硬边界（软降级尚缺席）时，「直呼 `run_http_step` 绕过」那条测**就已通过**
+  ⇒ 硬边界**不依赖那个 `if`**。
+- 门的 raise 消息**不含** env 名 / owner tid / 部署方表名（#262 那条缝：`run_http_step` 把 `str(e)`
+  放进 `result["error"]`、`api/query.py` 原样 yield；前端对 `error_kind` 通用渲染 ⇒ **消息即用户所见**）。
+
+### 未结清（显式登记，勿当已完成）
+- ⚠️⚠️ **B-3 未完成 —— 只闭合了 ①**。**② per-tenant `http_spec` 凭据 与 ③ egress 租户域化
+  仍是 lift blocker**；本片的 owner 门是**代偿控制、不是修复**，**只有 ②③ 都落地才可移除**。
+  已配**行为级耦合 CI** 使「lift」必然撞一条点名该门的红测。
+- **准确定性**：② 只讲「无 `source_id` 的 env 路径」；`source_id` 路径的凭据来自**租户自己的库**
+  ⇒ 那条本已 per-tenant，门对它是**过阻** —— **让过阻仍然正确的是 ③**（allowlist 进程级 = SSRF 向）。
+- **`PUT /api/admin/catalog` 对 `tables` 零校验**（只 `isinstance(v, list)`，`source_type`/`http_spec`
+  不校验）**本片不改** —— 动它要连带想清「既有已写入数据怎么办」。本片的答案是**在执行处拦**：
+  写进去也用不了（端点级测已钉住这个分工）。
+- **写-then-reload 顺序**：`update_catalog` **先提交**、`reload(strict=True)` **后跑** ⇒ strict 抛错也
+  **已污染**。用 **`xfail(strict=False)`** 登记（断言**期望**行为）——
+  ⚠️ **刻意不写成「通过测断言污染确实持久化」**，那会**惩罚将来修它的人**（修好即转红、只能删）。
+- **provisioning 侧**：禁停用/删除起源租户（本片只加了启动 WARN 兜可诊断性，根治在 provisioning 片）。
+
+## [Released] - v0.9.5 — 鉴权拆分 platform / tenant admin（隔离栈第五刀 · 权限层）
 
 > v0.9 多租户 MINOR 第六个 PATCH。前五刀切**状态**（ctx/缓存/uploads/catalog）与**入口**（JWT tid）；
 > 本刀切**权限**：回答「**admin 是谁家的 admin**」。
