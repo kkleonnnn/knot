@@ -84,6 +84,9 @@ def warn_if_noncompliant() -> None:
 
     存在理由：请求期只回通用 503（见模块 docstring），与「未配置」对外不可区分
     ⇒ 若不在启动期喊一声，**弱/畸形配置会静默 503**，运维在部署时看不见。
+    ⭐ **为什么启动期这一次就结构上够**（守护者 Stage 4 §II② 强化）：不是靠「现网是 `Recreate` 部署」——
+    而是 **env 变量在运行进程内不可变** ⇒ 改它**必然**经过一次进程启动 ⇒ 本 WARN **必然跑过一次**。
+    「靠部署策略」会随运维改 RollingUpdate 而失效；「靠 env 不可变」不会。
     ⚠️ 只记 env 名 + 原因，**不记值**（#262）。
     """
     reason = rejection_reason(os.environ.get(PLATFORM_TOKEN_ENV))
@@ -141,7 +144,7 @@ async def list_tenants_platform(
 
     ⚠️ **本端点是平台面唯一的 HTTP 表面，且刻意只读**（E2：本片零 platform 写操作）——
     `/api/platform/` 前缀下禁一切 POST/PUT/PATCH/DELETE，由
-    `tests/test_tenant_isolation.py::test_iso6b_no_write_under_platform_prefix` 守。
+    `tests/test_tenant_isolation.py::test_iso6b_no_write_methods_under_platform_prefix` 守。
 
     ⚠️ **它不是运维逃生舱，别这么用**：`assert_no_second_active_tenant_served()` 是
     `tenant_resolution.resolve_for_request` 的**第一行**（在 Bearer 解析与路径判断之前）

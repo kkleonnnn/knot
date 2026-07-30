@@ -182,10 +182,10 @@ def reload(strict: bool = False) -> str:
 
 
 def get_defaults_from_files() -> dict:
-    """⚠️ **v0.9.5 起生产零调用者**（原唯一调用点 = `/api/admin/catalog` 的 `defaults`，已删）。
-
-    ⛔ **不得未过评审就重新接到 HTTP 响应** —— 它返**部署级** `_local_catalog` 全文、绕过 per-tenant 槽
-    （详 `docs/plans/v0.9.5-auth-split-platform-tenant-admin.md` D4'）。本片不删它，已登记 backlog。
+    """⚠️ **v0.9.5 起生产零调用者**（原唯一 = `/api/admin/catalog` 的 `defaults`，已删）；**但非死码**：
+    `tests/services/test_knot_catalog.py::test_get_defaults_from_files_returns_dict` 仍在直接调它
+    ⇒ 要删就得**函数 + 该测同片删**（在 `fix(security)` commit 里删测 = 让安全 commit 不可复核）。
+    ⛔ **不得未过评审就重新接到 HTTP 响应**：它返**部署级** `_local_catalog` 全文、绕过 per-tenant 槽（D4'）。
     """
     f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
     return {
