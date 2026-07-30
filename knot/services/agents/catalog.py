@@ -19,8 +19,8 @@ from knot.services.agents import catalog_state
 from knot.services.agents.catalog_loaders import (
     _infer_source_types_from_datasources,
     _load_from_db,
-    _load_from_files,
     _merge_lexicons,
+    load_file_layer,
 )
 
 # v0.9.3：6 个原模块全局 → `catalog_state` 租户槽。这 6 名**必须不存在于本模块命名空间**，
@@ -105,7 +105,7 @@ def reload(strict: bool = False) -> str:
     """
     from knot.models.errors import MetadataError
 
-    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
+    f_lex, f_tables, f_rules, f_relations, f_src = load_file_layer()
     # v0.6.2.5 兜底熔断（Stage 2 修订 3）：catalogs id=1 缺失 + app_settings 无法读 → 真空期。
     # 沿用 ε2 strict 模式：strict=True（admin/query）→ fail-fast 上抛；strict=False（startup）→ 降级。
     try:
@@ -187,7 +187,7 @@ def get_defaults_from_files() -> dict:
     ⇒ 要删就得**函数 + 该测同片删**（在 `fix(security)` commit 里删测 = 让安全 commit 不可复核）。
     ⛔ **不得未过评审就重新接到 HTTP 响应**：它返**部署级** `_local_catalog` 全文、绕过 per-tenant 槽（D4'）。
     """
-    f_lex, f_tables, f_rules, f_relations, f_src = _load_from_files()
+    f_lex, f_tables, f_rules, f_relations, f_src = load_file_layer()
     return {
         "lexicon": f_lex,
         "tables": f_tables,

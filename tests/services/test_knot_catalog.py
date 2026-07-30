@@ -101,7 +101,11 @@ def test_relations_fallback_when_module_missing_constant(tmp_db_path, monkeypatc
         BUSINESS_RULES: str = ""
         # 故意不定义 RELATIONS
 
-    monkeypatch.setattr(cat_mod, "_load_from_files",
+    # v0.9.6 D1：patch **源模块** `catalog_loaders`，不再 patch facade —— `reload()` 现在经
+    # `load_file_layer()` wrapper（owner 判据的落点），wrapper 内部调的是**模块局部**的
+    # `_load_from_files` ⇒ patch facade 已无效。迁到源模块后本测**额外守住判据的 owner 路径**。
+    from knot.services.agents import catalog_loaders
+    monkeypatch.setattr(catalog_loaders, "_load_from_files",
                         lambda: ({}, [], "", list(getattr(_OldCatalog, "RELATIONS", []) or []), "real"))
     cat_mod.reload()
     assert cat_mod.get_relations() == []

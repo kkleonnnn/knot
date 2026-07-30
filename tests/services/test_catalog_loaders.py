@@ -217,7 +217,11 @@ def test_reload_file_http_overrides_db_shadow(monkeypatch):
         {"db": "futures_admin", "table": "orders_rt", "source_type": "http"},  # non-collision → 追加
     ]
     monkeypatch.setattr(catalog, "_load_from_db", lambda: ({}, db_tables, "", [], {}, True))
-    monkeypatch.setattr(catalog, "_load_from_files", lambda: ({}, file_tables, "", [], "file"))
+    # v0.9.6 D1：patch **源模块** `catalog_loaders`，不再 patch facade —— `reload()` 现在经
+    # `load_file_layer()` wrapper（owner 判据的落点），wrapper 内部调的是**模块局部**的
+    # `_load_from_files` ⇒ patch facade 已无效。迁到源模块后本测**额外守住判据的 owner 路径**。
+    from knot.services.agents import catalog_loaders
+    monkeypatch.setattr(catalog_loaders, "_load_from_files", lambda: ({}, file_tables, "", [], "file"))
     monkeypatch.setattr(catalog, "_infer_source_types_from_datasources", lambda t: t)  # 隔离推断熔断
     catalog.reload(strict=False)
     pos = [t for t in catalog.TABLES if (t["db"], t["table"]) == ("futures_admin", "pos")]

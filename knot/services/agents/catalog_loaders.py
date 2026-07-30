@@ -51,6 +51,23 @@ def _load_from_files() -> tuple:
     return {}, [], "", [], "empty"
 
 
+def load_file_layer() -> tuple:
+    """⭐ **file 层的唯一 choke point**（v0.9.6 D1）—— `catalog.reload()` 与
+    `get_defaults_from_files()` **都必须经本函数**，不得直呼 `_load_from_files()`。
+
+    ⚠️ **本 commit 仅为恒真转发**（纯接线）；owner 判据在**下一个 commit** 加。
+    这样拆是刻意的（v0.9.5 顺序铁律的同型应用）：把「改调用点 + 迁 patch 目标」与「加判据」
+    分成两步 ⇒ 全量若出差异，能立刻区分「**接线错了**」还是「**判据错了**」。
+
+    ⚠️ **为什么是外层 wrapper 而不是把判据写进 `_load_from_files` 内部**：全仓有 **4 处**测
+    用 `monkeypatch.setattr(<facade>, "_load_from_files", …)` **整个替换**那个函数
+    （`test_catalog_loaders.py:220` / `test_knot_catalog.py:104` /
+    `test_catalog_tenant_isolation.py:241,262`）⇒ 判据若在函数内部，那 4 处**绕过判据**
+    ⇒ owner 路径**零覆盖**。放外层后它们改 patch 源模块，即**升级为判据的 owner 路径守护**。
+    """
+    return _load_from_files()
+
+
 def _load_from_db() -> tuple:
     """v0.6.2.5 段 4 — 改读 catalogs 表默认行（id=1）；app_settings 4-key 降级 legacy 兜底。
 
