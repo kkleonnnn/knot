@@ -22,7 +22,7 @@ BACKEND_DEFAULT_CAP = 300
 BACKEND_ACK = {
     # admin.py 908 已于 v0.6.5.11 C2 拆 knot/api/admin/ 7 域（最大 stats 269 ≤300 auto-caught）→ ACK 移除
     # catalog.py 460 已于 v0.6.5.12 C1 拆 catalog_loaders（catalog 261 / loaders 213 ≤300 auto-caught）→ ACK 移除
-    "knot/services/http_planner.py":       580,  # futures regex 下沉 catalog JIT v0.7.2 + v0.7.20 B（http_table_in_sql + failure_error_meta）+ v0.7.22 Layer A intent veto（_ANALYTICAL_INTENTS + early-return R-SL-162）565→579
+    "knot/services/http_planner.py":       590,  # futures regex 下沉 catalog JIT v0.7.2 + v0.7.20 B（http_table_in_sql + failure_error_meta）+ v0.7.22 Layer A intent veto（_ANALYTICAL_INTENTS + early-return R-SL-162）565→579；v0.9.6 +Layer 0 owner 软降级门（8 行：谓词 + 日志 + early return；已压到下限 —— 详细论证在 executor.py 的硬边界注释里，不在此重复）579→588（headroom 2）
     "knot/api/query.py":                   558,  # v0.8.3 →541；v0.8.20 F6a +_flush_interrupt_cost（SSE 中断落账 helper + 2 except 调用）541→556（headroom 2）
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）

@@ -54,6 +54,28 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
         HTTPUnavailable:  5xx / connection error
         HTTPAdapterError: spec 字段缺失 / response shape 异常 / 业务码非 0
     """
+    # ⭐⭐ v0.9.6 硬边界：**非起源租户禁止行使「以某个身份发出网络请求」这个能力**。
+    # **为什么门在这一行、而不在 `pick_http_route`**：`execute` 是**唯一**发出网络请求
+    # （`requests.get/post`，本文件下方两处）**且唯一读进程 env 凭据**的函数 ⇒ 能力就在这里。
+    # 门若只放决策点（`pick_http_route`），不变量就依赖「`query.py` 里一个 `if`」+「将来没人直呼
+    # `run_http_step`」—— 而后者是**公开函数、自带 spec、不重新求 route** ⇒ monitor / 定时报表 /
+    # LogicForm 混合路由任一条接进来都能绕过。
+    #
+    # ⚠️ **它代偿的是 R-T-GATE 清单的 ② 和 ③**（不只 ②）：
+    #   ② 进程 env 凭据 —— 只有「无 source_id」的 env 路径读它（下方 `os.environ`）；
+    #      `source_id` 路径的凭据来自**租户自己的库**（`resolve_spec` → `get_datasource` → `get_conn`）
+    #      ⇒ 那条本已是 per-tenant 凭据机制，本门对它是**过阻**；
+    #   ③ **让这个过阻仍然正确**：`url_allowlist` 的 allowlist 是**进程级** ⇒ 非 owner 即便只用
+    #      自己的凭据，打的也是**部署方 allowlist 里的主机** = 伸手进部署方网络（SSRF 向）。
+    # ⛔ **只有 ②③ 都落地才可移除本门** —— ② 落地后最自然的动作是「现在非 owner 可以用 HTTP 了」，
+    #    但那时 ③ 若还开着，过阻的正当性就没了却门也没了。**别单独摘。**
+    #
+    # ⚠️ **消息不得含 env 名 / owner tid / 部署方表名**：`run_http_step` 把 `str(e)` 放进
+    # `result["error"]`，`api/query.py` 原样 yield 给客户端 —— 那正是 #262 那条缝。
+    from knot.core.tenant_context import is_owner_tenant
+    if not is_owner_tenant():
+        raise HTTPAuthError("该租户未启用 HTTP 数据源")
+
     method = spec.get("method", "GET").upper()
     url_template = spec.get("url_template")
     response_path = spec.get("response_path", "data")

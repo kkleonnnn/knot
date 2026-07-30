@@ -1,5 +1,9 @@
 """catalog_loaders — catalog 纯加载器（v0.6.5.12 收官③ 从 catalog.py 抽出）。
 
+⚠️ **v0.9.6 起本模块不再是「纯 loader」**：`load_file_layer()` **读租户策略**
+（`core.tenant_context.is_owner_tenant`）—— file 层只归起源租户。改动本模块前先读那个函数的 docstring。
+（Contract 8 `catalog-loaders-pure` 守的是「不得 import 有状态 catalog」，与本条不冲突。）
+
 4 个**纯函数**（无状态；不读/写 catalog 的载体）：从配置文件 / DB / DataSource 推断 / lexicon 合并，
 计算并返 tuple。**v0.9.3 起**返值由 `catalog.reload()` 经 `catalog_state.publish()` **原子发布到当前租户槽**
 （此前是 `global` reassign 塞回 catalog.py 的模块全局 —— 该形态已物理删除，并有静态哨兵禁 `global`）。
@@ -55,9 +59,11 @@ def load_file_layer() -> tuple:
     """⭐ **file 层的唯一 choke point**（v0.9.6 D1）—— `catalog.reload()` 与
     `get_defaults_from_files()` **都必须经本函数**，不得直呼 `_load_from_files()`。
 
-    ⚠️ **本 commit 仅为恒真转发**（纯接线）；owner 判据在**下一个 commit** 加。
-    这样拆是刻意的（v0.9.5 顺序铁律的同型应用）：把「改调用点 + 迁 patch 目标」与「加判据」
-    分成两步 ⇒ 全量若出差异，能立刻区分「**接线错了**」还是「**判据错了**」。
+    **决定**：file 层（= 部署方写的 `_local_catalog.py` / 仓内 `_template_catalog.py`）**只归起源租户**。
+    非起源租户返**完整 empty 五元组** —— **禁半空**：实读 `catalog.reload()` 的五种合并策略里
+    `business_rules = db_rules if db_rules.strip() else f_rules` ⇒ 只清 tables 而留 `f_rules`，
+    **空-DB 的非 owner 仍会拿到部署方业务口径**；`lexicon` 更是**无条件合并**。
+    ⇒ 这条闸闭合的是「空-DB 租户被**零动作**注入部署方表/词典/口径」这条路径。
 
     ⚠️ **为什么是外层 wrapper 而不是把判据写进 `_load_from_files` 内部**：全仓有 **4 处**测
     用 `monkeypatch.setattr(<facade>, "_load_from_files", …)` **整个替换**那个函数
@@ -65,6 +71,9 @@ def load_file_layer() -> tuple:
     `test_catalog_tenant_isolation.py:241,262`）⇒ 判据若在函数内部，那 4 处**绕过判据**
     ⇒ owner 路径**零覆盖**。放外层后它们改 patch 源模块，即**升级为判据的 owner 路径守护**。
     """
+    from knot.core.tenant_context import is_owner_tenant
+    if not is_owner_tenant():
+        return {}, [], "", [], "empty"
     return _load_from_files()
 
 
