@@ -279,7 +279,7 @@ def test_R_PB_B1_2_enroll_failure_does_not_lock_account(client, auth_headers):
 def test_R_PB_B1_11_enroll_audit_action_inserted(client, auth_headers):
     """R-PB-B1-11：enroll API 路径触发 user.totp.enroll audit INSERT。
 
-    reset / recovery_code_used 走 api 端点（admin reset 需 require_admin；
+    reset / recovery_code_used 走 api 端点（admin reset 需 require_tenant_admin；
     recovery_code_used 在 verify 端点 login_recovery 流程）— audit 调用点在 api 层。
     本测仅 enroll 路径；Literal 完整性由 test_R_PB_B1_11_audit_action_literal 守护。
     """

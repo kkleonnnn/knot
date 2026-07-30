@@ -1,7 +1,7 @@
 """knot/api/admin/metrics.py — 指标注册表管理路由（v0.7.0 C2 语义层第一刀）。
 
 route 前缀 `/api/admin/metrics-registry`（**避与既有 `/api/admin/metrics` 内测健康 KPI 屏撞**）。
-全 require_admin（v0.7.0 metric 仅 admin 可见，继承 R-2FA enroll gate）。CRUD 经 metric_repo（OOS-1v2 死锁）。
+全 require_tenant_admin（v0.7.0 metric 仅 admin 可见，继承 R-2FA enroll gate）。CRUD 经 metric_repo（OOS-1v2 死锁）。
 审计接线：metric.create/update/delete（AuditAction）+ resource_type=metric。
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.models.errors import MetadataError
 from knot.repositories import metric_repo
 
@@ -47,12 +47,12 @@ class MetricUpdateRequest(BaseModel):
 
 
 @router.get("/api/admin/metrics-registry")
-async def admin_list_metrics(catalog_id: int | None = None, admin=Depends(require_admin)):
+async def admin_list_metrics(catalog_id: int | None = None, admin=Depends(require_tenant_admin)):
     return metric_repo.list_metrics(catalog_id)
 
 
 @router.get("/api/admin/metrics-registry/{metric_id}")
-async def admin_get_metric(metric_id: int, admin=Depends(require_admin)):
+async def admin_get_metric(metric_id: int, admin=Depends(require_tenant_admin)):
     m = metric_repo.get_metric(metric_id)
     if m is None:
         raise HTTPException(status_code=404, detail="指标不存在")
@@ -60,7 +60,7 @@ async def admin_get_metric(metric_id: int, admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/metrics-registry")
-async def admin_create_metric(req: MetricCreateRequest, request: Request, admin=Depends(require_admin)):
+async def admin_create_metric(req: MetricCreateRequest, request: Request, admin=Depends(require_tenant_admin)):
     payload = req.dict()
     catalog_id = payload.pop("catalog_id", 1)
     try:
@@ -73,7 +73,7 @@ async def admin_create_metric(req: MetricCreateRequest, request: Request, admin=
 
 
 @router.put("/api/admin/metrics-registry/{metric_id}")
-async def admin_update_metric(metric_id: int, req: MetricUpdateRequest, request: Request, admin=Depends(require_admin)):
+async def admin_update_metric(metric_id: int, req: MetricUpdateRequest, request: Request, admin=Depends(require_tenant_admin)):
     fields = {k: v for k, v in req.dict().items() if v is not None}
     try:
         metric_repo.update_metric(metric_id, **fields)
@@ -85,7 +85,7 @@ async def admin_update_metric(metric_id: int, req: MetricUpdateRequest, request:
 
 
 @router.delete("/api/admin/metrics-registry/{metric_id}")
-async def admin_delete_metric(metric_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_delete_metric(metric_id: int, request: Request, admin=Depends(require_tenant_admin)):
     metric_repo.delete_metric(metric_id)
     audit(request, admin, action="metric.delete", resource_type="metric", resource_id=metric_id)
     return {"ok": True}
@@ -93,7 +93,7 @@ async def admin_delete_metric(metric_id: int, request: Request, admin=Depends(re
 
 @router.post("/api/admin/metrics-registry/upload")
 async def admin_upload_metrics(file: UploadFile = File(...), request: Request = None,
-                               catalog_id: int = 1, admin=Depends(require_admin)):
+                               catalog_id: int = 1, admin=Depends(require_tenant_admin)):
     """v0.8.13 xlsx 批量导入指标（列 name/display/caliber/base_object/date_column/unit/aliases；
     aliases 逗号分隔 → JSON list）。逐行 create（当前 catalog；默认 #1）；行错不中断、收集返回。"""
     import json

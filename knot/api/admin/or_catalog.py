@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from knot import config as cfg
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ router = APIRouter()
 # ── v0.6.0.6 F-D — OpenRouter live catalog 同步（admin UI 按钮触发）─────
 
 @router.post("/api/admin/sync-or-catalog")
-async def admin_sync_or_catalog(admin=Depends(require_admin)):
+async def admin_sync_or_catalog(admin=Depends(require_tenant_admin)):
     """v0.6.0.6 F-D-6：admin 主动 fetch OpenRouter live API + UPSERT model_catalog_live。
 
     数据准确性由 OpenRouter API 保证（守护者 M-D6 数据自治原则）；
@@ -75,7 +75,7 @@ async def admin_sync_or_catalog(admin=Depends(require_admin)):
 
 
 @router.get("/api/admin/or-catalog")
-async def admin_get_or_catalog(admin=Depends(require_admin)):
+async def admin_get_or_catalog(admin=Depends(require_tenant_admin)):
     """v0.6.0.6 F-D-6：读 model_catalog_live 缓存表 + 与 cfg.MODELS dict 对比标 drift。
 
     前端可见：

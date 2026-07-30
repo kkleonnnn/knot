@@ -14,7 +14,7 @@ import re
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from knot.api.deps import get_current_user, require_admin
+from knot.api.deps import get_current_user, require_tenant_admin
 from knot.repositories import frontend_error_repo
 
 router = APIRouter()
@@ -79,7 +79,7 @@ async def submit_frontend_error(
 async def admin_list_frontend_errors(
     limit: int = 100,
     offset: int = 0,
-    admin=Depends(require_admin),
+    admin=Depends(require_tenant_admin),
 ):
     """admin 全局错误列表 + top hashes 聚合。"""
     items = frontend_error_repo.list_admin(limit=limit, offset=offset)

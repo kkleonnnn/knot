@@ -35,10 +35,12 @@ window partition_by / window arg / window 内层 order_by[].field / window as_na
 
 **lf.filters（物理 WHERE）：仅 G0–G4 + G3.5**，不施 G5/G6（物理列无 catalog 列源 + parser 对 filters 0 func
 约束 → 列/func 白名单必误杀 DATE/CAST/LIKE/UNIX_TIMESTAMP）。调用方外科作用域：只校验 lf.filters 切片，
-严禁碰信任的 metric.filters / caliber（require_admin gated，见 §残余风险）。
+严禁碰信任的 metric.filters / caliber（require_tenant_admin gated —— **租户** admin 对**自己租户**的 SQL 面，见 §残余风险）。
 
 ## 残余风险（接受 + 记录，Stage 3 §C）
-- admin caliber / metric filters 信任面 scope 外（require_admin + OOS-1v2 锁）；caliber 内只读跨表子查询按设计不防。
+- admin caliber / metric filters 信任面 scope 外（require_tenant_admin + OOS-1v2 锁）；caliber 内只读跨表子查询按设计不防。
+  ⚠️ v0.9.5：该信任面的准确表述是「**租户** admin 只对**自己租户**的 SQL 面被信任」——
+  跨租户由 per-tenant **文件边界**挡住（不是靠这层信任）；平台身份不进此面（out-of-band 平行路径）。
 - 合法字符串字面量含 `--/#`（如 `o.note LIKE '%--%'`）→ G0 误杀 → 回退 LLM（罕见、非用户错）。
 - 裸 `SESSION_USER`（无括号）parse 成 Column：别名类由 G5 挡；filters 内视为列名（低危，非函数）。
 - benign-Anonymous / typed 危险划分 sqlglot-版本相关 → requirements.txt `>=30,<31` pin 承重；升级须重跑攻击语料。

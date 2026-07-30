@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import bi_share_target_repo as target_repo
 from knot.repositories import settings_repo
 
@@ -22,7 +22,7 @@ _PLAIN_KEYS = ("lark_app_id", "lark_region")               # 明文直读写
 
 # ── IM 凭据配置 ────────────────────────────────────────────────────────
 @router.get("/api/admin/share/config")
-async def get_share_config(admin=Depends(require_admin)):
+async def get_share_config(admin=Depends(require_tenant_admin)):
     from knot.api._secret import mask_secret
     out = {k: mask_secret(settings_repo.get_app_setting(k, "")) for k in _SECRET_KEYS}
     out.update({k: settings_repo.get_app_setting(k, "") for k in _PLAIN_KEYS})
@@ -30,7 +30,7 @@ async def get_share_config(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/share/config")
-async def set_share_config(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def set_share_config(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     from knot.api._secret import should_update_secret
     changed: list[str] = []
     for k in _SECRET_KEYS:
@@ -60,12 +60,12 @@ class ShareTargetRequest(BaseModel):
 
 
 @router.get("/api/admin/share/targets")
-async def list_share_targets(admin=Depends(require_admin)):
+async def list_share_targets(admin=Depends(require_tenant_admin)):
     return target_repo.list_targets()
 
 
 @router.post("/api/admin/share/targets")
-async def create_share_target(req: ShareTargetRequest, request: Request = None, admin=Depends(require_admin)):
+async def create_share_target(req: ShareTargetRequest, request: Request = None, admin=Depends(require_tenant_admin)):
     if req.platform not in target_repo.PLATFORMS:
         raise HTTPException(status_code=400, detail=f"platform 须 ∈ {target_repo.PLATFORMS}")
     if req.platform == "lark" and (req.region or "feishu") not in ("feishu", "lark"):
@@ -82,7 +82,7 @@ async def create_share_target(req: ShareTargetRequest, request: Request = None, 
 
 
 @router.delete("/api/admin/share/targets/{target_id}")
-async def delete_share_target(target_id: int, request: Request = None, admin=Depends(require_admin)):
+async def delete_share_target(target_id: int, request: Request = None, admin=Depends(require_tenant_admin)):
     target_repo.delete_target(target_id)
     audit(request, admin, action="config.im_share_update", resource_type="share_target",
           resource_id=target_id, detail={"target_delete": target_id})

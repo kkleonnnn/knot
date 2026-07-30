@@ -146,12 +146,56 @@ def test_iso6_resolve_tenant_by_id_filters_status(tmp_db_path):
     assert tenant_repo.get_tenant(1)["status"] == "suspended", "get_tenant 语义不变（test_iso3 依赖）"
 
 
-def test_iso6_no_platform_tenants_route():
-    """⑥ 续：路由集合不含 `/api/platform/tenants`（0.1 才建开通端点骨架 — R-T-GATE 接线未放开）。"""
+def test_iso6a_platform_tenants_route_is_read_only_and_platform_gated():
+    """⑥a（v0.9.5 拆自 `test_iso6_no_platform_tenants_route`）：平台只读端点**存在**且分类 = `PLATFORM_SECRET`。
+
+    ⭐ **为什么拆**：原测断言「路由集不含 `/api/platform/tenants`」，但读它的 docstring 与断言消息
+    （「**0.1 才建开通端点骨架**」/「**第二租户开通端点**不应在 v0.9.0 路由集」）——
+    它真正守的是「**开通（写）端点不该存在**」，路径字面只是当时的实现手段。
+    v0.9.5 加的是**只读**端点 ⇒ **不违反原意图、但违反原实现** ⇒ 拆成
+    ⑥a（本条：读端点存在且被平台密钥守）+ ⑥b（前缀零写面 = 原意图，且**比原测更强**）。
+    """
+    import sys
+    from pathlib import Path
+    _t = str(Path(__file__).resolve().parent)
+    if _t not in sys.path:
+        sys.path.insert(0, _t)
+    from _route_policy import PLATFORM_SECRET, build_actual_policy_map
+
+    m = build_actual_policy_map()
+    key = "GET /api/platform/tenants"
+    assert key in m, f"平台只读端点消失了（{key}）—— 它是 `require_platform_secret` 的唯一消费者（R-C3）"
+    assert m[key] == PLATFORM_SECRET, (
+        f"{key} 的策略是 {m[key]}，应为 {PLATFORM_SECRET} —— "
+        "平台端点落进租户域或公开域都是认证面事故"
+    )
+
+
+def test_iso6b_no_write_methods_under_platform_prefix():
+    """⑥b（v0.9.5）：`/api/platform/` 前缀下**不得有任何写方法** —— 原 ⑥ 的真实意图，且更强。
+
+    原测只挡一个**路径字面**；本测挡**整个前缀的写面** ⇒ 直接守 E2 / R-v095-6
+    （本片零 platform 写操作；租户开通/停用骨架不在本片）。
+    取材=注入：`app.post("/api/platform/whatever")` → 本测红。
+    """
+    from fastapi.routing import APIRoute
+
     from knot.main import app
-    from tests._route_count import app_route_paths
-    paths = app_route_paths(app)
-    assert not any("/api/platform/tenants" in p for p in paths), "第二租户开通端点不应在 v0.9.0 路由集"
+    from tests._route_count import flatten_app_routes
+
+    writes = sorted(
+        f"{m} {r.path}"
+        for r in flatten_app_routes(app)
+        if isinstance(r, APIRoute) and r.path.startswith("/api/platform/")
+        for m in (r.methods or ())
+        if m in ("POST", "PUT", "PATCH", "DELETE")
+    )
+    assert not writes, (
+        f"`/api/platform/` 下出现写方法：{writes}\n"
+        "E2（资深 2026-07-29 拍板）：本片**不引入 platform 写操作** —— 因为平台侧动作"
+        "**没有审计落点**（`audit_service.log` → `get_conn` = 租户库；平台动作无租户库可写），"
+        "而「建/停租户」正是最需要审计的动作。⇒ 要加写端点，先做平台审计落点（B-3 之后）。"
+    )
 
 
 # ─────────────────────── 平台库 vs 租户库表划分 ───────────────────────
@@ -166,10 +210,14 @@ def test_iso4_platform_db_only_tenants_table(tmp_db_path):
 
 
 def test_iso8_flatten_route_snapshot():
-    """⑧ flatten 路由精确计数（app_route_paths；精确 == 144 非 >=80 软下限 — Stage3 #9：增/删路由即红）。"""
+    """⑧ flatten 路由精确计数（精确 == 145 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
+
+    v0.9.5：144 → **145**（新增平台只读端点 `GET /api/platform/tenants`）。
+    """
     from knot.main import app
     from tests._route_count import flatten_app_routes
-    assert len(flatten_app_routes(app)) == 144, "路由数漂移（C2/C3 应 0 新增路由；middleware 非 route）"
+    assert len(flatten_app_routes(app)) == 145, (
+        "路由数漂移（v0.9.5 起 145 = 144 + `GET /api/platform/tenants`；middleware 非 route）")
 
 
 # ─────────────────────── 绊线（tripwire · 列缺席 · OOS-1v2）───────────────────────

@@ -1,6 +1,6 @@
 """knot/api/admin/logicform.py — LogicForm 审计/修正 admin 路由（v0.7.3 C2 list + C3 修正）。
 
-全 require_admin（继承 2FA enroll gate）；LogicForm/SQL 仅 admin 审计面（脱敏链 sustained，非 admin 不可见）。
+全 require_tenant_admin（继承 2FA enroll gate）；LogicForm/SQL 仅 admin 审计面（脱敏链 sustained，非 admin 不可见）。
 审计行来自 semantic_query_audit 侧表（命中 + near-miss）；enrich message 的 question/sql 供展示。
 catalog 隔离（R-SL-39/40）：list 按 catalog_id 过滤。
 """
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.repositories import catalog_repo, conversation_repo, message_repo, semantic_audit_repo, user_repo
 
 router = APIRouter()
@@ -21,7 +21,7 @@ class CorrectRequest(BaseModel):
 
 
 @router.get("/api/admin/logicform-audit")
-async def admin_list_logicform_audit(catalog_id: int | None = None, admin=Depends(require_admin)):
+async def admin_list_logicform_audit(catalog_id: int | None = None, admin=Depends(require_tenant_admin)):
     """语义路径查询审计：LogicForm + 编译 SQL + 问题 + 命中/near-miss 状态。
 
     审计「AI 如何理解每个查询」（read-only）。命中 = compile_error_reason 空；near-miss = 有回退原因。
@@ -42,7 +42,7 @@ async def admin_list_logicform_audit(catalog_id: int | None = None, admin=Depend
 
 @router.post("/api/admin/logicform-audit/{audit_id}/correct")
 async def admin_correct_logicform(audit_id: int, req: CorrectRequest, request: Request,
-                                  admin=Depends(require_admin)):
+                                  admin=Depends(require_tenant_admin)):
     """admin 修正 LogicForm → **原 catalog 重编译**（R-SL-40 audit.catalog_id；不同 catalog 同名 metric 口径不同）
     → 返修正 SQL + 落审计血缘行（is_corrected=1 / parent_message_id）+ logicform.correct audit（R-SL-37/38）。
 
@@ -75,7 +75,7 @@ async def admin_correct_logicform(audit_id: int, req: CorrectRequest, request: R
 
 
 @router.post("/api/admin/logicform-audit/{audit_id}/rerun")
-async def admin_rerun_logicform(audit_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_rerun_logicform(audit_id: int, request: Request, admin=Depends(require_tenant_admin)):
     """admin 对审计行 re-run **真执行**（v0.7.4 C1 · F4 / R-SL-41~47）。
 
     从侧表行 logicform_json + catalog_id **重编译**（R-SL-40/47 原 catalog 烘焙；禁读 admin 当前 ContextVar）
@@ -134,7 +134,7 @@ async def admin_rerun_logicform(audit_id: int, request: Request, admin=Depends(r
 
 
 @router.get("/api/admin/logicform-audit/{audit_id}/history")
-async def admin_logicform_history(audit_id: int, admin=Depends(require_admin)):
+async def admin_logicform_history(audit_id: int, admin=Depends(require_tenant_admin)):
     """版本历史（v0.7.5 · **read-only** / R-SL-49~56）：审计行 → 该 message 全版本链
     （原始 is_corrected=0 + 历次修正 is_corrected=1，ORDER BY id 时序 R-SL-53）。
 
@@ -187,7 +187,7 @@ async def admin_logicform_history(audit_id: int, admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/logicform-audit/{audit_id}/restore")
-async def admin_restore_logicform(audit_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_restore_logicform(audit_id: int, request: Request, admin=Depends(require_tenant_admin)):
     """admin 标记采纳某历史版本（v0.7.6 C1 · **append-only 恢复** / R-SL-57~64）。
 
     用源版本 audit_id 的 `logicform_json` + `compile_error_reason` **忠实字节复制**新建修正行

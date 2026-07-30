@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import get_current_user, require_admin
+from knot.api.deps import get_current_user, require_tenant_admin
 from knot.api.exports import check_message_access
 from knot.repositories import feedback_repo
 
@@ -77,7 +77,7 @@ async def admin_list_feedback(
     score: int | None = None,
     limit: int = 100,
     offset: int = 0,
-    admin=Depends(require_admin),
+    admin=Depends(require_tenant_admin),
 ):
     """admin 全局反馈列表 + 分页。
 

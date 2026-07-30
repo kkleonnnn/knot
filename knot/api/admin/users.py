@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.api.schemas import CreateUserRequest, UpdateUserRequest
 from knot.repositories import data_source_repo, user_repo
 from knot.services import auth_service
@@ -17,7 +17,7 @@ router = APIRouter()
 # ── Users ─────────────────────────────────────────────────────────────
 
 @router.get("/api/admin/users")
-async def admin_list_users(admin=Depends(require_admin)):
+async def admin_list_users(admin=Depends(require_tenant_admin)):
     users = user_repo.list_users()
     user_sources_map = data_source_repo.get_all_user_source_ids()
     return [
@@ -38,7 +38,7 @@ _VALID_ROLES = {"admin", "analyst"}
 
 
 @router.post("/api/admin/users")
-async def admin_create_user(req: CreateUserRequest, request: Request, admin=Depends(require_admin)):
+async def admin_create_user(req: CreateUserRequest, request: Request, admin=Depends(require_tenant_admin)):
     if req.role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     ph = auth_service.hash_password(req.password)
@@ -57,7 +57,7 @@ async def admin_create_user(req: CreateUserRequest, request: Request, admin=Depe
 
 
 @router.put("/api/admin/users/{user_id}")
-async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Request, admin=Depends(require_admin)):
+async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Request, admin=Depends(require_tenant_admin)):
     if req.role is not None and req.role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色必须是 admin 或 analyst")
     kwargs = {k: v for k, v in req.dict().items() if v is not None and k not in ("password", "source_ids")}
@@ -98,7 +98,7 @@ async def admin_update_user(user_id: int, req: UpdateUserRequest, request: Reque
 
 
 @router.delete("/api/admin/users/{user_id}")
-async def admin_delete_user(user_id: int, request: Request, admin=Depends(require_admin)):
+async def admin_delete_user(user_id: int, request: Request, admin=Depends(require_tenant_admin)):
     if user_id == admin["id"]:
         raise HTTPException(status_code=400, detail="无法删除自己的账号")
     user_repo.update_user(user_id, is_active=0)

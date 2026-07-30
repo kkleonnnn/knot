@@ -9,7 +9,7 @@ def _login(client, username, password):
 
 
 def test_F4_db_test_requires_admin(client, auth_headers):
-    """db/test 从 get_current_user 收紧为 require_admin：非 admin analyst → 403。"""
+    """db/test 从 get_current_user 收紧为 require_tenant_admin：非 admin analyst → 403。"""
     # admin 建一个 analyst
     client.post("/api/admin/users", json={"username": "an1", "password": "pw12345", "role": "analyst"},
                 headers=auth_headers)

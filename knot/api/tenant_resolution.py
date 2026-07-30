@@ -68,7 +68,10 @@ def resolve_for_request(request) -> dict | None:
 
     顺序：**先 R-T-GATE 硬门，再解析 tid**（D5）。gate 只对 **>1 个 active 租户** raise；
     0 active 交由上层语义（受保护 API 因无可解析租户自然 401；login 得以返回统一的
-    「账号或密码错误」而不是 500）。v0.9.5 lift = 删 gate 那一行。
+    「账号或密码错误」而不是 500）。**lift 片**（**非 v0.9.5**）= 删 gate 那一行。
+    ⚠️ 本 gate 是本函数**第一行** —— 在 Bearer 解析与路径判断**之前** ⇒ 第二 active 租户时
+    **整站（含 `/api/platform/*`）全部 fail-closed**；平台端点**不是**逃生舱
+    （`tests/api/test_platform_admin.py::test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant`）。
     """
     tenant_repo.assert_no_second_active_tenant_served()          # D5 · R-T-GATE 请求侧硬门
 

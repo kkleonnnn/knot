@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from knot import config as cfg
 from knot.api._audit_helpers import audit
-from knot.api.deps import require_admin
+from knot.api.deps import require_tenant_admin
 from knot.api.schemas import AgentModelConfigRequest
 from knot.repositories import settings_repo
 
@@ -16,7 +16,7 @@ router = APIRouter()
 # ── Models ────────────────────────────────────────────────────────────
 
 @router.get("/api/admin/models")
-async def admin_list_models(admin=Depends(require_admin)):
+async def admin_list_models(admin=Depends(require_tenant_admin)):
     """v0.6.0.6 F-D：响应增加 max_context 字段（OR entries 有；direct provider 无 → None）。"""
     settings_map = {s["model_key"]: s for s in settings_repo.get_model_settings()}
     return [
@@ -33,7 +33,7 @@ async def admin_list_models(admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/models/{model_key}/default")
-async def admin_set_default_model(model_key: str, admin=Depends(require_admin)):
+async def admin_set_default_model(model_key: str, admin=Depends(require_tenant_admin)):
     if model_key not in cfg.MODELS:
         raise HTTPException(status_code=404, detail="模型不存在")
     settings_repo.set_default_model(model_key)
@@ -41,7 +41,7 @@ async def admin_set_default_model(model_key: str, admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/models/{model_key}/toggle")
-async def admin_toggle_model(model_key: str, admin=Depends(require_admin)):
+async def admin_toggle_model(model_key: str, admin=Depends(require_tenant_admin)):
     if model_key not in cfg.MODELS:
         raise HTTPException(status_code=404, detail="模型不存在")
     settings_map = {s["model_key"]: s for s in settings_repo.get_model_settings()}
@@ -53,7 +53,7 @@ async def admin_toggle_model(model_key: str, admin=Depends(require_admin)):
 # ── Agent Model Config ────────────────────────────────────────────────
 
 @router.get("/api/admin/agent-models")
-async def get_agent_model_config(admin=Depends(require_admin)):
+async def get_agent_model_config(admin=Depends(require_tenant_admin)):
     config = settings_repo.get_agent_model_config()
     return {
         "clarifier":   config.get("clarifier", ""),
@@ -64,7 +64,7 @@ async def get_agent_model_config(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/agent-models")
-async def set_agent_model_config(req: AgentModelConfigRequest, request: Request, admin=Depends(require_admin)):
+async def set_agent_model_config(req: AgentModelConfigRequest, request: Request, admin=Depends(require_tenant_admin)):
     settings_repo.set_agent_model_config({
         "clarifier":   req.clarifier,
         "sql_planner": req.sql_planner,

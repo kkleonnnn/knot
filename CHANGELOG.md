@@ -5,7 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.4 — JWT 带 tid + 请求级租户解析（隔离栈第四刀）
+## [Unreleased] - v0.9.5 — 鉴权拆分 platform / tenant admin（隔离栈第五刀 · 权限层）
+
+> v0.9 多租户 MINOR 第六个 PATCH。前五刀切**状态**（ctx/缓存/uploads/catalog）与**入口**（JWT tid）；
+> 本刀切**权限**：回答「**admin 是谁家的 admin**」。
+> **定性：R-T-GATE 当前硬锁第二租户 ⇒ 今日线上无 live 泄漏**，本片是 lift 前置账。
+> 评审链：15 组 grounded 测绘 → Stage 1（kk 四条拍板 E1-E4）→ Codex Stage 2（11 条全带 `file:line`）
+> → 守护者 Stage 3 `major-revise`（13 项）→ Stage 1' → 守护者复核 **PASS 放行** + 4 条 must-fix → 4 步实施。
+
+### Changed
+- **`require_admin` → `require_tenant_admin`**：**90 个依赖站点 / 22 文件**（+ 30 测站点 / 10 文件），
+  **不留别名**（别名 = 漂移路径 + 名字不再诚实）。策略分类常量 `ADMIN` → `TENANT_ADMIN`。
+  **纯重构**：全量与改名前**逐字相同**（除策略类名与 fixture）。
+  ⭐ **「纯重构」在快照层有自证漏洞，已用转移对断言封住**：fixture 是**用新代码重生成**的
+  ⇒ 漏掉/摘掉某个守护会被当成新期望**烘进去、快照照绿**（v0.9.4 MF1 同形）。
+  而**计数口径也不够** —— 实跑坐实：伪造「89 处改名 + 第 90 处摘掉守护」得到
+  **恰 90 处值变更 ⇒ 旧口径通过 = 逃逸**；改成**逐条比对转移对** `(ADMIN, TENANT_ADMIN)` 后**转红**。
+- **`bi_permission_service._is_admin` → `_is_tenant_admin`** —— 全仓 12 处体内角色分流中**唯一被强制改名**的
+  （后果最大：4 个入口命中即**绕过整套 BI RBAC**）+ 契约测 3×4 格，含
+  **`platform_admin` 值不得拿到 bypass** 的前瞻守护。其余 11 处**按裁定不改名**（避免放大「纯重构」diff 面），
+  改为逐项书面 disposition。
+- **`/api/admin/catalog` 删掉 `defaults` 字段**（见 Security）。
+- **`CLAUDE.md` 的 R-T-GATE 就绪清单分项**：此前一串挂在同一个版本号下、与 5 处代码注释互相矛盾
+  ⇒ 每项改挂**具名目标片**（provisioning 片 / B-3 独立片 / lift 片 / …）。
+
+### Added
+- **`knot/api/platform_admin.py`** —— 平台面的**平行认证路径**（E1：out-of-band 共享密钥
+  `KNOT_PLATFORM_ADMIN_TOKEN`）+ 唯一只读端点 `GET /api/platform/tenants`。
+  **为什么必须平行**：`get_current_user` **结构性拒绝无租户身份**（`create_token` 强制
+  `tid = current_tenant()["id"]` fail-closed ⇒ 签不出无 tid 的 token；无 tid 401；
+  `assert_tenant_context` 须与中间件 ctx 相符；`get_user_by_id` 读租户库）
+  ⇒ 硬塞进现有链路 = 「每个平台请求先假装在某个租户里」= OOS-1v2 禁止的 fail-open 形状。
+- **语法域不相交**（结构不变量，非配置运气）：`kpa_` 前缀 + **禁含 `.`** + ≥32。
+  JWS compact **恒含 2 个 `.`** ⇒ 一枚合规平台密钥**在语法上不可能是 JWT**，反之亦然
+  ⇒ 封掉「运维误把有效用户 JWT 配成平台密钥」这条自我破坏路径。
+  校验走**单一 predicate**（启动 WARN 与请求 503 共用）· 未配置**不** WARN（未配 = 有意禁用）·
+  **WARN 与 503 都不回显密钥值**（#262 形状）· **503 detail 连「不合规原因」也不给**
+  （否则等于告知未认证调用方「本部署配了弱密钥」+ 期望格式）。
+- **`PLATFORM_SECRET` 策略类 + 混合根拒绝分类**：平台身份与租户身份是**互斥信任域**、不是可排序权限
+  ⇒ 单标签是**范畴错误**；一条路由同时挂两域守护时**快照生成器直接失败**
+  （不标类、不标 `MIXED`）—— 因为只要给它一个类名就会被**写进 fixture = 被祝福**。
+  配**双凭证矩阵**行为测 4 格（租户 JWT × 平台路由 = 401 / 平台密钥 × 租户路由 = 401）。
+- **`test_iso6` 拆两条**（比原测更强）：原测断言「路由集不含 `/api/platform/tenants`」，但其 docstring
+  表明真实意图是「**开通（写）端点不该存在**」⇒ 读端点不违意图、只违实现。
+  ⇒ ⑥a 读端点存在且分类 = `PLATFORM_SECRET` · ⑥b **`/api/platform/` 前缀零写方法**（守 E2）。
+- **`_VALID_ROLES == {"admin","analyst"}` tripwire**：封 E1 的**第二条放弃路径**。
+  `role` 无 DB CHECK 且该集合**此前零测钉住**（实测）⇒ 加 `"platform_admin"` 是一行、零 CI 反应。
+  ⚠️ 定性：**单加值本身 fail-closed 无害**（`role=="admin"` 全不匹配）——
+  **危险在紧随其后的放宽**（有人改成 `role in (...)`）⇒ 那一刻 12 处体内分流才真变缺口。
+- **#262 env 泄漏哨兵扩到 loguru 花括号形态**：原 `_fstring_leaks` **只看 `ast.JoinedStr`**
+  ⇒ 花括号+位置参数 / `%`-格式 / 拼接**三形态全逃逸**（实测注入后仍绿）。
+  缺口**真而窄**：AST 实测 f-string **59**（主流，已覆盖）· 花括号 **2** · `%` **0** · 拼接 **0**
+  ⇒ 补花括号支；`%`/拼接**明写不覆盖**（哨兵边界必须已知）。
+  连带：`_ALLOWED` 的「判活」口径同步扩到两个探测器（**加探测器就得扩判活，否则守护互相打脸**），
+  并给新豁免配了**守 sanitizer 契约本身**的测。
+
+### Security
+- **`GET /api/admin/catalog` 的 `defaults` 字段已删** —— 它把**部署级** `_local_catalog` 全文
+  （部署方真实业务库表 + 业务口径）**绕过 per-tenant 槽**吐给**任何租户** admin，
+  而前端**零处渲染**（死载荷）⇒ 删它零 UI 影响。
+  ⚠️⚠️ **这是部分减暴露，不是 blocker 关闭**：`current` **仍含 file 层内容**，
+  而「让它不含」**被既有不变量禁止** —— file HTTP 表在 `reload()` 里【权威覆盖】同名 DB 条目
+  （v0.7.29b merge 权威）⇒ 摘掉 file 层 ⇒ `pick_http_route` 恒不命中 ⇒ **HTTP 查询静默落 SQL**。
+  ⇒ **per-tenant file catalog 原样留在 R-T-GATE 清单**（B-3 三项之一）。
+  配**反向测**（`current` 的 file HTTP 表仍在）防后人「顺手修干净」；
+  ⭐ 顺序铁律实证：删字段**前** 8b PASSED / 8 FAILED，删字段**后**两条皆 PASSED
+  ⇒「删对了」与「踩了 v0.7.29b」在任何时点可区分。
+
+### 未结清（显式登记，勿当已完成）
+- ⚠️ **R-10 audit-on-drift 仍未结清，本片没有推进它**：E1 选 out-of-band 共享密钥（**无「谁做的」身份**）
+  + E2 **零平台写操作** ⇒ **平台侧仍无审计落点**（`audit_service.log` → `get_conn` = 租户库，
+  平台动作无租户库可写）⇒ 改挂**平台审计落点 `platform_audit`（B-3 之后）**。
+  5 处代码活指针已**改写不删**（删掉 = 承诺蒸发 = R-LP-v3-EX-3 治的老病）。
+- **平台密钥无吊销机制**：无 `token_version` 等价物 ⇒ 轮换 = 改 env + 重启，在那之前旧密钥一直有效。
+  已写进 DEPLOY.md（连同「不得进入日志 / 前端存储」）。
+- **`get_defaults_from_files()` 生产零调用者**但本片**不删**（commit 3 是 `fix(security)`，
+  删死码属 refactor，混在一起会糊掉 revert 故事）⇒ 留 ⛔ 标记 + backlog。
+- **归属检查类的覆盖债**（`delete_owned` 那类）：本片**零改动**该类 ⇒ 前置 chore 的
+  「v0.9.5 硬注记」**触发条件未满足、不欠覆盖**；但覆盖债本身登记具名 backlog。
+- **`scheduler_tick` 的分类学债**：信任形状与平台密钥同类（同为 out-of-band 密钥、且 fan-out 全租户）
+  但今天在 `PUBLIC_OR_OUT_OF_BAND`。本片刻意不动；已在类注释写明「顺手统一」会**静默改掉
+  那 4 条被钉住集合的含义**。
+- `bi_schedule.scheduler_tick` 的**手搓 Bearer 解析**（`auth[7:]`）未改（范围外，backlog）。
+
+## [Released] - v0.9.4 — JWT 带 tid + 请求级租户解析（隔离栈第四刀）
 
 > v0.9 多租户 MINOR 第五个 PATCH。前四刀把**状态**按租户切开（ctx/缓存/uploads/catalog）；本刀切**入口**：
 > 每请求「读哪家公司的库」不再靠「假设全站只有一家 active 租户」，而是读 JWT 的 `tid` claim。

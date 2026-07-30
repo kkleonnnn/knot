@@ -30,7 +30,7 @@ def test_endpoint_returns_200_with_empty_db(client, auth_headers):
 
 
 def test_endpoint_requires_admin(client):
-    """无 token / 非 admin 应被 require_admin 拦截 401/403。"""
+    """无 token / 非 admin 应被 require_tenant_admin 拦截 401/403。"""
     r = client.get("/api/admin/datasources-stats")
     assert r.status_code in (401, 403), r.text
 

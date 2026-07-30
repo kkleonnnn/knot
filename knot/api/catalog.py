@@ -18,7 +18,7 @@ import json
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from knot.api._audit_helpers import audit
-from knot.api.deps import get_current_user, require_admin
+from knot.api.deps import get_current_user, require_tenant_admin
 from knot.models.errors import MetadataError
 from knot.repositories import catalog_repo
 
@@ -35,7 +35,7 @@ def _has_override(field: str) -> bool:
 
 
 @router.get("/api/admin/catalog")
-async def get_catalog(admin=Depends(require_admin)):
+async def get_catalog(admin=Depends(require_tenant_admin)):
     """v0.5.44 — 加 relations 字段返回；4 键全部可走 DB 覆盖。"""
     catalog_loader.reload(strict=True)
     return {
@@ -47,7 +47,6 @@ async def get_catalog(admin=Depends(require_admin)):
             "relations": [list(r) for r in catalog_loader.RELATIONS],
             "field_labels": catalog_loader.FIELD_LABELS,   # v0.7.27 维度中文标签 {列名:中文}
         },
-        "defaults": catalog_loader.get_defaults_from_files(),
         "db_overrides": {
             "tables": _has_override("tables"),
             "lexicon": _has_override("lexicon"),
@@ -59,7 +58,7 @@ async def get_catalog(admin=Depends(require_admin)):
 
 
 @router.put("/api/admin/catalog")
-async def put_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def put_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     """payload 形如 {tables?, lexicon?, business_rules?}；任一字段缺失 → 不动。
     传空字符串 / 空列表 / 空 dict 表示「清空该项 DB 覆盖」（回退默认）。
     """
@@ -129,7 +128,7 @@ async def put_catalog(payload: dict = Body(...), request: Request = None, admin=
 
 
 @router.post("/api/admin/catalog/reset")
-async def reset_catalog(payload: dict = Body(default={}), request: Request = None, admin=Depends(require_admin)):
+async def reset_catalog(payload: dict = Body(default={}), request: Request = None, admin=Depends(require_tenant_admin)):
     """清空 DB 覆盖，回退到文件默认。
     payload.fields 可指定 ["tables", "lexicon", "business_rules"] 子集；缺省则全清。"""
     fields = payload.get("fields") or ["tables", "lexicon", "business_rules", "relations", "field_labels"]
@@ -189,7 +188,7 @@ def _serialize_catalog_payload(payload: dict) -> dict:
 
 
 @router.get("/api/admin/catalogs")
-async def list_all_catalogs(admin=Depends(require_admin)):
+async def list_all_catalogs(admin=Depends(require_tenant_admin)):
     """所有 catalog 元信息（id/name/description）+ 当前 admin active_catalog_id — 选择器用。"""
     return {
         "catalogs": [
@@ -202,7 +201,7 @@ async def list_all_catalogs(admin=Depends(require_admin)):
 
 
 @router.post("/api/admin/catalogs")
-async def create_new_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def create_new_catalog(payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     """新建 catalog（name 必填）。⚠️ OOS-1v2（租户库内禁列）：0 tenant — 仅 catalog_id 语义切分。"""
     name = str(payload.get("name") or "").strip()
     if not name:
@@ -215,7 +214,7 @@ async def create_new_catalog(payload: dict = Body(...), request: Request = None,
 
 
 @router.put("/api/admin/catalogs/{cid}")
-async def update_catalog_by_id(cid: int, payload: dict = Body(...), request: Request = None, admin=Depends(require_admin)):
+async def update_catalog_by_id(cid: int, payload: dict = Body(...), request: Request = None, admin=Depends(require_tenant_admin)):
     """更新指定 catalog（元字段 name/description + 内容 4 字段）。id=1 改动即时 reload。"""
     if catalog_repo.get_catalog(cid) is None:
         raise HTTPException(status_code=404, detail=f"catalog id={cid} 不存在")
@@ -235,7 +234,7 @@ async def update_catalog_by_id(cid: int, payload: dict = Body(...), request: Req
 
 
 @router.delete("/api/admin/catalogs/{cid}")
-async def delete_catalog_by_id(cid: int, request: Request = None, admin=Depends(require_admin)):
+async def delete_catalog_by_id(cid: int, request: Request = None, admin=Depends(require_tenant_admin)):
     """删除 catalog。⚠️ 默认 catalog id=1 不可删（兜底基线）。"""
     if cid == 1:
         raise HTTPException(status_code=400, detail="默认 catalog (id=1) 不可删除")

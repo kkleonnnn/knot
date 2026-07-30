@@ -30,7 +30,6 @@ def test_app_routes_at_least_80(client):
     v0.6.2.5 commit 7: 经 flatten_app_routes 动态展平（FastAPI 0.137+ include_router 不再展平
     进 app.routes 而是追加 _IncludedRouter 懒包装；P-1/P-5 动态计数治本，对上游实现变更鲁棒）。"""
     from knot.main import app
-
     from tests._route_count import flatten_app_routes
     assert len(flatten_app_routes(app)) >= 80
 
@@ -101,7 +100,9 @@ def test_catalog_get_returns_default(client, auth_headers):
     assert r.status_code == 200
     body = r.json()
     assert "current" in body
-    assert "defaults" in body
+    # v0.9.5：`defaults` 已删（部署级 `_local_catalog` 全文吐给任何**租户** admin + 前端零渲染）。
+    # 其**缺席**由 `tests/api/test_admin_catalog_endpoint.py::test_defaults_key_is_gone` 专测断言；
+    # 此处删掉旧的「存在」断言 —— 契约按设计改了，不是把测改绿。
     assert body["source"] in ("example", "real", "empty")
 
 

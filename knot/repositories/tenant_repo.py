@@ -48,6 +48,23 @@ def list_tenants() -> list:
     return [dict(r) for r in rows]
 
 
+#: 平台只读端点的**显式列白名单**（v0.9.5 D3' —— 禁 `SELECT *`）。
+#: **为什么**：B-3 已排期给平台层加 per-tenant `http_spec` 凭据 + per-tenant 初始口令
+#: ⇒ 那时 `SELECT *` 会**自动**把新列吐进 HTTP 响应。这是已登记的路线，不是假设风险。
+#: 新增平台列时**不会**自动进这个列表 ⇒ 要吐必须显式加，且过 `TenantPublic` 第二道。
+_PUBLIC_COLS = ("id", "slug", "name", "status", "db_dir", "created_at")
+
+
+def list_tenants_public() -> list:
+    """平台只读端点专用：**显式投影**，不用 `SELECT *`（见 `_PUBLIC_COLS` 注释）。"""
+    conn = get_platform_conn()
+    rows = conn.execute(
+        f"SELECT {', '.join(_PUBLIC_COLS)} FROM tenants ORDER BY id"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def list_active_tenants() -> list:
     conn = get_platform_conn()
     rows = conn.execute("SELECT * FROM tenants WHERE status='active' ORDER BY id").fetchall()
@@ -126,7 +143,8 @@ def assert_no_second_active_tenant_served() -> None:
         `401 账号或密码错误`**（②统一错误）而不是 500。若此处对 0 也 raise，唯一租户被 suspend 时
         整站含 login 全部 500，与②直接打架。
 
-    **v0.9.5 lift = 删掉本函数的唯一调用点（一行）** —— 语义单点、可 review。
+    **lift 片**（**非 v0.9.5** —— 那片只做鉴权拆分、R-T-GATE 一行不动）**= 删掉本函数的唯一调用点
+    （一行）** —— 语义单点、可 review。⚠️ lift 的前置条件见 CLAUDE.md 的 R-T-GATE 就绪清单。
     """
     n = len(list_active_tenants())
     if n > 1:

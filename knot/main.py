@@ -25,6 +25,7 @@ from knot.api import exports as exports_router
 from knot.api import feedback as feedback_router
 from knot.api import few_shots as few_shots_router
 from knot.api import frontend_errors as frontend_errors_router
+from knot.api import platform_admin as platform_admin_router
 from knot.api import prompts as prompts_router
 from knot.api import saved_reports as saved_reports_router
 from knot.api import templates as templates_router
@@ -36,7 +37,7 @@ from knot.repositories import init_db, tenancy_migration, tenant_repo
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.9.4")
+app = FastAPI(title="KNOT", version="0.9.5")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -199,6 +200,13 @@ async def _bump_threadpool():
 
 # v0.6.0.5 F-C — audit 自动清理 startup hook（守护者 M-C1 chunk DELETE + fire-and-forget）
 @app.on_event("startup")
+async def _warn_if_platform_secret_noncompliant():
+    """v0.9.5：平台密钥「设了但不合规」→ 启动期 WARN（未配置静默）。理由见 `api/platform_admin`。"""
+    from knot.api import platform_admin
+    platform_admin.warn_if_noncompliant()
+
+
+@app.on_event("startup")
 async def _audit_auto_purge_if_stale():
     """如果 last_audit_purge_at > 7 天前 → asyncio.create_task 后台跑 purge。
 
@@ -280,7 +288,7 @@ for _router in [auth.router, conversations.router, query.router, database.router
                 audit_router.router, feedback_router.router,
                 frontend_errors_router.router,
                 totp_router.router, bi_reports_router.router, bi_share_router.router,
-                bi_schedule_router.router]:
+                bi_schedule_router.router, platform_admin_router.router]:
     app.include_router(_router)
 
 _STATIC_DIR = Path(__file__).parent / "static"

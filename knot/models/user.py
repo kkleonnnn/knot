@@ -42,7 +42,9 @@ class AuthClaim:
     """已通过 JWT 校验的调用者身份凭证。
 
     生命周期：仅存在于单次 HTTP 请求处理过程中（FastAPI Depends 注入），不持久化。
-    上层 admin 路由用 role 字段做权限分流（require_admin）。
+    上层 admin 路由用 role 字段做权限分流（require_tenant_admin）。
+    v0.9.5：`role` 值域**仅** `{admin, analyst}` 且**只表达租户内角色** —— 平台管理员**不在**本表
+    （out-of-band 共享密钥，`api/platform_admin`）；加 role 值会被 `test_VALID_ROLES_pinned` 拦。
     """
     user_id: int
     username: str
