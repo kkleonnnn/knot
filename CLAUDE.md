@@ -410,9 +410,28 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 >   平台面 out-of-band 平行认证路径 + `PLATFORM_SECRET` 策略类 + 死 `defaults` 字段已删）。
 >   ⚠️ 但 v0.9.5 **刻意零平台写操作**（E2）⇒ **平台侧审计仍无落点** ⇒ **R-10 audit-on-drift 未解开**。
 > - ▶ **`db_dir` UNIQUE + 格式约束** → **provisioning 片**（非 v0.9.5）。
-> - ▶ **B-3 三项**（per-tenant file catalog / per-tenant `http_spec` 凭据 / egress 租户域化）→ **独立片**。
->   ⚠️ `/api/admin/catalog` 的 `defaults` 字段已于 v0.9.5 删除（**部分**减暴露）——
->   但 `current` **仍含 file 层**且「让它不含」被 v0.7.29b 不变量**禁止** ⇒ **本条 blocker 未关闭**。
+> - **B-3 三项**（per-tenant file catalog / per-tenant `http_spec` 凭据 / egress 租户域化）：
+>   - ✅ **① per-tenant file catalog = v0.9.6 已闭合**（owner-gate）：`catalog_loaders.load_file_layer()`
+>     单一 choke point —— 非**起源租户**（`core.tenant_context.OWNER_TENANT_ID` / `is_owner_tenant()`）
+>     返**完整 empty 五元组**（**禁半空**：`business_rules` 仅空库才 fallback ⇒ 半空会继续泄漏部署方口径）。
+>     闭合的是「**空-DB 租户被零动作注入部署方表/词典/口径**」这条路径。
+>   - ⚠️⚠️ **② per-tenant `http_spec` 凭据 与 ③ egress 租户域化 仍是 lift blocker —— 未修**。
+>     v0.9.6 只加了一道**代偿控制**：`adapters/http/executor.execute` **内**的 owner 硬边界
+>     （非 owner → `HTTPAuthError`）+ `pick_http_route` Layer 0 软降级（返 None + 日志）。
+>     ⛔ **门是代偿控制、不是修复**；**只有 ②③ 都落地才可移除它** —— ② 落地后最自然的动作是
+>     「现在非 owner 可以用 HTTP 了」，但那时 ③ 若还开着，过阻的正当性没了而门也没了。**别单独摘。**
+>     ⚠️ **准确定性**（v0.9.6 实读）：② 只讲「无 `source_id` 的 **env 路径**」——`source_id` 路径的凭据
+>     来自**租户自己的库**（`resolve_spec` → `get_datasource` → `get_conn`）⇒ 那条本已 per-tenant，
+>     门对它是**过阻**；**让过阻仍然正确的是 ③**（allowlist 进程级 ⇒ 非 owner 即便用自己凭据，
+>     打的也是部署方 allowlist 里的主机 = 伸手进部署方网络，SSRF 向）。
+>     🔒 **耦合 CI**：`tests/test_file_catalog_owner_gate.py::test_coupling_gate_exists_implies_rtgate_not_lifted`
+>     —— **行为级**断言「门存在 ⇒ R-T-GATE 未 lift」⇒ 谁去 lift 就撞一条**点名这个门**的红测。
+>   - ⚠️ `/api/admin/catalog` 的 `defaults` 字段已于 v0.9.5 删除（**部分**减暴露）——
+>     但 `current` **仍含 file 层**（owner 侧）且「让它不含」被 v0.7.29b 不变量**禁止**。
+> - ▶ **provisioning 侧新增登记**（v0.9.6）：**禁停用 / 删除起源租户** ——
+>   `resolve_single_tenant()` 只要求恰 1 active、**不要求 `id == OWNER_TENANT_ID`** ⇒ 停用 tenant#1 +
+>   active tenant#2 ⇒ boot 成功而 **file 层对被服务租户静默变空**。v0.9.6 已加启动期 WARN 兜住可诊断性，
+>   但**根治在 provisioning 片**。
 > - ▶ **prompt seed / TOTP rollout 的 `resolve_single_tenant`** → **lift 前**（4 处，非 2 处）。
 > - ▶ **`replicas=1` 运维门** · **`_business_rules` 归正** · **平台审计落点 `platform_audit`** → 各自独立片。
 > - ▶ **lift 本身**（删 `assert_no_second_active_tenant_served` 的唯一调用点）→ **lift 片**，上列全绿才放行。

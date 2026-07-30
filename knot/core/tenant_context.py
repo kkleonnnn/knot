@@ -77,6 +77,29 @@ def current_tenant() -> dict:
     return t
 
 
+#: ⭐ **起源租户 id**（v0.9.6）—— 「多租户之前就存在的那一个」。
+#: **不是任意选的**：`tenant_repo.seed_default_tenant` **硬编 `id=1`** 且只在 `tenants` 空时 seed；
+#: `tenancy_migration` 把 pre-tenancy 的 `knot.db` 搬进 tenant#1 ⇒ 它就是部署方本人。
+#: ⚠️ **`db_dir` 不可用作标识**（生产 `tenants/1` / 测试 `.` = 环境相关）；`slug` 语义上可改名。
+#: ⚠️ 本模块只持「**谁是起源租户**」这个**租户身份事实**；「**file catalog / HTTP 出网归起源租户**」
+#: 是**决定**，写在三个调用点的 docstring 里（`catalog_loaders.load_file_layer` /
+#: `http_planner.pick_http_route` / `adapters/http/executor.execute`）。
+OWNER_TENANT_ID = 1
+
+
+def is_owner_tenant() -> bool:
+    """当前租户是否 = 起源租户（**fail-closed**：无 ctx → `current_tenant()` raise）。
+
+    ⭐ **为什么谓词住在 `core`**：`.importlinter` 的 `adapters-no-business` **禁 `knot.services`**
+    ⇒ 若把它放 `services` 层（如 `catalog_loaders`），`adapters/http/executor` **根本 import 不到**
+    ⇒ `core` 是唯一合法的共享住所（**结构性唯一解，不是取舍**）。
+    ⭐ **严格 int 判定**：`type(tid) is int` —— 接 v0.9.4 的 tid 严格化教训
+    （`True == 1` 且 `1.0 == 1`，宽松比较会把 `True`/`1.0` 当成 owner）。
+    """
+    tid = current_tenant().get("id")
+    return type(tid) is int and tid == OWNER_TENANT_ID
+
+
 def tenant_cache_key(*parts):
     """进程内缓存的统一租户键（v0.9.1 MF4 单一 choke point）：`(current_tenant()["id"], *parts)`。
 

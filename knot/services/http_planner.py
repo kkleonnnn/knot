@@ -109,6 +109,9 @@ def pick_http_route(
 ) -> tuple[str, dict] | None:
     """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained）+ v0.7.22 Layer A intent veto。
 
+    ⭐ v0.9.6 Layer 0：非起源租户不做 HTTP 路由（**软降级** → 优雅落 SQL + 必须记日志，
+    否则就是 v0.7.29b 那种静默落 SQL）。**硬边界在 `adapters/http/executor.execute`** —— 理由见那里。
+
     Layer A（v0.7.22 R-SL-162 · intent 结构信号 · 最先判）：intent ∈ 5 分析类
         {trend,compare,rank,distribution,retention} → return None（走 SQL）。HTTP 当前快照
         物理产不出趋势/排名/分布/留存/对比。必须先于 Layer 3 + Layer 1（lexicon），否则
@@ -127,6 +130,12 @@ def pick_http_route(
     Raises:
         CrossSourceJoinNotSupported: 检测到混源（R-PB2-4 sustained — 真正跨源 JOIN）
     """
+    from knot.core.tenant_context import current_tenant, is_owner_tenant
+    if not is_owner_tenant():   # Layer 0：早于 reload —— 非 owner 连 catalog 都不必重载
+        logger.info(f"[http_route] 非起源租户 → 落 SQL（tenant={current_tenant().get('id')} "
+                    f"q={refined_question[:40]!r}）；硬边界在 executor.execute")
+        return None
+
     catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained
 
     # Layer A（v0.7.22 R-SL-162）— intent 结构信号 veto，必须先于 Layer 3 + Layer 1 lexicon

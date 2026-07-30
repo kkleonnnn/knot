@@ -1,5 +1,9 @@
 """catalog_loaders — catalog 纯加载器（v0.6.5.12 收官③ 从 catalog.py 抽出）。
 
+⚠️ **v0.9.6 起本模块不再是「纯 loader」**：`load_file_layer()` **读租户策略**
+（`core.tenant_context.is_owner_tenant`）—— file 层只归起源租户。改动本模块前先读那个函数的 docstring。
+（Contract 8 `catalog-loaders-pure` 守的是「不得 import 有状态 catalog」，与本条不冲突。）
+
 4 个**纯函数**（无状态；不读/写 catalog 的载体）：从配置文件 / DB / DataSource 推断 / lexicon 合并，
 计算并返 tuple。**v0.9.3 起**返值由 `catalog.reload()` 经 `catalog_state.publish()` **原子发布到当前租户槽**
 （此前是 `global` reassign 塞回 catalog.py 的模块全局 —— 该形态已物理删除，并有静态哨兵禁 `global`）。
@@ -49,6 +53,57 @@ def _load_from_files() -> tuple:
     except Exception:
         pass
     return {}, [], "", [], "empty"
+
+
+def load_file_layer() -> tuple:
+    """⭐ **file 层的唯一 choke point**（v0.9.6 D1）—— `catalog.reload()` 与
+    `get_defaults_from_files()` **都必须经本函数**，不得直呼 `_load_from_files()`。
+
+    **决定**：file 层（= 部署方写的 `_local_catalog.py` / 仓内 `_template_catalog.py`）**只归起源租户**。
+    非起源租户返**完整 empty 五元组** —— **禁半空**：实读 `catalog.reload()` 的五种合并策略里
+    `business_rules = db_rules if db_rules.strip() else f_rules` ⇒ 只清 tables 而留 `f_rules`，
+    **空-DB 的非 owner 仍会拿到部署方业务口径**；`lexicon` 更是**无条件合并**。
+    ⇒ 这条闸闭合的是「空-DB 租户被**零动作**注入部署方表/词典/口径」这条路径。
+
+    ⚠️ **为什么是外层 wrapper 而不是把判据写进 `_load_from_files` 内部**：全仓有 **4 处**测
+    用 `monkeypatch.setattr(<facade>, "_load_from_files", …)` **整个替换**那个函数
+    （`test_catalog_loaders.py:220` / `test_knot_catalog.py:104` /
+    `test_catalog_tenant_isolation.py:241,262`）⇒ 判据若在函数内部，那 4 处**绕过判据**
+    ⇒ owner 路径**零覆盖**。放外层后它们改 patch 源模块，即**升级为判据的 owner 路径守护**。
+    """
+    from knot.core.tenant_context import is_owner_tenant
+    if not is_owner_tenant():
+        return {}, [], "", [], "empty"
+    return _load_from_files()
+
+
+def warn_if_owner_tenant_not_served() -> None:
+    """启动期钩子：**被服务的租户不是起源租户**时响亮告警（G14 的静默失败）。
+
+    ⚠️ **为什么需要它**：`tenant_repo.resolve_single_tenant()` 只要求 **恰 1 个 active**、
+    **不要求 `id == OWNER_TENANT_ID`**（实读）⇒ 停用 tenant#1 + active tenant#2 ⇒ **boot 成功**，
+    而 owner-gate 下 **file 层对被服务的那个租户静默消失**（表/词典/口径/relations 全空）
+    ⇒ 部署方自己的 catalog 没了却**没有任何声音**。
+    ⇒ 照 v0.9.5 `platform_admin.warn_if_noncompliant` 的范式：**只在异常情形告警**，正常静默。
+
+    ⚠️ 无 active 租户 / >1 active（R-T-GATE）时 `resolve_single_tenant()` 自己 raise ——
+    本函数**吞掉**那种情况（不是本函数要诊断的事，且启动序另有处理）。
+    ⚠️ 消息只含租户 id 与后果，**不含**部署方表名 / env 名（#262 纪律）。
+    """
+    from knot.core.logging_setup import logger
+    from knot.core.tenant_context import OWNER_TENANT_ID
+    from knot.repositories import tenant_repo
+    try:
+        served = tenant_repo.resolve_single_tenant()
+    except Exception:
+        return                      # 0 / >1 active：启动序另有处理，不是本函数的诊断面
+    tid = served.get("id")
+    if tid != OWNER_TENANT_ID:
+        logger.warning(
+            f"[catalog] 被服务的租户 id={tid} **不是起源租户**（{OWNER_TENANT_ID}）⇒ "
+            f"file 层 catalog 对它为空（表/词典/业务口径/relations 全空）、HTTP 路由被门挡住。"
+            f"若这不是预期：起源租户可能被停用/删除 —— 见 CLAUDE.md R-T-GATE 就绪清单。"
+        )
 
 
 def _load_from_db() -> tuple:

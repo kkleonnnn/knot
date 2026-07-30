@@ -236,10 +236,13 @@ def test_file_http_tables_survive_in_slot(two_tenants, monkeypatch):
     """
     http_tbl = {"db": "ext", "table": "live_api", "columns": [],
                 "source_type": "http", "http_spec": {"url_template": "https://x/y", "method": "GET"}}
-    # 注意 patch 的是 **catalog** 上的名字：catalog.py:22 用 from-import 绑了 `_load_from_files`，
-    # patch 源模块 catalog_loaders 不影响已绑引用（本仓哨兵①禁的正是这类值绑，此处是函数版）。
+    # v0.9.6 D1：改 patch **源模块** —— `reload()` 现在经 `load_file_layer()` wrapper（owner 判据落点），
+    # wrapper 调的是模块局部 `_load_from_files` ⇒ 旧写法（patch facade `catalog`）已无效。
+    # ⭐ 迁移后本测**额外守住判据的 owner 路径**：本测跑在 `_in(1, …)` = owner
+    # ⇒ 若判据误挡 tenant#1，本测立刻转红。
+    from knot.services.agents import catalog_loaders
     monkeypatch.setattr(
-        catalog, "_load_from_files",
+        catalog_loaders, "_load_from_files",
         lambda: ({"实时": ["ext.live_api"]}, [http_tbl], "file-rules", [], "real"),
     )
     catalog_state.invalidate_all()
@@ -259,8 +262,12 @@ def test_slot_producer_is_full_pipeline_not_db_only(two_tenants, monkeypatch):
     """⭐ Stage 4 看点 2 第二个接缝：DB `catalog#1` 的 business_rules **置空**而 file 非空时，
     ctx-free 读者仍须拿到 **file 规则**（`_parse_catalog_content` 造槽会给出 ""）。"""
     from knot.repositories import catalog_repo
+
+    # v0.9.6 D1：同上 —— patch 源模块（wrapper 内部调模块局部名）；本测同样跑在 owner 下
+    # ⇒ 兼作判据的 owner 路径守护。
+    from knot.services.agents import catalog_loaders
     monkeypatch.setattr(
-        catalog, "_load_from_files",
+        catalog_loaders, "_load_from_files",
         lambda: ({}, [], "【file 层业务规则】", [], "real"),
     )
     catalog_state.invalidate_all()
