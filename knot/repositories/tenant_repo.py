@@ -33,10 +33,26 @@ def get_platform_conn() -> sqlite3.Connection:
     return conn
 
 
+def _run_platform_migrations(conn) -> None:
+    """平台库 additive 迁移（**本仓第一条** —— v0.9.7）。
+
+    ⚠️ **为什么必须有这个函数**：`platform_schema.sql` 只有 `CREATE TABLE IF NOT EXISTS`
+    ⇒ 对**已存在**的 `platform.db`，往 schema 里加列是**完全无效**的（executescript 直接 no-op）。
+    此前平台库从未加过列，故一直没暴露；v0.9.7 是第一次。
+    范式照租户库 `repositories/migrations.py`（18 处先例）：幂等 `PRAGMA table_info` → `ALTER TABLE ADD COLUMN`。
+    """
+    # v0.9.7 B-3 ③: tenants.allowed_http_hosts —— per-tenant egress allowlist（部署方控制）。
+    # 新库由 platform_schema.sql 的 CREATE 直接带上；本 ALTER 兜住存量库。三态语义见该文件注释。
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()}
+    if "allowed_http_hosts" not in cols:
+        conn.execute("ALTER TABLE tenants ADD COLUMN allowed_http_hosts TEXT")
+
+
 def init_platform_db() -> None:
-    """建 platform.db + executescript(platform schema)（幂等 · IF NOT EXISTS）。"""
+    """建 platform.db + executescript(platform schema) + additive 迁移（幂等 · IF NOT EXISTS）。"""
     conn = get_platform_conn()
     conn.executescript(_PLATFORM_SCHEMA)
+    _run_platform_migrations(conn)      # v0.9.7：executescript 后 —— 存量库加列的唯一途径
     conn.commit()
     conn.close()
 
