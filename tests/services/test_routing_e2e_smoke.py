@@ -53,7 +53,8 @@ def test_e2e_bug2_history_position_routes_sql_not_http(monkeypatch):
                           relations=[], field_labels={}, source="mock")
     monkeypatch.setattr(catalog_loader, "is_http_table", lambda t: t in http_tables)
     monkeypatch.setattr(catalog_loader, "get_http_spec",
-                        lambda t: {"url_template": "x", "method": "GET"} if t in http_tables else None)
+                        lambda t: {"url_template": "x", "method": "GET", "source_id": 3}
+                        if t in http_tables else None)   # v0.9.7 B-3 ②：需绑数据源方成有效 spec
 
     # 历史持仓 → SQL（不走 HTTP 当前持仓表）
     assert http_planner.pick_http_route("用户 1000260 历史持仓") is None
@@ -97,7 +98,8 @@ def test_e2e_full_routing_decision_chain(monkeypatch):
                           relations=[], field_labels={}, source="mock")
     monkeypatch.setattr(catalog_loader, "is_http_table", lambda t: t in http_tables)
     monkeypatch.setattr(catalog_loader, "get_http_spec",
-                        lambda t: {"url_template": "x", "method": "GET"} if t in http_tables else None)
+                        lambda t: {"url_template": "x", "method": "GET", "source_id": 3}
+                        if t in http_tables else None)   # v0.9.7 B-3 ②：需绑数据源方成有效 spec
 
     # Layer 1：当前持仓 → HTTP
     assert http_planner.pick_http_route("平台 BTC 当前持仓") is not None

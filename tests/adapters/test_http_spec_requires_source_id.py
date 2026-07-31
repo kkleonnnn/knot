@@ -94,6 +94,132 @@ def test_execute_refuses_spec_without_resolved_base_url(spec, why, no_network, m
         assert bad not in msg, f"拒绝消息泄漏 {bad!r}：{msg!r}（#262 那条缝：str(e) 会被 yield 给客户端）"
 
 
+# ─── 决策处：软降级（must #5 决策那半 + must #6）────────────────────────
+
+
+_TABLE = "probe_api.things"
+_KEYWORD = "探针表"
+
+
+def _write_http_table(spec: dict):
+    """把一张 http 虚拟表写进**当前租户库的 catalog** 再 reload —— 复用 v0.9.6 既有范式。
+
+    ⚠️ **不能 monkeypatch `catalog.LEXICON`**（实施期实测踩到）：v0.9.3 起 catalog 的载体是
+    **per-tenant 槽 + PEP 562 模块 `__getattr__` 代理** ⇒ `monkeypatch.setattr` 会先**读**旧值
+    以便事后还原，那次读就会触发 `get_state()` 的冷槽 lazy reload ⇒ 在没有真实库的环境里直接崩。
+    ⇒ 走真实写入路径（`catalog_repo.update_catalog` + `catalog.reload`），
+    与 `tests/test_file_catalog_owner_gate.py::_write_evil` 同一范式。
+    """
+    import json
+
+    from knot.repositories import catalog_repo, data_source_repo
+    from knot.services.agents import catalog as cat
+    from knot.services.agents import catalog_state
+
+    # ⚠️ **必须先种一条数据源**（v0.9.6 同款陷阱，实施期再次踩到）：
+    # `catalog_loaders._infer_source_types_from_datasources` 有 **ε2 fail-fast**
+    # 「DataSource 表为空 → 中止推断」⇒ `reload` 内部降级 ⇒ **http 表进不了槽**
+    # ⇒ `pick_http_route` 在 Layer 1「no match」就返 None ⇒ 测**通过，但理由是错的**
+    # （门根本没被走到）。是本文件的日志断言把这个假绿抓出来的 —— 只断 `is None` 会漏。
+    if not data_source_repo.list_datasources():
+        data_source_repo.create_datasource(
+            1, "probe-doris", "探针用 doris 源（只为过 ε2 fail-fast）",
+            "h", 9030, "u", "p", "d", db_type="doris")
+
+    db, table = _TABLE.split(".")
+    catalog_repo.update_catalog(
+        1,
+        tables=json.dumps([{"db": db, "table": table, "columns": [],
+                            "source_type": "http", "http_spec": spec}], ensure_ascii=False),
+        lexicon=json.dumps({_KEYWORD: [_TABLE]}, ensure_ascii=False),
+    )
+    catalog_state.invalidate_all()
+    cat.reload(strict=False)
+    assert cat.is_http_table(_TABLE), "前提：表确实进了槽（否则本测在验一个不存在的问题）"
+
+
+def _capture_planner_logs(monkeypatch) -> list:
+    """捕获 `http_planner` 的日志 —— **必须 monkeypatch loguru，不能用 `caplog`**。
+
+    ⚠️ 实施期实测踩到：`http_planner` 用 **loguru** 的 `logger`，它**不向 stdlib logging 传播**
+    ⇒ `caplog.records` 恒为空 ⇒ 「必须记日志」这条断言会**因为捕不到而红**（而不是因为没记）。
+    （对比：`adapters/http/url_allowlist` 用 stdlib `logging` ⇒ 那边 `caplog` 有效。
+    同一个仓里两种日志栈，断日志前先看清是哪种。）
+    本 helper 沿用 v0.9.6 `test_soft_degradation_logs` 的既有范式。
+    """
+    from knot.services import http_planner
+
+    seen: list = []
+    monkeypatch.setattr(http_planner.logger, "info", lambda m, *a, **k: seen.append(str(m)))
+    return seen
+
+
+@pytest.mark.parametrize("spec,why", [
+    ({"method": "GET", "url_template": "{base_url}/x"}, "无 source_id（退役的 env / 裸形态）"),
+    ({"method": "GET", "url_template": "{base_url}/x",
+      "base_url": "https://attacker.example.com"}, "直填 base_url 但无 source_id（零校验 PUT 写入的形态）"),
+    ({"method": "GET", "url_template": "{base_url}/x", "source_id": 0}, "source_id 为 0（假值）"),
+])
+def test_pick_http_route_soft_degrades_without_source_id(spec, why, tmp_db_path, monkeypatch):
+    """⭐ must #5（决策处那半）+ must #6：无 `source_id` ⇒ **返 None 且必须记日志**。
+
+    第二格是 must #6 的实质：`PUT /api/admin/catalog` **零校验** ⇒ 租户 admin 能直填任意
+    `base_url`，**绕过写侧 egress 门**（`datasources.py` 那道 400）。若决策处放它过去，
+    ③ 的正确性前提「base_url 只能来自过了门的数据源行」就没了。
+
+    ⚠️ **必须断日志**：只断 `is None` 的话，「静默落 SQL」也算通过 —— 那正是 v0.7.29b 的形状
+    （用户只看到答案变了，运维查不出为什么）。R-v097-10。
+    取材=revert：删掉 `if not spec.get("source_id")` 整块 → 本测三格全红（返回了 route）。
+    """
+    from knot.services import http_planner
+
+    _write_http_table(spec)
+    seen = _capture_planner_logs(monkeypatch)
+    route = http_planner.pick_http_route(f"{_KEYWORD} 现在怎么样")
+
+    assert route is None, (
+        f"spec（{why}）**被路由到 HTTP 了**：{route}\n"
+        "⇒ 决策处没拦住「未绑本租户数据源」的 spec。凭据/base_url 会来自 catalog 而非数据源行，\n"
+        "  即绕过写侧 egress 门（③ 的前提）与 per-tenant 凭据（②）。"
+    )
+    text = "\n".join(seen)
+    assert "source_id" in text and "落 SQL" in text, (
+        f"降级了但**没记日志** ⇒ 这就是 v0.7.29b 的「HTTP 查询静默落 SQL」形状：\n{text!r}"
+    )
+
+
+def test_soft_degradation_log_does_not_leak_spec_values(tmp_db_path, monkeypatch):
+    """降级日志只报 spec 的**键名**，不报值 —— 值可能含直填凭据（#262 同族）。
+
+    取材=revert：把日志里的 `sorted(spec)` 换成 `spec` → 本测红。
+    """
+    from knot.services import http_planner
+
+    secret = "Bearer SPEC-INLINE-SECRET-77"
+    _write_http_table({"method": "GET", "url_template": "{base_url}/x", "auth_value": secret})
+    seen = _capture_planner_logs(monkeypatch)
+    http_planner.pick_http_route(f"{_KEYWORD} 现在怎么样")
+
+    text = "\n".join(seen)
+    assert secret not in text, f"降级日志泄漏了 spec 里的凭据值：{text!r}"
+    assert "auth_value" in text, f"应报键名以便诊断（只是不报值）：{text!r}"
+
+
+def test_resolve_spec_stays_a_pure_resolver(monkeypatch):
+    """`resolve_spec` 无 `source_id` 时**原样返回、不抛** —— 它是纯解析器，不是门。
+
+    为什么要钉住「不抛」：门有两处（决策处软降级 / 能力处硬边界）。在中间层再加一道，
+    会让「哪一层负责拒绝」变模糊，且 `run_http_step` 的直呼者拿到的错误类型会随实现漂移。
+    ⚠️ 但**必须**保证它不注入 base_url ⇒ 下游能力处才拦得住。
+    """
+    from knot.services.http_planner import resolve_spec
+
+    spec = {"method": "GET", "url_template": "{base_url}/x", "base_url_env": "WHATEVER"}
+    out = resolve_spec(dict(spec))
+    assert out == spec, f"纯解析器不应改写无 source_id 的 spec：{out}"
+    assert not out.get("base_url"), "不得凭空注入 base_url —— 否则能力处的硬边界就被绕过了"
+
+
 def test_executor_does_not_read_process_env_at_all():
     """⭐ 结构哨兵：`adapters/http/executor.py` **零 env 读取**（AST，标识符级）。
 

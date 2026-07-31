@@ -22,7 +22,12 @@ _MOCK_LEXICON = {
     "历史持仓": ["ohx_dwd.dwd_user_position_history"],
 }
 _HTTP_TABLES = {"futures_admin.futures_position_list", "futures_admin.futures_user_pending"}
-_MOCK_SPEC = {"url_template": "https://admin.example/api/v1/position/list", "method": "GET"}
+# v0.9.7 B-3 ②：mock spec 必须带 `source_id` —— `pick_http_route` 现在会把**未绑本租户数据源**的
+# spec 软降级落 SQL。本文件测的是**路由层逻辑**（Layer A/1/3），不是凭据绑定
+# ⇒ 这里补的是「让 mock 成为一个**有效** spec」，不是把新守护改绿；
+# 「无 source_id 会被降级」本身由 `tests/adapters/test_http_spec_requires_source_id.py` 专门守。
+_MOCK_SPEC = {"url_template": "https://admin.example/api/v1/position/list", "method": "GET",
+              "source_id": 3}
 
 
 def _mock_catalog(monkeypatch):

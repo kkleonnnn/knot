@@ -200,6 +200,15 @@ def pick_http_route(
             f"http_tables={sorted(matched_http_tables)}",
         )
         return None
+    # ⭐ v0.9.7 B-3 ②：spec 必须绑**本租户**数据源（`source_id`），否则**软降级落 SQL + 记日志**
+    # （不记 = v0.7.29b 那种「静默落 SQL」）。硬边界在 `executor.execute`；本处只是优雅降级。
+    # 拦两种残留形态：① 退役的 env 引用 ② 零校验 `PUT /api/admin/catalog` 直填的 base_url。
+    if not spec.get("source_id"):
+        logger.info(
+            f"[http_route] spec 未绑租户数据源（无 source_id）→ 落 SQL: table={selected!r} "
+            f"spec_keys={sorted(spec)}"          # 只报**键名**，绝不报值（可能含凭据 — #262）
+        )
+        return None
     return selected, spec
 
 
@@ -409,17 +418,24 @@ def apply_field_mapping(rows: list[dict], mapping: dict) -> list[dict]:
 
 
 def resolve_spec(catalog_spec: dict) -> dict:
-    """v0.6.1.4 OVERRIDE #4: 解析 catalog http_spec，把 source_id 引用注入为直填值。
+    """解析 catalog `http_spec`：用 `source_id` 从**本租户库**取凭据，注入为已解析值。
 
-    模式 A (env 引用 — v0.6.1.4 backward compat): spec 含 base_url_env/auth_*_env → 透传给 executor 用 env 路径
-    模式 B (source_id 引用 — v0.6.1.4 first-class): spec 含 source_id → 查 datasource → 注入直填 base_url/auth_*
+    v0.9.7 B-3 ②起**只有一条路**：`source_id` → `data_sources` 行（Fernet 解密 `http_config`）
+    → 注入 `base_url` / `auth_header` / `auth_value`。
+    ⛔ 已退役：「env 引用」形态（`base_url_env` / `auth_*_env`）—— 读进程 env = **租户盲**
+    ⇒ 跨租户数据出境。零真实生产者（详 `docs/plans/v0.9.7-*.md` §0.1）。
+
+    ⚠️ **本函数刻意不设门**（纯解析器）：门在**决策处** `pick_http_route`（无 source_id → 软降级
+    落 SQL + 记日志）与**能力处** `executor.execute`（无已解析 base_url → HTTPAuthError，唯一出网点）。
+    在中间层再加一道 = 门既不在决策也不在能力（v0.9.6 统一诊断：门装在能力被行使的那一行）。
 
     Returns: ready spec for executor.execute()
 
     Raises: HTTPAdapterError 数据源不存在 / 类型错误 / http_config 无法解析
     """
     if "source_id" not in catalog_spec:
-        return dict(catalog_spec)  # 无 source_id → env 路径透传
+        # 原样返回（不含 base_url）⇒ 能力处的硬边界会拒。见上「刻意不做门」。
+        return dict(catalog_spec)
 
     import json as _json
 
@@ -442,7 +458,10 @@ def resolve_spec(catalog_spec: dict) -> dict:
     except _json.JSONDecodeError as e:
         raise HTTPAdapterError(f"数据源 id={source_id} http_config 非合法 JSON: {e}") from e
 
-    # 合并：catalog spec 字段优先，datasource 兜底
+    # **datasource 无条件覆盖** catalog spec 的凭据字段。⚠️ v0.9.7 订正：原注释写「catalog spec
+    # 优先，datasource 兜底」**与代码相反**。方向是**承重的** —— catalog 可由零校验的
+    # `PUT /api/admin/catalog` 写入；若 catalog 优先，租户 admin 便能直填任意 base_url/凭据绕过
+    # 写侧 egress 门（③ 的正确性依赖「base_url 只能来自过了门的数据源行」）。**别改回去。**
     ready = dict(catalog_spec)
     ready["base_url"] = http_cfg.get("base_url", "")
     ready["auth_header"] = http_cfg.get("auth_header", "")
