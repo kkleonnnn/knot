@@ -410,29 +410,46 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 >   平台面 out-of-band 平行认证路径 + `PLATFORM_SECRET` 策略类 + 死 `defaults` 字段已删）。
 >   ⚠️ 但 v0.9.5 **刻意零平台写操作**（E2）⇒ **平台侧审计仍无落点** ⇒ **R-10 audit-on-drift 未解开**。
 > - ▶ **`db_dir` UNIQUE + 格式约束** → **provisioning 片**（非 v0.9.5）。
-> - **B-3 三项**（per-tenant file catalog / per-tenant `http_spec` 凭据 / egress 租户域化）：
->   - ✅ **① per-tenant file catalog = v0.9.6 已闭合**（owner-gate）：`catalog_loaders.load_file_layer()`
+> - ✅✅ **B-3 三项 = 全部闭合**（① v0.9.6 · **②③ v0.9.7**）：
+>   - ✅ **① per-tenant file catalog（v0.9.6 owner-gate）**：`catalog_loaders.load_file_layer()`
 >     单一 choke point —— 非**起源租户**（`core.tenant_context.OWNER_TENANT_ID` / `is_owner_tenant()`）
 >     返**完整 empty 五元组**（**禁半空**：`business_rules` 仅空库才 fallback ⇒ 半空会继续泄漏部署方口径）。
->     闭合的是「**空-DB 租户被零动作注入部署方表/词典/口径**」这条路径。
->   - ⚠️⚠️ **② per-tenant `http_spec` 凭据 与 ③ egress 租户域化 仍是 lift blocker —— 未修**。
->     v0.9.6 只加了一道**代偿控制**：`adapters/http/executor.execute` **内**的 owner 硬边界
->     （非 owner → `HTTPAuthError`）+ `pick_http_route` Layer 0 软降级（返 None + 日志）。
->     ⛔ **门是代偿控制、不是修复**；**只有 ②③ 都落地才可移除它** —— ② 落地后最自然的动作是
->     「现在非 owner 可以用 HTTP 了」，但那时 ③ 若还开着，过阻的正当性没了而门也没了。**别单独摘。**
->     ⚠️ **准确定性**（v0.9.6 实读）：② 只讲「无 `source_id` 的 **env 路径**」——`source_id` 路径的凭据
->     来自**租户自己的库**（`resolve_spec` → `get_datasource` → `get_conn`）⇒ 那条本已 per-tenant，
->     门对它是**过阻**；**让过阻仍然正确的是 ③**（allowlist 进程级 ⇒ 非 owner 即便用自己凭据，
->     打的也是部署方 allowlist 里的主机 = 伸手进部署方网络，SSRF 向）。
->     🔒 **耦合 CI**：`tests/test_file_catalog_owner_gate.py::test_coupling_gate_exists_implies_rtgate_not_lifted`
->     —— **行为级**断言「门存在 ⇒ R-T-GATE 未 lift」⇒ 谁去 lift 就撞一条**点名这个门**的红测。
+>     闭合「空-DB 租户被零动作注入部署方表/词典/口径」。**本项仍在生效，未随 ②③ 摘除。**
+>   - ✅ **② per-tenant `http_spec` 凭据（v0.9.7）**：`executor.execute` 的 env 模式**物理删除**
+>     （`base_url_env` / `auth_*_env` + `import os` 一并删；配 AST 哨兵禁该适配器再读进程 env）。
+>     凭据一律经 spec 的 `source_id` → **本租户库** `data_sources`（Fernet）。能力处**两道独立**硬边界
+>     （无 `source_id` / 数据源无地址，消息可区分）；决策处 `pick_http_route` 软降级落 SQL **+ 记日志**；
+>     `resolve_spec` 未绑定时**剥掉** `base_url`/`auth_*`（那些值来自零校验 `PUT`、明文存在 catalog 里）。
+>   - ✅ **③ egress 租户域化（v0.9.7）**：allowlist 从进程 env 改读 **`tenants.allowed_http_hosts`**
+>     （平台库新列 + 本仓**第一条平台迁移**）。**三态语义，判据必须 `is None`**：
+>     `NULL`=未配置（起源租户回退 env + 启动 WARN）/ `''`=**部署方明确的「禁」**（不回退）/ 非空=该集合。
+>     **永不与 env 或其他租户取交集/并集**（取交集是反向的：为给客租户开权会同时放宽起源租户）。
+>     载体选「`tenants` 的一列」而非独立表/hook/参数：`get_tenant` / `list_active_tenants` **都是 `SELECT *`**
+>     ⇒ 加列自动进 tenant ctx ⇒ 能力处（adapters）只读 `core.tenant_context` 即可，**零分层例外**
+>     （`adapters-no-business` 禁 adapters → repositories）。
+>   - 🗑 **v0.9.6 的两道代偿门已随 ②③ 摘除**（`executor.execute` 的 owner 硬边界 + `pick_http_route`
+>     Layer 0）—— 它们的注释原文就写着「只有 ②③ 都落地才可移除…别单独摘」。
+>     ⇒ **按租户区分的不再是「是不是起源租户」，而是「凭据是不是自己的」+「主机是不是自己 allowlist 里的」。**
+>     配正对照测（非起源租户配了自己的 allowlist ⇒ 请求真的发出）防「拦住所有人」式假通过。
+>   - 🔒 **原耦合 CI 已转向**：`test_coupling_gate_exists_implies_rtgate_not_lifted` →
+>     **`test_rtgate_still_locks_second_tenant`**（断言仍是**行为级**：两 active 租户 ⇒ 请求 fail-closed；
+>     消息改列**剩余** blocker）。⚠️ 实测坐实它「摘门后**不会红、会静默变绿而理由变假**」——
+>     它的断言纯行为级、代码里不引用那道门 ⇒ **这类测最危险的失效形态不是转红，是继续绿着但守的已经不是原来那件事。**
 >   - ⚠️ `/api/admin/catalog` 的 `defaults` 字段已于 v0.9.5 删除（**部分**减暴露）——
 >     但 `current` **仍含 file 层**（owner 侧）且「让它不含」被 v0.7.29b 不变量**禁止**。
+>   - ⚠️ **v0.9.7 顺带修一个既有安全缺陷**：egress 拒绝消息把 `sorted(allowed)` = **整份 allowlist**
+>     插进异常，经 `run_http_step` → `result["error"]` → `api/query.py` **原样 yield** → SSE
+>     ⇒ 租户 admin 可读出部署方内网主机清单（**与 #262 同类**）。已收敛（诊断进日志且**连条目数都不记** ——
+>     它在污点传播上仍是 env 派生，被 #262 的 AST 哨兵实测拦下）。
 > - ▶ **provisioning 侧新增登记**（v0.9.6）：**禁停用 / 删除起源租户** ——
 >   `resolve_single_tenant()` 只要求恰 1 active、**不要求 `id == OWNER_TENANT_ID`** ⇒ 停用 tenant#1 +
 >   active tenant#2 ⇒ boot 成功而 **file 层对被服务租户静默变空**。v0.9.6 已加启动期 WARN 兜住可诊断性，
 >   但**根治在 provisioning 片**。
-> - ▶ **prompt seed / TOTP rollout 的 `resolve_single_tenant`** → **lift 前**（4 处，非 2 处）。
+> - ▶ **provisioning 侧新增登记（v0.9.7 · M5 阻断项）**：**开通租户时必须显式配 `allowed_http_hosts`**。
+>   该列**没有任何写端点**（v0.9.5 E2 刻意零平台写操作）⇒ 唯一配置途径是运维直接 `UPDATE platform.db`
+>   （SQL 原文见 DEPLOY.md「多租户运维门」）。**漏配 ⇒ 该租户 HTTP 数据源全部静默拒绝**
+>   —— fail-closed 正确，但**与 bug 不可区分** ⇒ 与「禁停用/删除起源租户」**同族，写在一起**。
+> - ▶ **启动/请求期残留的 `resolve_single_tenant`** → **lift 前**。⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 **95/166**，且**第三处** `main.py:245`（audit purge 后台任务）**从未登记**）⇒ 按**符号 + 文件**记：`main.py` **3 处**（prompt seed / TOTP rollout / audit purge）+ `auth.py`（登录无 slug 回退）+ `tenant_resolution.py`（无 tid 回退）= **生产 5 处**；另 CLI 脚本 3 处已支持 `--tenant`（非阻塞）。
 > - ▶ **`replicas=1` 运维门** · **`_business_rules` 归正** · **平台审计落点 `platform_audit`** → 各自独立片。
 > - ▶ **lift 本身**（删 `assert_no_second_active_tenant_served` 的唯一调用点）→ **lift 片**，上列全绿才放行。
 > **v0.9.4 新增 5 项**：① **登录 `company` 改必填**（现未带则回退唯一 active 租户 —— 仅在本 gate 锁死

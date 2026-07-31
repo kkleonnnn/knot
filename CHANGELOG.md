@@ -5,7 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.6 — file catalog owner-gate（B-3 ① · 隔离栈第六刀 · 数据面）
+## [Unreleased] - v0.9.7 — HTTP per-tenant 凭据 + egress 租户域化（B-3 ②③ · 隔离栈第七刀）
+
+> v0.9 多租户 MINOR 第八个 PATCH。**B-3 三项至此全闭合**（① v0.9.6 file catalog · ②③ 本片）。
+> 切的是**出境面**：HTTP 数据源的**凭据**与**出网白名单**此前都取自**进程 env** = 租户盲。
+> **定性：R-T-GATE 仍硬锁第二 active 租户 ⇒ 今日线上无 live 泄漏**；本片闭合的是 **lift 后立即成真**的两条。
+
+### Added
+- **`tenants.allowed_http_hosts` 列 + 本仓第一条平台迁移**（`tenant_repo._run_platform_migrations`）。
+  `platform_schema.sql` 只有 `CREATE TABLE IF NOT EXISTS` ⇒ 对**已存在**的 platform.db 加列**完全无效**
+  —— 平台库此前从未加过列，这个盲区一直没暴露，而存量库正是内测服那台。范式照租户库 `migrations.py`（18 处先例）。
+- **per-tenant egress allowlist 解析**（`url_allowlist.resolve_allowed_hosts`）：三态语义
+  `NULL`=未配置（起源租户回退 env + 启动期 WARN）/ `''`=**已配置为空**（部署方明确的「禁」，**不回退**）/
+  非空=该集合。**永不与 env 或其他租户取交集/并集**（取交集是反向的：为给客租户开权会同时放宽起源租户）。
+- 正对照守护：非起源租户把 host 配进**自己的** allowlist ⇒ 请求**真的发出**
+  （否则「拦住所有人」也能让测通过 = 把功能删掉）。
+
+### Changed
+- **凭据一律经 `source_id`**：`executor.execute` 删掉「模式 B（env 引用）」共 42 行，并加**两道独立**硬边界
+  （无 `source_id` / 数据源无地址，消息可区分）；`base.py` TypedDict 删 3 个 env 字段 + 声明 `source_id`；
+  `resolve_spec` 在未绑定时**剥掉** `base_url`/`auth_*`（那些值来自零校验 `PUT`、是**明文存在 catalog 里的**）；
+  `pick_http_route` 对无 `source_id` 的 spec **软降级落 SQL + 记日志**（不记 = v0.7.29b 静默落 SQL）。
+- **摘除 v0.9.6 的 owner 门与 Layer 0** —— 它们是 ②③ 未落地期间的**代偿控制**，其注释明写
+  「只有 ②③ 都落地才可移除…别单独摘」。⇒ 按租户区分的不再是「是不是起源租户」，
+  而是「凭据是不是自己的」+「主机是不是自己 allowlist 里的」。摘门排在**最后一个 commit**
+  ⇒ 前面每步安全性单调不降；且摘门**在生产上不可观测**（R-T-GATE 仍锁第二租户）。
+- 文档缺陷两处订正：`resolve_spec` 注释「catalog spec 优先，datasource 兜底」**与代码相反**
+  （代码从来是 datasource 无条件覆盖 —— 方向承重，别改回去）· `url_allowlist` 的
+  「R-PB2-3 启动 fail-fast」**从未实现**（实为首次查询时 fail），且 per-tenant 后
+  **启动期只解析一个租户 ⇒ 对未被解析的租户做启动校验结构上不可能 ⇒ 实现它才是错的**。
+
+### Fixed
+- **既有安全缺陷**：egress 拒绝消息把 `sorted(allowed)` = **整份 allowlist** 插进异常，
+  而该异常经 `run_http_step` → `result["error"]` → `api/query.py` **原样 yield** → SSE
+  ⇒ 租户 admin 可读出**部署方内网 API 主机清单** = `KNOT_HTTP_ALLOWED_HOSTS` 的 env **值**进了响应
+  = **与 #262 完全同类**。修：客户端消息只回显调用方自己给的 host，诊断进日志且**只记来源机制**
+  （连**条目数**都不记 —— 它在污点传播上仍是 env 派生，被 #262 的 AST 哨兵实测拦下；
+  选「不打」而非加 `_ALLOWED` 例外，因为例外按变量名放行会弱化哨兵）。
+
+### 协议留痕（⚠️ 须记）
+- **本片跳过 Stage 2 不是 R-LP-v3-EX-1 授权的** —— 该例外要求「0 行业务代码 + 纯方向决策」，
+  本片是代码落地 ⇒ **不适用**。这是**资深架构师因额度所做的例外决定**；守护者按
+  「守护者 + 等效初审」双职加倍对抗补偿，并**不计入 R-LP-v3-EX-1 的 ≥3 次滥用计数**（未引用该条款）。
+- **跨片兑现**：v0.9.5 `tenant_repo._PUBLIC_COLS` 的注释原文点名的**就是本片这条路线**
+  （「B-3 已排期给平台层加 per-tenant `http_spec` 凭据 ⇒ 那时 `SELECT *` 会自动把新列吐进 HTTP 响应。
+  这是已登记的路线，不是假设风险」）⇒ 新列的泄漏面**被上一片预先挡住了**（显式投影 + `TenantPublic` 两道）。
+
+### 运维须知（⚠️ 唯一配置途径）
+- 新列**没有任何写端点**（v0.9.5 E2 刻意零平台写操作，provisioning 片未做）⇒ 配置某租户的出网白名单
+  **唯一途径是直接 `UPDATE platform.db`**，SQL 原文见 `DEPLOY.md`「多租户运维门」。
+- ⚠️ **开通新租户时若漏配该列 ⇒ 该租户 HTTP 数据源全部静默拒绝**（fail-closed 正确，
+  但**与 bug 不可区分**）—— 已登记为 provisioning 片的**阻断项**，与「禁停用/删除起源租户」同族。
+
+## [Released] - v0.9.6 — file catalog owner-gate（B-3 ① · 隔离栈第六刀 · 数据面）
 
 > v0.9 多租户 MINOR 第七个 PATCH。切**数据面**：file 层 catalog（部署方写的 `_local_catalog.py`）
 > 此前是**进程级、租户无关**的 ⇒ **每个**租户的槽都被注入部署方的真实业务表/词典/口径。
