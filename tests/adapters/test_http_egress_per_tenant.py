@@ -259,6 +259,134 @@ def test_warn_is_silent_when_column_configured():
     assert not records, f"列已配置却仍 WARN：{[r.getMessage() for r in records]}"
 
 
+# ─── 永不取并集（must #9 · R-v097-4）──────────────────────────────────
+
+
+def test_never_unions_across_tenants(monkeypatch):
+    """⭐ must #9 / R-v097-4：两租户的 allowlist **互不可见** —— 既不取并集也不取交集。
+
+    为什么这条要单独存在（参数化测里已有一格顺带守了）：**「顺手 union」是个很自然的重构** ——
+    「起源租户的 env 是部署方给的底线，所有租户都该能访问吧？」听起来合理，实则反了：
+    env 是**起源租户自己的** allowlist，把它并进客租户 = 客租户获得部署方内网可达权（本片要治的病）；
+    反过来把客租户的列并进 env 侧 = **为给客租户开权而放宽起源租户**（守护者确认「交集是反向的」）。
+    取材=injection：把 `resolve_allowed_hosts` 的 column 分支改成
+    `_parse(raw) | _parse(os.environ.get(ENV_NAME, ""))` → 本测红。
+    """
+    owner_only = "owner-only.corp.local"
+    guest_only = "guest-only.corp.local"
+    monkeypatch.setenv(_ENV, owner_only)
+
+    tok = _ctx(2, **{ua.COLUMN_NAME: guest_only})       # 非起源租户：只配了自己的
+    try:
+        guest = ua.get_allowed_hosts()
+    finally:
+        reset_active_tenant(tok)
+    tok = _ctx(1)                                        # 起源租户：未配置 ⇒ 回退 env
+    try:
+        owner = ua.get_allowed_hosts()
+    finally:
+        reset_active_tenant(tok)
+
+    assert guest == {guest_only}, f"客租户看见了不属于它的 host：{sorted(guest)}"
+    assert owner == {owner_only}, f"起源租户的集合被污染：{sorted(owner)}"
+    assert not (guest & owner), f"两租户 allowlist 出现交集：{sorted(guest & owner)}"
+
+
+# ─── 写侧 + 探测侧（must #7 / #8 · D6 —— 经同一 choke point 自动跟随，但必须实证）──
+
+#: 与生产调用点分工：**端点 → `_assert_http_base_url_allowed` 的接线**已由
+#: `tests/integration/test_closeout_19b.py:25`（v0.8.20 F4）覆盖（env 口径的 400）。
+#: 本节补的是**「同一个 host 在不同租户下结果相反」**这一层 —— 那是 v0.9.7 新引入的性质。
+
+
+def _http_source(base_url: str) -> dict:
+    import json
+    return {"db_type": "http", "http_config": json.dumps({"base_url": base_url})}
+
+
+def test_write_side_is_per_tenant(monkeypatch):
+    """⭐ must #7 / D6：写侧（存数据源前的校验）**同一 host、两租户、结果相反**。
+
+    `datasources._assert_http_base_url_allowed` 经 `is_url_allowed` → `get_allowed_hosts`
+    ⇒ D4 的「零改动自动跟随」。**但「自动跟随」是声称，不是实证** —— 本测就是实证。
+    取材=revert：把 `_assert_http_base_url_allowed` 里的 `is_url_allowed(base_url)` 换成
+    直接读 env（绕开租户解析）→ 本测的「非起源租户应 400」那半转绿失败（即本测红）。
+    """
+    from fastapi import HTTPException
+
+    from knot.api.admin import datasources as ds
+
+    host = "deployment-internal.corp.local"
+    monkeypatch.setenv(_ENV, host)                       # 只在**起源租户**的 allowlist 里
+
+    tok = _ctx(1)                                        # 起源租户 ⇒ 放行（不抛）
+    try:
+        ds._assert_http_base_url_allowed("http", _http_source(f"https://{host}")["http_config"])
+    finally:
+        reset_active_tenant(tok)
+
+    tok = _ctx(2)                                        # 非起源租户 ⇒ 400
+    try:
+        # ⚠️ 用 `try/except/else` 而非 `pytest.raises` —— 真实的失败模式（写侧不再按租户判断）
+        # 只会得到裸的 `DID NOT RAISE HTTPException`，**不说明这意味着什么**。
+        # （守护者 v0.9.6 Stage 4 §II：**消息要挂在事情真的出错的那一行**；这是同族第 5 次。）
+        try:
+            ds._assert_http_base_url_allowed("http", _http_source(f"https://{host}")["http_config"])
+        except HTTPException as e:
+            assert e.status_code == 400, f"应 400，实际 {e.status_code}"
+            assert "KNOT_" not in str(e.detail), (
+                f"写侧 400 的 detail 点名了 env（allowlist 已 per-tenant ⇒ 误导）：{e.detail!r}")
+        else:
+            pytest.fail(
+                f"非起源租户存 {host!r} **未被拒绝** —— 写侧 allowlist 不再按租户判断。\n"
+                "该 host 只在**起源租户**的 allowlist（env）里；非起源租户存得进去，意味着它可以\n"
+                "把部署方内网主机写进自己的数据源，之后每次列表加载还会被 HEAD 探测一次\n"
+                "（v0.8.20 F4 修过的那条缝在多租户下复发）。\n"
+                "⇒ 检查 `_assert_http_base_url_allowed` 是否还在走 `is_url_allowed`（经 tenant ctx），"
+                "而不是自己直接读 env。"
+            )
+    finally:
+        reset_active_tenant(tok)
+
+
+def test_probe_side_is_per_tenant_and_does_not_reach_network(no_network, monkeypatch):
+    """⭐ must #8 / D6：探测侧（列表页的健康探测）也按租户 —— 非起源租户**连 HEAD 都不发**。
+
+    这条缝的原始形态（v0.8.20 F4 修的）：HEAD 探测**绕过** allowlist ⇒ 存进去的内网 base_url
+    **每次列表加载都被探测一次**。per-tenant 化后必须保持：非本租户 allowlist 内的 host 不探测。
+
+    ⚠️ **oracle 是「有没有真发请求」，不是返回值** —— `_test_source` 的 `except Exception:
+    return "error"` 会把任何异常折成 `"error"`，所以「返回 error」在两种情形下都成立
+    （没探测 vs 探测了但失败）⇒ **返回值分不清这两件事**。用出网探针的**记录列表**才分得清。
+    （同一个判据形状：v0.9.6 的 no_network 从「只抛」改成「先记录再抛」正是为此。）
+    """
+    host = "deployment-internal.corp.local"
+    monkeypatch.setenv(_ENV, host)
+    src = _http_source(f"https://{host}")
+
+    from knot.api.admin import datasources as ds
+
+    tok = _ctx(2)                                        # 非起源租户 ⇒ 不该发请求
+    try:
+        assert ds._test_source(src) == "error"
+    finally:
+        reset_active_tenant(tok)
+    assert no_network == [], (
+        f"非起源租户的 host 仍被 HEAD 探测了：{no_network}\n"
+        "⇒ v0.8.20 F4 修的那条缝（探测绕过 allowlist）在多租户下复发。"
+    )
+
+    tok = _ctx(1)                                        # **正对照**：起源租户应真的去探测
+    try:
+        ds._test_source(src)
+    finally:
+        reset_active_tenant(tok)
+    assert no_network, (
+        "起源租户的 host 也没被探测 —— 说明门变成了「谁都不探测」= 把功能删掉，"
+        "而不是「按租户判断」。（没有这半，上半可以靠『全拒绝』通过。）"
+    )
+
+
 # ─── public 名不得被顺手删（§8.4）──────────────────────────────────────
 
 

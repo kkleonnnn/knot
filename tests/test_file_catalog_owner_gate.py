@@ -84,25 +84,7 @@ def _in(tid: int, dbdir: str):
     return set_active_tenant({"id": tid, "db_dir": dbdir})
 
 
-@pytest.fixture
-def no_network(monkeypatch):
-    """出网探针：**先记录、再抛** —— 返回记录列表。
-
-    ⚠️ **为什么必须「先记录」而不是只抛**：`run_http_step` 有 `except Exception as e:` 兜底
-    ⇒ 探针抛的异常**会被吞掉**、变成一个普通的 `success=False` ⇒ 「有没有真发请求」这个事件
-    **在「返回了错误」这个 oracle 里表示不出来**。记录下来才可观察。
-    （实施期实证：初版只抛不记 ⇒ 摘掉硬边界后测**仍绿**。）
-    """
-    import requests
-    calls: list = []
-
-    def _probe(url=None, *a, **k):
-        calls.append(url)
-        raise AssertionError("❌ 发生了真实网络请求 —— 硬边界失效")
-
-    monkeypatch.setattr(requests, "get", _probe)
-    monkeypatch.setattr(requests, "post", _probe)
-    return calls
+# `no_network` fixture 已于 v0.9.7 提到 `tests/conftest.py`（第二个消费者出现 ⇒ 不复制判据）。
 
 
 # ─── 谓词本身（验收 4/5/6）──────────────────────────────────────────────
