@@ -670,8 +670,40 @@ https://<你的域名>/?c=<公司代号>
   单副本；单租户部署不受此限（今日 R-T-GATE 硬锁第二租户，故现网即单租户）。
 - **`_local_catalog.py` 是部署级、全体租户共享**：其中的真实业务表名/方言/HTTP endpoint 对**每个**租户可见；
   且空-DB 租户会 fallback 到它（含 business_rules）。开通第二租户前必须先做 per-tenant file catalog。
-- **HTTP 虚拟表凭据走进程 env**（`KNOT_HTTP_*`）：租户盲。开通第二租户前必须先做 per-tenant `http_spec` 凭据
-  + egress 租户域化，否则租户 B 能用租户 A 的凭据读 A 的实时接口（**跨租户数据出境**）。
+- ✅ **HTTP 虚拟表凭据 + 出网白名单已 per-tenant 化**（v0.9.7 B-3 ②③ —— 原「走进程 env、租户盲」已闭合）：
+  - **凭据**：`http_spec` 必须带 `source_id` → 指向**该租户库**的 `data_sources` 行（`http_config` 走 Fernet）。
+    env 引用形态（`base_url_env` / `auth_*_env`）已**物理删除**；`adapters/http/executor.py` 现在**零 env 读取**
+    （配 AST 哨兵）。⚠️ **升级影响**：若你的 `_local_catalog.py` 里还有 env 形态的 http 表，
+    升级后它会**软降级落 SQL**（并记日志 `[http_route] spec 未绑租户数据源`）—— 改法：在 admin UI 建
+    一个 `db_type='http'` 数据源，把 `http_spec` 改成 `{"source_id": <该源 id>, …}`。
+  - **出网白名单**：改读平台库 `tenants.allowed_http_hosts`（逗号分隔）。**起源租户（tenant#1）在该列为
+    `NULL` 时回退 `KNOT_HTTP_ALLOWED_HOSTS`** ⇒ **现网 ConfigMap 不动即可继续工作**（启动期会 WARN 提示迁移）。
+
+  ### 🔧 配置某租户的出网白名单（**唯一途径** —— 该列无写端点）
+
+  ```bash
+  # platform.db 位置 = 数据根 / platform.db（数据根 = SQLITE_DB_PATH 的父目录）
+  sqlite3 /app/knot/data/platform.db \
+    "UPDATE tenants SET allowed_http_hosts='api.example.com,api2.example.com' WHERE id=2;"
+
+  # 查看当前配置（NULL = 未配置；'' = 显式全拒绝）
+  sqlite3 /app/knot/data/platform.db \
+    "SELECT id, slug, quote(allowed_http_hosts) FROM tenants;"
+  ```
+
+  - **三态语义**（改错会静默出事，务必看清）：
+    | 值 | 起源租户（tenant#1） | 其他租户 |
+    |---|---|---|
+    | `NULL`（未配置） | 回退 env `KNOT_HTTP_ALLOWED_HOSTS` + 启动 WARN | **全部拒绝** |
+    | `''`（显式空） | **全部拒绝，不回退 env** | 全部拒绝 |
+    | `a.com,b.com` | 只允许这两台 | 只允许这两台 |
+  - ⚠️ **每租户一份，永不取交集/并集** —— 不要为了「让某个租户能访问 X」而把 X 加进 env：
+    env 是**起源租户自己的**白名单，那样做会**同时放宽起源租户的可达面**。
+  - ⚠️ **开通新租户时漏配该列 ⇒ 该租户的 HTTP 数据源全部静默拒绝**（fail-closed 正确，
+    但**与「接口挂了」不可区分**）。排查看日志 `egress 拒绝: host=… tenant=… allowlist 来源=unconfigured`
+    —— `来源` 字段直接告诉你是「没配」还是「配了但不含这台」。
+  - ⚠️ 白名单只比 **hostname 字面**（不含端口、不做子域/IP 归一化）—— 与 v0.9.7 之前一致；
+    per-tenant 化后这个弱点**按租户放大**（每份列都带同一弱点），已登记 backlog。
 - **每个新租户 seed 的初始 admin 口令目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD`**（v0.9.4 登记）：
   开通第二租户前必须改成 per-tenant 初始口令 / 一次性邀请流，否则「A 公司的人能进 B 公司」有现成入口。
 - **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：lift 前必须把 `company` 改为必填。

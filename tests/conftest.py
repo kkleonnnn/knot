@@ -248,3 +248,28 @@ def tmp_db_path(monkeypatch):
 
     import shutil
     shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    """出网探针：**先记录、再抛** —— 返回记录列表（v0.9.6 立 · v0.9.7 提到 conftest 共享）。
+
+    ⚠️ **为什么必须「先记录」而不是只抛**：多处调用点有 `except Exception` 兜底
+    （`run_http_step` / `datasources._test_source`）⇒ 探针抛的异常**会被吞掉**、折成一个普通的
+    「失败」⇒ **「有没有真发请求」这个事件在「返回了错误」这个 oracle 里表示不出来**。
+    记录下来才可观察。（v0.9.6 实施期实证：初版只抛不记 ⇒ 摘掉硬边界后测**仍绿**。）
+
+    v0.9.7 从 `tests/test_file_catalog_owner_gate.py` 提到此处 —— 第二个消费者出现时
+    （`tests/adapters/test_http_egress_per_tenant.py` 的探测侧测）就不该再复制一份判据。
+    """
+    import requests
+    calls: list = []
+
+    def _probe(url=None, *a, **k):
+        calls.append(url)
+        raise AssertionError("❌ 发生了真实网络请求 —— 出网门失效")
+
+    monkeypatch.setattr(requests, "get", _probe)
+    monkeypatch.setattr(requests, "post", _probe)
+    monkeypatch.setattr(requests, "head", _probe)      # v0.9.7：探测侧走 HEAD
+    return calls

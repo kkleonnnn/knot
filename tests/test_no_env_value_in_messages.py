@@ -186,29 +186,67 @@ def test_SEC_allowlist_entries_are_all_still_live():
     assert not dead, f"`_ALLOWED` 有死条目，请清理：{dead}"
 
 
-def test_SEC_http_auth_error_reports_names_not_values(monkeypatch):
-    """⭐ 端到端（服务层）：auth env 缺失时，**返给客户端的 `error` 字段**含 env 名、不含 env 值。
+def test_SEC_retired_env_form_spec_fails_closed_without_naming_env(monkeypatch, no_network):
+    """⭐ 端到端（服务层）：**已退役的 env 形态 spec** 走到底 → 失败，且客户端可见字段**零 env 痕迹**。
 
-    覆盖的是真实链路终点（`run_http_step` 的返回值就是 `api/query.py` 原样 yield 的那个）。
-    revert-to-bad：恢复带值的报错 → 本测转红。
+    ## 本测是 v0.9.7 改瞄后的形态（kk 拍板「保留 AST 哨兵 + 端到端测改瞄新路径」）
+    **原形态**：构造 env 形态 spec → 触发 executor 的「auth env 缺失」分支 → 断言 error 字段
+    **含 env 名、不含 env 值**。v0.9.7 B-3 ② **删掉了整条 env 路径**（进程 env 是租户盲的
+    ⇒ 跨租户数据出境）⇒ 那个分支不存在了，原断言的「含 env 名」也不再是期望行为。
+
+    **改瞄后守的是**：同一条链路终点（`run_http_step` 的返回值 = `api/query.py` 原样 yield 的那个），
+    喂**退役形态**的 spec ⇒ ① fail-closed（不是静默成功、不是落 SQL 后假装成功）；
+    ② 客户端字段里**既无 env 值、也无 env 名** —— 后者是新增的更强要求：既然不再读 env，
+    就不该在错误里提 env（提了就是在教租户「去猜哪个 env」）。
+
+    ## 另一半在哪（不重复造）
+    本片**新引入**的唯一 env 读点 = 起源租户 allowlist 回退，其输出是**启动期 WARN**（非客户端可见）
+    ⇒ 那条守护在 `tests/adapters/test_http_egress_per_tenant.py::
+    test_env_fallback_warn_names_env_but_never_its_value`（断言只报 env 名、不报值、不含数字）。
+    本文件顶部的 **AST 哨兵仍覆盖全仓**（含那个 WARN），是「值不得进消息/日志/响应」的总闸。
+
+    ## ⚠️⚠️ 本测有**两处**独立的「够不到目标」陷阱，都是实施期实测出来的（各修一次才有判别力）
+    1. **没设 `KNOT_HTTP_ALLOWED_HOSTS`** ⇒ 请求在**出网白名单阶段**就被拒，**走不到凭据阶段**
+       ⇒ 「error 不含 env 名」之所以成立，是因为拦它的是 allowlist 消息，而非 env 命名被移除。
+    2. **`url_template` 写成 `"/x"`（无 `{base_url}` 占位符）** ⇒ 拼出的 URL **压根没有主机**
+       ⇒ `urlparse("/x").hostname is None` ⇒ **恒被 allowlist 拒**，即便第 1 点已修好。
+
+    两处都修（allowlist 放行 + 占位符）+ 配出网探针 `no_network` 之后，本测才真的走到凭据阶段：
+    env 模式一旦复活就会**真的发请求** ⇒ 探针记录非空 ⇒ 转红（实测：修好前两次 revert 都照绿）。
+    ⇒ **判据必须能表示你要排除的那个事件**；「绿」分不清「守住了」与「探针没到达」。
+
+    取材=revert：把 executor 的 env 模式加回来（`base_url` 从 `spec["base_url_env"]` 读 env）
+    → 探针记录非空 ⇒ 本测红（实测）。
     """
     import asyncio
 
     from knot.services.http_planner import run_http_step
 
+    monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", "example.invalid")   # 让 allowlist 放行 → 走到凭据阶段
     monkeypatch.setenv("PROBE_BASE_URL", "https://example.invalid")
     monkeypatch.setenv("PROBE_SECRET_VALUE", "TOP-SECRET-MUST-NOT-LEAK-42")
-    spec = {
+    spec = {                                    # ⛔ v0.9.7 起这是**不可表达**的形态
         "base_url_env": "PROBE_BASE_URL",
-        "url_template": "/x",
-        "auth_header_env": "PROBE_NO_SUCH_ENV",     # 故意不设 → 触发 auth 缺失分支
-        "auth_value_env": "PROBE_SECRET_VALUE",     # 已设 → 旧写法会把它的值插进消息
+        "url_template": "{base_url}/x",   # 必须含占位符，否则拼不出主机 → 恒被 allowlist 拒（见上）
+        "auth_header_env": "PROBE_NO_SUCH_ENV",
+        "auth_value_env": "PROBE_SECRET_VALUE",
     }
     res = asyncio.run(run_http_step("任意问题", "probe.tbl", spec))
     err = res.get("error") or ""
-    assert res.get("success") is False and res.get("error_kind") == "http_auth", res
+
+    assert res.get("success") is False, (
+        f"退役的 env 形态 spec **没有失败** —— 那条路应当结构上不可表达：{res}")
+    assert res.get("error_kind") == "http_auth", (
+        f"失败了但分类不对（应 http_auth = 凭据/授权类）：{res.get('error_kind')!r}")
     assert "TOP-SECRET-MUST-NOT-LEAK-42" not in err, f"env 值泄漏到客户端可见字段：{err}"
-    assert "PROBE_NO_SUCH_ENV" in err, f"env 名丢了，运维无法诊断该配哪个：{err}"
+    assert no_network == [], (
+        f"退役形态的 spec 竟然发出了真实网络请求：{no_network}\n"
+        "⇒ executor 又从进程 env 取到了 base_url（env 路径复活）= 租户盲凭据（B-3 ②）。")
+    for name in ("PROBE_BASE_URL", "PROBE_SECRET_VALUE", "PROBE_NO_SUCH_ENV", "KNOT_"):
+        assert name not in err, (
+            f"客户端可见字段提到了 env 名 {name!r}：{err}\n"
+            "v0.9.7 起 adapter **不再读进程 env** ⇒ 错误里不该提 env"
+            "（提了等于教租户去猜哪个 env 名 —— #262 的起点就是 env 名由 admin 可写）。")
 
 
 def test_rejection_reason_never_echoes_input():

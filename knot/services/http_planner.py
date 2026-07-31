@@ -109,8 +109,9 @@ def pick_http_route(
 ) -> tuple[str, dict] | None:
     """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained）+ v0.7.22 Layer A intent veto。
 
-    ⭐ v0.9.6 Layer 0：非起源租户不做 HTTP 路由（**软降级** → 优雅落 SQL + 必须记日志，
-    否则就是 v0.7.29b 那种静默落 SQL）。**硬边界在 `adapters/http/executor.execute`** —— 理由见那里。
+    ⭐ v0.9.7：**v0.9.6 的 Layer 0（非起源租户不做 HTTP 路由）已移除** —— 它是 ②③ 未落地期间的
+    代偿控制。现在按租户区分的是**凭据**（spec 的 `source_id` → 本租户数据源）与**出网白名单**
+    （`tenants.allowed_http_hosts`），而不是「是不是起源租户」。
 
     Layer A（v0.7.22 R-SL-162 · intent 结构信号 · 最先判）：intent ∈ 5 分析类
         {trend,compare,rank,distribution,retention} → return None（走 SQL）。HTTP 当前快照
@@ -130,12 +131,6 @@ def pick_http_route(
     Raises:
         CrossSourceJoinNotSupported: 检测到混源（R-PB2-4 sustained — 真正跨源 JOIN）
     """
-    from knot.core.tenant_context import current_tenant, is_owner_tenant
-    if not is_owner_tenant():   # Layer 0：早于 reload —— 非 owner 连 catalog 都不必重载
-        logger.info(f"[http_route] 非起源租户 → 落 SQL（tenant={current_tenant().get('id')} "
-                    f"q={refined_question[:40]!r}）；硬边界在 executor.execute")
-        return None
-
     catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained
 
     # Layer A（v0.7.22 R-SL-162）— intent 结构信号 veto，必须先于 Layer 3 + Layer 1 lexicon
@@ -198,6 +193,15 @@ def pick_http_route(
         logger.info(
             f"pick_http_route Layer 1 spec missing: selected={selected!r}, "
             f"http_tables={sorted(matched_http_tables)}",
+        )
+        return None
+    # ⭐ v0.9.7 B-3 ②：spec 必须绑**本租户**数据源（`source_id`），否则**软降级落 SQL + 记日志**
+    # （不记 = v0.7.29b 那种「静默落 SQL」）。硬边界在 `executor.execute`；本处只是优雅降级。
+    # 拦两种残留形态：① 退役的 env 引用 ② 零校验 `PUT /api/admin/catalog` 直填的 base_url。
+    if not spec.get("source_id"):
+        logger.info(
+            f"[http_route] spec 未绑租户数据源（无 source_id）→ 落 SQL: table={selected!r} "
+            f"spec_keys={sorted(spec)}"          # 只报**键名**，绝不报值（可能含凭据 — #262）
         )
         return None
     return selected, spec
@@ -409,17 +413,28 @@ def apply_field_mapping(rows: list[dict], mapping: dict) -> list[dict]:
 
 
 def resolve_spec(catalog_spec: dict) -> dict:
-    """v0.6.1.4 OVERRIDE #4: 解析 catalog http_spec，把 source_id 引用注入为直填值。
+    """解析 catalog `http_spec`：用 `source_id` 从**本租户库**取凭据，注入为已解析值。
 
-    模式 A (env 引用 — v0.6.1.4 backward compat): spec 含 base_url_env/auth_*_env → 透传给 executor 用 env 路径
-    模式 B (source_id 引用 — v0.6.1.4 first-class): spec 含 source_id → 查 datasource → 注入直填 base_url/auth_*
+    v0.9.7 B-3 ②起**只有一条路**：`source_id` → `data_sources` 行（Fernet 解密 `http_config`）
+    → 注入 `base_url` / `auth_header` / `auth_value`。
+    ⛔ 已退役：「env 引用」形态（`base_url_env` / `auth_*_env`）—— 读进程 env = **租户盲**
+    ⇒ 跨租户数据出境。零真实生产者（详 `docs/plans/v0.9.7-*.md` §0.1）。
+
+    ⚠️ **本函数刻意不设门**（纯解析器）：门在**决策处** `pick_http_route`（无 source_id → 软降级
+    落 SQL + 记日志）与**能力处** `executor.execute`（无已解析 base_url → HTTPAuthError，唯一出网点）。
+    在中间层再加一道 = 门既不在决策也不在能力（v0.9.6 统一诊断：门装在能力被行使的那一行）。
 
     Returns: ready spec for executor.execute()
 
     Raises: HTTPAdapterError 数据源不存在 / 类型错误 / http_config 无法解析
     """
     if "source_id" not in catalog_spec:
-        return dict(catalog_spec)  # 无 source_id → env 路径透传
+        # **剥掉凭据字段**再返回：未绑数据源的 spec 不得携带 base_url / auth_*
+        # —— 那些值来自零校验的 `PUT /api/admin/catalog`，是**明文存在 catalog 里的**
+        # （数据源行走 Fernet）。不剥的话它们会一路传到能力处，靠 allowlist 兜（弱一层）。
+        # 拒绝本身仍在能力处（`execute` 无 `source_id` 即抛）—— 本函数只负责「不传递未授权的值」。
+        return {k: v for k, v in catalog_spec.items()
+                if k not in ("base_url", "auth_header", "auth_value")}
 
     import json as _json
 
@@ -442,7 +457,10 @@ def resolve_spec(catalog_spec: dict) -> dict:
     except _json.JSONDecodeError as e:
         raise HTTPAdapterError(f"数据源 id={source_id} http_config 非合法 JSON: {e}") from e
 
-    # 合并：catalog spec 字段优先，datasource 兜底
+    # **datasource 无条件覆盖** catalog spec 的凭据字段。⚠️ v0.9.7 订正：原注释写「catalog spec
+    # 优先，datasource 兜底」**与代码相反**。方向是**承重的** —— catalog 可由零校验的
+    # `PUT /api/admin/catalog` 写入；若 catalog 优先，租户 admin 便能直填任意 base_url/凭据绕过
+    # 写侧 egress 门（③ 的正确性依赖「base_url 只能来自过了门的数据源行」）。**别改回去。**
     ready = dict(catalog_spec)
     ready["base_url"] = http_cfg.get("base_url", "")
     ready["auth_header"] = http_cfg.get("auth_header", "")

@@ -37,7 +37,7 @@ from knot.repositories import init_db, tenancy_migration, tenant_repo
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.9.6")
+app = FastAPI(title="KNOT", version="0.9.7")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -204,6 +204,13 @@ async def _warn_if_owner_tenant_not_served():
     """v0.9.6：被服务租户不是起源租户 → 响亮 WARN（否则 file 层静默变空）。理由见该函数 docstring。"""
     from knot.services.agents import catalog_loaders
     catalog_loaders.warn_if_owner_tenant_not_served()
+
+
+@app.on_event("startup")
+async def _warn_if_owner_egress_uses_env_fallback():
+    """v0.9.7 B-3 ③：起源租户的 allowlist 仍走 env 回退（未迁移到 tenants 列）→ WARN。理由见该函数 docstring。"""
+    from knot.adapters.http import url_allowlist as _egress
+    _egress.warn_if_owner_using_env_fallback(tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID))
 
 
 @app.on_event("startup")

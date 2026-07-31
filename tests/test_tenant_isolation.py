@@ -209,6 +209,79 @@ def test_iso4_platform_db_only_tenants_table(tmp_db_path):
     assert tables == {"tenants"}, f"platform.db 应仅含 tenants 表；实际 {tables}"
 
 
+# ───────── 平台库 additive 迁移（v0.9.7 must #14 · 本仓第一条平台迁移）─────────
+
+#: v0.9.7 前的 `tenants` 建表语句**逐字副本** —— 用来造「存量平台库」。
+#: ⚠️ 刻意**写死**而不是从 `platform_schema.sql` 里裁剪：本测要造的是**过去那个版本**的库，
+#: 若跟着当前 schema 走，将来 schema 再加列时本测会**自动跟着变**⇒ 它就不再是「存量库」了，
+#: 而是「当前库」⇒ 迁移测静默失去意义（绿而无判别力）。
+_PRE_V097_TENANTS_DDL = """
+CREATE TABLE tenants (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug        TEXT    NOT NULL UNIQUE,
+    name        TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'active',
+    db_dir      TEXT    NOT NULL,
+    created_at  TEXT    DEFAULT (datetime('now','localtime'))
+);
+"""
+
+
+def _platform_cols():
+    conn = tenant_repo.get_platform_conn()
+    try:
+        return {r[1] for r in conn.execute("PRAGMA table_info(tenants)").fetchall()}
+    finally:
+        conn.close()
+
+
+def test_platform_migration_adds_column_to_legacy_db(tmp_db_path, monkeypatch):
+    """⭐ must #14：**存量** platform.db（无该列）经 `init_platform_db()` 后**有**该列。
+
+    ⚠️ **为什么这条测是必需的、不是形式主义**：`platform_schema.sql` 只有
+    `CREATE TABLE IF NOT EXISTS` ⇒ 对已存在的库，往 schema 里加列**完全无效**
+    （`executescript` 直接 no-op）。平台库此前从未加过列，所以这个盲区一直没暴露。
+    没有 `_run_platform_migrations` 的话，**新库有列、存量库没列** —— 而存量库正是内测服那台。
+
+    取材=revert：注释掉 `init_platform_db` 里的 `_run_platform_migrations(conn)` 那行 → 本测红。
+    """
+    import sqlite3
+
+    # 造存量库：删掉 tmp_db_path 建好的，用 v0.9.7 **之前**的 DDL 重建
+    p = tenant_repo._platform_db_path()
+    p.unlink(missing_ok=True)
+    conn = sqlite3.connect(p)
+    conn.executescript(_PRE_V097_TENANTS_DDL)
+    conn.execute("INSERT INTO tenants (id, slug, name, status, db_dir) VALUES (1,'default','默认租户','active','.')")
+    conn.commit()
+    conn.close()
+
+    assert "allowed_http_hosts" not in _platform_cols(), "存量库构造失败 —— 它本就带该列，本测无判别力"
+
+    tenant_repo.init_platform_db()
+
+    assert "allowed_http_hosts" in _platform_cols(), (
+        "存量 platform.db 升级后仍无 `allowed_http_hosts` 列。\n"
+        "⚠️ `platform_schema.sql` 的 `CREATE TABLE IF NOT EXISTS` 对已存在的库是 no-op ——\n"
+        "  加列的**唯一**途径是 `tenant_repo._run_platform_migrations`（v0.9.7 起，照 migrations.py 范式）。"
+    )
+    # 存量数据不得丢（ALTER ADD COLUMN 应保留行）
+    assert tenant_repo.get_tenant(1)["slug"] == "default", "迁移把存量租户行弄丢了"
+
+
+def test_platform_migration_is_idempotent(tmp_db_path):
+    """must #14 续：连跑三次 `init_platform_db()` 不报错、列集不变（幂等）。
+
+    幂等靠 `PRAGMA table_info` 判存在 —— 若改成裸 `ALTER TABLE ADD COLUMN`，
+    第二次会抛 `duplicate column name` ⇒ **每次启动都崩**（启动序调它）。
+    """
+    before = _platform_cols()
+    for _ in range(3):
+        tenant_repo.init_platform_db()          # 不得抛
+    assert _platform_cols() == before, "重复迁移改变了列集"
+    assert "allowed_http_hosts" in before, "新库应由 platform_schema.sql 的 CREATE 直接带上该列"
+
+
 def test_iso8_flatten_route_snapshot():
     """⑧ flatten 路由精确计数（精确 == 145 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
 
