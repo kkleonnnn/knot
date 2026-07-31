@@ -207,6 +207,13 @@ async def _warn_if_owner_tenant_not_served():
 
 
 @app.on_event("startup")
+async def _warn_if_owner_egress_uses_env_fallback():
+    """v0.9.7 B-3 ③：起源租户的 allowlist 仍走 env 回退（未迁移到 tenants 列）→ WARN。理由见该函数 docstring。"""
+    from knot.adapters.http import url_allowlist as _egress
+    _egress.warn_if_owner_using_env_fallback(tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID))
+
+
+@app.on_event("startup")
 async def _warn_if_platform_secret_noncompliant():
     """v0.9.5：平台密钥「设了但不合规」→ 启动期 WARN（未配置静默）。理由见 `api/platform_admin`。"""
     from knot.api import platform_admin
