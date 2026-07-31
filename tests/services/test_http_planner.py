@@ -18,26 +18,11 @@ import pytest
 # ─── R-PB2-3: env / URL allowlist fail-fast ─────────────────────────────
 
 
-def test_executor_base_url_env_missing_raises_auth_error(monkeypatch):
-    """env <BASE_URL_ENV> 缺失 → HTTPAuthError (R-PB2-3 sustained)."""
-    monkeypatch.delenv("KNOT_TEST_API_BASE_URL", raising=False)
-    monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", "api.example.com")
-    monkeypatch.setenv("KNOT_TEST_API_AUTH_HEADER", "key")
-    monkeypatch.setenv("KNOT_TEST_API_AUTH_VALUE", "test-token-value")
-
-    from knot.adapters.http import HTTPAuthError, execute
-
-    spec = {
-        "method": "GET",
-        "url_template": "{base_url}/v1/items",
-        "base_url_env": "KNOT_TEST_API_BASE_URL",
-        "auth_header_env": "KNOT_TEST_API_AUTH_HEADER",
-        "auth_value_env": "KNOT_TEST_API_AUTH_VALUE",
-        "response_path": "data.records",
-    }
-
-    with pytest.raises(HTTPAuthError, match=r"KNOT_TEST_API_BASE_URL.*R-PB2-3"):
-        execute(spec, {"q": "test"})
+# ⛔ `test_executor_base_url_env_missing_raises_auth_error` 已于 v0.9.7 删除（B-3 ②）：
+#    它测的是「spec 带 env 名 → executor 读进程 env → env 缺失则抛」这条路，而**那条路已退役**
+#    （进程 env 是租户盲的 ⇒ 跨租户数据出境）。删测不是降覆盖 —— 替代守护更强：
+#    `tests/adapters/test_http_spec_requires_source_id.py` 断言 env 形态 spec
+#    **结构上不可表达**（走到能力处就被拒，且零出网），而不只是「env 没配时会抛」。
 
 
 def test_url_allowlist_secure_by_default(monkeypatch):
@@ -282,8 +267,7 @@ def test_http_endpoint_spec_fields_stable():
 
     # TypedDict __annotations__ 暴露字段
     expected_fields = {
-        "method", "url_template", "base_url_env",
-        "auth_header_env", "auth_value_env",
+        "method", "url_template", "source_id",
         "response_path", "param_schema", "timeout_sec",
     }
     actual_fields = set(HTTPEndpointSpec.__annotations__.keys())
@@ -291,4 +275,15 @@ def test_http_endpoint_spec_fields_stable():
         f"HTTPEndpointSpec 字段变更检测：actual={actual_fields} "
         f"missing={expected_fields - actual_fields} "
         f"extra={actual_fields - expected_fields}"
+    )
+    # ⭐ v0.9.7 B-3 ②：三个 env 字段**必须缺席** —— 把「删掉了」变成一条守护，而不只是改期望值。
+    # 上面的 `==` 已隐含这点，但**单独点名**是因为「加回来」是一个有具体动机的动作
+    # （「给某个表配个临时 env 就好了」），届时读者应当直接看到为什么不行。
+    retired = {"base_url_env", "auth_header_env", "auth_value_env"}
+    assert not (actual_fields & retired), (
+        f"env 引用形态被加回来了：{sorted(actual_fields & retired)}\n\n"
+        "⛔ 这条路让 adapter 读**进程 env** = **租户盲** ⇒ 租户#2 能用租户#1 的凭据读其实时接口\n"
+        "  = 跨租户数据出境（R-T-GATE 清单 B-3 ②，v0.9.7 关闭）。\n"
+        "凭据一律经 `source_id` → **本租户库** data_sources 行（Fernet）。\n"
+        "若确有「不绑数据源」的需求，请先过评审：docs/plans/v0.9.7-http-per-tenant-credentials-egress.md §7"
     )

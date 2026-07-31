@@ -32,9 +32,13 @@ class HTTPEndpointSpec(TypedDict, total=False):
     """
     method: str               # "GET" / "POST"
     url_template: str         # "{base_url}/admin/api/v1/position/list"
-    base_url_env: str         # 引用 env 名（如 "KNOT_FUTURES_ADMIN_BASE_URL"）
-    auth_header_env: str      # env 名 — auth header 字段名（如 KNOT_..._AUTH_HEADER）
-    auth_value_env: str       # env 名 — auth header value（如 KNOT_..._AUTH_VALUE）
+    source_id: int            # ⭐ v0.9.7 B-3 ②：**必填** — 指向**本租户库**的 data_sources 行
+    #                           （`resolve_spec` 由它注入 base_url / auth_*；凭据天然 per-tenant）
+    # ⛔ v0.9.7 删除：`base_url_env` / `auth_header_env` / `auth_value_env`
+    #    —— 那条路让本适配器读**进程 env** = 租户盲 ⇒ 租户#2 可用租户#1 的凭据读其实时接口
+    #    = 跨租户数据出境（R-T-GATE B-3 ②）。零真实生产者，退役无兼容代价。
+    #    `base_url` / `auth_header` / `auth_value` **不在本 TypedDict 声明** —— 它们不是「存进
+    #    catalog 的字段」，而是 `resolve_spec` 运行期注入的**已解析值**（存进来的会被无条件覆盖）。
     response_path: str        # JSON dot path 解析 rows: "data.records" 或 "data"
     param_schema: dict[str, Any]  # 参数 schema 描述（required / type / values）
     timeout_sec: int          # 默认 5

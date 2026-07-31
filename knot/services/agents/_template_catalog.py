@@ -44,11 +44,15 @@ TABLES = [
         "topics": ["日报", "新增用户", "GMV", "活跃用户"],
         "summary": "运营日报：sta_date + new_user_num + active_user_num + gmv + paid_user_num",
     },
-    # ── HTTP 虚拟表示例（v0.6.1.4 — OVERRIDE #3 OSS-friendly）─────────────
+    # ── HTTP 虚拟表示例（v0.6.1.4 — OVERRIDE #3 OSS-friendly · v0.9.7 改 source_id 口径）───
     # 部署方按需启用：
-    # 1. 在 _local_catalog.py 中加 source_type=http 表（如撮合持仓接口）
-    # 2. K8s ConfigMap 配 env: KNOT_HTTP_ALLOWED_HOSTS + per-table base_url / auth
-    # 3. catalog reload 后业务方自然语言可直接调
+    # 1. 在 admin UI 建一个 db_type='http' 数据源（base_url + auth 存**租户库**，Fernet 加密）
+    # 2. 在 _local_catalog.py 中加 source_type=http 表，`http_spec.source_id` 指向该数据源
+    # 3. 配该租户的出网白名单：`tenants.allowed_http_hosts`（起源租户可暂回退 env
+    #    KNOT_HTTP_ALLOWED_HOSTS）—— SQL 见 DEPLOY.md「多租户运维门」
+    # 4. catalog reload 后业务方自然语言可直接调
+    # ⛔ v0.9.7 起**没有** env 引用形态（`base_url_env` / `auth_*_env` 已退役）：
+    #    读进程 env 是租户盲的 ⇒ 跨租户数据出境（R-T-GATE B-3 ②）。凭据一律经 `source_id`。
     # {
     #     "db": "example_api", "table": "users_current",
     #     "topics": ["在线用户", "活跃用户"],
@@ -57,9 +61,7 @@ TABLES = [
     #     "http_spec": {
     #         "method": "GET",
     #         "url_template": "{base_url}/api/v1/users/online",
-    #         "base_url_env": "KNOT_EXAMPLE_API_BASE_URL",
-    #         "auth_header_env": "KNOT_EXAMPLE_API_AUTH_HEADER",
-    #         "auth_value_env": "KNOT_EXAMPLE_API_AUTH_VALUE",
+    #         "source_id": 3,          # ← 本租户库 data_sources 里那条 db_type='http' 的 id
     #         "response_path": "data.records",
     #         "timeout_sec": 5,
     #     },
