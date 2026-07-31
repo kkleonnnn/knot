@@ -44,6 +44,7 @@ import pathlib
 
 import pytest
 
+from knot.adapters.http import url_allowlist as ua_mod
 from knot.core.tenant_context import (
     OWNER_TENANT_ID,
     current_tenant,
@@ -106,6 +107,27 @@ def _plant_evil_http_source(tid: int, dbdir: str, host: str = _EVIL_HOST) -> int
         )
     finally:
         reset_active_tenant(tok)
+
+
+def _observed_source_labels() -> set[str]:
+    """把 `resolve_allowed_hosts` 的**来源标签**从行为派生出来（不硬编字面）。
+
+    ⚠️ **为什么派生而不是硬编三个字面**：硬编的清单在本仓已被反复证明会漂
+    （加第四个标签时没人会想起来同步测里那份）。这里跑遍三态、收集实际返回的标签
+    ⇒ 将来加标签只要有一个状态能产生它，就自动被下面的守护覆盖。
+    ⚠️ 配一条**防空转**的前提断言（见调用点）：若派生出空集，下面的 for 循环会静默通过
+    —— 那正是「绿分不清『守住了』与『探针没到达』」。
+    """
+    seen = set()
+    for row in ({"id": 2, "db_dir": "."},                                   # 非起源 + 未配置
+                {"id": OWNER_TENANT_ID, "db_dir": "."},                      # 起源 + 未配置 → env 回退
+                {"id": 2, "db_dir": ".", ua_mod.COLUMN_NAME: "x.example.com"}):  # 已配置
+        tok = set_active_tenant(row)
+        try:
+            seen.add(ua_mod.resolve_allowed_hosts()[1])
+        finally:
+            reset_active_tenant(tok)
+    return seen
 
 
 def _set_allowlist(tid: int, value: str | None) -> None:
@@ -429,6 +451,20 @@ def test_egress_refusal_message_leaks_nothing(two_tenants, no_network):
         "⇒ 消息在枚举 allowlist。per-tenant 化后这等于把跨租户/部署方的主机清单吐给调用方。")
     for bad in ("KNOT_", "JWT_SECRET", "MASTER_KEY", "_local_catalog", "OWNER_TENANT_ID"):
         assert bad not in msg, f"拒绝消息泄漏 {bad!r}：{msg!r}"
+
+    # ⭐ should-fix（守护者 Stage 4 §III）：**来源标签不得进客户端消息**。
+    # 标签本身不是 env 值（故躲过 #262 的 AST 哨兵），但 `env-fallback` 会告诉租户
+    # 「部署方还没迁移到 per-tenant 列」—— 那是部署方的内部状态，不是租户该知道的。
+    # 原先这条只是 `resolve_allowed_hosts` docstring 里的**散文规则、零守护** ——
+    # 正是本弧反复证明挡不住漂移的形状（守护者原话）。
+    labels = _observed_source_labels()
+    assert labels >= {"column", "env-fallback", "unconfigured"}, (
+        f"来源标签派生出 {sorted(labels)} —— 三态没有全被观察到 ⇒ 下面的守护会**空转**。\n"
+        "（这条前提断言的存在本身就是判据：派生型 oracle 必须先证明它不是空的。）")
+    for label in labels:
+        assert label not in msg, (
+            f"客户端可见消息含来源标签 {label!r}：{msg!r}\n"
+            "⇒ 标签只该进日志。`env-fallback` 会把「部署方尚未迁移」这个内部状态告诉租户。")
     assert no_network == [], f"③ 失效：真发出了请求 {no_network}"
 
 
