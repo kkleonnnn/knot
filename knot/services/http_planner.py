@@ -109,8 +109,9 @@ def pick_http_route(
 ) -> tuple[str, dict] | None:
     """v0.6.2.1 三层路由决策（R-PB-C2-1/2/3 sustained）+ v0.7.22 Layer A intent veto。
 
-    ⭐ v0.9.6 Layer 0：非起源租户不做 HTTP 路由（**软降级** → 优雅落 SQL + 必须记日志，
-    否则就是 v0.7.29b 那种静默落 SQL）。**硬边界在 `adapters/http/executor.execute`** —— 理由见那里。
+    ⭐ v0.9.7：**v0.9.6 的 Layer 0（非起源租户不做 HTTP 路由）已移除** —— 它是 ②③ 未落地期间的
+    代偿控制。现在按租户区分的是**凭据**（spec 的 `source_id` → 本租户数据源）与**出网白名单**
+    （`tenants.allowed_http_hosts`），而不是「是不是起源租户」。
 
     Layer A（v0.7.22 R-SL-162 · intent 结构信号 · 最先判）：intent ∈ 5 分析类
         {trend,compare,rank,distribution,retention} → return None（走 SQL）。HTTP 当前快照
@@ -130,12 +131,6 @@ def pick_http_route(
     Raises:
         CrossSourceJoinNotSupported: 检测到混源（R-PB2-4 sustained — 真正跨源 JOIN）
     """
-    from knot.core.tenant_context import current_tenant, is_owner_tenant
-    if not is_owner_tenant():   # Layer 0：早于 reload —— 非 owner 连 catalog 都不必重载
-        logger.info(f"[http_route] 非起源租户 → 落 SQL（tenant={current_tenant().get('id')} "
-                    f"q={refined_question[:40]!r}）；硬边界在 executor.execute")
-        return None
-
     catalog_loader.reload()  # R-PB2-13: query 时 strict=False — startup catalog warning sustained
 
     # Layer A（v0.7.22 R-SL-162）— intent 结构信号 veto，必须先于 Layer 3 + Layer 1 lexicon
@@ -434,8 +429,12 @@ def resolve_spec(catalog_spec: dict) -> dict:
     Raises: HTTPAdapterError 数据源不存在 / 类型错误 / http_config 无法解析
     """
     if "source_id" not in catalog_spec:
-        # 原样返回（不含 base_url）⇒ 能力处的硬边界会拒。见上「刻意不做门」。
-        return dict(catalog_spec)
+        # **剥掉凭据字段**再返回：未绑数据源的 spec 不得携带 base_url / auth_*
+        # —— 那些值来自零校验的 `PUT /api/admin/catalog`，是**明文存在 catalog 里的**
+        # （数据源行走 Fernet）。不剥的话它们会一路传到能力处，靠 allowlist 兜（弱一层）。
+        # 拒绝本身仍在能力处（`execute` 无 `source_id` 即抛）—— 本函数只负责「不传递未授权的值」。
+        return {k: v for k, v in catalog_spec.items()
+                if k not in ("base_url", "auth_header", "auth_value")}
 
     import json as _json
 
