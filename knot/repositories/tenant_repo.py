@@ -47,6 +47,19 @@ def _run_platform_migrations(conn) -> None:
     if "allowed_http_hosts" not in cols:
         conn.execute("ALTER TABLE tenants ADD COLUMN allowed_http_hosts TEXT")
 
+    # v0.9.8: tenants.updated_at —— 平台元数据变更时间线（此前缺 ⇒「谁改了 db_dir」无时间线）。
+    # ⭐ **本条是本机制的第二个用户** —— 它顺带证明「加平台列」不是一次性动作而是可组合的：
+    #   从**既无 allowed_http_hosts 也无 updated_at** 的 pre-v0.9.7 存量库升级，一次调用后两列都在
+    #   （守护者 M4：只从 pre-v0.9.8 起测只能证明「第二条能跑」，证明不了「两条能串起来」）。
+    # 逐块重读列集 —— 照 `migrations.py` 的既有惯用（同一张表 `users` 在 :57/:121/:148 读了三次）。
+    # ⚠️ **理由是「块间独立」，不是「否则会坏」**（实施期取材证伪了我原先写的诊断）：
+    #   对 additive-only 且检查**不同**列的迁移，顶部取一次快照**永远足够** ——
+    #   陈旧快照缺的正是要加的列，条件照样成立。重读的价值在于每块自包含
+    #   ⇒ 将来插入/重排迁移块时不必回溯前面改了什么。**别据此写「不重读就会坏」的测。**
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()}
+    if "updated_at" not in cols:
+        conn.execute("ALTER TABLE tenants ADD COLUMN updated_at TEXT")
+
 
 def init_platform_db() -> None:
     """建 platform.db + executescript(platform schema) + additive 迁移（幂等 · IF NOT EXISTS）。"""

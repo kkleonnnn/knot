@@ -200,18 +200,36 @@ def test_iso6b_no_write_methods_under_platform_prefix():
 
 # ─────────────────────── 平台库 vs 租户库表划分 ───────────────────────
 
-def test_iso4_platform_db_only_tenants_table(tmp_db_path):
-    """④ platform.db 表集合 == {tenants}（防业务表漂回平台库 — 平台库最小化起步）。"""
+def test_iso4_platform_db_only_platform_tables(tmp_db_path):
+    """④ platform.db 表集合 **精确等于** `{tenants, platform_audit}`（防业务表漂回平台库）。
+
+    ⚠️ **v0.9.8 从 `{tenants}` 扩到二元，但刻意仍是「精确相等」而不是放宽成 `>=`** ——
+    放宽的话**任何**业务表都能漂进平台库而本测照绿，那就等于把这条红线删了
+    （「oracle 要能表示你要排除的那个事件」）。
+    ⇒ 加平台表**必须**同片改本测 = 一次显式、被评审的动作。
+    取材=injection：在 `platform_schema.sql` 加第三张表 → 本测红并列出它。
+    """
     conn = tenant_repo.get_platform_conn()
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
     tables.discard("sqlite_sequence")   # AUTOINCREMENT 副表
-    assert tables == {"tenants"}, f"platform.db 应仅含 tenants 表；实际 {tables}"
+    assert tables == {"tenants", "platform_audit"}, (
+        f"platform.db 表集漂移：实际 {sorted(tables)}\n\n"
+        "**平台库合法居民的判据**（写在这里，因为下一个加表的人会先读到失败消息）：\n"
+        "  ✅ 平台维**元数据**（租户注册表 `tenants`）\n"
+        "  ✅ 平台维**动作留痕**（`platform_audit` —— 平台动作没有租户库可写，v0.9.5 E2 的理由原文）\n"
+        "  ⛔ **业务数据与租户内动作一律进租户库** —— OOS-1v2：隔离靠 per-tenant 文件边界，\n"
+        "     任何业务表漂进平台库就等于把它变成跨租户共享。\n"
+        "若你确实在加一张平台维表：改本测的期望集合，并在 PATCH 里说明它为什么属于平台维。"
+    )
 
 
 # ───────── 平台库 additive 迁移（v0.9.7 must #14 · 本仓第一条平台迁移）─────────
 
-#: v0.9.7 前的 `tenants` 建表语句**逐字副本** —— 用来造「存量平台库」。
+#: **pre-v0.9.7** 的 `tenants` 建表语句**逐字副本** —— 用来造「存量平台库」。
+#: ⚠️ **它必须停在 pre-v0.9.7**（既无 `allowed_http_hosts` 也无 `updated_at`）：
+#: v0.9.8 的 must #10 要证明的是「**两条平台迁移能串起来**」（机制可组合），
+#: 只从 pre-v0.9.8 起测只能证明「第二条能跑」（守护者 M4）。
 #: ⚠️ 刻意**写死**而不是从 `platform_schema.sql` 里裁剪：本测要造的是**过去那个版本**的库，
 #: 若跟着当前 schema 走，将来 schema 再加列时本测会**自动跟着变**⇒ 它就不再是「存量库」了，
 #: 而是「当前库」⇒ 迁移测静默失去意义（绿而无判别力）。
@@ -267,6 +285,43 @@ def test_platform_migration_adds_column_to_legacy_db(tmp_db_path, monkeypatch):
     )
     # 存量数据不得丢（ALTER ADD COLUMN 应保留行）
     assert tenant_repo.get_tenant(1)["slug"] == "default", "迁移把存量租户行弄丢了"
+
+
+def test_platform_migrations_compose_from_pre_v097(tmp_db_path):
+    """⭐ v0.9.8 must #10（守护者 M4）：**两条平台迁移能串起来** —— 机制不是一次性的。
+
+    从**pre-v0.9.7** 的存量库（既无 `allowed_http_hosts` 也无 `updated_at`）起，
+    **一次** `init_platform_db()` 后**两列都在**。
+    ⚠️ **只从 pre-v0.9.8 起测证明不了这个声称** —— 那只证明「第二条迁移能跑」，
+    而 v0.9.8 D4 声称的是「本机制可组合」。判据必须能表示「串不起来」这个事件。
+    取材=revert：注释掉两条 ALTER 中的**任意一条** → 本测红并点名缺哪列。
+    """
+    import sqlite3
+
+    q = tenant_repo._platform_db_path()
+    q.unlink(missing_ok=True)
+    conn = sqlite3.connect(q)
+    conn.executescript(_PRE_V097_TENANTS_DDL)
+    conn.execute("INSERT INTO tenants (id, slug, name, status, db_dir) "
+                 "VALUES (1,'default','默认租户','active','.')")
+    conn.commit()
+    conn.close()
+    before = _platform_cols()
+    assert "allowed_http_hosts" not in before and "updated_at" not in before, (
+        f"存量库构造失败 —— 它本就带这两列之一，本测无判别力：{sorted(before)}")
+
+    tenant_repo.init_platform_db()
+
+    after = _platform_cols()
+    missing = {"allowed_http_hosts", "updated_at"} - after
+    assert not missing, (
+        f"两条平台迁移**没串起来** —— 缺 {sorted(missing)}（实际列集 {sorted(after)}）\n"
+        "常见成因：漏写/写错某条 `ALTER`、条件写反、或在两条之间提前 `return`。\n"
+        "⚠️ **不是**「第二条复用了旧的 `cols` 快照」—— 实施期取材证伪了那个猜测：\n"
+        "  对 additive-only 且检查**不同**列的迁移，陈旧快照缺的正是要加的列 ⇒ 条件照样成立。\n"
+        "  （重读列集的价值是**块间独立**，不是正确性；见 `_run_platform_migrations` 的注释。）"
+    )
+    assert tenant_repo.get_tenant(1)["slug"] == "default", "串行迁移把存量租户行弄丢了"
 
 
 def test_platform_migration_is_idempotent(tmp_db_path):
