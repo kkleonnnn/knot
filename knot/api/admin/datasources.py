@@ -29,7 +29,8 @@ def _assert_http_base_url_allowed(db_type, http_config) -> None:
     except (ValueError, TypeError):
         return
     if base_url and not is_url_allowed(base_url):
-        raise HTTPException(status_code=400, detail="base_url host 不在 KNOT_HTTP_ALLOWED_HOSTS 内（egress 白名单）")
+        # v0.9.7 D11：不点名 env（allowlist 已 per-tenant，点名单一机制对非起源租户是误导）+ 不枚举允许集（#262 同族）
+        raise HTTPException(status_code=400, detail="base_url host 不在本租户的出网白名单内（egress allowlist）")
 
 # v0.6.1.3 — DataSources Hero stats 5min 模块级缓存（避免每次切 tab 都打远程 DB）
 # v0.9.1 MF5：形状 {tid: {"data","ts"}}（对象内按租户分槽 — 防跨租户聚合 stats 泄漏）。

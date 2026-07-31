@@ -124,22 +124,35 @@ def is_url_allowed(url: str) -> bool:
 
 
 def check_url_allowed(url: str) -> None:
-    """守护检查 — 不在 allowlist 抛 HTTPAuthError。
+    """守护检查 — 不在**本租户** allowlist 则抛 `HTTPAuthError`。用于 executor 出网前的强制门检。
 
-    用于 executor 调 HTTP 前的强制门检。
+    ⭐ **v0.9.7 D11：消息不得枚举 allowlist**（守护者 must-fix M4 —— 实读坐实原实现**不干净**）。
+    原写法 `f"(allowed: {sorted(allowed)})"` 把**整份白名单**插进异常，而这条异常经
+    `http_planner.run_http_step` 的 `except Exception` → `result["error"]` → `api/query.py`
+    **原样 yield 给客户端** ⇒ 租户 admin 就能把部署方**整份 egress allowlist** 读出来
+    = **与 #262 完全同类**（#262 泄的是 `JWT_SECRET` / `KNOT_MASTER_KEY`，本处泄的是
+    `KNOT_HTTP_ALLOWED_HOSTS` 的**值**）。原消息还点名了 env ⇒ 告诉租户「这机制叫什么、去猜什么」。
+
+    ⇒ 客户端消息只回显**调用方自己给的 host**（他自己配的，不是新信息）；诊断进**日志**，
+    且只记**来源机制**（`env-fallback` / `column` / `unconfigured`），**不记内容、不记条目数**
+    —— #262 的规则是 env **值**不得进消息 / **日志** / 响应，而「条目数」在污点传播上仍是 env 派生
+    （实测被 `test_SEC_no_env_value_interpolated_into_messages` 拦下，详见手册 D11）。
     """
     from knot.adapters.http.base import HTTPAuthError
 
-    if not is_url_allowed(url):
-        try:
-            host = urlparse(url).hostname or "<unknown>"
-        except ValueError:
-            host = "<unparseable>"
-        allowed = get_allowed_hosts()
-        raise HTTPAuthError(
-            f"URL host {host!r} 不在 KNOT_HTTP_ALLOWED_HOSTS 内 "
-            f"(allowed: {sorted(allowed) if allowed else 'empty / 未配 env'})"
-        )
+    if is_url_allowed(url):
+        return
+    try:
+        host = urlparse(url).hostname or "<unknown>"
+    except ValueError:
+        host = "<unparseable>"
+
+    from knot.core.tenant_context import current_tenant
+    _logger.warning(                                    # 日志 ≠ 响应：来源机制可记，内容不可
+        f"egress 拒绝: host={host!r} tenant={current_tenant().get('id')} "
+        f"allowlist 来源={resolve_allowed_hosts()[1]}"
+    )
+    raise HTTPAuthError(f"目标主机 {host!r} 不在本租户的出网白名单内")
 
 
 def warn_if_owner_using_env_fallback(owner_row: dict | None) -> None:

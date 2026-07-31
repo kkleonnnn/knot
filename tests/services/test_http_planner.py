@@ -69,7 +69,12 @@ def test_url_allowlist_host_match(monkeypatch):
 
 
 def test_url_allowlist_check_raises(monkeypatch):
-    """check_url_allowed 不在 allowlist → HTTPAuthError."""
+    """check_url_allowed 不在 allowlist → HTTPAuthError.
+
+    ⚠️ v0.9.7 D11：`match=` 从 `KNOT_HTTP_ALLOWED_HOSTS` 改为新消息 —— 消息**不再点名 env**
+    （allowlist 已 per-tenant：起源租户回退 env，其余读平台库列 ⇒ 点名单一机制对非起源租户是误导），
+    也**不再枚举允许集**（见 `test_SEC_allowlist_refusal_does_not_enumerate_allowlist`）。
+    """
     monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", "api.example.com")
 
     from knot.adapters.http import HTTPAuthError
@@ -78,8 +83,47 @@ def test_url_allowlist_check_raises(monkeypatch):
     # 通过
     check_url_allowed("http://api.example.com/x")
     # 不通过
-    with pytest.raises(HTTPAuthError, match=r"KNOT_HTTP_ALLOWED_HOSTS"):
+    with pytest.raises(HTTPAuthError, match=r"不在本租户的出网白名单内"):
         check_url_allowed("http://attacker.com/x")
+
+
+def test_SEC_allowlist_refusal_does_not_enumerate_allowlist(monkeypatch):
+    """⭐ must #12 / D11：allowlist 拒绝消息**不得枚举白名单**、不得点名 env（#262 同类）。
+
+    **既有缺陷，v0.9.7 修**：原实现 `f"(allowed: {sorted(allowed)})"` 把**整份白名单**插进异常，
+    而该异常经 `http_planner.run_http_step` 的 `except Exception` → `result["error"]` →
+    `api/query.py` **原样 yield 给客户端** ⇒ 租户 admin 就能读出部署方整份 egress allowlist
+    = `KNOT_HTTP_ALLOWED_HOSTS` 的 **env 值**进了响应（#262 泄的是 JWT_SECRET / KNOT_MASTER_KEY）。
+
+    ⚠️ **判据是内容级、不是计数**：断言「**一个确实配置进去的 host 字面**不出现在消息里」——
+    这样「换个写法继续枚举」（改成逗号连接 / 只报第一条 / 报 host 的一部分）同样会红。
+    ⚠️ 刻意**不**断言「消息不含数字」：调用方自己给的 host 合法含数字（`api2.example.com`），
+    那条断言会误伤（v0.9.6 `:312` 的 `isdigit` 判据不能照搬到这条消息上）。
+    取材=revert：把消息改回含 `(allowed: {sorted(allowed)})` → 本测红。
+    """
+    secret_host = "internal-secret-9x.corp.local"
+    monkeypatch.setenv("KNOT_HTTP_ALLOWED_HOSTS", f"api.example.com,{secret_host}")
+
+    from knot.adapters.http import HTTPAuthError
+    from knot.adapters.http.url_allowlist import check_url_allowed
+
+    try:
+        check_url_allowed("http://attacker.com/x")
+    except HTTPAuthError as e:
+        msg = str(e)
+    else:
+        pytest.fail(
+            "不在 allowlist 的 URL **未被拒绝** —— egress 守护失效。\n"
+            "本测的前提是「拒绝时抛 HTTPAuthError」；若它不再抛，`executor.execute` 出网前就没有门了。"
+        )
+
+    assert secret_host not in msg, (
+        f"拒绝消息枚举了 allowlist 内容（泄漏 {secret_host!r}）：{msg!r}\n"
+        "⚠️ 这条消息会经 run_http_step → result['error'] → api/query.py **原样回到客户端** ——\n"
+        "  即 #262 那条缝。allowlist 是部署方内网 API 主机清单，泄漏 = 内网侦察面。\n"
+        "  诊断信息请放**日志**（只记来源机制，不记内容）。"
+    )
+    assert "KNOT_" not in msg, f"拒绝消息点名了 env（allowlist 已 per-tenant，点名是误导）：{msg!r}"
 
 
 # ─── R-PB2-10: PII redact + truncate ────────────────────────────────────
