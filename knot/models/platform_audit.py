@@ -24,4 +24,10 @@ PlatformAuditAction = Literal[
     # 粒度跟着**代码 choke point** 走（一个写口 = 一条 Literal），变更的**字段**放 detail
     # —— 分成 `db_dir_change` / `allowlist_change` 会让「将来加第三个可变字段」又变成一次 Literal + 守护改动。
     "platform.tenant_update",
+    # v0.9.9 兑现 R-10：租户 ctx 漂移（**事故**，非预期路径）。
+    # 生产者：`api/deps.get_current_user` 捕获 `TenantDriftError` 时。
+    # ⚠️ 该事件**没有单一「对象租户」**（有两个互斥声明）⇒ `tenant_id` / `tenant_slug` 恒 **NULL**，
+    #    两个 id 都放 `detail`（`expected` / `actual`）——
+    #    否则就静默放宽了 `platform_audit.tenant_id` 那条「动作的对象租户」的列语义。
+    "platform.tenant_ctx_drift",
 ]

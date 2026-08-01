@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.9.9 — 租户漂移写平台审计（**兑现 R-10** · 欠 5 片的旧账结清）
+
+> **定性：纯加留档，不改任何拒绝行为。** 单租户下漂移**不应发生** ⇒ 正常部署零新增审计行。
+
+### Added
+- `core.TenantDriftError(TenantContextError)` —— **真漂移**专用类型，携带 `expected` / `actual`。
+  **判断留在 `core`**（单一判据）；调用方只需 `except TenantDriftError`，不重新判断。
+- 新 Literal `platform.tenant_ctx_drift`（第 3 条）+ 记录点在 `api/deps.get_current_user`。
+- **两条哨兵**：`assert_tenant_context` 生产调用点**恰 1 处且该处记审计**（**扩** v0.9.4 既有哨兵，
+  不加第二份判据）· `_LEGACY_SINGLE_TENANT_PATHS` 每个成员必须是 `PUBLIC_OR_OUT_OF_BAND`。
+
+### Changed
+- 真漂移改抛 `TenantDriftError`（子类，行为兼容）。`tenant_context.assert_tenant_context` 的
+  docstring 从「R-10 仍未结清」改为已兑现。
+
+### ⭐ 承重决定：写**平台**审计表，不写租户表
+漂移那一刻「当前是哪家公司」这个信息**本身就是坏的** ⇒ 写租户库就是写进**两个互斥声明中
+可能错的那一个** —— 后果不止「要相信坏信息」，而是**把安全事件披露给错误那家公司的 admin、
+同时对该知道的那家隐藏它** = **一次跨租户信息披露**。平台表 ctx-free ⇒ **唯一可信落点**。
+⚠️ 这**推翻了 v0.9.8 的一句订正**（当时写「R-10 是租户侧的事」）—— 也就是说 CLAUDE.md **原先**
+那句「因平台侧无审计落点而未解开」才是对的。文档已改回。
+
+### 两条刻意的取舍
+- **「未设 ctx」是预期路径 ⇒ 不记**（v0.9.4 明写：租户停用/不存在时 middleware 就不设）。
+  记了会被正常流量刷满、真事故淹没 ⇒ 靠专门的异常类型把两支分开。
+- **审计写失败 ⇒ 仍 401 + ERROR 日志**（不变 500）。这是一个**固有**的策略题，不像 v0.9.8 那次
+  可以「让两难消失」—— 这里的「动作」是**拒绝请求**、不是 DB 写 ⇒ **没有可同事务的对象**。
+  选「仍 401」的理由：保护动作已发生；改成 500 会让审计基础设施故障看起来像服务器故障、
+  **反而更可能掩盖漂移**。⚠️ 幸存信号不止日志：计数器在 `core` 内、**抛出之前**已自增
+  ⇒ 结构上不可能与审计一起消失（配验收钉住）。
+
+### 不声称什么
+- 不改漂移的**检测**逻辑；不动 `get_current_user` 的兜底 `except Exception`（既有 backlog）；
+- **不给漂移审计加限流** —— 漂移**不可外部触发**（唯一的无 JWT 路径不经 `get_current_user`）
+  ⇒ 写入量受「真实 bug」而非攻击者控制；加限流反而引入「你要的那条恰好是第 101 条」的新失败模式。
+  ⚠️ 该判断的**前提已配哨兵**（否则 P4 动那条路时它会静默过期）。
+
 ## [治理] 2026-08-01 — **Loop Protocol v3.1 装入**（v4 提案第一批 · 随 v0.9.8 合并但**独立于它**）
 
 > ⚠️ **单独一段是刻意的**（v0.9.8 Stage 4 §III）：治理文档与代码片同 PR 合并有个隐性代价 ——
@@ -35,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **为什么它是核心**：主流靠 two-person rule（**人多**）换独立性，而本项目是一个人 +
   一串会过期的 Agent 上下文 ⇒ 独立性**结构性稀缺、加人换不来** ⇒ 只能用机制替代人数。
 
-## [Unreleased] - v0.9.8 — 平台侧审计落点 `platform_audit`（P1 · 解锁 E2/R-10 的阻塞理由）
+## [Released] - v0.9.8 — 平台侧审计落点 `platform_audit`（P1 · 解锁 E2/R-10 的阻塞理由）
 
 > v0.9 多租户 MINOR 第九个 PATCH，**lift 弧的 P1**。
 > **定性：纯加，无破坏性** —— 单租户行为除首启多一条审计记录外全部不变。

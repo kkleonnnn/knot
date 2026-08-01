@@ -267,15 +267,71 @@ def test_B4_drift_tripwire_has_production_call_site():
 
     revert-to-bad：删掉 `deps.py` 里那次调用 → 本测转红。
     """
-    src = (_REPO / "knot").rglob("*.py")
+    # ⚠️⚠️ **v0.9.9 从「按行文本」改为 AST**（R-SENTINEL-AST）—— 原扫描能答「有没有」，
+    #   但**答不了「有几处」**：`platform_admin.py:6` 是 **docstring 里提到这个名字**，
+    #   文本匹配把它算成了调用点。**讨论一个名字的文件必然含有那个名字** ⇒ 计数只能用 AST。
+    #   （本仓第四次「文本匹配 → 改 AST」：v0.9.3 载体名 · v0.9.4 test_R17 · v0.9.5 旧名 · 本次。）
+    import ast as _ast
     sites = []
-    for py in src:
+    for py in (_REPO / "knot").rglob("*.py"):
         if "tenant_context.py" in str(py):
             continue          # 定义处不算调用点
-        for i, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
-            if "assert_tenant_context(" in line and not line.strip().startswith("#"):
-                sites.append(f"{py.relative_to(_REPO)}:{i}")
+        try:
+            tree = _ast.parse(py.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Call):
+                fn = node.func
+                name = getattr(fn, "id", None) or getattr(fn, "attr", None)
+                if name == "assert_tenant_context":
+                    sites.append((py, node.lineno))
     assert sites, "assert_tenant_context 无生产调用点 —— B-4 漂移检查没接上"
+
+    # ⭐ v0.9.9（兑现 R-10）：**扩本测**而不是加第二份判据 —— 锚在**真正的 choke point**。
+    # ⚠️ **为什么锚这里而不是「`except TenantDriftError` 的每一处」**（原设计，已被否）：
+    #   那个锚的**逃逸形态**是「将来有人在新调用点写 `except TenantContextError`（**父类**）」
+    #   ⇒ 漂移被吞，而只找子类名的哨兵**看不见**。
+    #   锚在调用点则无论调用方怎么写 except 都躲不掉。
+    # ⚠️ **exact-count**（与 v0.9.8 的 Literal 精确集合同源）：逼「第二个调用点」成为一次**显式评审改动**
+    #   —— 因为新调用点必须自己决定「漂移要不要记审计」，那不该是一个可以顺手做的决定。
+    assert len(sites) == 1, (
+        "`assert_tenant_context` 的生产调用点不再是 1 处：\n  "
+        + "\n  ".join(f"{p.relative_to(_REPO)}:{i}" for p, i in sites)
+        + "\n\n⇒ 新增调用点必须**同时**决定：漂移在那里要不要写平台审计？\n"
+          "  （v0.9.9 兑现 R-10 后，唯一那处会写；漏写 = 事故不留档而全量照绿。）"
+    )
+    # ⚠️⚠️ **判定必须是结构级，不能是「文件里出现过这两个名字」**（实施期取材证伪了第一版）：
+    #   删掉 `except TenantDriftError` 那一支之后，`import` 还在、`_record_tenant_drift` 的
+    #   **定义**也还在 ⇒ 文本判据**照样命中、测照样绿**。
+    #   ⇒ 与上面那处同一个病：**讨论/定义一个名字 ≠ 在那条路径上用了它。**
+    _path, _line = sites[0]
+    _tree = _ast.parse(_path.read_text(encoding="utf-8"))
+    _fn = next(
+        (n for n in _ast.walk(_tree)
+         if isinstance(n, _ast.FunctionDef | _ast.AsyncFunctionDef)
+         and n.lineno <= _line <= (n.end_lineno or n.lineno)), None)
+    assert _fn is not None, f"调用点 {_path.name}:{_line} 不在任何函数里？"
+    _ok = False
+    for _t in _ast.walk(_fn):
+        if not isinstance(_t, _ast.Try):
+            continue
+        for _h in _t.handlers:
+            _tp = _h.type
+            if getattr(_tp, "id", None) != "TenantDriftError":
+                continue
+            # 该 handler 体内必须真的调了写审计的那个函数
+            _ok = any(
+                isinstance(c, _ast.Call)
+                and (getattr(c.func, "id", None) or getattr(c.func, "attr", None)) == "_record_tenant_drift"
+                for stmt in _h.body for c in _ast.walk(stmt))
+    assert _ok, (
+        f"唯一的调用点 {_path.relative_to(_REPO)}:{_line} 所在函数里，"
+        "**没有**一个 `except TenantDriftError` 分支调用 `_record_tenant_drift` —— R-10 回退了。\n"
+        "⇒ 真漂移是事故（单租户下不应发生），它必须留档；\n"
+        "  而「未 set ctx」是预期路径**不能**记（会刷满审计表、淹没真信号）⇒ 两支必须分开。\n"
+        "取材：删掉 `except TenantDriftError` 那一支 → 本测红（实测）。"
+    )
 
 
 def test_B4_drift_detected(tmp_db_path):
@@ -288,8 +344,14 @@ def test_B4_drift_detected(tmp_db_path):
     tok = tc.set_active_tenant({"id": 1, "db_dir": "."})
     try:
         assert_tenant_context(1)          # 一致 → 不抛
-        with pytest.raises(TenantContextError, match="漂移"):
+        # ⚠️ v0.9.9（v3.1-B 枚举表 #8「既有测的绿是真的吗」自问出来的）：
+        #   本行原本只断父类 —— 子类化后**仍绿但对新类型零判别力**（父类捕获子类）
+        #   ⇒ 「只抛父类」这个回退**没有任何测会红**。故改断**子类**。
+        from knot.core.tenant_context import TenantDriftError
+        with pytest.raises(TenantDriftError, match="漂移") as ei:
             assert_tenant_context(2)      # ctx 是 1、token 声明 2 → 抛
+        assert (ei.value.expected, ei.value.actual) == (2, 1), (
+            f"异常未携带 expected/actual（调用方要靠它写审计）：{ei.value!r}")
     finally:
         tc.reset_active_tenant(tok)
 
