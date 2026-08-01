@@ -338,14 +338,16 @@ def test_platform_migration_is_idempotent(tmp_db_path):
 
 
 def test_iso8_flatten_route_snapshot():
-    """⑧ flatten 路由精确计数（精确 == 145 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
+    """⑧ flatten 路由精确计数（精确 == 146 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
 
     v0.9.5：144 → **145**（新增平台只读端点 `GET /api/platform/tenants`）。
+    v0.9.8：145 → **146**（新增平台只读端点 `GET /api/platform/audit` —— 审计的价值在事后可读，
+    一张只能靠 `sqlite3` 手查的表在事故现场没人会想起它；v0.9.5 E4「零消费者 = 死码」同款理由）。
     """
     from knot.main import app
     from tests._route_count import flatten_app_routes
-    assert len(flatten_app_routes(app)) == 145, (
-        "路由数漂移（v0.9.5 起 145 = 144 + `GET /api/platform/tenants`；middleware 非 route）")
+    assert len(flatten_app_routes(app)) == 146, (
+        "路由数漂移（v0.9.8 起 146 = 145 + `GET /api/platform/audit`；middleware 非 route）")
 
 
 # ─────────────────────── 绊线（tripwire · 列缺席 · OOS-1v2）───────────────────────
