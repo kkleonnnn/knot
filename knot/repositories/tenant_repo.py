@@ -13,6 +13,7 @@ from pathlib import Path
 
 from knot.config import SQLITE_DB_PATH
 from knot.core.tenant_context import TenantContextError
+from knot.repositories import platform_audit_repo  # 同层（Contract 4 禁 repositories → services）
 
 _PLATFORM_SCHEMA = (Path(__file__).parent / "platform_schema.sql").read_text(encoding="utf-8")
 
@@ -108,16 +109,87 @@ def get_tenant(tenant_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+#: `update_tenant` 允许改的字段白名单（v0.9.8）。
+#: ⚠️ **刻意不含** `id` / `slug` / `created_at`：前两个是身份（改它等于换租户，而 `slug` 还是登录链接的一部分），
+#: `created_at` 是事实。要改身份类字段应当是一次显式评审的迁移，不是走这个通用写口。
+_MUTABLE_TENANT_FIELDS = ("status", "db_dir", "allowed_http_hosts", "name")
+
+
 def seed_default_tenant(db_dir: str = DEFAULT_TENANT_DB_DIR) -> None:
-    """seed 恰 1 行 tenant#1（幂等：tenants 非空则跳）。生产 db_dir='tenants/1'；测试传 '.'。"""
+    """seed 恰 1 行 tenant#1（幂等：tenants 非空则跳）。生产 db_dir='tenants/1'；测试传 '.'。
+
+    ⭐ **v0.9.8：INSERT 与平台审计在同一事务、单次 commit** —— 见 `platform_audit_repo` 模块 docstring。
+    ⇒ 「审计写失败」与「seed 失败」是**同一件事**，不存在「建了租户但没记」。
+    ⇒ 也**不需要**为「审计写不进去时该 raise 还是继续」定一条策略（那个两难是造出来的）。
+    """
     conn = get_platform_conn()
     if conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0] == 0:
         conn.execute(
             "INSERT INTO tenants (id, slug, name, status, db_dir) VALUES (1, 'default', '默认租户', 'active', ?)",
             (db_dir,),
         )
-        conn.commit()
+        platform_audit_repo.insert(
+            conn, action="platform.tenant_create", tenant_id=1, tenant_slug="default",
+            actor="system:boot", source="startup", detail={"db_dir": db_dir, "seed": True},
+        )
+        conn.commit()          # ⚠️ **单次** commit —— 拆成两次就把上面那条性质丢了
     conn.close()
+
+
+def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | None = None,
+                  **fields) -> bool:
+    """**平台元数据变更的单一写口**（v0.9.8）：校验字段 → stamp `updated_at` → 写审计 → 单次 commit。
+
+    Returns:
+        True = 有行被改；False = 该租户不存在（不抛 —— 调用方按需处理）。
+
+    Raises:
+        ValueError: 传了白名单外的字段（**fail-closed**：不静默忽略未知字段 ——
+            静默忽略会让「我改了但没生效」变成一个无提示的坑）。
+
+    ⭐ **UPDATE 与审计 INSERT 在同一事务、单次 commit**（D3 / 守护者 §II）：
+    ⇒ **不存在「改了但没记」或「记了但没改」**。这比「审计写失败时 fail-closed」更强。
+    ⚠️ 审计的 `detail` 记**变更前后值**，但 `allowed_http_hosts` **只记「已变更」不记内容**
+    （它是部署方的内网主机清单 —— #262 同族；且该端点会返回 `detail_json`）。
+
+    ⚠️ **本函数不是唯一的物理写入途径** —— 运维直接 `sqlite3 UPDATE` 仍绕过它（DEPLOY.md 记为
+    应急手段）。⇒ 本片**不声称**「所有平台变更都被审计」，只声称**代码路径**上的变更被审计。
+    """
+    bad = set(fields) - set(_MUTABLE_TENANT_FIELDS)
+    if bad:
+        raise ValueError(
+            f"update_tenant 不接受字段 {sorted(bad)}；可改字段 = {list(_MUTABLE_TENANT_FIELDS)}。"
+            "（`id` / `slug` / `created_at` 刻意不可改 —— 那是身份与事实，改它应走显式评审的迁移。）"
+        )
+    if not fields:
+        return False
+
+    conn = get_platform_conn()
+    try:
+        row = conn.execute("SELECT * FROM tenants WHERE id=?", (tenant_id,)).fetchone()
+        if row is None:
+            return False
+        before = dict(row)
+
+        sets = ", ".join(f"{k}=?" for k in fields) + ", updated_at=datetime('now','localtime')"
+        conn.execute(f"UPDATE tenants SET {sets} WHERE id=?",  # noqa: S608 — 键已过白名单
+                     (*fields.values(), tenant_id))
+
+        # detail：逐字段记 before→after；allowlist 只记「已变更」（内容是部署方内网主机清单）
+        detail = {}
+        for k, v in fields.items():
+            if k == "allowed_http_hosts":
+                detail[k] = "changed"      # ⛔ 绝不记内容（#262 同族 + 该端点返回 detail_json）
+            else:
+                detail[k] = {"from": before.get(k), "to": v}
+        platform_audit_repo.insert(
+            conn, action="platform.tenant_update", tenant_id=tenant_id,
+            tenant_slug=before.get("slug"), actor=actor, source=source, detail=detail,
+        )
+        conn.commit()          # ⚠️ **单次** commit —— 拆成两次就丢了原子性（配套测会红）
+        return True
+    finally:
+        conn.close()
 
 
 def resolve_tenant_by_id(tenant_id: int) -> dict | None:
