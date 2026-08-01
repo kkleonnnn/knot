@@ -475,6 +475,13 @@ def test_drift_writes_platform_audit_and_still_401(tmp_db_path):
         f"漂移没有单一「对象租户」⇒ 这两列必须 NULL（M4）：{r}")
     assert '"expected": 1' in r["detail_json"] and '"actual": 2' in r["detail_json"], (
         f"detail 必须同时带两个互斥声明（expected/actual）：{r['detail_json']}")
+    # Stage 4 should-fix：漂移调查的第一个问题是「哪个用户的 token」——
+    # 只有两个 tid 答不了它。⚠️ 它是**声明**不是已核实身份 ⇒ 进 detail 而不进 actor
+    #（`actor=None` 刻意：不能把被拒绝的声明写成 actor）。
+    assert f'"claimed_sub": {admin["id"]}' in r["detail_json"], (
+        f"detail 缺 JWT 声明的 sub（user_id）⇒ 调查漂移时答不出「哪个用户的 token」："
+        f"{r['detail_json']}")
+    assert r["actor"] is None, f"被拒绝的声明**不得**写成 actor：{r}"
 
 
 def test_expected_path_no_ctx_writes_no_audit(tmp_db_path):

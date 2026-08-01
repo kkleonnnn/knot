@@ -435,27 +435,54 @@ def test_drift_log_never_leaks_db_dir_or_paths(tmp_db_path):
     assert "MARKER_SECRET_DBDIR_9x" not in blob, f"漂移日志泄漏 db_dir：{blob[:300]}"
 
 
-def test_R10_no_drift_audit_action_added():
-    """⭐ R-10：本片**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**。
+def test_drift_action_never_in_tenant_audit_literal():
+    """⭐ **D3 的守护**：漂移 action **永不得出现在租户审计 Literal 里**（只能在平台侧）。
 
-    审计要写「哪个平台租户」，依赖 v0.9.5 platform/tenant admin 鉴权拆分的口径；且 `core` 层零
-    services 依赖也让 audit 写入不能落在 `tenant_context`。本片的替代物 = WARN + 计数器。
+    ## ⚠️ 本测于 v0.9.9 改名 + 重写理由（原名 `test_R10_no_drift_audit_action_added`）
 
-    断言写成「**没有任何 action 含 drift**」而非「action 总数 == N」—— 后者会被将来任何无关的
-    新 action 打红（假红），前者精确对应 R-10 的主张。同时断言替代机制**存在**（否则「没加审计」
-    可能只是「什么都没做」）。
+    原 docstring 说的三句话在 v0.9.9 之后**全部为假**：「本片刻意不新增 `AuditAction`」·
+    「LOCKED 的 audit-on-drift **仍未结清**」·「本片的替代物 = WARN + 计数器」。
+    **而它仍然绿** —— 因为它断的是 `models.audit.AuditAction`（**租户**审计 Literal），
+    而 v0.9.9 把 action 加进了 `models.platform_audit.PlatformAuditAction`（**另一个** Literal）。
+
+    ⭐ **这正是本仓 v0.9.7 提炼的那句话、一片之后原样复现**：
+    **最危险的失效形态不是转红，是继续绿着但守的已经不是原来那件事。**
+    ⇒ 处置是**改名 + 重写理由，不是删** —— **断言值钱，过期的是理由**。
+
+    ## 它现在守的是什么（v0.9.9 起）
+
+    v0.9.9 的**承重决定 D3**：漂移必须写**平台**审计、**不得**写租户审计。理由：
+    漂移那一刻「当前是哪家公司」这个信息**本身就是坏的** ⇒ 写租户库 = 写进两个互斥声明中
+    **可能错的那一个** ⇒ 后果不止「相信了坏信息」，而是**把安全事件披露给错误那家公司的
+    admin、同时对该知道的那家隐藏它** = **一次跨租户信息披露**。
+    ⇒ 「漂移 action 出现在租户 Literal 里」就是那个决定被推翻的**第一个可静态观测的信号**。
+
+    ⚠️ 断言仍写成「**没有任何 action 含 drift**」而非计数 —— 后者会被任何无关的新 action 打成假红。
+    ⚠️ 同时断言**平台侧确实有**那条 action（否则「租户侧没有」可能只是「两边都没做」）。
+    取材=injection：往 `models.audit.AuditAction` 加一条 `"tenant.ctx_drift"` → 本测红。
     """
     import typing
 
     from knot.models.audit import AuditAction
+    from knot.models.platform_audit import PlatformAuditAction
+
     actions = typing.get_args(AuditAction)
     assert actions, "AuditAction Literal 取不到成员 —— 断言已失效"
     drifty = [a for a in actions if "drift" in a.lower()]
     assert not drifty, (
-        f"新增了漂移相关 AuditAction {drifty} —— R-10 明示本片不结清 audit-on-drift；"
-        f"若确要结清，须走 v0.9.5 platform admin 拆分并同步撤掉本断言 + 撤掉未结清登记。"
+        f"漂移 action 出现在**租户**审计 Literal 里：{drifty}\n\n"
+        "⇒ 这推翻了 v0.9.9 的承重决定 D3：漂移那一刻「当前是哪家公司」本身就是坏的\n"
+        "  ⇒ 写租户库 = 写进两个互斥声明中**可能错的那一个**\n"
+        "  = 把安全事件披露给**错误那家公司**的 admin、同时对该知道的那家隐藏它（跨租户信息披露）。\n"
+        "⇒ 漂移只能写平台审计（`platform_audit`，ctx-free ⇒ 唯一可信落点）。"
     )
-    assert callable(tc.tenant_drift_count), "替代机制（计数器）缺失 —— 「没加审计」不能等于「什么都没做」"
+    # 对照：平台侧**必须**有它 —— 否则「租户侧没有」可能只是「两边都没做」（探针没到达）
+    platform_drifty = [a for a in typing.get_args(PlatformAuditAction) if "drift" in a.lower()]
+    assert platform_drifty, (
+        "平台审计 Literal 里**没有**漂移 action —— R-10 回退了（v0.9.9 已兑现）。\n"
+        "⇒ 本测的「租户侧没有」于是变成同义反复（两边都没做也会绿）。"
+    )
+    assert callable(tc.tenant_drift_count), "进程计数器缺失 —— 它是审计写失败时的幸存信号（v0.9.9 D6）"
 
 
 # ─── 7. ⭐ MF7：NoAmbient 覆盖面不得被裸 TestClient 悄悄恢复盲区 ──────────
