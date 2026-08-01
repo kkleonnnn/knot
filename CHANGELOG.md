@@ -42,6 +42,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DEPLOY.md` 顶部「当前版本」stale 8 个版本（v0.9.4 → v0.9.12）。⚠️ 它**不在 4 源点里**
   ⇒ 无闸门看它，已登记 backlog。
 
+### Added（Stage 4 追加 —— 守护者裁 PASS 后的 should-fix + 建议）
+- **`test_deploy_md_top_version_synced_with_main`** —— `DEPLOY.md` 顶部「当前版本」纳入 doc-invariant。
+  ⭐ **为什么现在装而不是进 backlog**：它**与 R14 完全同形**（不在 4 源点里 ⇒ 没有闸门 ⇒ 静默漂），
+  实测今天**零闸门**且已 stale **8 个版本** ⇒ **同形的问题必须同形处置**，而 R14 的处置是
+  **当场装闸门**，不是登记。
+- **`tests/test_test_hygiene.py`（新文件 · 3 条）—— 「关于测的测」，封已知假绿面**：
+  - `test_caplog_absence_assertions_must_prove_caplog_is_nonempty` ——
+    本仓 logger 是 **loguru**，而 `caplog` **只抓 stdlib logging** ⇒ **反向**断言
+    （`not in` / `not caplog.records` / `== ""`）**对空集恒真 ⇒ 静默恒绿**；正向断言会响亮地红（安全）。
+    ⇒ 判据只卡危险的那个方向：**「X 不在 Y 里」必须先证明 Y 非空**。
+    ⚠️ 刻意**不一律禁 `caplog`** —— `url_allowlist.py` 真用 stdlib `logging`，有合法用法。
+    ⚠️ **实测 0 处现存违规 ⇒ 预防性**；已踩 3 次而教训只在两条 docstring 里
+    （**散文规则没有守护**，正是本弧在治的形状）。
+  - `test_no_regex_literal_inlined_in_fstring` —— ⚠️⚠️ **本弧第 4 次同一机制**：
+    f-string 里手写 `\d`/`\.` 在 raw string 里是**反斜杠+字符** ⇒ 永不匹配 ⇒ 诊断**恒报 `[]`**，
+    **红是红了但在撒谎**。v0.9.10 与本片**在同一个文件里**各犯一次，而当时的注释就写着上次的教训。
+    ⇒ 结构判据：正则调用**不得出现在 f-string 内部**（提为模块级 `re.compile` 常量）。实测 0 处违规。
+  - `test_loguru_sink_pattern_is_discoverable` —— 上面那条的失败消息**推荐**一个范式，
+    那范式就必须真的存在（v3.1-B #6「声明 vs 生产者」）。
+
+### Changed（Stage 4 追加）
+- `DEPLOY.md` 事故响应清单**拆成 (甲) 减面 / (乙) 轮换 / (丙) 收尾** —— ⭐ **不轮换 ≠ 不能减面**：
+  历史 `.bak` 里的明文现在就能删/加密归档，且**必须连 `-wal`/`-shm` 旁文件一起**
+  （⚠️ `*.bak` 通配符**看不见**它们；本机实测 10 个 `.bak` + 10 个旁文件 = 19M，只数 `*.bak` 会漏一半）。
+  kk 2026-08-01 决定暂不轮换 ⇒ 残留风险如实登记在 (乙)。
+- `CLAUDE.md` 折入守护者**自诊断**（他连续三次给错 oracle，三次同一根因）：
+  ⭐ **别把 oracle 锚在「某个文件里写了什么」，要锚在「系统真的产出了什么」** ——
+  并入 R-SENTINEL-AST（它的内核本来就是这条）+ 三行实证对照表；
+  「跑 revert 前四问」第 ③ 条补上高频具体形态（caplog 反向断言）。
+
 ### Changed
 - `monitors.action_target`（webhook URL）**显式豁免**加密，登记进
   `secret_at_rest.NOT_ENCRYPTED_BY_DESIGN`。理由：加密它必须**同片迁移存量行**，而存量迁移正是
