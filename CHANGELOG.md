@@ -5,7 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.11 — 凭据迁移脚本硬化（那个工具此前是危险品）
+## [Unreleased] - v0.9.12 — 静态明文凭据守护（三年的散文规则终于有了守护）
+
+> **定性：0 业务逻辑改动**（新增只读探测器 + 一条只读命令 + 一个启动 WARN 钩子）。
+> 前端源码零改动（仅 `version.js`）+ 随之重建 `knot/static`。
+
+### Added
+- **`knot/repositories/secret_at_rest.py`** —— 静态明文敏感值**只读**扫描。
+  落点集从**三个既有真相源**派生（`user_repo._USER_ENCRYPTED_COLS` /
+  `data_source_repo._DS_ENCRYPTED_COLS` / `settings_repo._SENSITIVE_KEYS`）⇒ 新增敏感列**自动**进扫描面。
+  ⛔ **Finding 永不含值**（只有表/列/主键）；摘要**有界**（默认 5 条样本 + 总数）。
+  - ⭐ **两个 oracle 各自具名，刻意不混**：**廉价判据**（无 `enc_v1:` 前缀 ⇒ 明文）用于**启动期**；
+    **完整判据**（当前 key 解得开）留在写路径 preflight 与只读 CLI。
+    **为什么启动期只能用廉价的**：完整判据要对每个密文做真解密 ⇒ 成本 = 租户数 × 落点 × 行数，
+    **随租户数线性增长** —— 与 v0.9.3 删掉 catalog warm-up 的理由完全同源。
+    ⚠️ **两者不等价**：混 key 库里所有值都是「**某把** key 的合法密文」⇒ **廉价判据看不出 key 错了**。
+  - ⚠️ **扫描范围 = 租户库；平台库不在内**（今天平台库无凭据列）。R-T-GATE 路线图里有
+    **per-tenant 初始口令** ⇒ **那一片必须回来把平台库纳入**，否则会静默漏掉。
+- **启动期逐租户 WARN**（`warn_all_tenants_at_startup`，`main.py` 调用一次）——
+  **不阻断启动**：存量部署带 legacy 明文是**合法状态**（读路径刻意容忍，且有测明确祝福）
+  ⇒ 拒启动 = 升级即自造停机。硬行为放在**没有两难**的那一侧（迁移脚本的 preflight / 后置校验）。
+  ⚠️ **任何异常只降级为 WARN** —— 一个非阻断探测器绝不该改变启动的可用性。
+- **`python3 -m knot.scripts.scan_secrets_at_rest [--all-tenants] [--verify-key]`** —— 只读巡检，
+  有发现即**非 0 退出**（可直接进运维巡检脚本）。
+  ⭐ 它补的是一个**验收方法上的**缺口：Codex R10 正确地禁止「在真实库注入明文来验证扫描器」，
+  于是「真实库报 0」只剩一半验证（**不能证明扫描器没坏** —— 一个恒返空的扫描器给出同样的 0）。
+  三者合起来才闭合：① 真实库**只读**跑本命令 ② 扫描器正对照在**临时库**做 ③ 出事后运维**有命令可跑**。
+- 哨兵 **Sb1–Sb7**（10 个测），**每条都真跑过 revert-to-bad 且失败消息原文入档**。
+
+### Fixed
+- ⚠️ **`fernet.py` 一条三年的假注释**：原文写「D5 INFO log 在 repos wrap 内打」，
+  而实测 `user_repo` / `data_source_repo` **`logger.` 调用 0 处** —— **那个日志从未实现，
+  却被注释断言存在**。⇒ 改为指向**真正守护它的东西**（启动 WARN / 只读 CLI / 写路径 preflight）。
+  **刻意不补那个 per-read 告警**：该函数在热路径上且拿不到列名 ⇒ 告警会是无法定位的噪声；
+  **不应为了让一句旧注释变真而造一个功能。**
+- `DEPLOY.md` 顶部「当前版本」stale 8 个版本（v0.9.4 → v0.9.12）。⚠️ 它**不在 4 源点里**
+  ⇒ 无闸门看它，已登记 backlog。
+
+### Changed
+- `monitors.action_target`（webhook URL）**显式豁免**加密，登记进
+  `secret_at_rest.NOT_ENCRYPTED_BY_DESIGN`。理由：加密它必须**同片迁移存量行**，而存量迁移正是
+  `migrate_encrypt_v045` ⇒ **顺序上不可能**；出网侧另有 `KNOT_WEBHOOK_ALLOWED_HOSTS` 守护（R-SL-69）。
+  ⭐ **豁免的「理由」本身也有守护**（Sb4）：每项必须**具名指向一个片 / ADR / plan 文档**，
+  否则「豁免」会退化成一条**新的无守护散文规则** —— 正是本弧在治的形状。
+- `check_file_sizes` 的 `knot/main.py` ACK cap 328 → 334（**装配下限 4 行**：逐租户循环与全部理由
+  **已刻意搬进** `secret_at_rest`，main.py 只留接线；写在 main.py 里的版本要 +42 行，那不是 cap 该让路的理由）。
+
+## [已发布] - v0.9.11 — 凭据迁移脚本硬化（那个工具此前是危险品）
 
 > **定性：0 业务码、0 前端源码改动**（仅 `version.js` 版本串 + 随之重建的 `knot/static`）。
 > 触发：升级排练阶段二准备中发现 2 个敏感值以明文存放（其一是付所有 LLM 费用的 API key），

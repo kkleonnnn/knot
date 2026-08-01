@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.4 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.12 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -595,6 +595,43 @@ analyst / admin 在 BI 报表工具栏点「定时」→ 设节奏（每天 / �
 失败在弹窗 fire 台账可见。**建议每日节奏落在上游数据 ETL 产出之后**（如 08:00 CST，报表本身是 D-1 窗口）。
 
 > 时区：tick 用 Asia/Shanghai 墙钟计算 next_run（非容器 UTC）。CronJob 频率只需 ≤ 最细节奏（每小时→CronJob ≤1h）。
+
+## 🔐 静态明文凭据巡检（v0.9.12 起）
+
+**一条只读命令**（不改任何数据；退出码 0=干净 / 1=有发现 / 2=跑不起来，可直接进巡检脚本）：
+
+```bash
+docker exec knot python3 -m knot.scripts.scan_secrets_at_rest --all-tenants
+```
+
+加 `--verify-key` 会**额外**用当前 `KNOT_MASTER_KEY` 试解每个密文，回答「key 对不对」——
+⚠️ **廉价判据看不出 key 错了**（混 key 库里所有值都是「某把 key 的合法密文」）。
+
+**启动期也会自己扫一遍**，发现明文则每租户一条 WARN（**不阻断启动** —— 老数据带明文是合法状态，
+拦启动等于升级即自造停机）：
+
+```
+⚠️ [secret-at-rest] tenant#1 存在**明文**敏感值 2 处：users.doris_password(pk=1)、… —— 修：…
+```
+
+**处置**：
+```bash
+docker exec knot python3 -m knot.scripts.migrate_encrypt_v045 --tenant 1     # 先 --dry-run 看会改什么
+```
+该脚本自带三道保护：**写前**全量试解密（key 不对则**零写入零备份**）· WAL-safe 备份（`0600`）·
+跑完在同一次运行内核实，仍有明文则**报错不声称成功**。
+
+### ⚠️ 历史 `.bak` 里可能有明文（加密只能往前修）
+
+`data/` 下的历史备份（`*.audit-purge-*.bak` / `*.pre-tenancy.bak` / `*.v044-*.bak`）是**当时**的快照
+⇒ 若当时有明文凭据，它们**至今仍是明文**。加密现网库**不会**改动这些文件。
+
+**事故响应清单**（涉 3 张表：`users` / `data_sources` / `app_settings`）：
+1. `ls -la data/*.bak` 盘点，确认哪些还需要保留（回滚窗口过了就删）；
+2. 对仍有效的凭据做轮换 —— **DB 密码 · LLM API key · 飞书/TG 凭据**；
+3. 之后再跑一次上面的只读巡检确认现网库干净。
+
+---
 
 ## 🆘 故障排查
 
