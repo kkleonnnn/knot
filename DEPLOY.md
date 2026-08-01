@@ -665,9 +665,24 @@ https://<你的域名>/?c=<公司代号>
 
 ## ⚠️ 多租户运维门（v0.9.3 起 · lift R-T-GATE 前）
 
-- **`replicas=1`**：catalog / 部分进程内状态仍是**每副本一份**。多副本下不同副本可能停在不同租户的 catalog 上，
-  表现为**间歇性、不可复现**的现象（如脱敏偶发不全）。分布式失效（或 sticky routing）落地前，多租户场景请保持
-  单副本；单租户部署不受此限（今日 R-T-GATE 硬锁第二租户，故现网即单租户）。
+- **`replicas=1`**（⚠️ **v0.9.7 订正了这条的理由** —— 原文写「不同副本可能停在**不同租户的** catalog 上」，
+  那是 **v0.9.3 之前**的症状；v0.9.3 已把 catalog 改成**按租户分槽**，同一请求在任何副本上都用**本租户**的槽。
+  原文与它自己那一片的改动矛盾，已按实读重写）：
+
+  **多副本下真实的问题是「一个副本上的变更传不到其他副本」+「限流按副本各算一份」**，逐项实读如下：
+
+  | 进程内状态 | 多副本后果 | 严重性 |
+  |---|---|---|
+  | catalog 槽 | `pick_http_route` **每 query 无条件 reload**（`http_planner.py:134`）⇒ 跨副本陈旧**当场自愈** | 很低 |
+  | JWT 吊销版本缓存 | `TTLCache(ttl=60)` ⇒ 改密/重置后，**别的副本最多晚 60 秒**才拒旧 token | 低（有界） |
+  | **数据源引擎缓存** | `_TTL_SEC = 3600` ⇒ admin 改了数据源连接信息后，**别的副本最多 1 小时**仍用旧连接/旧凭据 | **中**（会产生用户可见的失败） |
+  | **限流桶** | 模块级 `_Bucket()` 每副本一份 ⇒ **有效限额 × 副本数**（登录爆破防护被削弱 N 倍） | **中** |
+  | 数据源健康 / 统计缓存 | 各副本各自探测 | cosmetic |
+
+  ⇒ **多租户场景仍请保持单副本**，但要修的其实只有**加粗那两项**；两项都有**零新依赖**的解法
+  （引擎缓存改「比对数据源行的版本号」而不是靠 TTL；限流改共享计数器 —— 登录类本就低频，
+  写平台库可接受，查询类另议）。**不需要引入 Redis**（详 `docs/plans/v0.9-lift-arc-remaining-plan.md` D-E）。
+  单租户部署不受此限（今日 R-T-GATE 硬锁第二租户，故现网即单租户）。
 - **`_local_catalog.py` 是部署级、全体租户共享**：其中的真实业务表名/方言/HTTP endpoint 对**每个**租户可见；
   且空-DB 租户会 fallback 到它（含 business_rules）。开通第二租户前必须先做 per-tenant file catalog。
 - ✅ **HTTP 虚拟表凭据 + 出网白名单已 per-tenant 化**（v0.9.7 B-3 ②③ —— 原「走进程 env、租户盲」已闭合）：
@@ -704,6 +719,27 @@ https://<你的域名>/?c=<公司代号>
     —— `来源` 字段直接告诉你是「没配」还是「配了但不含这台」。
   - ⚠️ 白名单只比 **hostname 字面**（不含端口、不做子域/IP 归一化）—— 与 v0.9.7 之前一致；
     per-tenant 化后这个弱点**按租户放大**（每份列都带同一弱点），已登记 backlog。
+- ✅ **平台侧动作现在有审计了**（v0.9.8）—— 建/停租户、改 `db_dir`、改出网白名单都会留痕。
+  两种查法：
+
+  ```bash
+  # ① 只读端点（推荐 —— 事故现场最快）；需 KNOT_PLATFORM_ADMIN_TOKEN
+  curl -sS -H "Authorization: Bearer $KNOT_PLATFORM_ADMIN_TOKEN" \
+    'http://127.0.0.1:8000/api/platform/audit?limit=50' | jq .
+
+  # ② 直接查平台库（端点不可用时，例如出现第二个 active 租户导致整站 fail-closed）
+  sqlite3 /app/knot/data/platform.db \
+    "SELECT id, ts, actor, action, tenant_slug, detail_json FROM platform_audit ORDER BY id DESC LIMIT 20;"
+  ```
+
+  - `actor` 口径：`system:boot`（首启 seed，无人参与）/ `cli:<显式传入>` / `NULL`（未知）。
+    ⚠️ **别用容器 `whoami` 当 actor** —— `kubectl exec` 下它 = root/app user ⇒ 「谁改的」记成 root。
+  - ⚠️ **审计只记「代码路径」上的变更**：你直接 `sqlite3 UPDATE tenants` **不会留痕、也不会更新
+    `updated_at`** ⇒ 直接改库请视为**应急手段**，并自行记录。
+  - ⚠️ **出网白名单的变更只记「已变更」不记内容**（那是内网主机清单，而端点会返回详情字段）。
+  - ⚠️ **审计表 append-only** —— 无清理机制（量级极小：只记租户生命周期与元数据变更）。
+    要加清理必须走一次显式评审（有 CI 哨兵挡着）。
+
 - **每个新租户 seed 的初始 admin 口令目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD`**（v0.9.4 登记）：
   开通第二租户前必须改成 per-tenant 初始口令 / 一次性邀请流，否则「A 公司的人能进 B 公司」有现成入口。
 - **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：lift 前必须把 `company` 改为必填。

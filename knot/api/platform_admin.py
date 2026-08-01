@@ -45,13 +45,16 @@ from fastapi.security.utils import get_authorization_scheme_param
 from pydantic import BaseModel
 
 from knot.core.logging_setup import logger
-from knot.repositories import tenant_repo
+from knot.repositories import platform_audit_repo, tenant_repo
 
 router = APIRouter()
 
 #: env 名（**调用期读**，非 settings.py —— 同 `bi_schedule` 的 `KNOT_SCHEDULER_TOKEN` /
 #: `webhook.py` R-SL-69 范式：便于 `monkeypatch.setenv` 测 + 与 K8s Secret 对齐）
 PLATFORM_TOKEN_ENV = "KNOT_PLATFORM_ADMIN_TOKEN"
+
+#: `GET /api/platform/audit` 的分页上限（禁无界返回；超出即 cap 而不报错）。
+_MAX_AUDIT_LIMIT = 200
 
 _PREFIX = "kpa_"
 _MIN_LEN = 32
@@ -153,3 +156,61 @@ async def list_tenants_platform(
     """
     response.headers["Cache-Control"] = "no-store"
     return tenant_repo.list_tenants_public()
+
+
+class PlatformAuditEntry(BaseModel):
+    """平台审计的**显式响应契约**（同 `TenantPublic` 的两道投影纪律）。
+
+    ⭐ **`detail_json` 在投影里 —— 这是一个有连带后果的裁定**（v0.9.8 M3）：
+    不返回它的话，事故现场读不到最有用的信息（「`db_dir` 从什么改成了什么」）
+    ⇒ 本端点退化成 v0.9.5 E4 警告过的**死载荷**（有端点但没人用）。
+    ⇒ **连带后果**：`tests/test_platform_audit.py` 那条「凭据 / env 值 / allowlist 内容
+    不得进 `detail`」的哨兵（D7-②）**由此成为本端点的承重守护** —— 它不再只是卫生。
+    ⛔ **放松那条哨兵的人必须知道：本端点也随之破防。**
+    （已实证的一例：`update_tenant` 对 `allowed_http_hosts` 只记 `"changed"` 不记内容 ——
+    那份清单是部署方的内网主机清单，#262 同族。）
+    """
+
+    id: int
+    ts: str
+    actor: str | None = None
+    action: str
+    tenant_id: int | None = None
+    tenant_slug: str | None = None
+    success: int
+    detail_json: str | None = None
+    source: str | None = None
+
+
+@router.get("/api/platform/audit", response_model=list[PlatformAuditEntry])
+async def list_platform_audit(
+    response: Response,
+    limit: int = 50,
+    before_id: int | None = None,
+    _: str = Depends(require_platform_secret),
+) -> list:
+    """读平台侧审计（**只读** · 游标分页 · 按 id 倒序）。
+
+    ⚠️ **它为什么必须存在**（不是「顺手加个端点」）：v0.9.5 E4 的教训 ——
+    **没有消费者的产物是死码**。一张**只能靠 `sqlite3` 手查**的审计表，在事故现场没人会想起它。
+    ⇒ 审计的价值在于**事后可读**，所以必须有一个读得到的地方。
+
+    ⚠️ **只读，不破 E2**：`/api/platform/` 前缀下禁一切写方法，由
+    `tests/test_tenant_isolation.py::test_iso6b_no_write_methods_under_platform_prefix` 守
+    —— **那条测正是 R-v098-6 的实际载体**（本端点是 GET，故它预期不红）。
+
+    ⚠️ 与 `GET /api/platform/tenants` 同一句提醒：**它不是运维逃生舱** ——
+    `assert_no_second_active_tenant_served()` 是请求解析的第一行 ⇒
+    出现第二个 active 租户时**整站含本端点全部 fail-closed**。
+
+    Args:
+        limit: 上限 `_MAX_AUDIT_LIMIT`（禁无界返回；超出即 cap，不报错 —— 分页参数不该让运维卡住）。
+        before_id: 游标 —— 只返 id **严格小于**它的记录。
+    """
+    response.headers["Cache-Control"] = "no-store"
+    conn = tenant_repo.get_platform_conn()
+    try:
+        return platform_audit_repo.list_recent(
+            conn, limit=min(max(1, limit), _MAX_AUDIT_LIMIT), before_id=before_id)
+    finally:
+        conn.close()

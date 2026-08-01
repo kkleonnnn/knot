@@ -5,7 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.7 — HTTP per-tenant 凭据 + egress 租户域化（B-3 ②③ · 隔离栈第七刀）
+## [治理] 2026-08-01 — **Loop Protocol v3.1 装入**（v4 提案第一批 · 随 v0.9.8 合并但**独立于它**）
+
+> ⚠️ **单独一段是刻意的**（v0.9.8 Stage 4 §III）：治理文档与代码片同 PR 合并有个隐性代价 ——
+> 「v0.9.8 = 平台审计」这个主题会**盖住**「本片同时装入了协议变更」这件更重要的事实。
+> **半年后要能从版本号找到协议变更点。**
+
+- **ADR 机制启用** —— `docs/governance/adr/0001-adopt-loop-protocol-v3.1.md`（`accepted`）。
+  完整提案：`docs/governance/loop-protocol-v4-proposal.md`（诊断 8 条全部来自 v0.9 弧真实事故 +
+  主流机制对照 10 条）。
+- **v3.1-A 独立性判据**：「评审者是独立的，**当且仅当它不知道本片的实现过程**」——
+  可操作形式 = 输入只给 ① Stage 1 ② 最终 diff ③ 闸门输出。
+  ⇒ 替代原「守护者 = 上一 MINOR 的 Agent」这个**时间绑定**（知识单调过期 / 弧内绑定固化 /
+  产生「弧中途不能 bump MINOR」这条怪约束）。⇒ **「Stage 2 缺席」这个概念结构性消失**，
+  `R-LP-v3-EX-1` 不再需要逐片引用（保留为历史）。
+  ⚠️ **配套：Stage 4 输入分两包送** —— 因为 v3.1-C 第 5 条**强制生产**实施记录、而 A **禁止**把
+  实现期叙述交给评审者 ⇒ 两条在同一份协议里互斥。解法是**排序不是删**：包 1（Stage 1 + diff + 闸门）
+  先送、守护者出初步发现；包 2（§9 实施记录）之后送作**交叉校准**。
+- **v3.1-B 承重面强制枚举表**（11 条，每条对应 v0.9 弧一次真实事故）+ **回流载体**：
+  回流做成 **Stage 4 的强制一问**（CI 看不见的规则，挂在一定会发生的仪式上）。
+  首次实践即命中三条（#2 oracle 能否表示要排除的事件 / #9 契约冲突在说结构错了 /
+  #10 策略题是失败模式的影子）。
+- **v3.1-C Definition of Done**：四闸门 + **取材并贴失败信息**（证明「不只是红，而且红得能看懂」）
+  + 枚举表逐条有答 + 偏离逐条给理由 + **自陈实施期错误**。
+- **§MINOR 规则修订**（kk 拍板）：加「**且构成业务能力节点**」+ 明确「平台/治理面加表 + 只读端点属 PATCH」。
+  决定性理由：**MINOR 是 Agent 生命周期边界**（弧中途 bump 会触发换执行者/换守护者）。
+- ⭐ **统摄原则**：**评审的产物应当是哨兵，不是意见** ——
+  意见的有效期 = 评审者上下文的寿命（本项目 ≈ 一个会话）；哨兵的有效期 = 仓库的寿命。
+  **为什么它是核心**：主流靠 two-person rule（**人多**）换独立性，而本项目是一个人 +
+  一串会过期的 Agent 上下文 ⇒ 独立性**结构性稀缺、加人换不来** ⇒ 只能用机制替代人数。
+
+## [Unreleased] - v0.9.8 — 平台侧审计落点 `platform_audit`（P1 · 解锁 E2/R-10 的阻塞理由）
+
+> v0.9 多租户 MINOR 第九个 PATCH，**lift 弧的 P1**。
+> **定性：纯加，无破坏性** —— 单租户行为除首启多一条审计记录外全部不变。
+
+### Added
+- **`platform_audit` 表（平台库）+ `tenants.updated_at`**（本机制的**第二个用户** ⇒ 顺带证明
+  v0.9.7 那套 `_run_platform_migrations` 可组合；must #10 从 **pre-v0.9.7** 存量库测「两条能串起来」）。
+- **`tenant_repo.update_tenant`** —— 平台元数据变更的**单一写口**：白名单校验（`status` / `db_dir` /
+  `allowed_http_hosts` / `name`；`id`/`slug`/`created_at` **刻意不可改**）+ stamp `updated_at` +
+  同事务写审计。白名单外字段 **raise 而不静默忽略**（静默忽略会让「我改了但没生效」变成无提示的坑）。
+- **`GET /api/platform/audit`**（只读 · 游标分页 · `limit` cap 200）。
+  **为什么必须有**：v0.9.5 E4 的教训 —— 没有消费者的产物是死码；一张只能靠 `sqlite3` 手查的审计表
+  在事故现场没人会想起它。**不破 E2**（`/api/platform/` 前缀零写面，由 `test_iso6b` 守）。
+- **四条哨兵**：`platform.*` Literal 与 emit **精确集合相等**（同时封「声明未 emit」与「emit 未声明」）·
+  `detail` 无凭据标识符 + 调用方零 env 读取 · `UPDATE tenants` **恰一处** · **append-only**（禁改禁删）。
+
+### Changed
+- `seed_default_tenant` 在**同一事务**内写 `platform.tenant_create` 审计。
+
+### ⭐ 本片最关键的设计（不是表，而是写法）
+**审计 INSERT 与被记录的动作在同一连接、同一事务、单次 commit**
+⇒ 「审计写失败」不再是独立事件、与「动作失败」是**同一件事**
+⇒ **不存在「动作发生了但没记」，也不存在「记了但没发生」**。
+这比「审计写失败时 fail-closed」更强，且**不需要在 raise 与吞之间选一条策略** ——
+原草案主张 raise，但那会把 **`replicas=1` 这条零强制的运维约束**变成**可用性单点**
+（多副本 + 共享 PVC 首启并发写 `platform.db` ⇒ `database is locked` ⇒ 全副本 boot 崩循环）。
+⇒ **教训（已入 CLAUDE.md v3.1-B 第 10 条）：当两个选项都需要你「定一条策略」时，
+往往说明那个失败模式本不该存在 —— 策略题是失败模式的影子。**
+而**指出它的是分层契约** ⇒ **契约冲突不是绕路的对象，它常常在告诉你结构错了。**
+
+### 诚实边界（本片**不**声称什么）
+- 运维直接 `sqlite3 UPDATE` 仍绕过单一写口 ⇒ **只声称「代码路径上的变更被审计」**
+  （P2 的 CLI 落地后 DEPLOY 会把运维引导过去，并把直接 UPDATE 标为应急手段）。
+- **不在本片关 R-10**（audit-on-drift 是**租户侧**漂移写租户审计的事）——
+  只移除它「无落点」这个**阻塞理由**，状态改为「落点已具备，待独立评估」。
+- 哨兵 2 **不能**证明「detail 里绝无敏感值」（`detail` 是运行期构造的变量，AST 看不进去）——
+  它守两条可静态判定的路径，**allowlist 内容那条由行为测的内容级 oracle 覆盖** ⇒ 两条一起才完整。
+
+### 协议留痕
+- Stage 2 缺席已由 **v3.1-A 独立性判据**结构性消解（评审者 = 任何「不知道实现过程」的一方）
+  ⇒ **不再逐片引用 R-LP-v3-EX-1**。详 ADR-0001。
+- 版本号 **PATCH**：决定性理由不是「无新屏无新业务能力」，而是 **MINOR 是 Agent 生命周期边界**
+  （弧中途 bump 会触发换执行者）—— kk 2026-08-01 已据此修订 §MINOR 规则。
+
+## [Released] - v0.9.7 — HTTP per-tenant 凭据 + egress 租户域化（B-3 ②③ · 隔离栈第七刀）
 
 > v0.9 多租户 MINOR 第八个 PATCH。**B-3 三项至此全闭合**（① v0.9.6 file catalog · ②③ 本片）。
 > 切的是**出境面**：HTTP 数据源的**凭据**与**出网白名单**此前都取自**进程 env** = 租户盲。

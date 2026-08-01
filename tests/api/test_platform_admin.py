@@ -321,3 +321,83 @@ def test_new_platform_column_does_not_leak_through(client, monkeypatch):
     assert r.status_code == 200, r.text
     assert "S3CRET-INITIAL-PW" not in r.text, "新增平台列泄漏进响应"
     assert "initial_admin_password" not in r.text
+
+
+# ─── v0.9.8：`GET /api/platform/audit`（must #6）────────────────────────
+
+_AUDIT_URL = "/api/platform/audit"
+
+
+def test_audit_endpoint_shares_the_same_secret_gate(client, monkeypatch):
+    """must #6 前半：新端点与 `/tenants` **共用同一道密钥闸** —— 未配 503 / 错密钥 401 / 对 200。
+
+    ⚠️ 为什么要单独测而不是「反正用了同一个 Depends」：`require_platform_secret` 是**依赖工厂之外**
+    的普通依赖，漏挂它**不会有任何编译期信号** —— 而路由策略快照虽然会红，但那是
+    **依赖层**的快照（chore 的硬注记：**快照绿 ≠ 授权完好**，函数体内授权它看不见）。
+    ⇒ 端点层再钉一次。
+    """
+    monkeypatch.delenv(_ENV, raising=False)
+    assert client.get(_AUDIT_URL, headers=_hdr("whatever")).status_code == 503
+
+    monkeypatch.setenv(_ENV, _GOOD)
+    assert client.get(_AUDIT_URL, headers=_hdr("kpa_" + "z" * 40)).status_code == 401
+    r = client.get(_AUDIT_URL, headers=_hdr(_GOOD))
+    assert r.status_code == 200, r.text
+
+
+def test_audit_endpoint_returns_explicit_columns_including_detail(client, monkeypatch):
+    """must #6 后半 + **M3 裁定**：响应恰为显式列集，且**含 `detail_json`**。
+
+    ⭐ **`detail_json` 在投影里是一个有连带后果的裁定**：不返回它，事故现场读不到
+    「`db_dir` 从什么改成了什么」⇒ 端点退化成 v0.9.5 E4 警告过的**死载荷**。
+    ⇒ **连带后果**：`tests/test_platform_audit.py` 那条「凭据/allowlist 内容不得进 `detail`」的哨兵
+    **由此成为本端点的承重守护**。⛔ 放松那条哨兵的人必须知道本端点也随之破防。
+
+    取材=revert：把 `PlatformAuditEntry` 的 `detail_json` 删掉 → 本测红（键缺席）。
+    """
+    monkeypatch.setenv(_ENV, _GOOD)
+    rows = client.get(_AUDIT_URL, headers=_hdr(_GOOD)).json()
+    assert rows, "fixture 已 seed tenant#1 ⇒ 至少应有一条 platform.tenant_create"
+    assert set(rows[0]) == {
+        "id", "ts", "actor", "action", "tenant_id", "tenant_slug", "success", "detail_json", "source",
+    }, f"响应列集漂移：{sorted(rows[0])}"
+    assert rows[0]["action"] == "platform.tenant_create", rows[0]
+
+
+def test_audit_endpoint_pagination_is_bounded_and_cursor_works(client, monkeypatch):
+    """must #6 续：`limit` **有界**（超上限即 cap，不报错）+ `before_id` 游标生效。
+
+    分页参数不该让运维卡住 ⇒ 超界 **cap 而非 422**；但**无界返回**是不可接受的
+    （审计表会长，一次全量返回等于自制 DoS）。
+    """
+    from knot.repositories import platform_audit_repo, tenant_repo
+
+    monkeypatch.setenv(_ENV, _GOOD)
+    for i in range(4):
+        tenant_repo.update_tenant(1, name=f"n{i}", actor="cli:test")
+
+    # ⚠️ **判据必须是「传下去的 limit」，不能是「返回的行数」**（实施期取材证伪了第一版）：
+    #   库里只有几条审计行 ⇒ `limit=999` 不 cap 时返回的仍是那几条、仍 ≤200 ⇒ 行数断言**照过**。
+    #   ⇒ 「limit 无界」这个事件**在行数这个 oracle 里表示不出来**（v3.1-B 枚举表第 2 条）。
+    #   ⇒ 改为拦截 repo 调用、断言**实际生效的 limit**。
+    seen: list[int] = []
+    _orig = platform_audit_repo.list_recent
+
+    def _spy(conn, *, limit, before_id=None):
+        seen.append(limit)
+        return _orig(conn, limit=limit, before_id=before_id)
+
+    monkeypatch.setattr(platform_audit_repo, "list_recent", _spy)
+    all_rows = client.get(f"{_AUDIT_URL}?limit=999", headers=_hdr(_GOOD)).json()
+    assert seen and seen[-1] <= pa._MAX_AUDIT_LIMIT, (
+        f"limit=999 未被 cap —— 实际传给 repo 的是 {seen}（上限 {pa._MAX_AUDIT_LIMIT}）\n"
+        "⇒ 无界返回：审计表会长，一次全量返回等于自制 DoS。"
+    )
+    monkeypatch.setattr(platform_audit_repo, "list_recent", _orig)
+    all_rows = client.get(f"{_AUDIT_URL}?limit=999", headers=_hdr(_GOOD)).json()
+    assert len(all_rows) > 1, "前提：至少有多条审计行，否则下面的排序/游标断言无判别力"
+    assert [r["id"] for r in all_rows] == sorted((r["id"] for r in all_rows), reverse=True), "应按 id 倒序"
+
+    cursor = all_rows[1]["id"]
+    page = client.get(f"{_AUDIT_URL}?before_id={cursor}", headers=_hdr(_GOOD)).json()
+    assert page and all(r["id"] < cursor for r in page), f"游标失效：{[r['id'] for r in page]}"

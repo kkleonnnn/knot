@@ -182,7 +182,7 @@ def test_D1_policy_class_counts_are_pinned():
     import collections
     got = collections.Counter(actual.values())
     want = {TENANT_ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34,
-            PLATFORM_SECRET: 1, PUBLIC_OR_OUT_OF_BAND: 4}
+            PLATFORM_SECRET: 2, PUBLIC_OR_OUT_OF_BAND: 4}   # v0.9.8: 1→2（+GET /api/platform/audit）
     assert dict(got) == want, (
         f"策略类分布漂移：\n  实际 {dict(sorted(got.items()))}\n  期望 {dict(sorted(want.items()))}\n"
         f"若有意：跑 `{_REGEN}` 并同步本测的 want。"
