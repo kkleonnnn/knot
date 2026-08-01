@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.11 — 凭据迁移脚本硬化（那个工具此前是危险品）
+## [Unreleased] - v0.9.12 — 静态明文凭据守护（三年的散文规则终于有了守护）
+
+> **定性：0 业务逻辑改动**（新增只读探测器 + 一条只读命令 + 一个启动 WARN 钩子）。
+> 前端源码零改动（仅 `version.js`）+ 随之重建 `knot/static`。
+
+### Added
+- **`knot/repositories/secret_at_rest.py`** —— 静态明文敏感值**只读**扫描。
+  落点集从**三个既有真相源**派生（`user_repo._USER_ENCRYPTED_COLS` /
+  `data_source_repo._DS_ENCRYPTED_COLS` / `settings_repo._SENSITIVE_KEYS`）⇒ 新增敏感列**自动**进扫描面。
+  ⛔ **Finding 永不含值**（只有表/列/主键）；摘要**有界**（默认 5 条样本 + 总数）。
+  - ⭐ **两个 oracle 各自具名，刻意不混**：**廉价判据**（无 `enc_v1:` 前缀 ⇒ 明文）用于**启动期**；
+    **完整判据**（当前 key 解得开）留在写路径 preflight 与只读 CLI。
+    **为什么启动期只能用廉价的**：完整判据要对每个密文做真解密 ⇒ 成本 = 租户数 × 落点 × 行数，
+    **随租户数线性增长** —— 与 v0.9.3 删掉 catalog warm-up 的理由完全同源。
+    ⚠️ **两者不等价**：混 key 库里所有值都是「**某把** key 的合法密文」⇒ **廉价判据看不出 key 错了**。
+  - ⚠️ **扫描范围 = 租户库；平台库不在内**（今天平台库无凭据列）。R-T-GATE 路线图里有
+    **per-tenant 初始口令** ⇒ **那一片必须回来把平台库纳入**，否则会静默漏掉。
+- **启动期逐租户 WARN**（`warn_all_tenants_at_startup`，`main.py` 调用一次）——
+  **不阻断启动**：存量部署带 legacy 明文是**合法状态**（读路径刻意容忍，且有测明确祝福）
+  ⇒ 拒启动 = 升级即自造停机。硬行为放在**没有两难**的那一侧（迁移脚本的 preflight / 后置校验）。
+  ⚠️ **任何异常只降级为 WARN** —— 一个非阻断探测器绝不该改变启动的可用性。
+- **`python3 -m knot.scripts.scan_secrets_at_rest [--all-tenants] [--verify-key]`** —— 只读巡检，
+  有发现即**非 0 退出**（可直接进运维巡检脚本）。
+  ⭐ 它补的是一个**验收方法上的**缺口：Codex R10 正确地禁止「在真实库注入明文来验证扫描器」，
+  于是「真实库报 0」只剩一半验证（**不能证明扫描器没坏** —— 一个恒返空的扫描器给出同样的 0）。
+  三者合起来才闭合：① 真实库**只读**跑本命令 ② 扫描器正对照在**临时库**做 ③ 出事后运维**有命令可跑**。
+- 哨兵 **Sb1–Sb7**（10 个测），**每条都真跑过 revert-to-bad 且失败消息原文入档**。
+
+### Fixed
+- ⚠️ **`fernet.py` 一条三年的假注释**：原文写「D5 INFO log 在 repos wrap 内打」，
+  而实测 `user_repo` / `data_source_repo` **`logger.` 调用 0 处** —— **那个日志从未实现，
+  却被注释断言存在**。⇒ 改为指向**真正守护它的东西**（启动 WARN / 只读 CLI / 写路径 preflight）。
+  **刻意不补那个 per-read 告警**：该函数在热路径上且拿不到列名 ⇒ 告警会是无法定位的噪声；
+  **不应为了让一句旧注释变真而造一个功能。**
+- `DEPLOY.md` 顶部「当前版本」stale 8 个版本（v0.9.4 → v0.9.12）。⚠️ 它**不在 4 源点里**
+  ⇒ 无闸门看它，已登记 backlog。
+
+### Added（Stage 4 追加 —— 守护者裁 PASS 后的 should-fix + 建议）
+- **`test_deploy_md_top_version_synced_with_main`** —— `DEPLOY.md` 顶部「当前版本」纳入 doc-invariant。
+  ⭐ **为什么现在装而不是进 backlog**：它**与 R14 完全同形**（不在 4 源点里 ⇒ 没有闸门 ⇒ 静默漂），
+  实测今天**零闸门**且已 stale **8 个版本** ⇒ **同形的问题必须同形处置**，而 R14 的处置是
+  **当场装闸门**，不是登记。
+- **`tests/test_test_hygiene.py`（新文件 · 3 条）—— 「关于测的测」，封已知假绿面**：
+  - `test_caplog_absence_assertions_must_prove_caplog_is_nonempty` ——
+    本仓 logger 是 **loguru**，而 `caplog` **只抓 stdlib logging** ⇒ **反向**断言
+    （`not in` / `not caplog.records` / `== ""`）**对空集恒真 ⇒ 静默恒绿**；正向断言会响亮地红（安全）。
+    ⇒ 判据只卡危险的那个方向：**「X 不在 Y 里」必须先证明 Y 非空**。
+    ⚠️ 刻意**不一律禁 `caplog`** —— `url_allowlist.py` 真用 stdlib `logging`，有合法用法。
+    ⚠️ **实测 0 处现存违规 ⇒ 预防性**；已踩 3 次而教训只在两条 docstring 里
+    （**散文规则没有守护**，正是本弧在治的形状）。
+  - `test_no_regex_literal_inlined_in_fstring` —— ⚠️⚠️ **本弧第 4 次同一机制**：
+    f-string 里手写 `\d`/`\.` 在 raw string 里是**反斜杠+字符** ⇒ 永不匹配 ⇒ 诊断**恒报 `[]`**，
+    **红是红了但在撒谎**。v0.9.10 与本片**在同一个文件里**各犯一次，而当时的注释就写着上次的教训。
+    ⇒ 结构判据：正则调用**不得出现在 f-string 内部**（提为模块级 `re.compile` 常量）。实测 0 处违规。
+  - `test_loguru_sink_pattern_is_discoverable` —— 上面那条的失败消息**推荐**一个范式，
+    那范式就必须真的存在（v3.1-B #6「声明 vs 生产者」）。
+
+### Changed（Stage 4 追加）
+- `DEPLOY.md` 事故响应清单**拆成 (甲) 减面 / (乙) 轮换 / (丙) 收尾** —— ⭐ **不轮换 ≠ 不能减面**：
+  历史 `.bak` 里的明文现在就能删/加密归档，且**必须连 `-wal`/`-shm` 旁文件一起**
+  （⚠️ `*.bak` 通配符**看不见**它们；本机实测 10 个 `.bak` + 10 个旁文件 = 19M，只数 `*.bak` 会漏一半）。
+  kk 2026-08-01 决定暂不轮换 ⇒ 残留风险如实登记在 (乙)。
+- `CLAUDE.md` 折入守护者**自诊断**（他连续三次给错 oracle，三次同一根因）：
+  ⭐ **别把 oracle 锚在「某个文件里写了什么」，要锚在「系统真的产出了什么」** ——
+  并入 R-SENTINEL-AST（它的内核本来就是这条）+ 三行实证对照表；
+  「跑 revert 前四问」第 ③ 条补上高频具体形态（caplog 反向断言）。
+
+### Changed
+- `monitors.action_target`（webhook URL）**显式豁免**加密，登记进
+  `secret_at_rest.NOT_ENCRYPTED_BY_DESIGN`。理由：加密它必须**同片迁移存量行**，而存量迁移正是
+  `migrate_encrypt_v045` ⇒ **顺序上不可能**；出网侧另有 `KNOT_WEBHOOK_ALLOWED_HOSTS` 守护（R-SL-69）。
+  ⭐ **豁免的「理由」本身也有守护**（Sb4）：每项必须**具名指向一个片 / ADR / plan 文档**，
+  否则「豁免」会退化成一条**新的无守护散文规则** —— 正是本弧在治的形状。
+- `check_file_sizes` 的 `knot/main.py` ACK cap 328 → 334（**装配下限 4 行**：逐租户循环与全部理由
+  **已刻意搬进** `secret_at_rest`，main.py 只留接线；写在 main.py 里的版本要 +42 行，那不是 cap 该让路的理由）。
+
+## [已发布] - v0.9.11 — 凭据迁移脚本硬化（那个工具此前是危险品）
 
 > **定性：0 业务码、0 前端源码改动**（仅 `version.js` 版本串 + 随之重建的 `knot/static`）。
 > 触发：升级排练阶段二准备中发现 2 个敏感值以明文存放（其一是付所有 LLM 费用的 API key），

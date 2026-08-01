@@ -37,7 +37,7 @@ from knot.repositories import init_db, tenancy_migration, tenant_repo
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.9.11")
+app = FastAPI(title="KNOT", version="0.9.12")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -168,6 +168,12 @@ try:
     logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
 finally:
     _tenant_ctx.reset_active_tenant(_t1_tok2)
+
+
+# v0.9.12 静态明文敏感值**只读**巡检（逐租户 WARN，不阻断启动）—— 全部理由见 secret_at_rest 模块头
+from knot.repositories import secret_at_rest as _secret_at_rest  # noqa: E402
+
+_secret_at_rest.warn_all_tenants_at_startup()
 
 
 @app.on_event("startup")

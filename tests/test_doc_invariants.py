@@ -109,6 +109,7 @@ _STATIC = Path("knot/static")
 #    断言会在**正确的 bundle 上假红**，而那时没人会想到是 minifier 换了引号。
 #    反向引用 `\1` 要求首尾同型，避免 `` `0.9.10" `` 这种跨引号的偶然命中。
 _QUOTED_SEMVER = re.compile(r"""(['"`])\d+\.\d+\.\d+\1""")
+_V_SEMVER = re.compile(r"v\d+\.\d+(?:\.\d+)?")
 
 
 def _quoted_literal_re(version: str) -> re.Pattern:
@@ -177,4 +178,32 @@ def test_static_assets_no_orphan_chunks():
     assert disk == refs, (
         f"构建产物与 index.html 引用集不一致 —— 孤儿：{sorted(disk - refs) or '无'}；"
         f"引用了但磁盘没有：{sorted(refs - disk) or '无'}"
+    )
+
+
+# ─── v0.9.12 Stage 4 should-fix：DEPLOY.md 顶部版本（与 R14 完全同形）────────
+
+def test_deploy_md_top_version_synced_with_main():
+    """`DEPLOY.md` 顶部「当前版本」== `main.py` version.
+
+    **为什么现在装而不是进 backlog**（守护者 Stage 4 §III）：
+    它**与 R14 完全同形** —— R14 的机制正是「不在 4 源点里 ⇒ 没有闸门 ⇒ 静默漂 3 片」。
+    实测本条今天**零闸门**，而 `DEPLOY.md` 顶部已 stale **8 个版本**（写 v0.9.4，实际 0.9.12）。
+    ⇒ **同形的问题必须同形处置**：R14 的处置是**当场装闸门**，不是登记。
+    「一行的东西放进 backlog」而这条弧刚用三个版本证明了 backlog 是什么。
+
+    判据 = **包含式**（照 README 的 KNOW-1 范式，`test_login_version_sync.py:63`）：
+    ⚠️ 不能用精确集合 —— 顶部还合法含 `v0.6.1` / `v0.6.5`（指向旧升级 runbook 的引用）。
+    """
+    top = Path("DEPLOY.md").read_text(encoding="utf-8")[:1000]
+    expected = f"v{_main_version()}"
+    # ⚠️ pattern 提为模块级常量 —— **不得内联进 f-string**：本断言初版就是内联的，
+    #    在 f-string 里被双重转义成 `\\.`（= 反斜杠+点）⇒ 诊断恒报 `[]`，**红是红了但在撒谎**。
+    #    这是本弧**第 4 次**同一机制（v0.9.10 那次也在本文件里，而当时的注释就写着这条教训）。
+    #    ⇒ 已由 `tests/test_test_hygiene.py::test_no_regex_literal_inlined_in_fstring` 机械守护。
+    found = sorted(set(_V_SEMVER.findall(top)))
+    assert expected in top, (
+        f"DEPLOY.md 顶部 1000 字符内不含 {expected!r}（运维手册版本 stale）。\n"
+        f"    顶部出现的版本串：{found}\n"
+        f"    ⇒ 每片 bump 版本时同步 DEPLOY.md 顶部那一行。"
     )
