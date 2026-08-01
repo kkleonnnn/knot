@@ -99,3 +99,82 @@ def test_changelog_single_unreleased():
     text = Path("CHANGELOG.md").read_text(encoding="utf-8")
     n = len(re.findall(r"^## \[Unreleased\]", text, flags=re.MULTILINE))
     assert n == 1, f"CHANGELOG `## [Unreleased]` 应恰 1 个（当前在飞）；实际 {n}（历史漏 demote → stale 堆积）"
+
+
+# ─── v0.9.10 R14：构建产物纳入版本闸门（4 源点此前不含它 ⇒ 漏 3 片无人察觉）────
+
+_STATIC = Path("knot/static")
+# ⚠️ **引号无关**（Stage 4 should-fix）：初版锚死反引号（``0.9.10``），而那只是 **esbuild 当前的
+#    最小化输出形态** —— 源码 `version.js` 写的其实是单引号。若将来 Vite/esbuild 升级改成 `"0.9.10"`，
+#    断言会在**正确的 bundle 上假红**，而那时没人会想到是 minifier 换了引号。
+#    反向引用 `\1` 要求首尾同型，避免 `` `0.9.10" `` 这种跨引号的偶然命中。
+_QUOTED_SEMVER = re.compile(r"""(['"`])\d+\.\d+\.\d+\1""")
+
+
+def _quoted_literal_re(version: str) -> re.Pattern:
+    return re.compile(r"""(['"`])""" + re.escape(version) + r"""\1""")
+
+
+def _index_html_asset_refs() -> set[str]:
+    """`index.html` 真正引用的资产集（src= 与 href= 两种，modulepreload 用后者）。"""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    return set(re.findall(r'(?:src|href)="/(assets/[^"]+)"', html))
+
+
+def test_static_bundle_version_synced_with_version_js():
+    """`knot/static` 构建产物里的版本 == `version.js` APP_VERSION.
+
+    **为什么需要它**：4 源点（main.py / test_rename_smoke / README / version.js）**不含构建产物**
+    ⇒ 没有任何闸门看它 ⇒ v0.9.7/.8/.9 三片都 bump 了 4 源点却没重建 static，
+    **用户在 UI 侧栏 / Login 页脚看到 v0.9.6 而 API 报 0.9.9**，连漏 3 片无人察觉。
+
+    ⭐ **锚点 = `index.html` 真正引用的那个 chunk**（浏览器会加载的那个）。
+    这个锚点让「旧 hash chunk 未删」这个形态**自动消解**：孤儿 chunk 不被引用 ⇒ 不会被加载
+    ⇒ 它不是 stale 发布、只是磁盘垃圾（另由 `test_static_assets_no_orphan_chunks` 管卫生）。
+    真正危险的是「index.html 指着一个旧 chunk」，而那**恰恰**被本断言抓到。
+
+    ⚠️ **判据 = 反引号包裹的裸版本串** —— APP_VERSION 编译后的实际形状（实测 ``Xe=`0.9.10` ``）。
+    两版被证伪的 oracle 记此备考，别再走回头路：
+      ① `v\\d+\\.\\d+\\.\\d+` 字面全集 —— UI 源码写的是 `v{APP_VERSION}`，`v` 是**另一个 JSX 文本节点**
+         ⇒ `v0.9.10` **不会连续出现**；实测 bundle 里 8 个 `v0.x.y` 全是别处的串。
+      ② 裸 semver 字面全集 —— bundle 里合法含大量**依赖**版本字面（实测 `0.4.2`/`1.82.33`/`127.0.0` …）。
+    """
+    from knot.main import app  # noqa: F401 — 与 main version 的桥由 test_app_version_synced_with_main 守
+    src = Path("frontend/src/version.js").read_text(encoding="utf-8")
+    m = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", src)
+    assert m, "version.js 须 export const APP_VERSION = '...'"
+    app_version = m.group(1)
+
+    entry = next((r for r in _index_html_asset_refs()
+                  if re.fullmatch(r"assets/index-[A-Za-z0-9_-]+\.js", r)), None)
+    assert entry, f"index.html 未引用应用入口 chunk（assets/index-*.js）；实际引用：{sorted(_index_html_asset_refs())}"
+    entry_path = _STATIC / entry
+    assert entry_path.exists(), f"index.html 引用了不存在的 {entry}（构建产物残缺）"
+
+    body = entry_path.read_text(encoding="utf-8", errors="replace")
+    # ⚠️ 诊断用的 pattern 提为模块级常量，是因为把它内联进 f-string 时我写成了 `\\d`（raw string 里
+    #    = 反斜杠+d，永不匹配数字）⇒ 诊断行恒报 `[]`，**红是红了，但说的是假话**。
+    #    根因：诊断代码**只在失败路径上运行** ⇒ 它只能靠真的把它弄红来测试。
+    #    ⇒ revert-to-bad 的验收产物是**那条失败消息的原文**，不是「转红了」三个字。
+    found = sorted({m.group(0) for m in _QUOTED_SEMVER.finditer(body)})
+    assert _quoted_literal_re(app_version).search(body), (
+        f"构建产物 stale：{entry} 里找不到被引号包裹的 {app_version!r}（APP_VERSION）。\n"
+        f"    该 chunk 里带引号的 semver 实际是：{found}\n"
+        f"    ⇒ bump 了 version.js 但没重建前端。修：cd frontend && npm ci && npm run build"
+    )
+
+
+def test_static_assets_no_orphan_chunks():
+    """磁盘上的 js/css **精确等于** `index.html` 的引用集（无孤儿、无缺失）。
+
+    `vite.config.js` 有 `emptyOutDir: true` ⇒ 正常构建天然满足；本断言守的是
+    **绕过正常构建的手改**（手拷文件 / 关掉 emptyOutDir / 部分回滚）。
+    ⚠️ 只覆盖 js/css：字体等由 CSS 引用，不出现在 index.html 里。
+    """
+    refs = {r for r in _index_html_asset_refs() if r.endswith((".js", ".css"))}
+    disk = {str(p.relative_to(_STATIC)) for p in (_STATIC / "assets").glob("*")
+            if p.suffix in {".js", ".css"}}
+    assert disk == refs, (
+        f"构建产物与 index.html 引用集不一致 —— 孤儿：{sorted(disk - refs) or '无'}；"
+        f"引用了但磁盘没有：{sorted(refs - disk) or '无'}"
+    )

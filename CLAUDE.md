@@ -166,6 +166,11 @@ Agent 的生命周期与 **MINOR 版本号**绑定，不与 PATCH 绑定：
    - **门**装在**能力被行使的那一行**，不是决策点（v0.9.6 错两次才收敛）；
    - **消息**挂在**真的会失败的那条路径**上（v0.9.6 Stage 4：`pytest.raises(match=)` 让说明永不显示）；
    - **记录**与被记录的动作是**同一个事件**（v0.9.8：同连接、同事务、单次 commit）。
+   - ⭐ **消息的内容也要对，不只是位置对**（v0.9.10 折入）：v0.9.6 学到的是「精心写的说明**可能永不显示**」；
+     v0.9.10 是「说明**显示了，但说的是假的**」——诊断行的正则在 raw string 里写成 `\\d`（= 反斜杠+d，
+     永不匹配数字）⇒ 恒报 `[]`，**红是红了，而它在撒谎**。
+     **根因**：诊断代码**只在失败路径上运行** ⇒ **它只能靠真的把它弄红来测试**。
+     ⇒ **机械形式**：**revert-to-bad 的验收产物是那条失败消息的原文，不是「转红了」三个字。**
    ⚠️ 合并而非新增第 12 条是刻意的 —— **表膨胀会降低逐条回答的质量**（守护者原话）。
 4. **（已并入 #3）**
 5. **散文规则**：新增规则里哪条**只写在 docstring 而无守护**？
@@ -191,9 +196,21 @@ Agent 的生命周期与 **MINOR 版本号**绑定，不与 PATCH 绑定：
 ##### v3.1-C Definition of Done（把既有强项升格为明文）
 
 一个 PATCH 只有**同时**满足才算完成：
-1. **四闸门全绿**（全量 / ruff / import-linter / size；前端动了则 + eslint + vitest）；
-2. ⭐ **每条「已守护」的声称都有一次真跑过的 revert-to-bad**，且**把失败信息贴进记录** ——
-   证明它**不只是红，而且红得能看懂**（v0.9.6 实证：精心写的说明可能永不显示）；
+1. **四闸门全绿**（全量 / ruff / import-linter / size）**+ 前端三件恒做**（eslint + vitest + **重建 `knot/static`**）；
+   ⭐ **「前端动了则…」这个条件式已废除（v0.9.10 R14）** —— `frontend/src/version.js` **就是 4 源点的第 4 点**
+   ⇒ **任何 bump 版本的 PATCH 都必然改前端** ⇒ 「前端零改动」在这类片里**永不可能为真**。
+   写这句话的模板让 v0.9.7/.8/.9 **连续三片**据此跳过重建，UI 显示 v0.9.6 而 API 报 0.9.9，无人察觉。
+   ⇒ 判据改为**「`frontend/src/` 除 `version.js` 外零改动」**（可为真，且**不构成跳过重建的理由**——版本串进 bundle）。
+   闸门侧由 `test_doc_invariants.test_static_bundle_version_synced_with_version_js` 强制（漏一次即红）；
+   **只加闸门不改这句话 = 教下一片继续说假话。**
+2. ⭐ **每条「已守护」的声称都有一次真跑过的 revert-to-bad**，且**把失败信息的原文贴进记录** ——
+   证明它**不只是红，而且红得能看懂、说的还是真话**
+   （v0.9.6：精心写的说明可能永不显示 · v0.9.10：说明显示了但内容是假的 —— 见 v3.1-B #3 末条）；
+   ⭐ **产物形式优先取「唯一抓住」而非「抓住」**（v0.9.10 Stage 4 §II 一般化）：
+   「我的新守护抓住了 X」远不如「**我的新守护是唯一抓住 X 的那个**」有说服力 ——
+   后者**同时证明了旧守护的盲区，而盲区才是事故的原因**。
+   实证：v0.9.10 REVERT-A 得 `1 failed, 6 passed`，坐实此前 5 道 doc-invariant 断言
+   **结构上看不见 stale 构建产物** ⇒ 这才解释了「连漏 3 片无人察觉」。
 3. 承重面变更的 **v3.1-B 枚举表逐条有答**；
 4. **实施期偏离 Stage 1 的每一处都给出理由**；
 5. ⭐ **实施期发现自己写错的东西写进记录** —— v0.9 弧证明这是最高价值的一节。
@@ -414,7 +431,16 @@ v0.6 执行者 Stage 1 草案 + v0.5 守护者 Stage 3 终审 + Codex-equivalent
 
 **显示点自动跟随（不单列、不硬编）**：Login footer + Shell sidebar 渲染 `v{APP_VERSION}`（读源 #4）→ 版本一致由 bridge 保证；渲染哨兵（R-181 adapted + `test_shell_sidebar_renders_app_version`）断言二者真渲染 `v{APP_VERSION}`（非仅 import）。**Shell L43 条件式同步规则废除**。
 
-**doc-不变量 CI 一揽子**（`tests/test_doc_invariants.py`，task #44）：version bridge（上 #4）+ KnotLogo 精确文件集（R-199.5，5 文件 = 4 渲染 + Shared 定义；BI 共用 AppShell 不直渲）+ CHANGELOG 顶部 == main version。未来新增 doc-不变量**优先纳 CI**（勿靠人肉 — 元教训：无 CI 则静默 drift）。
+**⭐ 第 5 个源点 = 构建产物 `knot/static`（v0.9.10 R14 补齐）**：4 源点**此前不含它** ⇒ **没有任何闸门看它**
+⇒ v0.9.7/.8/.9 三片都 bump 了 4 源点却没重建，**用户在 UI 看到 v0.9.6 而 API 报 0.9.9，连漏 3 片无人察觉**。
+⇒ **每片 bump 版本后必须 `cd frontend && npm ci && npm run build`**，由 CI 强制（见下）。
+> **锚点为什么是「`index.html` 真正引用的那个 chunk」**：孤儿 chunk 不被引用 ⇒ 不会被浏览器加载 ⇒ 不是 stale 发布；
+> 真正危险的是 `index.html` 指着旧 chunk，而那恰被本断言抓到。
+> **判据 = 反引号包裹的裸版本串**（`` `0.9.10` `` = APP_VERSION 编译后形状）。⚠️ 两版被证伪的 oracle 别走回头路：
+> ① `v\d+\.\d+\.\d+` 全集 —— UI 写 `v{APP_VERSION}`，`v` 是另一个 JSX 文本节点 ⇒ **不会连续出现**；
+> ② 裸 semver 全集 —— bundle 里合法含大量依赖版本字面（`0.4.2`/`1.82.33`/`127.0.0` …）。
+
+**doc-不变量 CI 一揽子**（`tests/test_doc_invariants.py`，task #44）：version bridge（上 #4）+ KnotLogo 精确文件集（R-199.5，5 文件 = 4 渲染 + Shared 定义；BI 共用 AppShell 不直渲）+ CHANGELOG 顶部 == main version + **构建产物版本 == `version.js`** + **`knot/static/assets` 无孤儿 chunk**（v0.9.10）。未来新增 doc-不变量**优先纳 CI**（勿靠人肉 — 元教训：无 CI 则静默 drift）。
 
 ### 复用 v0.5.7 LOCKED 手册作模板
 
