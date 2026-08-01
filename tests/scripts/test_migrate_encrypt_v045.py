@@ -138,6 +138,12 @@ def test_R46_migrate_creates_backup_before_write(tmp_db_path):
     ⇒ **这条测在祝福缺陷**：任何改用 SQLite backup API 的正确实现都会被它判红。
     ⇒ 处置**不是删**（「备份得能用来回滚」这个断言仍值钱），是**换 oracle**：
        比**逻辑内容**（迁移前的明文值都在 bak 里、且没被加密），不比字节。
+
+    ⚠️ **与 `test_Sa1_...` 的分工（Stage 4 note · 实测过，别只照描述理解）**：
+    本测**是内容级**的（断言迁移前的明文原值在 bak 里），但它 seed 的数据在连接关闭后**已被
+    checkpoint 进主文件** ⇒ **`shutil.copy2` 也拷得到** ⇒ **本测在 copy2 回归下会通过**。
+    **实测**：把备份退回 `copy2` ⇒ `1 failed, 14 passed`，红的**只有 Sa1**。
+    ⇒ **WAL-safe 这条性质唯一的守护者是 Sa1；删掉 Sa1，本测单独会祝福一个 copy2 备份。**
     """
     _seed_legacy_plaintext(tmp_db_path)
 
@@ -284,6 +290,10 @@ def test_Sa1_backup_is_wal_safe_includes_uncheckpointed_commits(tmp_db_path):
     """a1/R3 —— 备份必须含**已提交但未 checkpoint**的数据（WAL 模式下的真实形态）。
 
     revert-to-bad：把 `_make_backup` 里的 `_backup_db_atomic` 换回 `shutil.copy2` ⇒ 本测转红。
+    ⭐ **实测「唯一抓住」**：该 revert 下全文件 `1 failed, 14 passed` —— **只有本测红**。
+    `test_R46_migrate_creates_backup_before_write` 虽然也是内容级的，但它的数据已被 checkpoint
+    进主文件 ⇒ copy2 也拷得到 ⇒ **它通过**。
+    ⇒ **本测是 WAL-safe 这条性质的唯一守护者，删它则无人再守**（Stage 4 note：两处 docstring 互引）。
     """
     _seed_legacy_plaintext(tmp_db_path)
     live = sqlite3.connect(tmp_db_path)          # 保持开着 = 服务在跑，末连接不关则不 checkpoint
