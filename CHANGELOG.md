@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.9 — 租户漂移写平台审计（**兑现 R-10** · 欠 5 片的旧账结清）
+## [Unreleased] - v0.9.10 — 构建产物纳入版本闸门（R14 · 漏 3 片无人察觉的那道门）
+
+> **定性：0 业务码。** 前端**源码零改动**（仅 `version.js` 版本串）；`knot/static` 重建 +
+> 两条 doc-invariant 断言 + 模板措辞修正。
+
+### Fixed
+- **R14 —— UI 显示的版本连漏 3 片没更新**：`knot/static` 上次构建于 v0.9.6，而 v0.9.7/.8/.9 都 bump 了
+  4 源点 ⇒ **用户在 UI 侧栏 / Login 页脚看到 v0.9.6，而 API 报 0.9.9**。本片重建产物并补闸门。
+  - ⭐ **根因不是「三次都忘了」，是模板保证会发生**：`frontend/src/version.js` **就是 4 源点的第 4 点**
+    （CLAUDE.md §四源点同步）⇒ **任何 bump 版本的片都必然改前端** ⇒ 手册模板里那句
+    「前端零改动 ⇒ 不跑前端闸门」**在这类片里永不可能为真**，而三片都据此跳过了重建。
+    ⇒ **两条规则互斥。** 订正：措辞改为「`frontend/src/` 除 `version.js` 外零改动；`version.js`
+    每片必改 ⇒ 必须重建 static + 跑 eslint/vitest」。**只加闸门不改措辞 = 教下一片继续说假话。**
+
+### Added
+- `tests/test_doc_invariants.py` **两条**（4 源点此前**不含构建产物** ⇒ 没有任何闸门看它）：
+  - `test_static_bundle_version_synced_with_version_js` —— 锚到 **`index.html` 真正引用的那个 chunk**
+    （= 浏览器会加载的那个），断言其中含 `` `{APP_VERSION}` ``。⭐ 这个锚点让「旧 hash chunk 未删」
+    自动消解：孤儿 chunk 不被引用 ⇒ 不是 stale 发布；真正危险的「index.html 指着旧 chunk」被本断言抓到。
+  - `test_static_assets_no_orphan_chunks` —— 磁盘上的 js/css **精确等于** `index.html` 引用集。
+  - ⚠️ **两版被证伪的 oracle 记此备考**：① `v\d+\.\d+\.\d+` 全集 —— UI 写的是 `v{APP_VERSION}`，
+    `v` 是另一个 JSX 文本节点 ⇒ **`v0.9.6` 不会连续出现**（实测 bundle 里 8 个 `v0.x.y` 全是别处的串）；
+    ② 裸 semver 全集 —— bundle 里合法含大量依赖版本字面（实测 `0.4.2`/`1.82.33`/`127.0.0` …）。
+    **实际形状是反引号包裹的裸串**（`` Xe=`0.9.6` ``）。
+
+## [已发布] - v0.9.9 — 租户漂移写平台审计（**兑现 R-10** · 欠 5 片的旧账结清）
 
 > **定性：纯加留档，不改任何拒绝行为。** 单租户下漂移**不应发生** ⇒ 正常部署零新增审计行。
 
