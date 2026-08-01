@@ -42,6 +42,16 @@ def test_update_tenant_is_atomic_with_its_audit(tmp_db_path, monkeypatch):
 
     ⇒ 得到的性质比「审计写失败时 fail-closed」**更强**：
     **不存在「动作发生了但没记」，也不存在「记了但没发生」。**
+
+    ⭐ **本测比它自己声称的更强**（守护者 Stage 4 §I 指出）：它**顺带覆盖了另一种失去原子性的方式**
+    —— 若将来 `get_platform_conn` 被改成 autocommit（`isolation_level=None`），
+    `UPDATE` 会在 `_boom` 之前就落库 ⇒ **本测同样转红**。
+    ⇒ 它守的不只是「多了一次 `commit()`」，还有「**连接配置被改坏**」。
+
+    ⚠️ **完整性说明**（免得后人以为另两向没覆盖）：本测证的是**非平凡方向**
+    （审计失败 ⇒ 动作不留）。另两向由**顺序与单事务构造**成立：
+    「动作失败 ⇒ 无记录」（`UPDATE` 抛则根本走不到 insert）·
+    「commit 失败 ⇒ 两者皆无」（同一事务一起回滚）。
     """
     before = tenant_repo.get_tenant(1)
     assert before is not None, "前提：fixture 已 seed tenant#1"
