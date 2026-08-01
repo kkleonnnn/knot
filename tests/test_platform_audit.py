@@ -172,3 +172,201 @@ def test_platform_audit_writes_without_any_tenant_ctx(tmp_db_path):
             audit_service.log(actor=None, action="auth.login_fail", resource_type="user")
     finally:
         reset_active_tenant(tok)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  四条哨兵（D7 · commit 7）
+# ═══════════════════════════════════════════════════════════════════════
+
+import ast  # noqa: E402  — 哨兵段专用
+import pathlib  # noqa: E402
+import typing  # noqa: E402
+
+_KNOT = pathlib.Path(__file__).resolve().parents[1] / "knot"
+
+
+def _py_files() -> list[pathlib.Path]:
+    return sorted(_KNOT.rglob("*.py"))
+
+
+# ─── 哨兵 1：Literal **精确集合** + 每条 ≥1 emit（must #7 · 守护者 M1）──
+
+
+def _insert_emit_actions() -> set[str]:
+    """AST 扫全仓 `platform_audit_repo.insert(... action="...")` 的 action 字面量。
+
+    ⚠️ 按 **AST 标识符**判定（R-SENTINEL-AST）：同时认 `insert(...)`（裸名）与
+    `platform_audit_repo.insert(...)`（属性）两种调用形态 —— 否则换个 import 风格就绕过了。
+    """
+    out: set[str] = set()
+    for path in _py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = getattr(fn, "attr", None) or getattr(fn, "id", None)
+            if name != "insert":
+                continue
+            for kw in node.keywords:
+                if kw.arg == "action" and isinstance(kw.value, ast.Constant):
+                    out.add(kw.value.value)
+    return out
+
+
+def test_platform_audit_literals_exactly_match_emits():
+    """⭐ must #7 / 守护者 M1：`platform.*` Literal 与 emit **精确集合相等**（两个方向都封）。
+
+    照 `tests/api/test_metric_invariant_guards.py:77` 的先例形式（`==` 而不是「≥1 emit」）：
+    - **`==` 封住「声明了但从不 emit」** —— 死声明（v0.9.5 E4「零消费者 = 死码」同族）；
+    - **也封住「emit 了但没声明」** —— 裸字符串绕过 Literal。
+    「≥1 emit」只封前者。
+
+    ⇒ **P2 加 `platform.tenant_suspend` / `tenant_delete` 时本测会红** ——
+    逼「Literal + emit + 守护」三者**同片**落地。这是刻意的强制，不是麻烦。
+    取材=injection：往 Literal 加一个值（不加 emit）→ 红；或写一处 `action="platform.wat"` → 也红。
+    """
+    from knot.models.platform_audit import PlatformAuditAction
+
+    declared = set(typing.get_args(PlatformAuditAction))
+    emitted = {a for a in _insert_emit_actions() if a.startswith("platform.")}
+    assert declared == emitted, (
+        f"平台审计动作的**声明**与**emit**不一致：\n"
+        f"  声明了却从不 emit：{sorted(declared - emitted)}   ← 死声明\n"
+        f"  emit 了却没声明：{sorted(emitted - declared)}     ← 裸字符串绕过 Literal\n\n"
+        "若你在加新动作（如 P2 的 suspend/delete）：**Literal + emit + 本测的期望**必须同片改 ——\n"
+        "那正是本测存在的目的（v0.9.8 D2：只声明有生产者的动作）。"
+    )
+
+
+# ─── 哨兵 2：`detail` 不得含凭据 / env 值（must #8）─────────────────────
+
+
+_FORBIDDEN_IN_DETAIL = ("auth_value", "password", "token", "secret", "master_key")
+
+
+def test_detail_call_sites_do_not_pass_credential_identifiers():
+    """must #8：`insert(... detail=…)` 的**字面量 dict** 里不得出现凭据类标识符；
+    且**调用方模块零 env 读取**。
+
+    ⚠️⚠️ **本哨兵能查什么、不能查什么（诚实收窄 —— v3.1-B 第 11 条）**：
+    `detail` 在 `update_tenant` 里是**运行期构造的变量** ⇒ AST **看不进去**
+    ⇒ 本测**不能**证明「detail 里绝无敏感值」。它守的是两条**可静态判定**的路径：
+    - ① 调用点直接传 dict 字面量、其中出现 `auth_value` / `password` / `token` / … 这类键或名；
+    - ② 调用方模块**读进程 env**（那是 env 值进 detail 的必经之路 —— #262 同族）。
+    **allowlist 内容那条由行为测覆盖**（`test_allowlist_change_records_that_it_changed_not_the_content`
+    用内容级 oracle 断言「一个确实写进去的 host 不出现在 detail_json 里」）。
+    ⇒ 静态 + 行为**两条一起**才构成 D7-② 的完整守护；单看任一条都不够。
+
+    取材=injection：在 `update_tenant` 的 detail 里加 `{"token": x}` → ① 红；
+    在 `tenant_repo` 里加一行 `os.environ.get("X")` → ② 红。
+    """
+    callers: set[pathlib.Path] = set()
+    bad_literals: list[str] = []
+
+    for path in _py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if (getattr(node.func, "attr", None) or getattr(node.func, "id", None)) != "insert":
+                continue
+            if not any(kw.arg == "action" for kw in node.keywords):
+                continue                     # 不是平台审计的 insert
+            callers.add(path)
+            for kw in node.keywords:
+                if kw.arg != "detail":
+                    continue
+                for sub in ast.walk(kw.value):
+                    tok = None
+                    if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                        tok = sub.value.lower()
+                    elif isinstance(sub, ast.Name):
+                        tok = sub.id.lower()
+                    elif isinstance(sub, ast.Attribute):
+                        tok = sub.attr.lower()
+                    if tok and any(f in tok for f in _FORBIDDEN_IN_DETAIL):
+                        bad_literals.append(
+                            f"{path.relative_to(_KNOT.parent)}:{sub.lineno} → {tok!r}")
+
+    assert not bad_literals, (
+        "平台审计的 `detail` 里出现了凭据类标识符：\n  " + "\n  ".join(bad_literals)
+        + "\n\n⚠️ `GET /api/platform/audit` **返回 `detail_json`** ⇒ 写进去就等于经端点吐出去（#262 同族）。"
+    )
+
+    env_readers = []
+    for path in sorted(callers):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv"):
+                env_readers.append(f"{path.relative_to(_KNOT.parent)}:{node.lineno} → os.{node.attr}")
+    assert callers, "没找到任何平台审计的调用点 —— 本测在空集上通过（探针没到达）"
+    assert not env_readers, (
+        "平台审计的**调用方模块**开始读进程 env：\n  " + "\n  ".join(env_readers)
+        + "\n\n⇒ 那是 env 值进 `detail` 的必经之路，而该字段会经端点返回（#262 同族）。"
+    )
+
+
+# ─── 哨兵 3 + 4：SQL 写面（must #9 / #9b）─────────────────────────────
+#
+# ⚠️ **这两条为什么用文本匹配而不是 AST**（R-SENTINEL-AST 要求写明理由）：
+#   SQL 是**字符串字面量** —— AST 里看不到「这条语句动的是哪张表」，
+#   标识符级判定在原理上答不了这个问题。⇒ 只能扫文本。
+
+
+def _sql_hits(needle: str) -> list[str]:
+    hits = []
+    for path in _py_files():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            if needle in line:
+                hits.append(f"{path.relative_to(_KNOT.parent)}:{i}")
+    return hits
+
+
+def test_update_tenants_has_exactly_one_write_site():
+    """must #9：全仓 `UPDATE tenants` **恰一处**（`tenant_repo.update_tenant` 这个单一写口）。
+
+    ⚠️ **基线是「一处」不是「两处」** —— Stage 1' 我写成两处（把 `seed_default_tenant` 也算了），
+    但那里是 **INSERT** 不是 UPDATE。写哨兵前实测得出的真实基线：**1**。
+    ⇒ **第二处 `UPDATE tenants` 就意味着有人绕过了 choke point**（那条路径不会 stamp
+    `updated_at`、也不会写审计）⇒ 本测红。
+    取材=injection：在别处加一句 `conn.execute("UPDATE tenants SET name=?")` → 红并点名 `file:line`。
+    """
+    hits = _sql_hits("UPDATE tenants")
+    assert len(hits) == 1, (
+        f"`UPDATE tenants` 出现 {len(hits)} 处（应恰 1）：\n  " + "\n  ".join(hits)
+        + "\n\n⇒ 平台元数据的**单一写口**是 `tenant_repo.update_tenant`（它 stamp `updated_at` + 同事务写审计）。\n"
+          "  第二处 UPDATE 意味着有变更**绕过了审计与时间线**。"
+    )
+    assert "tenant_repo.py" in hits[0], f"唯一那处不在 tenant_repo：{hits[0]}"
+
+
+def test_platform_audit_is_append_only():
+    """⭐ must #9b / D7-④（守护者 §III）：全仓**零** `UPDATE platform_audit` / `DELETE FROM platform_audit`。
+
+    **为什么现在就要这条**（守护者的理由，比「卫生」硬）：租户侧审计**已有**
+    `knot/scripts/purge_audit_log.py` 这个**合法 DELETE 先例**，而平台审计的清理已登记 backlog
+    ⇒ **那个脚本一定会来**。
+    - **有本哨兵**：它必须是一次**显式、被评审**的改动；
+    - **没有**：审计从「**只可追加的证据**」静默变成「**可编辑的记录**」——
+      **而这一步不会有任何人注意到**（没有任何别的测会因此变红）。
+
+    取材=injection：写一个 `conn.execute("DELETE FROM platform_audit WHERE ts < ?")` → 红。
+    """
+    hits = _sql_hits("UPDATE platform_audit") + _sql_hits("DELETE FROM platform_audit")
+    assert not hits, (
+        "`platform_audit` 出现了 UPDATE/DELETE：\n  " + "\n  ".join(hits)
+        + "\n\n⛔ 平台审计是 **append-only** —— 只可追加的**证据**，不是可编辑的记录。\n"
+          "若你在做清理（已登记 backlog）：这必须是一次**显式、被评审**的改动 ——\n"
+          "  请在 PATCH 里说明保留期、谁能触发、以及删除动作本身是否要留痕。"
+    )
