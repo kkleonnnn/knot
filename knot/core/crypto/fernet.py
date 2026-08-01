@@ -53,7 +53,17 @@ class FernetAdapter:
         if not ciphertext:
             return ""
         if not ciphertext.startswith(ENC_PREFIX):
-            return ciphertext  # 老明文兼容（D5 INFO log 在 repos wrap 内打）
+            # 老明文兼容（v0.4.4 之前的行）—— **刻意透传，不报错**。
+            # ⚠️ **订正一条三年的假注释**（v0.9.12）：原文写「D5 INFO log 在 repos wrap 内打」，
+            #    而实测 `user_repo` / `data_source_repo` **`logger.` 调用 0 处** —— 那个日志**从未实现**，
+            #    却被这行注释断言存在。⇒ 现在指向**真正守护它的东西**：
+            #      · 启动期逐租户 WARN（`main.py::_warn_plaintext_secrets_at_rest`）
+            #      · 只读巡检 `python3 -m knot.scripts.scan_secrets_at_rest`
+            #      · 写路径 preflight + 后置校验（`scripts/migrate_encrypt_v045`）
+            #    **刻意不在这里加 per-read 告警**：本函数在热路径上（每次读用户/数据源都过），
+            #    且它拿不到列名（只有值）⇒ 告警会是无法定位的噪声。
+            #    不应为了让一句旧注释变真而造一个功能 —— 正确做法是让注释描述真正的守护者。
+            return ciphertext
         body = ciphertext[len(ENC_PREFIX):]
         if body == "":
             return ""  # 空串占位反向
