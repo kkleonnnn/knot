@@ -104,7 +104,15 @@ def test_changelog_single_unreleased():
 # ─── v0.9.10 R14：构建产物纳入版本闸门（4 源点此前不含它 ⇒ 漏 3 片无人察觉）────
 
 _STATIC = Path("knot/static")
-_BACKTICKED_SEMVER = re.compile(r"`\d+\.\d+\.\d+`")
+# ⚠️ **引号无关**（Stage 4 should-fix）：初版锚死反引号（``0.9.10``），而那只是 **esbuild 当前的
+#    最小化输出形态** —— 源码 `version.js` 写的其实是单引号。若将来 Vite/esbuild 升级改成 `"0.9.10"`，
+#    断言会在**正确的 bundle 上假红**，而那时没人会想到是 minifier 换了引号。
+#    反向引用 `\1` 要求首尾同型，避免 `` `0.9.10" `` 这种跨引号的偶然命中。
+_QUOTED_SEMVER = re.compile(r"""(['"`])\d+\.\d+\.\d+\1""")
+
+
+def _quoted_literal_re(version: str) -> re.Pattern:
+    return re.compile(r"""(['"`])""" + re.escape(version) + r"""\1""")
 
 
 def _index_html_asset_refs() -> set[str]:
@@ -144,14 +152,14 @@ def test_static_bundle_version_synced_with_version_js():
     assert entry_path.exists(), f"index.html 引用了不存在的 {entry}（构建产物残缺）"
 
     body = entry_path.read_text(encoding="utf-8", errors="replace")
-    needle = f"`{app_version}`"
-    # ⚠️ 这个 pattern 提出来做模块级常量，是因为把它内联进 f-string 时我写成了 `\\d`（raw string 里
+    # ⚠️ 诊断用的 pattern 提为模块级常量，是因为把它内联进 f-string 时我写成了 `\\d`（raw string 里
     #    = 反斜杠+d，永不匹配数字）⇒ 诊断行恒报 `[]`，**红是红了，但说的是假话**。
-    #    只有真跑一次 revert-to-bad **并读消息**才会发现 —— 「消息在失败路径上」不等于「消息是对的」。
-    found = sorted(set(_BACKTICKED_SEMVER.findall(body)))
-    assert needle in body, (
-        f"构建产物 stale：{entry} 里找不到 {needle}（APP_VERSION={app_version!r}）。\n"
-        f"    该 chunk 里反引号包裹的 semver 实际是：{found}\n"
+    #    根因：诊断代码**只在失败路径上运行** ⇒ 它只能靠真的把它弄红来测试。
+    #    ⇒ revert-to-bad 的验收产物是**那条失败消息的原文**，不是「转红了」三个字。
+    found = sorted({m.group(0) for m in _QUOTED_SEMVER.finditer(body)})
+    assert _quoted_literal_re(app_version).search(body), (
+        f"构建产物 stale：{entry} 里找不到被引号包裹的 {app_version!r}（APP_VERSION）。\n"
+        f"    该 chunk 里带引号的 semver 实际是：{found}\n"
         f"    ⇒ bump 了 version.js 但没重建前端。修：cd frontend && npm ci && npm run build"
     )
 
