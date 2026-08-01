@@ -267,15 +267,71 @@ def test_B4_drift_tripwire_has_production_call_site():
 
     revert-to-bad：删掉 `deps.py` 里那次调用 → 本测转红。
     """
-    src = (_REPO / "knot").rglob("*.py")
+    # ⚠️⚠️ **v0.9.9 从「按行文本」改为 AST**（R-SENTINEL-AST）—— 原扫描能答「有没有」，
+    #   但**答不了「有几处」**：`platform_admin.py:6` 是 **docstring 里提到这个名字**，
+    #   文本匹配把它算成了调用点。**讨论一个名字的文件必然含有那个名字** ⇒ 计数只能用 AST。
+    #   （本仓第四次「文本匹配 → 改 AST」：v0.9.3 载体名 · v0.9.4 test_R17 · v0.9.5 旧名 · 本次。）
+    import ast as _ast
     sites = []
-    for py in src:
+    for py in (_REPO / "knot").rglob("*.py"):
         if "tenant_context.py" in str(py):
             continue          # 定义处不算调用点
-        for i, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
-            if "assert_tenant_context(" in line and not line.strip().startswith("#"):
-                sites.append(f"{py.relative_to(_REPO)}:{i}")
+        try:
+            tree = _ast.parse(py.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Call):
+                fn = node.func
+                name = getattr(fn, "id", None) or getattr(fn, "attr", None)
+                if name == "assert_tenant_context":
+                    sites.append((py, node.lineno))
     assert sites, "assert_tenant_context 无生产调用点 —— B-4 漂移检查没接上"
+
+    # ⭐ v0.9.9（兑现 R-10）：**扩本测**而不是加第二份判据 —— 锚在**真正的 choke point**。
+    # ⚠️ **为什么锚这里而不是「`except TenantDriftError` 的每一处」**（原设计，已被否）：
+    #   那个锚的**逃逸形态**是「将来有人在新调用点写 `except TenantContextError`（**父类**）」
+    #   ⇒ 漂移被吞，而只找子类名的哨兵**看不见**。
+    #   锚在调用点则无论调用方怎么写 except 都躲不掉。
+    # ⚠️ **exact-count**（与 v0.9.8 的 Literal 精确集合同源）：逼「第二个调用点」成为一次**显式评审改动**
+    #   —— 因为新调用点必须自己决定「漂移要不要记审计」，那不该是一个可以顺手做的决定。
+    assert len(sites) == 1, (
+        "`assert_tenant_context` 的生产调用点不再是 1 处：\n  "
+        + "\n  ".join(f"{p.relative_to(_REPO)}:{i}" for p, i in sites)
+        + "\n\n⇒ 新增调用点必须**同时**决定：漂移在那里要不要写平台审计？\n"
+          "  （v0.9.9 兑现 R-10 后，唯一那处会写；漏写 = 事故不留档而全量照绿。）"
+    )
+    # ⚠️⚠️ **判定必须是结构级，不能是「文件里出现过这两个名字」**（实施期取材证伪了第一版）：
+    #   删掉 `except TenantDriftError` 那一支之后，`import` 还在、`_record_tenant_drift` 的
+    #   **定义**也还在 ⇒ 文本判据**照样命中、测照样绿**。
+    #   ⇒ 与上面那处同一个病：**讨论/定义一个名字 ≠ 在那条路径上用了它。**
+    _path, _line = sites[0]
+    _tree = _ast.parse(_path.read_text(encoding="utf-8"))
+    _fn = next(
+        (n for n in _ast.walk(_tree)
+         if isinstance(n, _ast.FunctionDef | _ast.AsyncFunctionDef)
+         and n.lineno <= _line <= (n.end_lineno or n.lineno)), None)
+    assert _fn is not None, f"调用点 {_path.name}:{_line} 不在任何函数里？"
+    _ok = False
+    for _t in _ast.walk(_fn):
+        if not isinstance(_t, _ast.Try):
+            continue
+        for _h in _t.handlers:
+            _tp = _h.type
+            if getattr(_tp, "id", None) != "TenantDriftError":
+                continue
+            # 该 handler 体内必须真的调了写审计的那个函数
+            _ok = any(
+                isinstance(c, _ast.Call)
+                and (getattr(c.func, "id", None) or getattr(c.func, "attr", None)) == "_record_tenant_drift"
+                for stmt in _h.body for c in _ast.walk(stmt))
+    assert _ok, (
+        f"唯一的调用点 {_path.relative_to(_REPO)}:{_line} 所在函数里，"
+        "**没有**一个 `except TenantDriftError` 分支调用 `_record_tenant_drift` —— R-10 回退了。\n"
+        "⇒ 真漂移是事故（单租户下不应发生），它必须留档；\n"
+        "  而「未 set ctx」是预期路径**不能**记（会刷满审计表、淹没真信号）⇒ 两支必须分开。\n"
+        "取材：删掉 `except TenantDriftError` 那一支 → 本测红（实测）。"
+    )
 
 
 def test_B4_drift_detected(tmp_db_path):
@@ -288,8 +344,14 @@ def test_B4_drift_detected(tmp_db_path):
     tok = tc.set_active_tenant({"id": 1, "db_dir": "."})
     try:
         assert_tenant_context(1)          # 一致 → 不抛
-        with pytest.raises(TenantContextError, match="漂移"):
+        # ⚠️ v0.9.9（v3.1-B 枚举表 #8「既有测的绿是真的吗」自问出来的）：
+        #   本行原本只断父类 —— 子类化后**仍绿但对新类型零判别力**（父类捕获子类）
+        #   ⇒ 「只抛父类」这个回退**没有任何测会红**。故改断**子类**。
+        from knot.core.tenant_context import TenantDriftError
+        with pytest.raises(TenantDriftError, match="漂移") as ei:
             assert_tenant_context(2)      # ctx 是 1、token 声明 2 → 抛
+        assert (ei.value.expected, ei.value.actual) == (2, 1), (
+            f"异常未携带 expected/actual（调用方要靠它写审计）：{ei.value!r}")
     finally:
         tc.reset_active_tenant(tok)
 
@@ -373,27 +435,54 @@ def test_drift_log_never_leaks_db_dir_or_paths(tmp_db_path):
     assert "MARKER_SECRET_DBDIR_9x" not in blob, f"漂移日志泄漏 db_dir：{blob[:300]}"
 
 
-def test_R10_no_drift_audit_action_added():
-    """⭐ R-10：本片**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**。
+def test_drift_action_never_in_tenant_audit_literal():
+    """⭐ **D3 的守护**：漂移 action **永不得出现在租户审计 Literal 里**（只能在平台侧）。
 
-    审计要写「哪个平台租户」，依赖 v0.9.5 platform/tenant admin 鉴权拆分的口径；且 `core` 层零
-    services 依赖也让 audit 写入不能落在 `tenant_context`。本片的替代物 = WARN + 计数器。
+    ## ⚠️ 本测于 v0.9.9 改名 + 重写理由（原名 `test_R10_no_drift_audit_action_added`）
 
-    断言写成「**没有任何 action 含 drift**」而非「action 总数 == N」—— 后者会被将来任何无关的
-    新 action 打红（假红），前者精确对应 R-10 的主张。同时断言替代机制**存在**（否则「没加审计」
-    可能只是「什么都没做」）。
+    原 docstring 说的三句话在 v0.9.9 之后**全部为假**：「本片刻意不新增 `AuditAction`」·
+    「LOCKED 的 audit-on-drift **仍未结清**」·「本片的替代物 = WARN + 计数器」。
+    **而它仍然绿** —— 因为它断的是 `models.audit.AuditAction`（**租户**审计 Literal），
+    而 v0.9.9 把 action 加进了 `models.platform_audit.PlatformAuditAction`（**另一个** Literal）。
+
+    ⭐ **这正是本仓 v0.9.7 提炼的那句话、一片之后原样复现**：
+    **最危险的失效形态不是转红，是继续绿着但守的已经不是原来那件事。**
+    ⇒ 处置是**改名 + 重写理由，不是删** —— **断言值钱，过期的是理由**。
+
+    ## 它现在守的是什么（v0.9.9 起）
+
+    v0.9.9 的**承重决定 D3**：漂移必须写**平台**审计、**不得**写租户审计。理由：
+    漂移那一刻「当前是哪家公司」这个信息**本身就是坏的** ⇒ 写租户库 = 写进两个互斥声明中
+    **可能错的那一个** ⇒ 后果不止「相信了坏信息」，而是**把安全事件披露给错误那家公司的
+    admin、同时对该知道的那家隐藏它** = **一次跨租户信息披露**。
+    ⇒ 「漂移 action 出现在租户 Literal 里」就是那个决定被推翻的**第一个可静态观测的信号**。
+
+    ⚠️ 断言仍写成「**没有任何 action 含 drift**」而非计数 —— 后者会被任何无关的新 action 打成假红。
+    ⚠️ 同时断言**平台侧确实有**那条 action（否则「租户侧没有」可能只是「两边都没做」）。
+    取材=injection：往 `models.audit.AuditAction` 加一条 `"tenant.ctx_drift"` → 本测红。
     """
     import typing
 
     from knot.models.audit import AuditAction
+    from knot.models.platform_audit import PlatformAuditAction
+
     actions = typing.get_args(AuditAction)
     assert actions, "AuditAction Literal 取不到成员 —— 断言已失效"
     drifty = [a for a in actions if "drift" in a.lower()]
     assert not drifty, (
-        f"新增了漂移相关 AuditAction {drifty} —— R-10 明示本片不结清 audit-on-drift；"
-        f"若确要结清，须走 v0.9.5 platform admin 拆分并同步撤掉本断言 + 撤掉未结清登记。"
+        f"漂移 action 出现在**租户**审计 Literal 里：{drifty}\n\n"
+        "⇒ 这推翻了 v0.9.9 的承重决定 D3：漂移那一刻「当前是哪家公司」本身就是坏的\n"
+        "  ⇒ 写租户库 = 写进两个互斥声明中**可能错的那一个**\n"
+        "  = 把安全事件披露给**错误那家公司**的 admin、同时对该知道的那家隐藏它（跨租户信息披露）。\n"
+        "⇒ 漂移只能写平台审计（`platform_audit`，ctx-free ⇒ 唯一可信落点）。"
     )
-    assert callable(tc.tenant_drift_count), "替代机制（计数器）缺失 —— 「没加审计」不能等于「什么都没做」"
+    # 对照：平台侧**必须**有它 —— 否则「租户侧没有」可能只是「两边都没做」（探针没到达）
+    platform_drifty = [a for a in typing.get_args(PlatformAuditAction) if "drift" in a.lower()]
+    assert platform_drifty, (
+        "平台审计 Literal 里**没有**漂移 action —— R-10 回退了（v0.9.9 已兑现）。\n"
+        "⇒ 本测的「租户侧没有」于是变成同义反复（两边都没做也会绿）。"
+    )
+    assert callable(tc.tenant_drift_count), "进程计数器缺失 —— 它是审计写失败时的幸存信号（v0.9.9 D6）"
 
 
 # ─── 7. ⭐ MF7：NoAmbient 覆盖面不得被裸 TestClient 悄悄恢复盲区 ──────────

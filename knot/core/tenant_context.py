@@ -35,6 +35,31 @@ class TenantContextError(RuntimeError):
     """无 active tenant ctx / 租户漂移 → fail-closed raise（严禁全局回退）。"""
 
 
+class TenantDriftError(TenantContextError):
+    """**真漂移**专用（v0.9.9）：ctx 非 None **但与调用方声明的 tid 不符**。
+
+    ⚠️ **为什么要一个专门的类型**：调用方需要**区分**两种失败 ——
+    「未 set ctx」是 v0.9.4 明写的**预期路径**（租户停用/不存在时 middleware 就不设），
+    而「set 了但对不上」是**事故**。若调用方靠自己重新判断，判据就复制成了两份（N 份清单病）
+    ⇒ **判断留在本模块，调用方只需 `except TenantDriftError`**。
+
+    ⚠️⚠️ **子类化的已知风险，已靠枚举关闭**（v0.9.9 M2）：任何既有 `except TenantContextError`
+    都会**连带吞掉**本异常，而它比「无 ctx」严重得多。**全仓恰 2 处**（实测）：
+    - `api/deps.py` —— 本类型的**唯一**预期捕获点（先接本类记审计、再接父类只 401）；
+    - `api/auth.py` —— 登录路径，**结构上到不了**：`_resolve_login_tenant` **从不调**
+      `assert_tenant_context`，它接的是「按 slug 解析租户」的失败。
+    ⇒ **新增第三处 `except TenantContextError` 前，先确认它不在漂移路径上。**
+
+    携带 `expected` / `actual` 供调用方写审计（`core` 不能自己写 —— `core-no-business` 禁
+    `knot.core → knot.repositories`；记录点因此必须在能到达 repositories 的那一层）。
+    """
+
+    def __init__(self, message: str, *, expected: int | None = None, actual=None):
+        super().__init__(message)
+        self.expected = expected
+        self.actual = actual
+
+
 def set_active_tenant(tenant_row: dict) -> contextvars.Token:
     """设当前作用域 active tenant（返回 Token 供 finally reset）。
 
@@ -124,10 +149,13 @@ def assert_tenant_context(expected_tenant_id: int) -> None:
     - **set 了但对不上** → **真漂移**：结构化 WARN + 进程计数器。单租户下**不应发生**（同源同 token）；
       发生即代表 ctx 被别处污染 / async 传播串了 / 有第二条设 ctx 的路径。
 
-    R-10：**刻意不新增 `AuditAction`** —— LOCKED 的 audit-on-drift **仍未结清**。
-    ⚠️ v0.9.5 鉴权拆分**已落地，但没解开这一条**：E1 = out-of-band 共享密钥（**无身份**）+
-    E2 = 零平台写操作 ⇒ 平台侧**仍无审计落点**。⇒ **随平台审计落点（`platform_audit`，B-3 之后）**。
-    core 层零 services 依赖的约束也让 audit 写入不能落在本模块。
+    ✅ **R-10 audit-on-drift 已于 v0.9.9 兑现**（自 v0.9.4 登记、连续 5 片未兑现后）：
+    真漂移抛 `TenantDriftError`，由**调用方**（`api/deps.get_current_user`）写**平台审计**。
+    ⚠️ **写平台表而非租户表是承重决定**：漂移那一刻「当前是哪家公司」这个信息**本身就是坏的**
+    ⇒ 写租户库就是写进**两个互斥声明中可能错的那一个** ——
+    后果不止「要相信坏信息」，而是**把安全事件披露给错误那家公司的 admin、
+    同时对该知道的那家隐藏它** = 一次跨租户信息披露。平台表 ctx-free ⇒ 唯一可信落点。
+    ⚠️ 记录**不能落在本模块**：`core-no-business` 禁 `knot.core → knot.repositories`。
     """
     current = _active_tenant_ctx.get()
     if current is None:
@@ -146,8 +174,12 @@ def assert_tenant_context(expected_tenant_id: int) -> None:
             f"[tenant-drift] tenant_ctx_drift expected={expected_tenant_id} "
             f"actual={actual} seq={seq}"
         )
-        raise TenantContextError(
-            f"tenant context 漂移：expected={expected_tenant_id} actual={actual}"
+        # v0.9.9：抛**专门的子类** —— 调用方据此区分「事故」与「预期路径」，并写平台审计。
+        # ⚠️ 计数器与 WARN 都在**本行之前**（`core` 先跑再抛，调用方才可能写审计）
+        # ⇒ 「审计写故障时两个信号一起消失」在结构上不可能发生（M5 自验）。
+        raise TenantDriftError(
+            f"tenant context 漂移：expected={expected_tenant_id} actual={actual}",
+            expected=expected_tenant_id, actual=actual,
         )
 
 

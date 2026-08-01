@@ -12,7 +12,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from knot.core.logging_setup import logger
-from knot.core.tenant_context import TenantContextError, assert_tenant_context
+from knot.core.tenant_context import TenantContextError, TenantDriftError, assert_tenant_context
 from knot.repositories.user_repo import get_user_by_id
 
 # v0.6.0.8 MUST-1：废除 fallback 默认值。任何下列情况 → sys.exit(1)：
@@ -160,6 +160,15 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
             raise HTTPException(status_code=401, detail="JWT_NO_TID")
         try:
             assert_tenant_context(tid)
+        except TenantDriftError as drift:
+            # ⭐ v0.9.9 兑现 R-10：真漂移是**事故**（单租户下不应发生）⇒ 必须留档。
+            # **为什么记在这一行**：`core` 不能写库（`core-no-business` 禁 core → repositories）
+            # ⇒ 记录点必须在能到达 repositories 的这一层；而这里正是**漂移被转成拒绝的那一行**
+            # ⇒ 记录与被记录的事件是同一件事（v3.1-B 枚举表 #3「那一行」族）。
+            # **为什么分两支**：下面那支（未 set ctx）是 v0.9.4 明写的**预期路径**
+            # （租户停用/不存在 ⇒ middleware 不设 ctx）—— 把它也记进审计会**刷满表、淹没真信号**。
+            _record_tenant_drift(drift, claimed_sub=user_id)
+            raise HTTPException(status_code=401, detail="TENANT_UNAVAILABLE")
         except TenantContextError:
             # 显式 401（不靠函末 `except Exception` 兜）—— 运维要能把「租户不可服务」与「坏 token」分开
             raise HTTPException(status_code=401, detail="TENANT_UNAVAILABLE")
@@ -207,6 +216,47 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Dep
         # **窄化（真故障返 503、坏 token 返 401）留 backlog** —— 那会改客户端可见行为，须独立评估。
         logger.exception("get_current_user 兜底分支吞异常 → 401（可能是基础设施故障，非坏 token）")
         raise HTTPException(status_code=401, detail="无效的登录凭证")
+
+
+def _record_tenant_drift(drift: TenantDriftError, *, claimed_sub: int | None = None) -> None:
+    """把租户漂移写进**平台审计**（v0.9.9 · 兑现 R-10）。
+
+    ⚠️ **写失败不改变拒绝** —— 仍返 401，只记 ERROR 日志。
+    **这是一个固有的策略题，不是自造的**（v3.1-B 枚举表 #10 自问过）：
+    这里的「动作」是**拒绝请求**，它不是一次 DB 写 ⇒ **没有可与之同事务的对象**
+    ⇒ 无法像 v0.9.8 那样「让两难消失」，必须选一个。
+    选「仍 401」的理由：**保护动作已经发生**；把它改成 500 会让**审计基础设施故障**
+    看起来像服务器故障，**反而更可能掩盖漂移本身**。
+    ⚠️ 幸存信号不止日志：`core` 的进程计数器**在抛出之前**已自增（结构上先于本函数）
+    ⇒ 审计写故障时**两个信号不会一起消失**。
+
+    ⚠️ `tenant_id` / `tenant_slug` 恒 **NULL**：漂移**没有单一「对象租户」**（两个互斥声明）
+    ⇒ 挑一个写进那列会静默放宽 `platform_audit.tenant_id` 的既有语义。两个 id 都进 `detail`。
+
+    ⚠️ **`claimed_sub` = JWT 声明的 `sub`（user_id）**（v0.9.9 Stage 4 should-fix）：
+    漂移调查的**第一个问题**是「**哪个用户的 token**」—— 只有两个 tid 答不了它。
+    ⇒ 它是**声明**（claim），不是已核实的身份 ⇒ 故进 `detail` 而**不进 `actor`**：
+    `actor=None` 是刻意的 —— **不能把一个被拒绝的声明写成 actor**。
+    （内部 int，与两个 tid 同类 ⇒ 不触 #262。）
+    """
+    from knot.repositories import platform_audit_repo, tenant_repo
+    try:
+        conn = tenant_repo.get_platform_conn()
+        try:
+            platform_audit_repo.insert(
+                conn, action="platform.tenant_ctx_drift", actor=None, success=False,
+                detail={"expected": drift.expected, "actual": drift.actual,
+                        "claimed_sub": claimed_sub},
+                source="api",
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception(
+            "[tenant-drift] 漂移审计写入失败 —— 拒绝仍然生效（401），"
+            "但这条事故记录丢失；进程计数器 `tenant_drift_count()` 仍已自增"
+        )
 
 
 def require_tenant_admin(user=Depends(get_current_user)):

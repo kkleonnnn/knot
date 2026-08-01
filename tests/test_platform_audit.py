@@ -258,6 +258,17 @@ def test_platform_audit_literals_exactly_match_emits():
 _FORBIDDEN_IN_DETAIL = ("auth_value", "password", "token", "secret", "master_key")
 
 
+def _enclosing_fn(tree: ast.AST, target: ast.AST):
+    """返回包含 `target` 的最内层函数节点（找不到则 None）。"""
+    best = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            if getattr(node, "lineno", 0) <= target.lineno <= getattr(node, "end_lineno", 0):
+                if best is None or node.lineno > best.lineno:
+                    best = node
+    return best
+
+
 def test_detail_call_sites_do_not_pass_credential_identifiers():
     """must #8：`insert(... detail=…)` 的**字面量 dict** 里不得出现凭据类标识符；
     且**调用方模块零 env 读取**。
@@ -266,7 +277,18 @@ def test_detail_call_sites_do_not_pass_credential_identifiers():
     `detail` 在 `update_tenant` 里是**运行期构造的变量** ⇒ AST **看不进去**
     ⇒ 本测**不能**证明「detail 里绝无敏感值」。它守的是两条**可静态判定**的路径：
     - ① 调用点直接传 dict 字面量、其中出现 `auth_value` / `password` / `token` / … 这类键或名；
-    - ② 调用方模块**读进程 env**（那是 env 值进 detail 的必经之路 —— #262 同族）。
+    - ② **构造 `detail` 的那个函数**读进程 env（那是 env 值进 detail 的最短路径 —— #262 同族）。
+
+    ⚠️⚠️ **② 于 v0.9.9 从「模块级」收窄到「函数级」—— 这是一次放松，理由必须写下来**：
+    原判据是「**调用方模块**零 env 读取」。v0.9.9 让 `api/deps.py` 成为调用方，而它**合法地**
+    读 env（JWT 密钥，6 处），与 `detail` **毫无关系** ⇒ 模块级判据产生**假阳性**。
+    ⇒ 那是**代理判据过宽**：它想守的是「env 值进 detail」，却用「模块碰过 env」来近似。
+    ⇒ **收窄到「构造 detail 的那个函数」** —— 真正的最短路径。
+    ⚠️ **丢了什么（诚实说明）**：若有人写一个**同模块的 helper** 去读 env、
+    再把返回值塞进 `detail`，函数级判据**看不见**（跨函数数据流）。
+    ⇒ 那条残余风险由**行为测**兜（内容级 oracle 断言真实值不出现在 `detail_json` 里）。
+    ⚠️ **这次放松是因为判据本身过宽，不是因为它挡了路** —— 若将来又有人要放松它，
+    请先问：是判据错了，还是我的代码错了？
     **allowlist 内容那条由行为测覆盖**（`test_allowlist_change_records_that_it_changed_not_the_content`
     用内容级 oracle 断言「一个确实写进去的 host 不出现在 detail_json 里」）。
     ⇒ 静态 + 行为**两条一起**才构成 D7-② 的完整守护；单看任一条都不够。
@@ -275,6 +297,7 @@ def test_detail_call_sites_do_not_pass_credential_identifiers():
     在 `tenant_repo` 里加一行 `os.environ.get("X")` → ② 红。
     """
     callers: set[pathlib.Path] = set()
+    caller_fns: list = []          # (file, 包含该 insert 调用的函数节点)
     bad_literals: list[str] = []
 
     for path in _py_files():
@@ -290,6 +313,9 @@ def test_detail_call_sites_do_not_pass_credential_identifiers():
             if not any(kw.arg == "action" for kw in node.keywords):
                 continue                     # 不是平台审计的 insert
             callers.add(path)
+            _fn = _enclosing_fn(tree, node)
+            if _fn is not None:
+                caller_fns.append((path, _fn))
             for kw in node.keywords:
                 if kw.arg != "detail":
                     continue
@@ -305,21 +331,23 @@ def test_detail_call_sites_do_not_pass_credential_identifiers():
                         bad_literals.append(
                             f"{path.relative_to(_KNOT.parent)}:{sub.lineno} → {tok!r}")
 
+    env_readers = []
+    for path, fn in caller_fns:
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv"):
+                env_readers.append(
+                    f"{path.relative_to(_KNOT.parent)}:{node.lineno} → os.{node.attr}（在 {fn.name} 内）")
+
     assert not bad_literals, (
         "平台审计的 `detail` 里出现了凭据类标识符：\n  " + "\n  ".join(bad_literals)
         + "\n\n⚠️ `GET /api/platform/audit` **返回 `detail_json`** ⇒ 写进去就等于经端点吐出去（#262 同族）。"
     )
 
-    env_readers = []
-    for path in sorted(callers):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv"):
-                env_readers.append(f"{path.relative_to(_KNOT.parent)}:{node.lineno} → os.{node.attr}")
     assert callers, "没找到任何平台审计的调用点 —— 本测在空集上通过（探针没到达）"
+    assert caller_fns, "没找到任何**函数内**的调用点 —— 同上，探针没到达"
     assert not env_readers, (
-        "平台审计的**调用方模块**开始读进程 env：\n  " + "\n  ".join(env_readers)
-        + "\n\n⇒ 那是 env 值进 `detail` 的必经之路，而该字段会经端点返回（#262 同族）。"
+        "**构造 `detail` 的那个函数**读了进程 env：\n  " + "\n  ".join(env_readers)
+        + "\n\n⇒ 那是 env 值进 `detail` 的最短路径，而该字段会经端点返回（#262 同族）。"
     )
 
 
@@ -379,4 +407,204 @@ def test_platform_audit_is_append_only():
         + "\n\n⛔ 平台审计是 **append-only** —— 只可追加的**证据**，不是可编辑的记录。\n"
           "若你在做清理（已登记 backlog）：这必须是一次**显式、被评审**的改动 ——\n"
           "  请在 PATCH 里说明保留期、谁能触发、以及删除动作本身是否要留痕。"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  v0.9.9 兑现 R-10：租户漂移写平台审计
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _creds(token: str):
+    from fastapi.security import HTTPAuthorizationCredentials
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+class _FakeReq:
+    """`get_current_user` 只用 `request` 取 client ip / headers ⇒ 最小替身足够。"""
+    headers: dict = {}
+    client = None
+
+
+def _call_get_current_user(token: str):
+    """直调依赖函数（不经 TestClient）—— 本组测要控制的是 **ctx 与 token 的 tid 不一致**，
+    而 TestClient 下 middleware 会按 token 自己设 ctx ⇒ 正常路径恒相等、**造不出漂移**。
+    """
+    from knot.api.deps import get_current_user
+    return get_current_user(_FakeReq(), _creds(token))
+
+
+def test_drift_writes_platform_audit_and_still_401(tmp_db_path):
+    """⭐ 验收 1（兑现 R-10 的核心）：真漂移 ⇒ 平台审计 **+1** 且请求仍被拒（401）。
+
+    记录内容按 M4 裁定：**`tenant_id` / `tenant_slug` 均 NULL**（漂移没有单一「对象租户」——
+    有两个互斥声明 ⇒ 挑一个写进那列会静默放宽 v0.9.8 那条列语义），两个 id 都进 `detail`。
+    取材=revert：删掉 `deps.py` 的 `except TenantDriftError` 那一支 → 本测红（审计零新增）。
+    """
+    from fastapi import HTTPException
+
+    from knot.api.deps import create_token
+    from knot.core.tenant_context import reset_active_tenant, set_active_tenant
+    from knot.repositories import user_repo
+
+    admin = user_repo.get_user_by_username("admin")
+    token = create_token(admin["id"])           # 在 tenant#1 ctx 下签发 ⇒ tid=1
+
+    n_before = len(_audit_rows(limit=200))
+    tok = set_active_tenant({"id": 2, "db_dir": "tenants/2"})   # ⇐ ctx 换成 2 = 漂移
+    try:
+        try:
+            _call_get_current_user(token)
+        except HTTPException as e:
+            assert e.status_code == 401, f"漂移应仍返 401，实际 {e.status_code}"
+        else:
+            pytest.fail(
+                "ctx 与 token 的 tid 不一致（漂移）时**请求未被拒绝** —— 保护动作失效。\n"
+                "本片只加『留档』，**不得**改变原有的 fail-closed 行为。")
+    finally:
+        reset_active_tenant(tok)
+
+    rows = _audit_rows(limit=200)
+    assert len(rows) == n_before + 1, (
+        f"漂移未留档：审计条数 {n_before} → {len(rows)}\n"
+        "⇒ R-10 回退了。真漂移是**事故**（单租户下不应发生），只进日志与内存计数器 = 过后查不到。")
+    r = rows[0]
+    assert r["action"] == "platform.tenant_ctx_drift", r
+    assert r["success"] == 0, f"漂移记录应标记为失败（请求被拒）：{r}"
+    assert r["tenant_id"] is None and r["tenant_slug"] is None, (
+        f"漂移没有单一「对象租户」⇒ 这两列必须 NULL（M4）：{r}")
+    assert '"expected": 1' in r["detail_json"] and '"actual": 2' in r["detail_json"], (
+        f"detail 必须同时带两个互斥声明（expected/actual）：{r['detail_json']}")
+    # Stage 4 should-fix：漂移调查的第一个问题是「哪个用户的 token」——
+    # 只有两个 tid 答不了它。⚠️ 它是**声明**不是已核实身份 ⇒ 进 detail 而不进 actor
+    #（`actor=None` 刻意：不能把被拒绝的声明写成 actor）。
+    assert f'"claimed_sub": {admin["id"]}' in r["detail_json"], (
+        f"detail 缺 JWT 声明的 sub（user_id）⇒ 调查漂移时答不出「哪个用户的 token」："
+        f"{r['detail_json']}")
+    assert r["actor"] is None, f"被拒绝的声明**不得**写成 actor：{r}"
+
+
+def test_expected_path_no_ctx_writes_no_audit(tmp_db_path):
+    """⭐ 验收 2：**「中间件没设 ctx」是预期路径 ⇒ 审计零新增**（仍 401）。
+
+    v0.9.4 明写：token 声明的租户已停用/不存在时 middleware **就不设 ctx** ⇒ 这是**预期**，不是事故。
+    ⚠️ 若把它也记进审计，**每个这类请求都会写一条** ⇒ 表被刷满、真漂移淹没在噪音里。
+    ⇒ 这条测就是「两支必须分开」的判据。
+    取材=injection：在「无 ctx」那支**也加一条** `_record_tenant_drift(...)` → 本测红（实测）。
+    ⚠️ **不能**用「把两支合并」当取材（我第一版这么写，实测**不红**）：父类异常没有
+    `expected` / `actual` 属性 ⇒ 写审计时抛 `AttributeError` ⇒ 被 `_record_tenant_drift` 的兜底吞掉
+    ⇒ **根本没写成** ⇒ 本测看不见。**注入必须真能产生那个后果，否则「取材证明」是空的。**
+    """
+    from fastapi import HTTPException
+
+    from knot.api.deps import create_token
+    from knot.core.tenant_context import clear_active_tenant, reset_active_tenant
+    from knot.repositories import user_repo
+
+    admin = user_repo.get_user_by_username("admin")
+    token = create_token(admin["id"])
+
+    n_before = len(_audit_rows(limit=200))
+    tok = clear_active_tenant()                 # ⇐ 无 ctx = 预期路径（不是漂移）
+    try:
+        try:
+            _call_get_current_user(token)
+        except HTTPException as e:
+            assert e.status_code == 401
+        else:
+            pytest.fail("无 ctx 时请求未被拒绝 —— fail-closed 失效")
+    finally:
+        reset_active_tenant(tok)
+
+    assert len(_audit_rows(limit=200)) == n_before, (
+        "「中间件没设 ctx」这条**预期路径**被写进了审计 ⇒ 审计表会被正常流量刷满、"
+        "真漂移淹没在噪音里。⇒ 两支必须分开（只有 `TenantDriftError` 那支才记）。")
+
+
+def test_audit_write_failure_keeps_401_and_counter(tmp_db_path, monkeypatch):
+    """⭐ 验收 3（M5）：审计写口抛 ⇒ **仍 401** 且**计数器仍 +1**。
+
+    D6 选了「审计失败只记 ERROR 日志、不改变拒绝」—— 那一刻**幸存的信号**是日志 + 进程计数器。
+    ⚠️ 守护者担心的是「计数器若排在审计写之后，一次持续的平台库故障会把漂移**同时**从
+    审计表和计数器里抹掉」。**本设计里这结构性不成立**：计数器自增在 `core`（抛出之前），
+    审计写在调用方 ⇒ 顺序不可能倒置（`core-no-business` 也不允许把计数器搬去能写库的层）。
+    本测把那条性质**钉住**。
+    取材=revert：把 `core` 里的计数器自增挪到 `deps.py` 的审计写之后 → 本测红。
+    """
+    from fastapi import HTTPException
+
+    from knot.api.deps import create_token
+    from knot.core.tenant_context import (
+        reset_active_tenant,
+        set_active_tenant,
+        tenant_drift_count,
+    )
+    from knot.repositories import platform_audit_repo, user_repo
+
+    admin = user_repo.get_user_by_username("admin")
+    token = create_token(admin["id"])
+
+    def _boom(*a, **k):
+        raise RuntimeError("模拟平台库写故障")
+
+    monkeypatch.setattr(platform_audit_repo, "insert", _boom)
+    c_before = tenant_drift_count()
+    tok = set_active_tenant({"id": 2, "db_dir": "tenants/2"})
+    try:
+        try:
+            _call_get_current_user(token)
+        except HTTPException as e:
+            assert e.status_code == 401, (
+                f"审计写失败把成功的**拒绝**变成了 {e.status_code} —— "
+                "审计基础设施故障不该看起来像服务器故障（那反而更可能掩盖漂移本身）")
+        else:
+            pytest.fail("审计写失败时请求竟被放行 —— 保护动作被审计故障带崩了")
+    finally:
+        reset_active_tenant(tok)
+
+    assert tenant_drift_count() == c_before + 1, (
+        "审计写失败时计数器**也没自增** ⇒ 漂移同时从审计表和计数器里消失、只剩一条日志。\n"
+        "⇒ 计数器必须在抛出之前自增（`core` 内），不能排在调用方的审计写之后。")
+
+
+def test_legacy_single_tenant_paths_are_all_unauthenticated(tmp_db_path):
+    """⭐ 哨兵（M1）：`_LEGACY_SINGLE_TENANT_PATHS` 的每个成员都必须是 `PUBLIC_OR_OUT_OF_BAND`。
+
+    ⚠️ **它守的是「免限流」那个判断的前提**：本片**不给**漂移审计加限流，理由是
+    「漂移不可外部触发」—— 而那个理由成立仅因为该集合里唯一那条路径（`/api/bi/scheduler/tick`）
+    **无 JWT、不经 `get_current_user`** ⇒ `assert_tenant_context` 在那条路上永不执行。
+
+    ⇒ 往该集合加入**任何经 `get_current_user` 的路径**，漂移立刻变成**外部可触发**
+    （带 A 租户 token 打那条路 ⇒ ctx 来自 `resolve_single_tenant()` 而非 JWT ⇒ 可能不一致）
+    ⇒ 免限流的判断**当场到期**，而攻击者可以任意写审计行。
+    ⚠️ **而 P4（scheduler tick 租户域化）正是要动这里的那一片** ⇒ 这条守护不是假想。
+    取材=injection：往该集合加一条带鉴权的路径（如 `/api/conversations`）→ 本测红。
+    """
+    import sys
+    from pathlib import Path as _P
+    _t = str(_P(__file__).resolve().parent)
+    if _t not in sys.path:
+        sys.path.insert(0, _t)
+    from _route_policy import PUBLIC_OR_OUT_OF_BAND, build_actual_policy_map
+
+    from knot.api.tenant_resolution import _LEGACY_SINGLE_TENANT_PATHS
+
+    policy = build_actual_policy_map()
+    by_path: dict = {}
+    for key, cls in policy.items():
+        by_path.setdefault(key.split(" ", 1)[1], set()).add(cls)
+
+    assert _LEGACY_SINGLE_TENANT_PATHS, "该集合空了 —— 本测在空集上通过（探针没到达）"
+    bad = {
+        p: sorted(by_path.get(p, {"<不在路由表里>"}))
+        for p in _LEGACY_SINGLE_TENANT_PATHS
+        if by_path.get(p) != {PUBLIC_OR_OUT_OF_BAND}
+    }
+    assert not bad, (
+        f"`_LEGACY_SINGLE_TENANT_PATHS` 里出现了**带鉴权**的路径：{bad}\n\n"
+        "⇒ 那条路的 ctx 来自 `resolve_single_tenant()` 而**不是** JWT ⇒ 若它同时经 "
+        "`get_current_user`，漂移就变成**外部可触发**的（带 A 租户 token 去打它）。\n"
+        "⇒ v0.9.9 的「不给漂移审计加限流」这个判断**当场到期** —— 攻击者可任意写审计行。\n"
+        "若你正在做 P4（scheduler tick 租户域化）：要么让那条路不经 `get_current_user`，"
+        "要么同片重新评估限流。"
     )
