@@ -129,3 +129,46 @@ def test_update_missing_tenant_returns_false_without_audit(tmp_db_path):
     n_before = len(_audit_rows(limit=200))
     assert tenant_repo.update_tenant(9999, name="x") is False
     assert len(_audit_rows(limit=200)) == n_before, "对不存在的租户写了审计"
+
+
+# ─── ctx-free（must #4 —— 平台审计与租户审计的分野）────────────────────
+
+
+def test_platform_audit_writes_without_any_tenant_ctx(tmp_db_path):
+    """⭐ must #4：**无 tenant ctx 时平台审计仍可写**；同一状态下**租户审计写不了**。
+
+    这条对比就是「平台审计为什么必须存在」的机制证据：
+    - 租户审计 `audit_service.log` → `audit_repo.insert` → `get_conn` = **租户库**
+      ⇒ 无 tenant ctx 时 fail-closed（`get_conn` raise）⇒ **平台动作根本没有落点**
+        （这正是 v0.9.5 E2「不引入平台写操作」的理由原文）。
+    - 平台审计走 `get_platform_conn()` —— **ctx-free**，正是为启动序/平台面设计的。
+
+    ⚠️ **为什么这条测有判别力**：若哪天有人「顺手统一」把平台审计改走 `get_conn`，
+    功能在**请求路径**上照常（那里有 ctx）⇒ 全量照绿，**只有启动期与 CLI 会崩**。
+    本测把那个差异钉在**没有 ctx**的状态上。
+    取材=injection：把 `tenant_repo.update_tenant` 里的 `get_platform_conn()` 换成
+    `repositories.base.get_conn()` → 本测红（无 ctx 时 raise）。
+    ⚠️ 注意注入点**不在** `platform_audit_repo` —— 它的连接是**调用方注入**的，
+    模块内没有「连接来源」可改。（我第一版 docstring 写错了这个目标，实测时发现。）
+    """
+    from knot.core.tenant_context import (
+        TenantContextError,
+        clear_active_tenant,
+        reset_active_tenant,
+    )
+
+    tok = clear_active_tenant()
+    try:
+        # ① 平台侧：无 ctx 也能写
+        assert tenant_repo.update_tenant(1, name="无 ctx 也能改", actor="cli:test") is True, (
+            "无 tenant ctx 时平台元数据写口失败了 —— 它必须 ctx-free"
+            "（走 `get_platform_conn`，不是租户库的 `get_conn`）")
+        rows = _audit_rows()
+        assert rows[0]["action"] == "platform.tenant_update", rows[0]
+
+        # ② 租户侧：同一状态下写不了（这就是平台审计必须存在的原因）
+        from knot.services import audit_service
+        with pytest.raises(TenantContextError):
+            audit_service.log(actor=None, action="auth.login_fail", resource_type="user")
+    finally:
+        reset_active_tenant(tok)
