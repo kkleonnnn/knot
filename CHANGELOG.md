@@ -5,7 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.10 — 构建产物纳入版本闸门（R14 · 漏 3 片无人察觉的那道门）
+## [Unreleased] - v0.9.11 — 凭据迁移脚本硬化（那个工具此前是危险品）
+
+> **定性：0 业务码、0 前端源码改动**（仅 `version.js` 版本串 + 随之重建的 `knot/static`）。
+> 触发：升级排练阶段二准备中发现 2 个敏感值以明文存放（其一是付所有 LLM 费用的 API key），
+> 顺查发现**修它的那个脚本本身有四处独立缺陷**。
+
+### Fixed
+- **a1 备份不是 WAL-safe（最危险 —— 回滚路径可以是个空壳）**：原用 `shutil.copy2` 只拷主文件，
+  而租户库是 `journal_mode=WAL`（`base.py:46`）⇒ 服务在跑时**已提交的数据在 `-wal` 里、不在主文件里**。
+  **实测复现**：源库 1 行 ⇒ copy2 备份里**连 `CREATE TABLE` 都没有**，而 `PRAGMA quick_check` 说 `ok`
+  ⇒ **无法察觉**。⇒ 复用本仓既有正确范式 `tenancy_migration._backup_db_atomic`
+  （sqlite backup API + 严格 fsync + tmp→`os.replace` 原子），**不重新发明**；备份权限收窄 `0600`
+  （里面是**未加密之前**的明文凭据）+ 清理 `-wal`/`-shm` 旁文件。
+- **a2 双 key 混库（全套最严重 —— 因为不可逆）**：`is_encrypted` 是**纯前缀判断**，脚本对带前缀的值跳过
+  ⇒ 换一把**格式合法的错 key**：旧密文被跳过、新明文用新 key 加密 ⇒ **不存在任何一把 key 能解全库**，
+  而脚本 `exit 0` 声称成功。运维一旦相信它而丢掉旧 key ⇒ **凭据永久不可恢复**。
+  ⇒ **写前全量 decrypt preflight，任一失败零写入**，且**必须在建备份之前** ——
+  ⭐ 错 key 时若先建备份，那份备份就是**磁盘上一份新的明文凭据副本**，正是本次事故响应在清理的危害。
+- **a3 「声称完成」与「核实完成」是分开的**（2026-05-09 事故的根因：脚本建了备份、**一个字节没写**、
+  返回成功，三个月无人察觉）⇒ 跑完**在同一次运行内**用**同一个连接**核实；仍有明文则 raise，不许声称成功。
+- **a4/a7 `TARGETS` 是第 4 份敏感列清单且已过期（覆盖 7/11）**：漏 `users.totp_secret`(v0.6.2) /
+  `data_sources.http_config`(v0.9.x) / `app_settings.lark_app_secret`+`telegram_bot_token`(v0.8.14)
+  —— 全是 v0.4.5 之后新增的。⇒ 改为从**三个既有真相源派生**（11/11）+ **确定性排序**
+  （`_SENSITIVE_KEYS` 是 `frozenset`；不排序则失败位置每次不同 ⇒ **事故不可复现**）。
+- **a5 旧库缺列**：**显式报错，刻意不代跑 schema 迁移** —— ⭐ 两个不可逆操作**共用一份备份**会让回滚路径
+  失效（schema 成功 + 加密失败 ⇒ 按备份恢复得到一个 **schema 比代码旧**的库 ⇒ **恢复本身产出坏状态**）。
+- **a6 统计口径行/字段混淆**：`scanned`/`encrypted`/`skipped` → `rows_scanned` / `rows_updated` /
+  `fields_encrypted` / `rows_unchanged` / `preflight_checked`；多租户下**部分迁移的错误语义**写明
+  （逐租户顺序跑、首个失败即止，错误信息列出**已完成**与**未处理**的租户）。
+
+### Added
+- `--all-tenants`（**含 suspended** —— 其库文件里的明文同样在磁盘上）。
+- 哨兵 **Sa1–Sa6**，六条全部真跑过 revert-to-bad 且**失败消息原文入档**。
+
+### Changed
+- ⚠️ **`test_R46_migrate_creates_backup_before_write` 的 oracle 重写（原来的绿是「因为错误的理由」）**：
+  原断言 `sha256(bak) == sha256(db)` 要求**逐字节文件拷贝** —— 而「WAL 下逐字节拷主文件」
+  **恰恰就是那个缺陷本身** ⇒ **这条测在祝福缺陷**，任何正确实现都会被它判红。
+  处置**不是删**（「备份得能用来回滚」仍值钱），是**换 oracle**：比逻辑内容，不比字节。
+
+## [已发布] - v0.9.10 — 构建产物纳入版本闸门（R14 · 漏 3 片无人察觉的那道门）
 
 > **定性：0 业务码。** 前端**源码零改动**（仅 `version.js` 版本串）；`knot/static` 重建 +
 > 两条 doc-invariant 断言 + 模板措辞修正。
