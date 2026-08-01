@@ -719,6 +719,27 @@ https://<你的域名>/?c=<公司代号>
     —— `来源` 字段直接告诉你是「没配」还是「配了但不含这台」。
   - ⚠️ 白名单只比 **hostname 字面**（不含端口、不做子域/IP 归一化）—— 与 v0.9.7 之前一致；
     per-tenant 化后这个弱点**按租户放大**（每份列都带同一弱点），已登记 backlog。
+- ✅ **平台侧动作现在有审计了**（v0.9.8）—— 建/停租户、改 `db_dir`、改出网白名单都会留痕。
+  两种查法：
+
+  ```bash
+  # ① 只读端点（推荐 —— 事故现场最快）；需 KNOT_PLATFORM_ADMIN_TOKEN
+  curl -sS -H "Authorization: Bearer $KNOT_PLATFORM_ADMIN_TOKEN" \
+    'http://127.0.0.1:8000/api/platform/audit?limit=50' | jq .
+
+  # ② 直接查平台库（端点不可用时，例如出现第二个 active 租户导致整站 fail-closed）
+  sqlite3 /app/knot/data/platform.db \
+    "SELECT id, ts, actor, action, tenant_slug, detail_json FROM platform_audit ORDER BY id DESC LIMIT 20;"
+  ```
+
+  - `actor` 口径：`system:boot`（首启 seed，无人参与）/ `cli:<显式传入>` / `NULL`（未知）。
+    ⚠️ **别用容器 `whoami` 当 actor** —— `kubectl exec` 下它 = root/app user ⇒ 「谁改的」记成 root。
+  - ⚠️ **审计只记「代码路径」上的变更**：你直接 `sqlite3 UPDATE tenants` **不会留痕、也不会更新
+    `updated_at`** ⇒ 直接改库请视为**应急手段**，并自行记录。
+  - ⚠️ **出网白名单的变更只记「已变更」不记内容**（那是内网主机清单，而端点会返回详情字段）。
+  - ⚠️ **审计表 append-only** —— 无清理机制（量级极小：只记租户生命周期与元数据变更）。
+    要加清理必须走一次显式评审（有 CI 哨兵挡着）。
+
 - **每个新租户 seed 的初始 admin 口令目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD`**（v0.9.4 登记）：
   开通第二租户前必须改成 per-tenant 初始口令 / 一次性邀请流，否则「A 公司的人能进 B 公司」有现成入口。
 - **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：lift 前必须把 `company` 改为必填。

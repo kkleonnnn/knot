@@ -511,7 +511,26 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 >   （SQL 原文见 DEPLOY.md「多租户运维门」）。**漏配 ⇒ 该租户 HTTP 数据源全部静默拒绝**
 >   —— fail-closed 正确，但**与 bug 不可区分** ⇒ 与「禁停用/删除起源租户」**同族，写在一起**。
 > - ▶ **启动/请求期残留的 `resolve_single_tenant`** → **lift 前**。⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 **95/166**，且**第三处** `main.py:245`（audit purge 后台任务）**从未登记**）⇒ 按**符号 + 文件**记：`main.py` **3 处**（prompt seed / TOTP rollout / audit purge）+ `auth.py`（登录无 slug 回退）+ `tenant_resolution.py`（无 tid 回退）= **生产 5 处**；另 CLI 脚本 3 处已支持 `--tenant`（非阻塞）。
-> - ▶ **`replicas=1` 运维门** · **`_business_rules` 归正** · **平台审计落点 `platform_audit`** → 各自独立片。
+> - ✅ **平台审计落点 `platform_audit` = v0.9.8 已闭合**（R7）：平台库新增 `platform_audit` 表
+>   + `tenants.updated_at` + 单一写口 `tenant_repo.update_tenant` + 只读端点 `GET /api/platform/audit`。
+>   ⭐ **承重设计不是表而是写法**：审计 INSERT 与被记录的动作**同连接、同事务、单次 commit**
+>   ⇒ 「审计写失败」与「动作失败」是同一件事 ⇒ **不存在「做了但没记」/「记了但没做」**，
+>   且**不需要**在 raise 与吞之间选策略（原草案主张 raise 会把 `replicas=1` 这条**零强制**的
+>   运维约束变成 boot 可用性单点 —— 多副本共享 PVC 首启并发写 ⇒ `database is locked` ⇒ 崩溃循环）。
+>   四条哨兵：Literal 与 emit **精确集合相等** · `detail` 无凭据 + 调用方零 env 读 ·
+>   `UPDATE tenants` **恰一处** · **append-only**（禁改禁删 —— 租户侧已有合法 DELETE 先例，
+>   平台侧清理脚本一定会来，有哨兵它就必须是显式评审改动）。
+>   ⚠️ **诚实边界**：运维直接 `sqlite3 UPDATE` 仍绕过写口 ⇒ 只声称「**代码路径**上的变更被审计」。
+> - ⚠️ **R-10 audit-on-drift 的状态更新**（v0.9.8）：其**阻塞理由已消除**（平台侧有落点了），
+>   但**本片不关它** —— R-10 是「**租户侧**漂移 tripwire 写**租户**审计」，与平台审计是两件事。
+>   ⇒ 状态从「**因无落点而未解开**」改为「**落点已具备，待独立评估**」。顺手关它属 scope 蔓延。
+> - ▶ **`replicas=1` 运维门** → ⚠️ **已改向**：kk 2026-08-01 拍板「要真解不要临时方案」
+>   ⇒ 原「启动期喊一声」的 chore **删除**，替换为 **R10' 让多副本安全**，排在 **lift 之后**
+>   （它是容量特性、不是 lift blocker）。真实作业面只两项（引擎缓存失效跨副本 + 限流桶共享），
+>   且**都不需要 Redis** —— 详 `docs/plans/v0.9-lift-arc-remaining-plan.md` D-E。
+> - ▶ **`_business_rules` 归正** → 独立片（⚠️ 测绘订正：它**不是多租户项**而是**多 catalog 正确性** ——
+>   agent 读默认槽、`query_helper` 读 per-user active catalog = 两个来源；且 `getattr(..., "")`
+>   是 v0.9.3 那批 fail-soft 吞点的漏网一处。建议落地时从本清单移出，免得稀释「还差什么」的信号）。
 > - ▶ **lift 本身**（删 `assert_no_second_active_tenant_served` 的唯一调用点）→ **lift 片**，上列全绿才放行。
 > **v0.9.4 新增 5 项**：① **登录 `company` 改必填**（现未带则回退唯一 active 租户 —— 仅在本 gate 锁死
 > 单租户期间成立，lift 后回退 = 「不带代号 → 随便进某家公司」fail-open）· ② **per-tenant 初始口令 /
