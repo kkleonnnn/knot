@@ -426,7 +426,7 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 > 安全阀：若 `data/tenants/1/knot.db` **已有用户业务数据**（>1 用户 / 有会话 / 配了数据源/知识/报表等）而旧锚点
 > `data/knot.db` **仍在**，迁移会**拒绝覆盖并中止启动**（疑似在迁移前已上过现网写入了新库）。此时**人工核对**两库后手动处置，勿强迁。
 
-### ⚠️ 多副本 / 多 worker 首次升级注意
+### ⚠️ 多副本 / 多 worker 首次升级注意（v0.9.9 排练**实测**过，不再是推测）
 
 迁移在启动期跑，并用数据根 `.c4-migration.lock`（`flock`）串行化**同节点**的多 worker/多进程启动。但
 **跨节点共享卷（K8s RWM/NFS PVC）上的 `flock` 不保证跨节点互斥**。故首次从 v0.8.x 升 v0.9.x 时：
@@ -435,6 +435,82 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 - 或把迁移放进 **init-container / 一次性 Job**（单实例先跑），应用副本再起。
 
 （单 uvicorn / 单副本部署——KNOT 内测默认——无此问题；迁移是一次性操作，迁完后 `skip:migrated` 恒等幂等。）
+
+#### 违反上面顺序时**具体会看到什么**（2026-08-01 本地 Docker 排练实测 · 3 副本同时首启共享卷）
+
+排练刻意选了一个 **`flock` 不互斥**的挂载层（macOS bind-mount；**已直接验证**：两容器同时拿到同一把
+`flock` 且等待 0.00s）—— 即上文「跨节点 RWM/NFS」的最坏形态。**实测结果**：
+
+| 观察项 | 实测 |
+|---|---|
+| 3 副本结局 | 副本1 `resumed` ✅ · **副本2 exit=1 崩溃** ❌ · 副本3 `skip:migrated` ✅ |
+| 崩溃报错 | `sqlite3.OperationalError: disk I/O error`，栈底 `tenancy_migration.py` `_backup_db` → `s.backup(d)`（备份快照进行中，源文件被另一副本 rename 走） |
+| **业务数据** | ✅ **完好** —— `PRAGMA integrity_check=ok`，逐表行数与升级前**逐条相符** |
+| **回滚源备份** | ✅ **完好** —— `knot.db.pre-tenancy.bak` 同样 `integrity=ok` + 行数相符 |
+| 崩掉的副本重启后 | ✅ **一次即自愈** —— `skip:migrated` → startup complete → HTTP 200（K8s 表现为 `RESTARTS: 1`，**不是** CrashLoopBackOff） |
+| 按规定顺序（先 1 副本迁完再扩 3） | ✅ **0 traceback**，3 副本全 `migrated`/`skip:migrated`，`platform_audit` **恰 1 条**（seed 与其审计一同幂等） |
+
+**⇒ 运维要点（看到那个 traceback 时）**：
+1. **不要去恢复备份、不要回滚** —— 数据和备份都是完整的，这是**启动期竞态**而非数据损坏；
+2. **让它重启**（K8s 自动做）—— 迁移已被别的副本完成，重启即 `skip:migrated` 起来；
+3. 事后仍应改成上面的规定顺序，因为 `disk I/O error` 这个报错**看起来像磁盘坏了**，会误导值班判断。
+
+> ⚠️ **一处自我订正**：v0.9.8 设计论证里曾把这个场景描述为「并发写 ⇒ `database is locked` ⇒ **崩溃循环**」。
+> 实测是**崩一次然后自愈，不循环**，且报错也不是 `database is locked`。那条论证的**结论**仍成立
+> （同事务审计的价值在于它根本不需要在 raise 与吞之间选策略），但**严重性被我说过头了**——记此以免被后续引用。
+
+### 🧪 内测服 v0.6.1.4 → v0.9.x 升级实操手册（**2026-08-01 本地 Docker 排练真走过一遍**）
+
+内测服现网 = **v0.6.1.4**（无 2FA、无多租户），跨 v0.8（2FA 分水岭）+ v0.9（多租户）两道大坎。
+下表每一行的产物都是**实测抄下来的**，不是照 spec 写的。
+
+**排练怎么搭的**（可复现）：用 v0.6.1.4 **自己的代码**建一个忠实的旧库（而非手写 schema）→ 灌入
+2 条 Fernet 加密数据源 + 3 用户 + 1 张上传问数表 → 停旧容器 → 用当前版本挂**同一个数据卷**起。
+
+| 步骤 | 命令 / 观察点 | 排练实测 |
+|---|---|---|
+| 0. 备份 | `tar czf knot-data-$(date +%F).tgz data/`（含 `data/`**整目录**） | — |
+| 1. 停旧版 | `docker stop knot && docker rm knot`（**必须关掉再起**，见上文硬前提 2） | 0s |
+| 2. 起新版 | 同一个 `-v .../data:/app/knot/data` + 同一个 `KNOT_MASTER_KEY` | **4s** 到 `Application startup complete` |
+| 3. 看迁移 | `docker logs knot 2>&1 \| grep -E 'C4\|uploads-reloc'` | `[C4] 存量迁移完成（migrated）：…/knot.db → …/tenants/1/knot.db；旧库备份 …/knot.db.pre-tenancy.bak`<br>`[uploads-reloc] tenant#1 uploads: skip:fresh`（从未上传过 ⇒ 正常） |
+| 4. 核行数 | 逐表 `SELECT COUNT(*)` 与升级前对比 | `users 3` · `data_sources 2` · `audit_log 8` · 上传表 `3` · `file_uploads 0` —— **逐条相符** |
+| 5. 核凭据 | 抽 1 条加密数据源比对密文前缀 | **逐字节相同**（迁移不重新加密 ⇒ `KNOT_MASTER_KEY` 没变就一定能解） |
+| 6. 平台库 | `sqlite3 data/platform.db '.tables'` | 新建，含 `tenants` + `platform_audit`；tenant#1 行 `allowed_http_hosts=NULL` / `updated_at=NULL` |
+| 7. 平台审计 | `SELECT * FROM platform_audit` | **恰 1 条**：`platform.tenant_create` / `system:boot` / `startup` / `{"db_dir":"tenants/1","seed":true}` |
+| 8. 存量 token | 拿升级前的 token 打任意端点 | **401 `JWT_NO_TID`** ⇒ 全员被登出一次（**预期**，见硬前提 1） |
+| 9. 重新登录 | 登录后解 JWT payload | `{"sub":"1","ver":1,"tid":1,…}` —— `tid` 已注入，正常工作 |
+| 10. 启动 WARN | `docker logs knot 2>&1 \| grep -i warn` | v0.9.7 的 allowlist WARN **真的响了**（`allowed_http_hosts` 为 NULL ⇒ 起源租户回退 env）⇒ 见下「必须补的一步」 |
+| 11. 备份文件 | `ls data/*.bak` | 两个 `.bak` **留在数据根不动**，且**不被当成数据库加载**（实测无副作用） |
+
+**⚠️ 升级后必须补的一步（否则埋一个「以后才炸」的雷）**：给 tenant#1 显式配 `allowed_http_hosts`。
+现在 NULL = 未配置 ⇒ 起源租户**回退** env `KNOT_HTTP_ALLOWED_HOSTS`（所以现网能正常跑），
+但这条回退**只对起源租户成立**；SQL 原文见下文「多租户运维门」。
+
+**🔒 本排练验证不到的一件事（诚实边界）**：从 v0.6.1.4 升级会**全新创建** `platform.db`
+⇒ 两条平台迁移（`allowed_http_hosts` / `updated_at` 加列）都是 **no-op**，排练**没有真跑到它们**。
+这一面由 v0.9.8 的「构造老平台库」单测覆盖（人工造一个缺列的 `platform.db` 再跑迁移），
+不要因为排练全绿就以为平台迁移链被验证过了。
+
+### 🔴 回滚前置：**升级前必须 `docker save` 现网镜像**（v0.9.9 排练发现 · 高优先级）
+
+**「重新 build 旧 tag」不能回到现状，因此它不是一条可靠的回滚路径。**
+
+根因：`requirements.txt` **全部用 `>=` 不钉版本**（v0.6.1.4 与今天都一样）⇒ 今天重建旧 tag 装到的是
+**今天的依赖**。**排练实测坐实**：v0.6.1.4 的代码 + 今天的 SQLAlchemy（2.0.51）⇒ **上传功能当场 500**
+（`List argument must consist only of dictionaries` —— 那是 v0.8.19 才修的 bug）。
+⇒ 重建旧 tag 得到的是「**代码是旧的、依赖是新的**」这个**从未存在过、也从未被测过**的组合。
+
+**两个动作项**：
+
+```bash
+# 1. 升级之前，把现网正在跑的那个镜像导出留存 —— 这是唯一可靠的回滚物
+docker save <现网镜像:tag> | gzip > knot-rollback-$(date +%F).tar.gz
+#    K8s 下先在节点上 crictl/docker 找到实际在跑的 image digest，按 digest 存，别按 tag 存
+```
+
+2. **独立于升级的 backlog：给 `requirements.txt` 钉版本**（或产出一份 lock）。在此之前，
+   **「重新部署当前版本」本身就是一个有风险的动作** —— 换节点 / 清了本地镜像 / CI 重跑都会触发重建，
+   可能当场坏在**与升级完全无关**的地方。
 
 ### 回滚（v0.9.x → v0.8.x）
 
