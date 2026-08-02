@@ -5,7 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.12 — 静态明文凭据守护（三年的散文规则终于有了守护）
+## [Unreleased] - v0.9.13 — `.dockerignore`：构建上下文泄漏（**P0**）
+
+> **定性：0 业务码。** 新增 `.dockerignore` + 一条**阻断** CI job + 守护测；不动 `Dockerfile`。
+> **触发**：Codex 在 v0.9.13（依赖钉版本）Stage 2 找到，**正打在 v0.9.10 弧自己的主题上**。
+
+### Fixed
+- ⚠️⚠️ **P0：无 `.dockerignore` + `Dockerfile:14` `COPY . .`** ⇒ `docker build` 把
+  `.env`（`KNOT_MASTER_KEY` / `BIAGENT_MASTER_KEY` / `JWT_SECRET` / `DB_PASSWORD` + 4 个 LLM key）·
+  `.git`（125M 全历史）· `knot/data`（租户库 + **36 个含明文凭据的 `.bak*`**）· `.venv` ·
+  `node_modules` **全部烤进镜像层**。
+  ⭐ **v0.9.10 弧花了三片治「明文凭据静态存在」，而构建路径把它们又送回去了。**
+  - **实证（不是推理）**：2026-08-01 排练期从本工作树 build 的两个镜像里逐项确认存在
+    （`knot:v0.9.12` 含 24 个 `.bak`、`knot:v0.9.9` 含 11 个）。**已 `docker rmi` + build cache 已 prune（7.5G）**；
+    未发现 push/save 证据。⚠️ 而 kk 决定凭据不轮换 ⇒ **那些值当时仍有效**。
+  - ⭐ **同一个 Dockerfile，构建上下文不同则安全性完全不同**：同日从 **git worktree** build 的
+    `knot:v0.6.1.4` **干净**（worktree 里没有 `.env`/`data`/`.venv`，`.git` 只是 54 字节指针）。
+    ⇒ **上下文本身必须被约束**，不能靠「在哪个目录 build」这种运气。
+  - **效果实测**：构建上下文 **~640M → 17M**；`.env`/`.git`/`.venv`/`node_modules`/`.bak`/两个 `data/` 全部 0。
+
+### Added
+- **`.dockerignore`**（22 条规则，每条给理由）。⚠️ **锚定语义**（错了也看不见）：
+  含 `/` 的 pattern 是**根锚定** ⇒ `data/` 与 `knot/data/` **两条都要**
+  （前者是 DEPLOY 的挂载点、部署主机上会长出来；后者是本地 dev 的库）。
+- **`tests/scripts/test_dockerignore_context.py`（14 测）** —— ⭐ **判据跑真 Docker**：
+  `FROM scratch` + BuildKit **tar exporter**，tar 清单 = 过滤后的真实构建上下文。
+  上一稿打算用 Python 复现匹配语义，**那是错的**：被测对象就是 Docker 的行为。
+  （实证：守护者与我曾就 `.git/` 语义分歧，**双方各跑一次真 build 才定案**。）
+  - **8 族 canary 逐族真造**，且**每族单独** mutant 验「删掉对应规则 ⇒ 该族逃逸」——
+    ⚠️ 不真造就等于**在空集上做否定断言**（恒真，「跑 revert 前四问」③）。
+  - **正向断言不可省**：一个把整仓都排掉的 `.dockerignore` 会让负向全绿而镜像**完全坏掉**。
+  - ⛔ **mutant 只跑合成 fixture** —— 严禁在含密钥的真树上 build 坏规则变体。
+- **阻断 CI job `build context leak guard`** —— 独立于 `docker build smoke`
+  （后者 `continue-on-error: true`，把 P0 守护挂上去等于**守护本身非阻断**）。
+  `FROM scratch` ⇒ **零 Docker Hub 拉取** ⇒ 可阻断且不引入 rate-limit 噪声。
+- `DEPLOY.md` **镜像保密等级**段：v0.9.13 之前的镜像**按含活凭据处置**；
+  ⚠️ **之后也不是「可公开」** —— 镜像内**仍含业务私有 catalog**（真实表名/口径）。
+
+### ⭐ 实施期三条 canary 抓到的真发现（都不是推理出来的）
+1. **`.git` 排漏了子目录**：`.git`（不带 `**/`）是**根锚定** ⇒ `sub_wt/.git`（worktree 指针，
+   **泄漏宿主绝对路径 + 用户名**）**逃逸**。⇒ 补 `**/.git`。
+   ⚠️ 这正是我在 `data/` 上做对、却在 `.git` 上做错的同一条锚定语义。
+2. ⭐ **补上 `**/.git` 后，mutant 显示摘掉 `.git` 也不再逃逸** ⇒ 根锚定那条是**冗余**，删。
+   **冗余规则的坏处正是「删掉它看不见」** —— 留着等于有一条无法被检验的规则。
+3. **两族 canary 位置放错造成「顶班」**：`.bak` 放在 `knot/data/`（被 `knot/data/` 顶）·
+   pycache 族用 `.pyc`（被 `**/*.py[cod]` 顶）⇒ 摘掉目标规则也不逃逸 = **该族 mutant 是空判据**。
+   ⇒ 挪到无人覆盖的位置才测得到（v3.1-B #7 的实例）。
+
+### ⚠️ 诚实收窄 —— 本片**不**声称
+- **不声称「镜像最小化」**：`.dockerignore` 管的是**送进 daemon 的上下文**，
+  `COPY . .` 仍会把上下文里剩下的一切放进镜像。改显式 `COPY` = 下一片。
+- **不声称私有 catalog 已处理**：`_local_catalog.py` / `few_shots.yaml` **仍进镜像**。
+  ⚠️ **刻意不排** —— 直接排会让 file 层落 `_template_catalog` ⇒ file HTTP 虚拟表消失
+  ⇒ `pick_http_route` 恒 None ⇒ **HTTP 查询静默落 SQL** = v0.7.29b 失败模式，**R-v096-4 明禁**。
+  ⇒ 下一片改 **bind-mount + 启动 WARN** 后才排。**这个决定已写成正向断言**
+  （`_MUST_STAY` 含 `_local_catalog.py`）⇒ 下一片必须显式改掉它，**决定不能静默翻转**。
+- **不声称镜像可复现**（基础镜像 tag 会移动）⇒ `docker save` 仍是唯一可靠回滚物。
+- **不声称历史镜像都干净** —— 只声称本机今天那两个已销毁，且**未发现** push/save 证据。
+
+## [已发布] - v0.9.12 — 静态明文凭据守护（三年的散文规则终于有了守护）
 
 > **定性：0 业务逻辑改动**（新增只读探测器 + 一条只读命令 + 一个启动 WARN 钩子）。
 > 前端源码零改动（仅 `version.js`）+ 随之重建 `knot/static`。
