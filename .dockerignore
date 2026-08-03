@@ -44,16 +44,29 @@ knot/data/
 **/*.py[cod]
 
 # ── 缓存 / 工具产物 ───────────────────────────────────────────────────
-.pytest_cache/
-.ruff_cache/
+# ⚠️ **`**/` 不可省** —— 与 `.git` 同一个根锚定 bug：实测 `frontend/.pytest_cache` 与
+#    `.claude/worktrees/*/.pytest_cache` 都在，只写 `.pytest_cache/` 排不掉它们。
+**/.pytest_cache/
+**/.ruff_cache/
 .mypy_cache/
 htmlcov/
 .coverage
 .claude/
 
 # ── 测试专用大件（Codex 确认无两难）────────────────────────────────────
-tests/eval/cases.yaml
-tests/eval/fake_schema.txt
+# ⚠️⚠️ **整个 tests/eval/ 目录**（不是逐个文件列）—— 实测教训：
+#    初版只排了 `cases.yaml` + `fake_schema.txt`，而 `.gitignore:25` 的**业务隐私**分节里
+#    还有 `semantic_cases.yaml`（1731 行）+ `semantic_cases.candidate.yaml`（1748 行），
+#    内容含真实业务方言与表名（`ohx` 48 行 / `dwd_` 18 / `ads_` 29 / 「持仓」27）
+#    ⇒ **它们进了镜像**。逐个列必然漏下一个新增的 ⇒ 排整个目录。
+#    （测试用不着它进镜像：CI 的 pytest 跑在 checkout 上，不经 docker。）
+tests/eval/
 
 # ── 本文件自身产物（tar exporter 的输出必须不落进上下文）────────────────
+*.tar
+
+# ── 实测「比对 git 跟踪文件 vs 真实上下文」补出来的（手写清单看不见的）──────────
+**/.import_linter_cache/
+**/*.egg-info/
+**/.DS_Store
 *.tar

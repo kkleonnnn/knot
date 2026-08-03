@@ -81,8 +81,11 @@ def _context_entries(ctx_dir: pathlib.Path, tmp_out: pathlib.Path) -> set[str]:
         capture_output=True, check=True, timeout=600,
     )
     with tarfile.open(tar_path) as t:
-        return {n[len("ctx/"):] for n in t.getnames()
-                if n.startswith("ctx/") and not n.endswith("/")}
+        # ⚠️ 必须按 `isfile()` 过滤 —— tar 的**目录条目**名字**不带**尾斜杠
+        #    ⇒ 用 `endswith("/")` 筛不掉它们（本片实施期实测：目录名混进集合，
+        #    让「未跟踪却进上下文」那条断言把 `docs`/`frontend` 这类目录报成泄漏）。
+        return {m.name[len("ctx/"):] for m in t.getmembers()
+                if m.isfile() and m.name.startswith("ctx/")}
 
 
 # ─── Se0（纯 Python · 格式守卫，**不是**安全守护）───────────────────────────
@@ -267,3 +270,86 @@ def test_real_repo_context_carries_no_secrets(tmp_path):
     ))
     assert not bad, f"真仓库的构建上下文里仍有敏感项：{bad[:20]}（共 {len(bad)} 个）"
     assert "knot/main.py" in entries, "真仓库上下文里连 knot/main.py 都没有 ⇒ 排得太宽"
+
+
+# ─── ⭐ 最强的那条：与 **git 跟踪集**比对（手写清单看不见的它都能看见）──────────
+
+# 允许「被跟踪但**不**进上下文」的：显式文件 + 前缀（各给理由）
+_EXCLUDED_TRACKED_FILES = {
+    ".env.example":      "R8：`.env*` 全排、不反排模板（`!` 是唯一顺序相关的规则）",
+    ".gitignore":        "镜像不需要",
+    "knot/data/.gitkeep": "数据目录由 `main.py` 的 `_DATA_DIR.mkdir` 运行时创建（容器实测已验）",
+}
+_EXCLUDED_TRACKED_PREFIXES = {
+    ".github/":     "CI 配置，镜像不需要",
+    "tests/eval/":  "⚠️ **业务隐私目录整体排除**（`.gitignore:25` 分节）—— 见下面那条测的说明",
+}
+
+# 允许「未被跟踪但**进**上下文」的 —— ⭐ **恰好一项**，且是**刻意**的
+_ALLOWED_UNTRACKED = {
+    "knot/services/agents/_local_catalog.py":
+        "⚠️ 刻意保留：直接排会让 file 层落 `_template_catalog` ⇒ HTTP 查询静默落 SQL "
+        "= v0.7.29b 失败模式，R-v096-4 明禁。⇒ 下一片改 bind-mount + 启动 WARN 后才排。",
+}
+
+
+def _tracked_files() -> set[str]:
+    out = subprocess.run(["git", "ls-files"], cwd=REPO, check=True,
+                         capture_output=True, text=True).stdout.split()
+    return set(out)
+
+
+@requires_docker
+def test_untracked_files_in_context_are_exactly_the_named_exemptions(tmp_path):
+    """⭐⭐ **本文件最强的一条**：上下文里的**未跟踪**文件 == 恰好那份具名豁免集。
+
+    **为什么它比手写的 `_MUST_STAY` / canary 清单强**：那两者只看**我想到的**东西，
+    而本条看**全部** gitignored 文件 —— 而 gitignored 恰恰就是「不该外传」的那一类
+    （`.gitignore:25` 分节标题原文：「**业务隐私**（v0.2.4 起）：真实业务目录 / few-shot / eval
+    / schema fixture 不进 git」）。
+
+    ⚠️⚠️ **它实测抓到了两条 canary 完全没看见的泄漏**（v0.9.13 实施期）：
+      ① `tests/eval/semantic_cases.yaml`（1731 行）+ `.candidate.yaml`（1748 行）——
+         **业务隐私分节里的 eval 语料**，含真实业务方言与表名（`ohx` 48 行 / `dwd_` 18
+         / `ads_` 29 / 「持仓」27）。初版只逐个排了 `cases.yaml` + `fake_schema.txt`
+         ⇒ **逐个列必然漏下一个新增的** ⇒ 改排整个 `tests/eval/`。
+      ② `frontend/.pytest_cache/` + `.claude/worktrees/*/.pytest_cache/` ——
+         `.pytest_cache/` 是**根锚定**（与 `.git` 同一个 bug 类，而 canary 只造了根级）。
+    ⇒ 修完后未跟踪项从 **83 → 1**，而那 1 个正是 `_local_catalog.py`（具名豁免）。
+    """
+    ctx = _context_entries(REPO, tmp_path)
+    untracked = sorted(ctx - _tracked_files())
+    unexpected = [u for u in untracked if u not in _ALLOWED_UNTRACKED]
+    assert not unexpected, (
+        "以下**未被 git 跟踪**的文件进入了构建上下文：\n    " + "\n    ".join(unexpected) + "\n\n"
+        "    ⚠️ gitignored 通常意味着「不该外传」（`.gitignore:25` 的**业务隐私**分节）。\n"
+        "    ⇒ 要么把它排进 `.dockerignore`，要么加进本测的 `_ALLOWED_UNTRACKED` **并写明理由**。\n"
+        "    ⛔ 加豁免前先问：它是业务私有数据吗？若是，默认答案是**排掉**，不是豁免。"
+    )
+    # 反向：豁免集里的东西必须**真的**在（否则豁免是过期的死条目）
+    for path in _ALLOWED_UNTRACKED:
+        assert path in ctx, (
+            f"豁免项 {path} 不在上下文里 —— 豁免已过期（或该文件已不存在）⇒ 删掉这条豁免。"
+        )
+
+
+@requires_docker
+def test_excluded_tracked_files_are_exactly_the_expected_set(tmp_path):
+    """反方向：**被排掉的已入库文件** == 恰好期望集（防「排太广」悄悄吃掉源码）。
+
+    ⭐ 与 `test_Se2_...` 的分工：Se2 只断**我列出的 10 个**必需文件在；
+    本条断**全部 738 个入库文件**里只有期望的那些被排掉 ⇒ 任何新的过度排除都会立刻可见。
+    """
+    ctx = _context_entries(REPO, tmp_path)
+    excluded = sorted(_tracked_files() - ctx)
+    unexpected = [
+        e for e in excluded
+        if e not in _EXCLUDED_TRACKED_FILES
+        and not any(e.startswith(p) for p in _EXCLUDED_TRACKED_PREFIXES)
+    ]
+    assert not unexpected, (
+        "以下**已入库**文件被 `.dockerignore` 排掉了，而它们不在期望集里：\n    "
+        + "\n    ".join(unexpected) + "\n\n"
+        "    ⇒ 若是**有意**的，加进 `_EXCLUDED_TRACKED_FILES` / `_EXCLUDED_TRACKED_PREFIXES` "
+        "并写明理由；\n    ⇒ 若是**误排**，收窄对应规则 —— 排太广会让镜像缺文件而 Se1 全绿。"
+    )

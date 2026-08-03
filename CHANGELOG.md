@@ -52,6 +52,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    pycache 族用 `.pyc`（被 `**/*.py[cod]` 顶）⇒ 摘掉目标规则也不逃逸 = **该族 mutant 是空判据**。
    ⇒ 挪到无人覆盖的位置才测得到（v3.1-B #7 的实例）。
 
+### ⭐⭐ 又两条泄漏 —— 由「与 git 跟踪集比对」抓到，canary **完全没看见**
+
+**canary 清单只看「我想到的」东西**；把判据换成**与 git 跟踪集比对**之后立刻抓到两条：
+
+1. ⚠️ **`tests/eval/semantic_cases.yaml`（1731 行）+ `.candidate.yaml`（1748 行）进了上下文** ——
+   它们在 `.gitignore:25` 的「**业务隐私**（真实业务目录 / few-shot / **eval** / schema fixture）」
+   分节里，内容含**真实业务方言与表名**（`ohx` 48 行 / `dwd_` 18 / `ads_` 29 / 「持仓」27）。
+   初版只**逐个**排了 `cases.yaml` + `fake_schema.txt` ⇒ **逐个列必然漏下一个新增的**
+   ⇒ 改排**整个 `tests/eval/`**。
+2. **`frontend/.pytest_cache/` 与 `.claude/worktrees/*/.pytest_cache/`** ——
+   `.pytest_cache/` 是**根锚定**（与 `.git` 同一个 bug 类，而 canary 只造了根级 ⇒ 看不见）。
+   同批修正 `**/.ruff_cache/` + 新增 `**/.import_linter_cache/` · `**/*.egg-info/` · `**/.DS_Store` · `*.tar`。
+
+⇒ **未跟踪却进上下文的从 83 → 1**，而那 1 个正是刻意保留的 `_local_catalog.py`。
+上下文文件数 813 → **721**。
+
+**两条新断言（派生自 git，期望值字面）**：
+- `test_untracked_files_in_context_are_exactly_the_named_exemptions` ——
+  上下文里的**未跟踪**文件 == 恰好一份**具名豁免集**。⭐ 比 canary 强的地方：
+  canary 只看我想到的，本条看**全部 gitignored 文件**，而 gitignored 恰恰就是「不该外传」那一类。
+  **revert 实测精确复现了上面第 1 条泄漏。**
+- `test_excluded_tracked_files_are_exactly_the_expected_set` ——
+  反方向：**被排掉的已入库文件** == 恰好期望集（防「排太广」悄悄吃掉源码；
+  revert 加一条 `knot/repositories/` 立刻点名 4 个源文件）。
+
+⚠️ 实施期还修了一个 helper 缺陷：tar 的**目录条目名不带尾斜杠** ⇒
+`endswith("/")` 筛不掉它们，导致「未跟踪」那条把 `docs`/`frontend` 这类**目录**报成泄漏
+⇒ 改按 `isfile()` 过滤。
+
 ### ⚠️ 诚实收窄 —— 本片**不**声称
 - **不声称「镜像最小化」**：`.dockerignore` 管的是**送进 daemon 的上下文**，
   `COPY . .` 仍会把上下文里剩下的一切放进镜像。改显式 `COPY` = 下一片。
