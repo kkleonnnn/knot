@@ -79,6 +79,70 @@ jobs:
         working-directory: frontend
         run: npm run test
 
+  # ── v0.9.14 锁定运行时 lane（**阻断**）────────────────────────────────────────
+  # 与 lint-test 的关系是**故意不对称**（沿用 ruff CI-only pin 的形状）：
+  #   · lint-test 仍**浮动**（`pip install -e ".[dev]"` 解析当时最新）⇒ 上游一发版先撞到 = 早发现；
+  #   · 本 lane **钉住** `requirements.lock` ⇒ 「今天能不能装出一套跑得通的生产环境」有确定答案。
+  #
+  # ⭐⭐ 四层各干一件不同的事，**谁都不是冗余**（Stage 3 Q1 加层 —— 别把任何一层当「已被覆盖」删掉）：
+  #   ① `-c requirements.lock`（constraints）只**限制**版本、**不强制安装**
+  #      ⇒ 某条传递依赖若从 lock 里漏了，pip 会**自由解析**它 ⇒ **constraints 本身证明不了闭合**；
+  #   ② **集合等值**（`pip freeze` == lock）才是把 constraints 变成**闭合**的那一步
+  #      ⇒ 证明没有 lock 外的包被拉进来、也没有 lock 内的包缺席。**这一层最容易被误当冗余删掉。**
+  #   ③ `pip check` 证明**无依赖冲突**；
+  #   ④ **用该环境跑后端全量**证明 **API 兼容** —— 只有它能抓「代码开始用区间内新版才有的 API」：
+  #      那种情况下 ①②③ 全绿、lock↔spec 一致性断言也绿（版本区间看不见 API 用法），**只有生产炸**。
+  #
+  # ⭐ 为什么 `setup-python` 就够（Stage 3 加项 1 订正了本片原先更保守的说法）：
+  #   要紧的**不是二进制是否同一个**，而是 **wheel tag 是否解析成同一批** ——
+  #   runner 与 `python:3.11-slim` 都是 **glibc / x86_64 / cp311 manylinux** ⇒ 选中的 wheel 相同。
+  #   实测佐证：同一份 spec 在 linux/arm64 与 linux/amd64 下解析出的版本集合**逐行相同**（各 52 pin）。
+  #   残留差异是解释器构建本身，对纯 Python + manylinux wheel 几乎无影响。
+  #   ⇒ 本 lane 证明「该版本集合在生产的 wheel 解析画像下闭合、且能过全量」；
+  #     仍**不**声称与生产镜像逐字节同构（那只有 docker-build job 能证，而它 continue-on-error）。
+  #   附带好处：零 Docker Hub 拉取 ⇒ 可以阻断，不把当初要避的 rate-limit 噪声请回来。
+  #
+  # ⚠️ 本 lane **刻意不装项目本体**（无 `pip install -e .`）—— 生产镜像同样不装
+  #   （`COPY . .` + `WORKDIR /app` 直接跑）⇒ 两边可比，且 ② 的集合比对不会被项目自身污染。
+  locked-runtime:
+    name: locked runtime lane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ① 与 Dockerfile **逐字相同**的安装命令
+      #    （用不同的装法，验的就不是生产路径 —— Stage 3 Q1 的判据）
+      - name: ① install exactly like Dockerfile does
+        run: pip install --no-cache-dir -r requirements.txt -c requirements.lock
+
+      - name: ② closure — pip freeze must equal requirements.lock
+        run: python3 scripts/check_lock_closure.py --mode closure
+
+      - name: ③ pip check — no dependency conflicts
+        run: pip check
+
+      # ④ dev 依赖也带 `-c requirements.lock` ⇒ 机制上不允许它移动锁定版本
+      - name: ④ install dev deps under the same constraints
+        run: pip install -r requirements-dev.txt -c requirements.lock
+
+      # ⑤ 断言 ④ 的**结果**（不只声称机制生效）：否则 ⑥ 跑的就不是 lock 那套
+      - name: ⑤ locked versions must still hold after dev install
+        run: python3 scripts/check_lock_closure.py --mode still-locked
+
+      # ⑥ R8：用这套锁定版本跑后端全量 —— 本 lane 唯一能抓 API 不兼容的一层
+      - name: ⑥ full backend suite on the locked set
+        env:
+          KNOT_MASTER_KEY: ${{ secrets.TEST_MASTER_KEY }}
+          JWT_SECRET: "ci-test-jwt-secret-32-chars-min-length-padding"
+        run: |
+          if [ -z "$KNOT_MASTER_KEY" ]; then
+            export KNOT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+          fi
+          pytest tests/ --tb=short --ignore=tests/eval -q
+
   # v0.6.0.9 F3 CI 精简：boot smoke 矩阵 4→1 variants
   # 历史背景：
   #   v0.5.0 R-72/R-77 时期 bi-agent → knot 重命名，需要验证 env 4 组合
