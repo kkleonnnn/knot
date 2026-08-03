@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.12 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.13 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -490,6 +490,26 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 ⇒ 两条平台迁移（`allowed_http_hosts` / `updated_at` 加列）都是 **no-op**，排练**没有真跑到它们**。
 这一面由 v0.9.8 的「构造老平台库」单测覆盖（人工造一个缺列的 `platform.db` 再跑迁移），
 不要因为排练全绿就以为平台迁移链被验证过了。
+
+### 🔒 镜像的保密等级（v0.9.13 起 · **push / save / 分享前必读**）
+
+**v0.9.13 之前**：仓库没有 `.dockerignore` 而 `Dockerfile` 是 `COPY . .`
+⇒ **从工作树 build 的镜像里含 `.env`（master key / JWT / DB 密码 / LLM key）、`.git` 全历史、
+`knot/data` 全部租户库与备份**。⚠️ **2026-08-01 实测复现过两次**（那两个镜像已销毁 + build cache 已清）。
+⇒ **v0.9.13 之前构建的任何镜像都按「含活凭据」处置**：不得 push 到任何 registry、不得外发。
+
+**v0.9.13 起**：`.dockerignore` 已排掉凭据 / 历史 / 租户库 / 备份 / venv / node_modules
+（构建上下文实测由 ~640M 降到 **17M**），由**阻断 CI job** `build context leak guard` 守
+（`FROM scratch` + tar exporter，零 registry 拉取；含 8 族 canary 的逐族 mutant）。
+
+⚠️⚠️ **但镜像仍不是「可公开」的** —— **截至本片，镜像内仍含业务私有 catalog**
+（`knot/services/agents/_local_catalog.py`：**真实库表名 / 字段 / 业务口径**）。
+它 `.gitignore` 标了业务隐私，却仍随 `COPY . .` 进镜像。
+⇒ **镜像的 `docker push` / `docker save` / 对外分享，仍有保密要求，须按业务私有数据对待。**
+（下一片改 bind-mount 后才会从镜像里消失 —— 本片刻意不排它：直接排会让 file 层落模板
+⇒ HTTP 查询静默落 SQL，那是 R-v096-4 明禁的后果。）
+
+---
 
 ### 🔴 回滚前置：**升级前必须 `docker save` 现网镜像**（v0.9.9 排练发现 · 高优先级）
 

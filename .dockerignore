@@ -1,0 +1,72 @@
+# .dockerignore —— 构建上下文白名单外的一切（v0.9.13 · P0）
+#
+# ⚠️ **为什么必须有它**：`Dockerfile:14` 是 `COPY . .`，而工作树里有 `.env`（含 KNOT_MASTER_KEY /
+#    JWT_SECRET / DB 密码 / 4 个 LLM key）· `.git`（125M 全历史）· `knot/data`（租户库 + 36 个
+#    含明文凭据的 `.bak*`）· `.venv`（205M）· `node_modules`（229M）。
+#    **实证**：2026-08-01 排练期从本工作树 build 的两个镜像里，这些**全部真的在**（已销毁）。
+#
+# ⚠️ **锚定语义**（错了也看不见，别「顺手简化」—— 守护者点名）：
+#    · 不带 `/` 前缀但含 `/` 的 pattern 是**根锚定** ⇒ `data/` 只排根 `data/`，
+#      `knot/data/` **必须单列**（两者都存在：前者是 DEPLOY 的挂载点、部署主机上会长出来；
+#      后者是本地 dev 的库）
+#    · 递归要显式写 `**/`
+# ⚠️ **不写尾斜杠**：实测 `.git/` 也能排掉一个 `.git` **文件**（Docker 对 pattern 做
+#    `filepath.Clean`），但**不该依赖一个没写进契约的归一化细节** —— 实测结果不构成依赖它的许可。
+
+# ── 凭据 ──────────────────────────────────────────────────────────────
+.env
+.env.*
+# ⚠️ 刻意**不**反排 `.env.example`：`!` 是 .dockerignore 里唯一**顺序相关**的规则，
+#    为一个模板文件引入顺序依赖不值（Codex R8）。镜像也不需要它。
+
+# ── 版本历史（125M + 泄漏宿主路径/用户名：worktree 下 .git 是 gitdir 指针文件）──
+# ⚠️ 用 `**/.git` 而**不是** `.git` —— 两步实测得来的：
+#    ① 只写 `.git`（根锚定）⇒ 子目录里的 `.git`（`.claude/worktrees/*/` 下的 worktree
+#       指针文件，泄漏宿主绝对路径 + 用户名）**逃逸**；canary 抓到过。
+#    ② 补上 `**/.git` 之后，per-family mutant 显示**摘掉 `.git` 也不再逃逸**
+#       ⇒ `**/.git` 已覆盖根 `.git` ⇒ 那条**冗余**，删掉。
+#    ⭐ 冗余规则的坏处正是「删掉它看不见」—— 留着就等于有一条无法被 mutant 检验的规则。
+**/.git
+.gitignore
+.github
+
+# ── 运行时数据（租户库 / 备份 / WAL 旁文件）─────────────────────────────
+# `data/` = DEPLOY.md 的挂载点（`-v $(pwd)/data:/app/knot/data`）⇒ 部署主机上存在
+data/
+knot/data/
+**/*.bak
+**/*.bak-*
+
+# ── 宿主构建产物（且与镜像的解释器/平台不同）──────────────────────────
+.venv/
+**/node_modules/
+**/__pycache__/
+**/*.py[cod]
+
+# ── 缓存 / 工具产物 ───────────────────────────────────────────────────
+# ⚠️ **`**/` 不可省** —— 与 `.git` 同一个根锚定 bug：实测 `frontend/.pytest_cache` 与
+#    `.claude/worktrees/*/.pytest_cache` 都在，只写 `.pytest_cache/` 排不掉它们。
+**/.pytest_cache/
+**/.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.claude/
+
+# ── 测试专用大件（Codex 确认无两难）────────────────────────────────────
+# ⚠️⚠️ **整个 tests/eval/ 目录**（不是逐个文件列）—— 实测教训：
+#    初版只排了 `cases.yaml` + `fake_schema.txt`，而 `.gitignore:25` 的**业务隐私**分节里
+#    还有 `semantic_cases.yaml`（1731 行）+ `semantic_cases.candidate.yaml`（1748 行），
+#    内容含真实业务方言与表名（`ohx` 48 行 / `dwd_` 18 / `ads_` 29 / 「持仓」27）
+#    ⇒ **它们进了镜像**。逐个列必然漏下一个新增的 ⇒ 排整个目录。
+#    （测试用不着它进镜像：CI 的 pytest 跑在 checkout 上，不经 docker。）
+tests/eval/
+
+# ── 本文件自身产物（tar exporter 的输出必须不落进上下文）────────────────
+*.tar
+
+# ── 实测「比对 git 跟踪文件 vs 真实上下文」补出来的（手写清单看不见的）──────────
+**/.import_linter_cache/
+**/*.egg-info/
+**/.DS_Store
+*.tar

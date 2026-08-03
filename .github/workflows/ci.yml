@@ -158,3 +158,34 @@ jobs:
           docker run --rm --entrypoint sh knot-ci-smoke -c "ls /app/knot/static/index.html" \
             || (echo "::error::R-PA-7.3 frontend static COPY 守护失败"; exit 1)
           echo "R-PA-7.1/7.2/7.3 三守护 PASS"
+
+  # ⭐ v0.9.13 P0 —— 构建上下文泄漏守护（**阻断**）
+  #
+  # 为什么是**独立且阻断**的 job（守护者 Stage 3 Q2 裁 (c)）：
+  #   · 上面那个 docker-build 是 `continue-on-error: true`（R-PA-15，为避 Docker Hub
+  #     rate limit 误杀 PR）⇒ 把 P0 的守护挂在它上面 = **守护本身非阻断**（Codex R7 点名）。
+  #   · 而本 job 用 `FROM scratch` + BuildKit **tar exporter** ⇒ **零 Docker Hub 拉取**
+  #     （scratch 是保留的空镜像，不需要任何 registry）⇒ 可以阻断，且不把 rate-limit 噪声请回来。
+  #   · 不需要跑容器（scratch 没 shell），也不需要 —— **被测的是构建上下文，不是运行时**。
+  #
+  # 它跑的就是 `tests/scripts/test_dockerignore_context.py`（含 8 族 canary 的 per-family mutant）。
+  dockerignore-context:
+    name: build context leak guard
+    needs: lint-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: docker/setup-buildx-action@v3
+      # ⚠️ 只装 pytest 是**刻意**的：若装全套业务依赖，一次上游发版就能让 **P0 的守护**变红
+      #    （与它的目的相反）。前提是那个测文件**零 import 业务模块**、只用内建 fixture。
+      - name: install pytest only
+        run: pip install "pytest>=8.0.0"
+      # ⚠️ `--noconftest` 不可省 —— pytest **总会**先加载根 `tests/conftest.py`，而它 import fastapi。
+      #    **首次上 CI 就是这样红的**（本地跑不出来：本地 venv 里 fastapi 装着）。
+      - name: build-context leak guard（真 Docker oracle · 零 registry 拉取）
+        run: |
+          python -m pytest tests/scripts/test_dockerignore_context.py \
+            -v --no-header -p no:cacheprovider --noconftest
