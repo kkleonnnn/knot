@@ -179,8 +179,13 @@ jobs:
         with:
           python-version: "3.11"
       - uses: docker/setup-buildx-action@v3
-      - name: install pytest only（本 job 不需要业务依赖）
+      # ⚠️ 只装 pytest 是**刻意**的：若装全套业务依赖，一次上游发版就能让 **P0 的守护**变红
+      #    （与它的目的相反）。前提是那个测文件**零 import 业务模块**、只用内建 fixture。
+      - name: install pytest only
         run: pip install "pytest>=8.0.0"
+      # ⚠️ `--noconftest` 不可省 —— pytest **总会**先加载根 `tests/conftest.py`，而它 import fastapi。
+      #    **首次上 CI 就是这样红的**（本地跑不出来：本地 venv 里 fastapi 装着）。
       - name: build-context leak guard（真 Docker oracle · 零 registry 拉取）
         run: |
-          python -m pytest tests/scripts/test_dockerignore_context.py -v --no-header -p no:cacheprovider
+          python -m pytest tests/scripts/test_dockerignore_context.py \
+            -v --no-header -p no:cacheprovider --noconftest

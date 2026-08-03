@@ -20,11 +20,19 @@
 2. ⛔ **mutant 只准跑在合成 fixture 上** —— **严禁**在真实含密钥工作树上 build「坏规则」变体，
    否则一次 mutant 就**再造一个被污染的镜像**（本会话已经造过两个）。
    本文件的所有 mutant 都在 `tmp_path` 里跑，且 fixture 里的「秘密」全是假值。
+
+═══ ⚠️ 本文件必须能在**只装 pytest** 的环境里跑（CI 阻断 job 的前提）═══
+它**零 import 业务模块**（只用 stdlib + pytest），全部 fixture 只用内建 `tmp_path`。
+⇒ CI 的 `build context leak guard` job 因此只装 pytest，并用 **`--noconftest`**
+（否则 pytest 会先加载根 `tests/conftest.py`，而那个文件 import `fastapi`
+—— **首次上 CI 时就是这样红的**：我在 job 里写「本 job 不需要业务依赖」，
+却忘了 pytest **总会**加载根 conftest）。
+⛔ **别在本文件里用 conftest 的 fixture** —— 那会让阻断 job 需要全套业务依赖，
+而那意味着一次上游依赖发版就能让 P0 的守护变红（与它的目的相反）。
 """
 from __future__ import annotations
 
 import pathlib
-import shutil
 import subprocess
 import tarfile
 
