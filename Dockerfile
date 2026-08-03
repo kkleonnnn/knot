@@ -9,8 +9,11 @@ RUN npm run build
 # Stage 2: Python runtime
 FROM python:3.11-slim
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# v0.9.14 依赖钉版本：roots 仍走 requirements.txt（extras 意图不丢），
+#   精确版本由 requirements.lock 当 **constraints** 钉住。
+#   ⚠️ 两行必须一起改 —— 只改安装行不改 COPY 行，lock 根本没进镜像、构建当场失败（Sd1 守护）。
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.txt -c requirements.lock
 COPY . .
 # v0.6.0 R-PA-7.1/7.2 显式守护（守护者 M-2 立约）—
 #   prompts 启动期 seed 守护对象 + catalog template fallback 第 3 级守护对象
