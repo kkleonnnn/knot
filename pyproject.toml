@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "knot"
 version = "0.3.0"
 description = "KNOT — natural-language SQL/chart assistant (KNOT)"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 readme = "README.md"
 dynamic = ["dependencies", "optional-dependencies"]
 
