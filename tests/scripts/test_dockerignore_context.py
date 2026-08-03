@@ -29,6 +29,15 @@
 却忘了 pytest **总会**加载根 conftest）。
 ⛔ **别在本文件里用 conftest 的 fixture** —— 那会让阻断 job 需要全套业务依赖，
 而那意味着一次上游依赖发版就能让 P0 的守护变红（与它的目的相反）。
+
+═══ ⭐ 改本文件后**必须**在干净 clone 里再跑一遍（这一片踩过两次）═══
+    git clone --no-hardlinks . /tmp/cc && cp .dockerignore tests/scripts/<本文件> /tmp/cc/…
+    cd /tmp/cc && pytest tests/scripts/<本文件> --noconftest
+**为什么**：本机工作树有一堆 **gitignored** 文件（`.env` / 真库 / `_local_catalog.py` / eval 语料），
+而 CI 是**干净 checkout**。本片有两条断言就是这样只在本机成立、上 CI 才红的：
+① job 里假设「不需要业务依赖」（本地 venv 有 fastapi）② 「豁免项必须在上下文里」
+（`_local_catalog.py` 是 gitignored，干净 checkout 里根本没有）。
+⇒ **`git clone` 精确复现 CI 的文件集** —— 比读 CI 日志快一个数量级。
 """
 from __future__ import annotations
 
@@ -326,10 +335,19 @@ def test_untracked_files_in_context_are_exactly_the_named_exemptions(tmp_path):
         "    ⇒ 要么把它排进 `.dockerignore`，要么加进本测的 `_ALLOWED_UNTRACKED` **并写明理由**。\n"
         "    ⛔ 加豁免前先问：它是业务私有数据吗？若是，默认答案是**排掉**，不是豁免。"
     )
-    # 反向：豁免集里的东西必须**真的**在（否则豁免是过期的死条目）
+    # 反向：豁免若**过期**（规则已把它排掉了）应被发现 —— 但判据必须**只在文件真的存在时**才成立。
+    # ⚠️⚠️ **初版这条在 CI 上红了**，而根因正是本弧自己那条教训：
+    #    `_ALLOWED_UNTRACKED` 里的文件是 **gitignored**（业务私有）⇒ **干净 checkout 里根本不存在**
+    #    ⇒ 原写法「豁免项必须在上下文里」**分不清**「豁免过期」与「这个环境里本来就没这个文件」
+    #    ⇒ **判据表示不了它要表示的那个事件**。（本会话第二次同形：上一次是 job 里假设「不需要业务依赖」，
+    #    而本地 venv 有 fastapi ⇒ 只在干净环境才现形。）
+    # ⇒ 正确形式：**以「工作树里真的有这个文件」为前提**，再问「它是否进了上下文」。
     for path in _ALLOWED_UNTRACKED:
+        if not (REPO / path).exists():
+            continue          # 该环境里没有它（如 CI 的干净 checkout）⇒ 无话可说，不是「豁免过期」
         assert path in ctx, (
-            f"豁免项 {path} 不在上下文里 —— 豁免已过期（或该文件已不存在）⇒ 删掉这条豁免。"
+            f"豁免项 {path} **在工作树里存在**却没进上下文 —— 说明 `.dockerignore` 已经把它排掉了\n"
+            f"    ⇒ 这条豁免过期了，删掉它（并复核那条排除是不是有意的）。"
         )
 
 
