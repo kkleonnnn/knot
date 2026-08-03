@@ -101,6 +101,68 @@ def test_changelog_single_unreleased():
     assert n == 1, f"CHANGELOG `## [Unreleased]` 应恰 1 个（当前在飞）；实际 {n}（历史漏 demote → stale 堆积）"
 
 
+# ─── README「上版」链 == CHANGELOG 的前一条（v0.9.14 补 · 连漏 4 片的那条）────
+#
+# **实测的失效**：README 顶部叙述链是 `当前版本 → 上版 → 更早 → 更早 …`，而
+# v0.9.10~.13 四片 bump 时**都没有插入自己那一条** ⇒ 「上版」一直停在 v0.9.9，
+# 四个版本从用户视角的叙述里**静默缺席**，而当时 4 条 doc-invariant 全绿 ——
+# 因为它们只守**当前版本那个字面**，没有任何东西守「链是不是接上的」。
+#
+# ⭐ 判据**从 CHANGELOG 派生**（那是版本序列的真相源），不写死期望值：
+#    「上版」必须等于 CHANGELOG 里**紧挨当前版本的前一条**。
+# ⭐ 为什么这两条就够、不必再断言「更早」链：
+#    「漏插自己那条」有且只有两种形态 —— ① 加了新的「上版」却忘了把旧的降级成
+#    「更早」⇒ 出现**两个**「上版」，被下面的 count==1 抓到；② 压根没加 ⇒「上版」
+#    仍指着旧版本，被等值断言抓到。两条合起来闭合，再加就是表膨胀。
+
+_README_CUR = re.compile(r"\*\*当前版本\*\*\s*v(\d+\.\d+\.\d+)")
+_README_PREV = re.compile(r"\*\*上版\*\*\s*v(\d+\.\d+\.\d+)")
+# ⚠️ 必须跳过**没有版本号**的 `## ` 标题 —— 实测存在
+#    `## [治理] 2026-08-01 — Loop Protocol v3.1 装入`（随 v0.9.8 合并但独立于它）。
+#    用 `.*?\bv…` 而非「取第一个 semver」，且**只认标题行**。
+_CHANGELOG_HEADING_VER = re.compile(r"^## .*?\bv(\d+\.\d+\.\d+)", flags=re.MULTILINE)
+
+
+def _changelog_versions() -> list[str]:
+    """CHANGELOG 各 `## ` 标题里的版本，按文件顺序（= 由新到旧）。"""
+    return _CHANGELOG_HEADING_VER.findall(Path("CHANGELOG.md").read_text(encoding="utf-8"))
+
+
+def test_readme_previous_version_link_is_not_broken():
+    """README 的「上版」必须 == CHANGELOG 里紧挨当前版本的前一条。
+
+    revert-to-bad：把「上版 v0.9.13」改回任何别的版本 ⇒ 红并给出该写什么。
+    """
+    versions = _changelog_versions()
+    # ⚠️ 先证明扫描面非空 —— 对空列表做「== 第二项」会以 IndexError 糊掉，
+    #    而人看到 IndexError 只会以为哨兵坏了，不会去看 CHANGELOG。
+    assert len(versions) >= 2, (
+        f"CHANGELOG 只解析出 {len(versions)} 个带版本号的 `## ` 标题（应 ≥2）——\n"
+        "    扫描面塌了，下面的等值断言无从成立。"
+    )
+
+    readme = Path("README.md").read_text(encoding="utf-8")
+    cur = _README_CUR.findall(readme)
+    prev = _README_PREV.findall(readme)
+
+    assert len(cur) == 1, f"README 的 `**当前版本**` 标记应恰 1 个；实际 {len(cur)}: {cur}"
+    assert len(prev) == 1, (
+        f"README 的 `**上版**` 标记应恰 1 个；实际 {len(prev)}: {prev}\n"
+        "    ⇒ 若为 2 个：新加了一条却忘了把旧的降级成 `**更早**`。"
+    )
+    assert cur[0] == versions[0], (
+        f"README 的当前版本 v{cur[0]} 与 CHANGELOG 顶部 v{versions[0]} 不符 ——\n"
+        "    「上版」这条断言以此为锚，先把这个修好。"
+    )
+    assert prev[0] == versions[1], (
+        f"README 的 `**上版**` 是 v{prev[0]}，而 CHANGELOG 里当前版本 v{versions[0]} 的\n"
+        f"    前一条是 **v{versions[1]}** ⇒ 叙述链断了。\n"
+        f"    ⇒ 本片漏插了自己那一条：把现在的「上版」改成 `**更早**`，\n"
+        f"       并在它前面插入 `<br>**上版** v{versions[1]} · …`。\n"
+        f"    （v0.9.10~.13 连续四片就是这样静默缺席的，而当时 4 条 doc-invariant 全绿。）"
+    )
+
+
 # ─── v0.9.10 R14：构建产物纳入版本闸门（4 源点此前不含它 ⇒ 漏 3 片无人察觉）────
 
 _STATIC = Path("knot/static")
