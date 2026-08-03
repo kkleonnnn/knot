@@ -61,12 +61,21 @@ docker run --rm --platform "$PLATFORM" \
     -e "BASE=$BASE" -e "PLATFORM=$PLATFORM" \
     "$BASE" \
     sh -eu -c '
-        # 安装输出全部转 stderr，stdout 只留 lock 内容
-        pip install --no-cache-dir --quiet -r /requirements.txt 1>&2
+        # ⭐⭐ **必须装进一个干净 venv，不能装进镜像的系统 site-packages** ——
+        #   `pip freeze` 会把**基础镜像自带的包**一起列出来（它只排除
+        #   pip/setuptools/wheel）。实测 `python:3.11-slim` 自带 `packaging==26.2`
+        #   （新版 setuptools/wheel 的构建依赖）⇒ 初版 lock 里混进了这一条**镜像残留**，
+        #   而它不是 `requirements.txt` 拉进来的 ⇒ 在没有该残留的环境里
+        #   （`actions/setup-python`）同一条安装命令只产出 51/52，**闭合断言当场红**。
+        #   ⇒ lock 的定义必须是「**requirements.txt 的闭包**」，而不是
+        #     「某个镜像的 site-packages 里有什么」—— 后者不可移植，且会随基础镜像漂。
+        #   新建 venv 里 `pip freeze` 是空的（venv 只 seed pip/setuptools，而它们被排除）。
+        python -m venv /v 1>&2
+        /v/bin/pip install --no-cache-dir --quiet -r /requirements.txt 1>&2
 
         # ── 头部由本脚本（在容器内）**生成**，不是手写声明 ────────────────
         #    Sd5 因此验的是「这段话是派生的」，而不是「有这么一段话」。
-        python - <<PY
+        /v/bin/python - <<PY
 import platform, sys
 try:
     from importlib.metadata import version as _v
@@ -90,7 +99,7 @@ PY
 
         # ⚠️ 用 pip freeze（不加 --all）：pip / setuptools / wheel 不进 lock，
         #    否则把 lock 当 constraints 用时会连 pip 自己一起约束住。
-        pip freeze
+        /v/bin/pip freeze
     ' > "$TMP"
 
 # 基本自检：至少要有头部 + 若干 == 行

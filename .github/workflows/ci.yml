@@ -113,24 +113,40 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ⭐⭐ **装进 /tmp 的干净 venv，不装进 runner 的系统 site-packages** ——
+      #   **等值的两边必须用同样的方式产出**：`requirements.lock` 是「干净 venv 装完后
+      #   `pip freeze`」的产物（见 scripts/regen_lock.sh）⇒ 这里也必须拿同样的东西去比。
+      #   拿 venv 派生的 lock 去比一个带预装残留的系统环境，**比的是两个不同的东西** ——
+      #   而那正是本 lane 首次上 CI 变红的成因（实测 `python:3.11-slim` 自带
+      #   `packaging==26.2`，由 wheel≥0.44 带入，而 `pip freeze` 只排除 pip/setuptools/wheel）。
+      #   ⚠️ venv 放 `/tmp` 而**不能**放仓库内：仓库内会多出未跟踪目录，
+      #      被 v0.9.13 的「未跟踪文件不得进构建上下文」哨兵打红（步 ⑥ 会跑到它）。
+      #   ⚠️ 安装命令本身与 Dockerfile **逐字相同**（Stage 3 Q1 的判据），
+      #      只是由 venv 的 pip 执行 —— 与生成侧对称。
+      - name: ⓿ fresh venv (same shape as how the lock was produced)
+        run: python -m venv /tmp/lockenv
+
       # ① 与 Dockerfile **逐字相同**的安装命令
       #    （用不同的装法，验的就不是生产路径 —— Stage 3 Q1 的判据）
       - name: ① install exactly like Dockerfile does
-        run: pip install --no-cache-dir -r requirements.txt -c requirements.lock
+        run: /tmp/lockenv/bin/pip install --no-cache-dir -r requirements.txt -c requirements.lock
 
+      # ② 用 venv 的解释器跑检查器 ⇒ 它内部的 `sys.executable -m pip freeze` 量的就是这个 venv。
+      #    ⚠️ 检查器必须**零第三方依赖**（venv 里只有生产依赖）——
+      #       由 tests/test_dependency_pinning.py::test_Sd8_locked_lane_scripts_are_stdlib_only 守护。
       - name: ② closure — pip freeze must equal requirements.lock
-        run: python3 scripts/check_lock_closure.py --mode closure
+        run: /tmp/lockenv/bin/python scripts/check_lock_closure.py --mode closure
 
       - name: ③ pip check — no dependency conflicts
-        run: pip check
+        run: /tmp/lockenv/bin/pip check
 
       # ④ dev 依赖也带 `-c requirements.lock` ⇒ 机制上不允许它移动锁定版本
       - name: ④ install dev deps under the same constraints
-        run: pip install -r requirements-dev.txt -c requirements.lock
+        run: /tmp/lockenv/bin/pip install -r requirements-dev.txt -c requirements.lock
 
       # ⑤ 断言 ④ 的**结果**（不只声称机制生效）：否则 ⑥ 跑的就不是 lock 那套
       - name: ⑤ locked versions must still hold after dev install
-        run: python3 scripts/check_lock_closure.py --mode still-locked
+        run: /tmp/lockenv/bin/python scripts/check_lock_closure.py --mode still-locked
 
       # ⑥ R8：用这套锁定版本跑后端全量 —— 本 lane 唯一能抓 API 不兼容的一层
       - name: ⑥ full backend suite on the locked set
@@ -139,9 +155,9 @@ jobs:
           JWT_SECRET: "ci-test-jwt-secret-32-chars-min-length-padding"
         run: |
           if [ -z "$KNOT_MASTER_KEY" ]; then
-            export KNOT_MASTER_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+            export KNOT_MASTER_KEY=$(/tmp/lockenv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
           fi
-          pytest tests/ --tb=short --ignore=tests/eval -q
+          /tmp/lockenv/bin/python -m pytest tests/ --tb=short --ignore=tests/eval -q
 
   # v0.6.0.9 F3 CI 精简：boot smoke 矩阵 4→1 variants
   # 历史背景：

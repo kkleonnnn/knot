@@ -17,20 +17,36 @@
 lock 本身就是**容器内 `pip freeze` 的产物**（见 `scripts/regen_lock.sh`）⇒ 用同一个工具测量，
 才是 like-for-like。换成 `importlib.metadata` 会把 `pip`/`setuptools`/`wheel` 也列出来，
 逼我维护一份排除清单 —— 而那正是本仓反复吃过瘪的「会漂的清单」。
+
+⭐⭐ **本模块必须零第三方依赖（stdlib only）—— 这不是洁癖，是判据成立的前提**：
+它跑在**它自己要测量的那个环境**里（只装了生产依赖的 locked lane）。
+它 import 的任何非生产包，要么让它自己崩，要么就得被装进环境里 ——
+而**装进去会让「集合等值」当场报「多了一个 lock 之外的包」** ⇒
+**测量工具不能给它测量的集合加东西。**
+⚠️ **实测代价**：初版 `from packaging...` 直接让 lane 红在
+`ModuleNotFoundError: No module named 'packaging'`（本机有 —— pytest 带进来的）。
+故 PEP 503 规范化在下面用 stdlib 三行实现；`tests/test_dependency_pinning.py`
+**仍用** `packaging` 的结构化 API（它跑在 dev 环境，不进这个环境），两者刻意不同。
+守护：`tests/test_dependency_pinning.py::test_Sd8_locked_lane_scripts_are_stdlib_only`。
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
-
 REPO = Path(__file__).resolve().parent.parent
 LOCK = REPO / "requirements.lock"
+
+# PEP 503 规范化（`packaging.utils.canonicalize_name` 的等价实现，stdlib only）
+_CANON_SEP = re.compile(r"[-_.]+")
+
+
+def _canon(name: str) -> str:
+    return _CANON_SEP.sub("-", name.strip()).lower()
 
 
 def _lock_map() -> dict[str, str]:
@@ -39,11 +55,15 @@ def _lock_map() -> dict[str, str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        req = Requirement(line)
-        spec = list(req.specifier)
-        if len(spec) != 1 or spec[0].operator != "==":
+        # lock 的严格形态（恰一个 `==`、无 extras / URL / editable）由
+        # `tests/test_dependency_pinning.py::test_Sd2_*` 在 dev 环境断言；
+        # 这里只需**响亮地**拒绝任何非 `name==version` 的行，不静默跳过。
+        if line.startswith("-e ") or "://" in line or "[" in line or "@" in line:
+            sys.exit(f"⛔ lock 行不是精确 pin（editable / URL / extras）: {line!r}")
+        if line.count("==") != 1:
             sys.exit(f"⛔ lock 行不是精确 pin: {line!r}")
-        out[canonicalize_name(req.name)] = spec[0].version
+        name, version = line.split("==", 1)
+        out[_canon(name)] = version.strip()
     return out
 
 
@@ -61,10 +81,10 @@ def _frozen_map() -> dict[str, str]:
             continue
         if "==" not in line:
             # `pkg @ file:///...` 这类直接引用 —— 不可复现，必须让它显形而不是被跳过
-            out[canonicalize_name(line.split("@")[0].strip())] = f"<非 ==: {line}>"
+            out[_canon(line.split("@")[0])] = f"<非 ==: {line}>"
             continue
         name, version = line.split("==", 1)
-        out[canonicalize_name(name)] = version.strip()
+        out[_canon(name)] = version.strip()
     return out
 
 

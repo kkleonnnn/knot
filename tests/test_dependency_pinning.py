@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 from pathlib import Path
@@ -339,6 +340,74 @@ def test_Sd7_regen_script_derives_base_image_from_dockerfile() -> None:
         f"脚本派生出 `{derived}`，而 Dockerfile 运行 stage 是 `{want}` ——\n"
         "    ⇒ lock 会在错的基础镜像里生成。检查派生是否取到了**最后一个** FROM\n"
         f"       （本 Dockerfile 的 FROM 依次是: {_from_lines()}）。"
+    )
+
+
+# ── Sd8 ─────────────────────────────────────────────────────────────────────
+def test_Sd8_locked_lane_scripts_are_stdlib_only() -> None:
+    """locked lane 里跑的每个 `scripts/*.py` 必须**零第三方依赖**。
+
+    ⭐ **为什么这是判据成立的前提，不是洁癖**：那些脚本跑在**它们自己要测量的那个环境**里
+    （只装了生产依赖）。它 import 的任何非生产包 —— 要么让它自己崩，要么就得被装进环境里，
+    而**装进去会让「集合等值」当场报「多了一个 lock 之外的包」**。
+    ⇒ **测量工具不能给它测量的集合加东西。**
+
+    ⚠️ **实测代价（本片首次上 CI 就红在这）**：
+    `scripts/check_lock_closure.py` 初版 `from packaging.requirements import Requirement`
+    ⇒ lane 红在 `ModuleNotFoundError: No module named 'packaging'`
+    （本机有 —— `packaging` 是 pytest 的依赖）。**第三次「我本机有、CI 没有」。**
+
+    **扫描面从 `ci.yml` 派生**（不写死脚本清单）：解析出那个 job 的全部 `run:`，
+    正则取其中的 `scripts/*.py`。新增一步跑新脚本，自动进入守护范围。
+    ⚠️ 用 AST 判 import（而非文本），且**白名单从 `sys.stdlib_module_names` 派生**——
+    不手维护清单（R-SENTINEL-AST）。
+    """
+    import sys as _sys
+
+    import yaml
+
+    ci = yaml.safe_load(CI_YML.read_text(encoding="utf-8"))
+    jobs = ci.get("jobs", {})
+    lane = next(
+        (j for j in jobs.values() if j.get("name") == "locked runtime lane"),
+        None,
+    )
+    assert lane is not None, (
+        "ci.yml 里找不到 name 为 `locked runtime lane` 的 job ——\n"
+        "    扫描面塌了，本断言会在空集上恒真。"
+    )
+
+    runs = " \n".join(
+        str(step.get("run", "")) for step in lane.get("steps", []) if isinstance(step, dict)
+    )
+    scripts = sorted(set(re.findall(r"scripts/[\w/]+\.py", runs)))
+    # ⚠️ 先证明扫描面非空 —— 否则「每个脚本都合规」在空集上恒真。
+    assert scripts, (
+        f"没从 locked lane 的 run: 里解析出任何 `scripts/*.py`——\n    实际 run 内容:\n{runs}"
+    )
+
+    problems = []
+    for rel in scripts:
+        path = REPO / rel
+        assert path.exists(), f"lane 引用了不存在的脚本: {rel}"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                mods = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                # 相对 import（level>0）不引入外部包
+                mods = [] if node.level else [(node.module or "").split(".")[0]]
+            else:
+                continue
+            for m in mods:
+                if m and m not in _sys.stdlib_module_names:
+                    problems.append(f"{rel}:{node.lineno} import 了非 stdlib 的 `{m}`")
+
+    assert not problems, (
+        "locked lane 的脚本 import 了第三方包 —— 它跑在只有生产依赖的环境里:\n  "
+        + "\n  ".join(problems)
+        + "\n  ⇒ 要么改用 stdlib 实现，要么把该包变成真正的生产依赖（想清楚再做）。\n"
+        "  ⚠️ **别用「往 lane 里补装一个包」来修** —— 那会让集合等值报「多了一个 lock 之外的包」。"
     )
 
 
