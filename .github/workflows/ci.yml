@@ -96,7 +96,8 @@ jobs:
   # ⭐ 为什么 `setup-python` 就够（Stage 3 加项 1 订正了本片原先更保守的说法）：
   #   要紧的**不是二进制是否同一个**，而是 **wheel tag 是否解析成同一批** ——
   #   runner 与 `python:3.11-slim` 都是 **glibc / x86_64 / cp311 manylinux** ⇒ 选中的 wheel 相同。
-  #   实测佐证：同一份 spec 在 linux/arm64 与 linux/amd64 下解析出的版本集合**逐行相同**（各 52 pin）。
+  #   实测佐证：同一份 spec 在 linux/arm64 与 linux/amd64 下解析出的版本集合**逐行相同**
+  #   （该对照测于修掉镜像残留之前，两边各 52 pin 含那条共有残留；最终 lock 为 51 pin）。
   #   残留差异是解释器构建本身，对纯 Python + manylinux wheel 几乎无影响。
   #   ⇒ 本 lane 证明「该版本集合在生产的 wheel 解析画像下闭合、且能过全量」；
   #     仍**不**声称与生产镜像逐字节同构（那只有 docker-build job 能证，而它 continue-on-error）。
