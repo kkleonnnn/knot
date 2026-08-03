@@ -157,7 +157,10 @@ _FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
 )
 
 # 本片**刻意不排**的（下一片才处理）—— 正向断言，让这个决定**机械可见**
-_MUST_STAY = ("knot/main.py", "requirements.txt", "frontend/package-lock.json",
+_MUST_STAY = ("knot/main.py", "requirements.txt",
+              # v0.9.14：lock 是 Dockerfile 安装行的输入 ⇒ 排掉它构建当场失败
+              "requirements.lock",
+              "frontend/package-lock.json",
               "knot/repositories/schema.sql", "knot/prompts/sql_planner.md",
               "knot/services/agents/_template_catalog.py",
               "knot/services/agents/_local_catalog.py")
