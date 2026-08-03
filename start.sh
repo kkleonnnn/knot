@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# v0.9.14 Stage 4 §III：`set -e` → `set -euo pipefail`（哨兵
+# tests/scripts/test_shell_hygiene.py 强制）。本文件全文**无变量引用、无管道**
+# ⇒ 加 `-u` / `-o pipefail` 行为不变；这样哨兵就不需要豁免清单。
+set -euo pipefail
 
 cd "$(dirname "$0")"
 
