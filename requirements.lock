@@ -1,0 +1,65 @@
+# requirements.lock —— 全树精确 pin（自动生成，请勿手改）
+# 生成方式: ./scripts/regen_lock.sh    （在容器内 pip freeze）
+# 生成环境:
+#   base-image : python:3.11-slim
+#   --platform : linux/amd64
+#   python     : 3.11.15 (cpython)
+#   platform   : linux
+#   machine    : x86_64
+#   pip        : 24.0
+#
+# ⚠️ 本文件只对上面这个环境有效。换 Python 版本 / 平台 / 架构都必须重新生成。
+# ⚠️ 精确版本由本文件钉；requirements.txt 的区间只是「不让 pip 解析到明知会坏的地方」
+#    的声明，不代表区间内每个点都验过 —— 验过的只有本文件这一点。
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anthropic==0.120.2
+anyio==4.14.2
+bcrypt==5.0.0
+cachetools==7.1.7
+certifi==2026.7.22
+cffi==2.1.0
+charset-normalizer==3.4.9
+click==8.4.2
+cryptography==45.0.7
+distro==1.9.0
+docstring_parser==0.18.0
+et_xmlfile==2.0.0
+fastapi==0.141.1
+greenlet==3.5.4
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.18
+jiter==0.16.0
+loguru==0.7.3
+openai==2.52.0
+openpyxl==3.1.5
+packaging==26.2
+passlib==1.7.4
+pillow==12.3.0
+pycparser==3.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+PyJWT==2.13.0
+PyMySQL==1.2.0
+PyOTP==2.10.0
+pypdf==6.14.2
+python-dotenv==1.2.2
+python-multipart==0.0.32
+PyYAML==6.0.3
+qrcode==8.2
+requests==2.34.2
+sniffio==1.3.1
+SQLAlchemy==2.0.51
+sqlglot==30.14.0
+starlette==1.3.1
+tqdm==4.70.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+urllib3==2.7.0
+uvicorn==0.52.1
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==17.0.1
