@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.13 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.14 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -391,6 +391,44 @@ sleep 10 && docker logs knot | tail -5
 - ✅ `init_db()` 启动期幂等迁移 schema（新表新列自动加，旧数据不动）
 
 > ⚠️ **首次从 v0.8.x（或更早）升到 v0.9.x 例外**：这是**一次性存量迁移**（`data/knot.db` → `data/tenants/1/knot.db` + 新建 `data/platform.db`），不是普通 micro PATCH。**升级前务必读下一节**。
+
+### 📌 Python 依赖版本从哪来（v0.9.14 起 · `requirements.lock`）
+
+`docker build` 装的**不再是「当天最新」** —— `Dockerfile` 用
+`pip install -r requirements.txt -c requirements.lock`：roots 走 `requirements.txt`（extras 意图不丢），
+**精确版本由 `requirements.lock` 钉住**（52 个包，含全部传递依赖）。
+⇒ 同一个 commit 在任何日期构建，装出的 Python 版本集合相同。
+
+**什么时候需要重新生成 lock**（三种，都是**有意动作**）：
+1. 改了 `requirements.txt`（加/删依赖、动区间）；
+2. 换了 `Dockerfile` 运行 stage 的基础镜像（Python 版本变了）；
+3. 想吸收上游安全更新。
+
+**在哪生成 —— 必须在容器里，不能拿本机 `pip freeze`**：
+
+```bash
+./scripts/regen_lock.sh          # 写入 requirements.lock
+./scripts/regen_lock.sh --check  # 只比对，不写（查 lock 是否已过期）
+```
+
+脚本会在 **`Dockerfile` 运行 stage 的同一个基础镜像**里 `pip freeze`
+（镜像名**从 `Dockerfile` 最后一个 `FROM` 派生**，不在脚本里另写一份），
+目标平台默认 `linux/amd64`（与 CI runner 和 K8s 一致）。
+生成后**必看文件头部**：它记录了 base-image / `--platform` / python / platform / machine / pip
+—— 这是**这份 lock 在哪儿有效**的唯一凭据。改完 `requirements.txt` 后若忘了重生成，
+CI 的 `locked runtime lane` 会直接红（集合等值不成立）。
+
+⚠️ 若改了依赖，`requirements.txt` 的上下界也要跟着改（哨兵 `Sd3` 会告诉你确切该写什么）：
+上界取「上游版本契约能支撑的最紧那个」—— `1+` → 下个 major · `0.x` → 下个 minor ·
+`0.0.x` → 下个 patch。
+
+⚠️ **本机 `.venv` 与生产不同步是正常的**（本机 3.12、装得早；生产 3.11 + lock）。
+想让本机也用锁定版本：`pip install -r requirements.txt -c requirements.lock`。
+
+🔴 **不要因为有了 lock 就以为镜像整体可复现** —— `python:3.11-slim` / `node:20-slim`
+这些基础镜像的 tag **会移动**，本项目**不钉它们的摘要**。
+⇒ 只能声称「Python 运行时的版本集合可复现」。**升级前 `docker save` 仍是唯一可靠的回滚物**
+（见上「升级前必做」）。
 
 ---
 

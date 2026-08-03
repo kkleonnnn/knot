@@ -5,7 +5,104 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.13 — `.dockerignore`：构建上下文泄漏（**P0**）
+## [Unreleased] - v0.9.14 — 依赖钉版本（全树精确 pin + 阻断式 locked-runtime lane）
+
+> **定性：0 业务码。** 新增 `requirements.lock`（52 pin）+ 生成脚本 + 闭合判据脚本
+> + 7 条哨兵 + 一条**阻断** CI job；改 `Dockerfile` 安装两行 / `requirements.txt` 区间 /
+> `pyproject.toml` `requires-python`。**运行时行为不变**（锁的就是当前已在跑的那套版本）。
+> **协议**：Stage 1 → Codex Stage 2（12 条）→ 守护者 Stage 3 `major-revise` → Stage 1'
+> → 守护者复核 **PASS**（三问全裁 + 三条加项）→ 实施。手册
+> [`docs/plans/v0.9.14-pin-dependencies.md`](docs/plans/v0.9.14-pin-dependencies.md)。
+
+### 问题
+
+`requirements.txt` 全是 `>=` 下界 ⇒ **每次构建装的都是「当天最新」**。同一份代码在不同日期
+构建出的运行环境不同 ⇒ 既不可复现，也没有「上次好的那一套」可退回。
+`docker build smoke` 那条 job 是 `continue-on-error` ⇒ **装不上也不阻塞合并**。
+
+### 做了什么
+
+- **`requirements.lock`** —— 全树精确 pin（52 个包，含 45 条传递依赖）。
+  ⭐ **头部由生成脚本自己写**（base-image / `--platform` / python / platform / machine / pip）
+  ⇒ 「这份文件在哪儿有效」是**派生事实**而非手写声明。
+- **`scripts/regen_lock.sh`** —— 在容器内 `pip freeze` 生成。
+  ⭐ 基础镜像**不硬编**，从 `Dockerfile` **最后一个 `FROM`** 派生 ⇒ 与 Dockerfile 漂开在结构上不可能。
+  ⚠️ 目标平台**显式**为 `linux/amd64`（本机是 darwin/arm64；不指定就会生成一份对生产无效的 lock）。
+- **`Dockerfile`** —— `COPY requirements.txt requirements.lock ./`
+  + `pip install -r requirements.txt -c requirements.lock`（roots 走 spec ⇒ extras 意图不丢，
+  精确版本走 lock）。**两行必须一起改**，只改一行会让 lock 没进镜像、构建当场失败。
+- **`requirements.txt` 区间按上界阶梯收紧** —— `1+` → 下个 major · `0.x` → 下个 minor ·
+  `0.0.x` → 下个 patch（`python-multipart 0.0.32` ⇒ `<0.0.33`）。
+  0.0.x 在任何层级都无稳定性承诺 ⇒ **比实测版本更宽的任何声明都是假话**。
+  上下界都由哨兵**从 lock 派生**校验，不写死字面量。
+- **`pyproject.toml`** `requires-python` `>=3.9` → **`>=3.11`**（3.9/3.10 从未被任何东西验过）。
+- **阻断式 `locked-runtime` CI lane（6 步）** —— 与 `lint-test` 的浮动 lane **故意不对称**
+  （沿用 ruff CI-only pin 的形状：浮动那条负责「早发现」，钉住这条负责「有确定答案」）。
+
+### ⭐ 四层各干一件不同的事，谁都不是冗余
+
+| 层 | 证明什么 | **不能**证明什么 |
+|---|---|---|
+| `-c requirements.lock` | 装到的版本不越界 | **不证明闭合** —— constraints 只限制、不强制安装；传递依赖若从 lock 漏了，pip 自由解析它 |
+| **集合等值**（`pip freeze` == lock） | **闭合** | 不证明彼此兼容 |
+| `pip check` | 无冲突 | 不证明代码能用这套 |
+| **用该环境跑全量** | **API 兼容** | —— |
+
+⭐ 只有最后一层能抓「代码开始用区间内新版才有的 API」：那时前三层全绿、lock↔spec 一致性断言
+也绿（版本区间**看不见 API 用法**），**只有生产炸**。
+⚠️ **别把任何一层当「已被覆盖」删掉；集合等值那层最容易被误删。**
+
+### 哨兵（Sd1–Sd7 · `tests/test_dependency_pinning.py`）
+
+| # | 断言 |
+|---|---|
+| Sd1 | **正向**：`Dockerfile` 既 COPY 了 lock、又在安装行消费它（纯负断言连「删掉整个安装步骤」都测不出来） |
+| Sd2 | lock 每行是精确 `==`（拒 `>=` / URL / editable / extras） |
+| Sd2b | 每个锁定版本落在 `requirements.txt` 区间内（**纯结构化比对，不联网**） |
+| Sd3 | 区间上下界 == 从实装版本派生的阶梯值；0.x 的上界不得是 `<1.0` |
+| Sd4 | lock 覆盖全部直接依赖 |
+| Sd5 | lock 头部六项齐全**且 base-image == 从 `Dockerfile` 派生的那个** |
+| Sd6 | `requires-python` 与**全部** Python 声明站点一致（`ci.yml` 3 处 + Dockerfile；先断扫描面 ≥3 防空集恒真） |
+| Sd7 | 生成脚本正文**无** `python:` 字面量 + **真跑一次**它的派生（`--print-base`）== 运行 stage 镜像 |
+
+### 实证
+
+- ⭐ **锁的不是赌注，是一个已验证点**：实测 lock 的 52 个包与当天 CI 全绿（**1687 passed**）时
+  装的 74 个包**交集为全部 52 个、版本不一致 0 处** ⇒ 这套版本已经过全量。
+  ⇒ 也说明：`requirements.txt` 只有 `>=` 的这些年里，CI 那条浮动 lane **一直静默跟着最新跑**。
+- 同一份 spec 在 **linux/arm64** 与 **linux/amd64** 下 `pip freeze` 的版本集合**逐行相同**（各 52 pin）
+  ⇒ 版本集合与架构无关，只有 wheel 不同（支撑下面那条口径）。
+- ⭐ **头部自证无效**：首次生成时（未指定 `--platform`）头部打出 `machine: aarch64`
+  ⇒ **当场证明这份 lock 对生产无效**。若头部是手写声明，就会写着 amd64 一路错下去。
+- 闭合判据 5 组 revert-to-bad 全实跑（lock 删一行 / 改一个版本 / 环境塞 lock 外的包 /
+  lock 只剩注释 ⇒ **rc=2 空判据守护** / 绕过 constraints 顶掉生产依赖），**外加一条还原对照回绿**。
+
+### ⚠️ 诚实收窄 —— 本片**不**声称
+
+1. **不声称镜像整体可复现** —— `python:3.11-slim` / `node:20-slim` 的 tag 会移动，本片不钉 digest
+   ⇒ 只声称「**Python 运行时的版本集合**可复现」。**`docker save` 仍是唯一可靠的回滚物。**
+2. **不声称与生产镜像逐字节同构** —— lane 用 `setup-python`。
+   ⭐ 但**要紧的不是二进制，是 wheel tag 是否解析成同一批**：runner 与 `python:3.11-slim`
+   都是 **glibc / x86_64 / cp311 manylinux** ⇒ 选中的 wheel 相同；残留差异是解释器构建本身，
+   对纯 Python + manylinux wheel 几乎无影响。（这么写是刻意的 —— 免得日后有人以
+   「又不是真的一样」把这条阻断 lane 降级。）
+3. **不声称区间内每个点都验过** —— 验过的只有 lock 那一点。
+4. **不声称旧 tag 可复现** —— lock 只对引入它之后的 tag 有效。
+5. **不钉 `requirements-dev.txt`** —— 沿用 ruff 先例「本地浮动 = 早发现」那一半。
+6. **不上 `pip-tools` / `uv`** —— 不引入新工具链。
+
+### ⚠️ 顺带修一处 README drift（我自己造的，连做了四次）
+
+README 顶部版本链此前是：`当前版本 v0.9.13`（**而那段叙述讲的是 v0.9.9 的内容**）→ `上版 v0.9.8`
+⇒ **v0.9.9~.13 五个版本在 README 里全部缺席** —— v0.9.9 的条目被后续四次「只改版本字面」吃掉了。
+**4 条 doc-invariant CI 全绿**，因为它们只查版本**字面**、不查**内容**（与 v0.9.3 同一个形状，
+教训当时记下了但**没做守护** ⇒ 又发生了四次）。本片补齐 v0.9.9~.14 六条并把链修正。
+⚠️ **守护仍未做**（可派生：README 的「上版」应等于 CHANGELOG 里当前版本的前一条）——
+已登记，待 kk 定是否本片加。
+
+---
+
+## [已发布] - v0.9.13 — `.dockerignore`：构建上下文泄漏（**P0**）
 
 > **定性：0 业务码。** 新增 `.dockerignore` + 一条**阻断** CI job + 守护测；不动 `Dockerfile`。
 > **触发**：Codex 在 v0.9.13（依赖钉版本）Stage 2 找到，**正打在 v0.9.10 弧自己的主题上**。
