@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v0.9.14 — 依赖钉版本（全树精确 pin + 阻断式 locked-runtime lane）
 
-> **定性：0 业务码。** 新增 `requirements.lock`（52 pin）+ 生成脚本 + 闭合判据脚本
+> **定性：0 业务码。** 新增 `requirements.lock`（**51 pin**）+ 生成脚本 + 闭合判据脚本
 > + 7 条哨兵 + 一条**阻断** CI job；改 `Dockerfile` 安装两行 / `requirements.txt` 区间 /
 > `pyproject.toml` `requires-python`。**运行时行为不变**（锁的就是当前已在跑的那套版本）。
 > **协议**：Stage 1 → Codex Stage 2（12 条）→ 守护者 Stage 3 `major-revise` → Stage 1'
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 做了什么
 
-- **`requirements.lock`** —— 全树精确 pin（52 个包，含 45 条传递依赖）。
+- **`requirements.lock`** —— 全树精确 pin（**51 个包** = 21 直接 + 30 传递）。
   ⭐ **头部由生成脚本自己写**（base-image / `--platform` / python / platform / machine / pip）
   ⇒ 「这份文件在哪儿有效」是**派生事实**而非手写声明。
 - **`scripts/regen_lock.sh`** —— 在容器内 `pip freeze` 生成。
@@ -67,11 +67,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 实证
 
-- ⭐ **锁的不是赌注，是一个已验证点**：实测 lock 的 52 个包与当天 CI 全绿（**1687 passed**）时
-  装的 74 个包**交集为全部 52 个、版本不一致 0 处** ⇒ 这套版本已经过全量。
+- ⭐⭐ **锁的不是赌注，是一个已验证点 —— 由新 lane 自己直接证明**（不再靠与别的 job 求交集）：
+  它用与镜像**逐字相同**的命令装出 lock 的 51 个包，然后依次给出
+  `✅ 集合等值：51 个包逐条相等（闭合成立）` · `No broken requirements found.` ·
+  `✅ 51 个锁定版本在装完 dev 依赖后仍然成立` · **`1699 passed, 3 skipped, 1 xfailed`**
+  ⇒ **这套版本集合已经过全量**。（此前那条「与浮动 lane 的安装清单交集」论证是**间接**的，
+  已被这条直接测量取代 —— 见下面「我错的三步」第 1 条：安装报告不是环境清单。）
   ⇒ 也说明：`requirements.txt` 只有 `>=` 的这些年里，CI 那条浮动 lane **一直静默跟着最新跑**。
-- 同一份 spec 在 **linux/arm64** 与 **linux/amd64** 下 `pip freeze` 的版本集合**逐行相同**（各 52 pin）
+- 同一份 spec 在 **linux/arm64** 与 **linux/amd64** 下 `pip freeze` 的版本集合**逐行相同**
   ⇒ 版本集合与架构无关，只有 wheel 不同（支撑下面那条口径）。
+  ⚠️ 该对照是在**修掉镜像残留之前**测的（两边各 52 pin，其中含那条残留）；
+  残留是两边共有的，**不影响这个结论**，但数字与现在的 51 不同 —— 如实标明。
 - ⭐ **头部自证无效**：首次生成时（未指定 `--platform`）头部打出 `machine: aarch64`
   ⇒ **当场证明这份 lock 对生产无效**。若头部是手写声明，就会写着 amd64 一路错下去。
 - 闭合判据 5 组 revert-to-bad 全实跑（lock 删一行 / 改一个版本 / 环境塞 lock 外的包 /

@@ -396,7 +396,7 @@ sleep 10 && docker logs knot | tail -5
 
 `docker build` 装的**不再是「当天最新」** —— `Dockerfile` 用
 `pip install -r requirements.txt -c requirements.lock`：roots 走 `requirements.txt`（extras 意图不丢），
-**精确版本由 `requirements.lock` 钉住**（52 个包，含全部传递依赖）。
+**精确版本由 `requirements.lock` 钉住**（**51 个包** = 21 直接 + 30 传递）。
 ⇒ 同一个 commit 在任何日期构建，装出的 Python 版本集合相同。
 
 **什么时候需要重新生成 lock**（三种，都是**有意动作**）：
