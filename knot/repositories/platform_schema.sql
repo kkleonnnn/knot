@@ -64,3 +64,14 @@ CREATE TABLE IF NOT EXISTS platform_audit (
     source       TEXT                -- 'startup' / 'cli:<script>' / 'api'
 );
 CREATE INDEX IF NOT EXISTS idx_platform_audit_ts ON platform_audit (id DESC);
+
+-- v0.9.15 d2：`db_dir` 唯一索引 `idx_tenants_db_dir` **刻意不建在这里** ——
+--   它由 `tenant_repo._run_platform_migrations()` **单点创建**，且创建前有重值预检。
+-- ⚠️ **为什么不在本文件建**（实施期踩到）：`init_platform_db()` 的顺序是
+--   `executescript(本文件)` → `_run_platform_migrations()`
+--   ⇒ 若这里也建索引，**存量库带重值时会在预检之前就抛裸 `IntegrityError`**，
+--     运维拿到的正是那句「UNIQUE constraint failed」而**不知道是哪两行撞了**。
+--   ⇒ 一个性质只允许一个创建点；把它放在**有预检的那一侧**。
+-- ⚠️ **目标不变量**：`db_dir` 建成后**永不重写**（改 slug 不搬数据）。
+--   ⛔ **截至本注释写下时它还没被强制** —— `_MUTABLE_TENANT_FIELDS` 目前**仍含** `db_dir`
+--   ⇒ 由 v0.9.15 **d4** 把它移出白名单并配测。**在那之前这只是一句意图，不是守护。**

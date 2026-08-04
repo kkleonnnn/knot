@@ -49,6 +49,42 @@ def run_platform_migrations(conn) -> None:
     if "updated_at" not in cols:
         conn.execute("ALTER TABLE tenants ADD COLUMN updated_at TEXT")
 
+    # v0.9.15 d2: tenants.db_dir 唯一索引 —— 两个租户指向同一目录 = OOS-1v2 文件边界形同虚设
+    #   （主库会被**共用**；实测不对称：uploads 侧会 raise 而主库不会）。
+    # ⚠️ **为什么是 INDEX 而不是列上的 UNIQUE 约束**：SQLite 的 `ALTER TABLE` **不能加约束**
+    #   ⇒ 对存量库唯一可行的等价物就是 `CREATE UNIQUE INDEX`。
+    #   顺带：索引是 `type='index'`，**不进** `test_iso4` 的表集合断言（那条断 `type='table'`）。
+    # ⭐ **本条是本机制的第三个用户，也是第一个「非加列」的** ⇒ 它证明这个函数是
+    #   「平台库 additive 迁移」而不仅是「加列」。
+    # ⭐⭐ **这里是该索引的唯一创建点** —— `platform_schema.sql` **刻意不建**它。
+    #   实施期踩到：`init_platform_db()` 先 `executescript(schema)` 再跑本函数
+    #   ⇒ 若 schema 里也建，存量库带重值时会在预检**之前**抛裸 `IntegrityError`
+    #     （「UNIQUE constraint failed」，不说是哪两行），而本迁移跑在**启动路径**上
+    #     ⇒ 预检形同不存在。**一个性质只允许一个创建点；放在有预检的那一侧。**
+    _assert_no_duplicate_db_dir(conn)   # ← 必须严格早于下面那行
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_db_dir ON tenants(db_dir)")
+
+
+def _assert_no_duplicate_db_dir(conn) -> None:
+    """建唯一索引**之前**的存量预检：有重值就**点名**是哪些行，而不是让 SQLite 抛裸异常。
+
+    ⚠️ **为什么值得单独一个函数**：`CREATE UNIQUE INDEX` 在有重值时只会给
+    `sqlite3.IntegrityError: UNIQUE constraint failed: tenants.db_dir` ——
+    **不告诉你是哪两行**。而这条迁移跑在**启动路径**上 ⇒ 运维拿到的就是那句话。
+    ⇒ 预检把「哪些 id / slug 撞在哪个 db_dir 上」写进消息，并给出可操作的下一步。
+    """
+    rows = conn.execute(
+        "SELECT db_dir, COUNT(*) AS n, GROUP_CONCAT(id || ':' || slug, ', ') AS who "
+        "FROM tenants GROUP BY db_dir HAVING n > 1 ORDER BY db_dir"
+    ).fetchall()
+    if rows:
+        detail = "; ".join(f"db_dir={r[0]!r} 被 {r[1]} 个租户共用（{r[2]}）" for r in rows)
+        raise RuntimeError(
+            f"[v0.9.15 d2] platform.db 存量数据里 db_dir 有重复，无法建唯一索引：{detail}\n"
+            "  ⇒ 两个租户指向同一目录 = OOS-1v2 文件边界形同虚设（主库会被共用）。\n"
+            "  ⇒ 处置：确认哪一个是真正在用的租户，把另一个改到自己的目录或停用后清理，再重启。"
+        )
+
 
 def init_platform_db(conn_factory) -> None:
     """建 platform.db + executescript(platform schema) + additive 迁移（幂等 · IF NOT EXISTS）。

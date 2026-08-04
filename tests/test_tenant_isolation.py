@@ -427,3 +427,110 @@ def test_iso7_tenant_db_git_ignored():
     r = subprocess.run(["git", "check-ignore", "knot/data/tenants/1/knot.db"],
                        cwd=top, capture_output=True, text=True)
     assert r.returncode == 0, "tenants/<id>/knot.db 必须被 .gitignore 忽略"
+
+
+# ─── v0.9.15 d2：db_dir 唯一索引 + 存量重值预检 ──────────────────────────
+
+def _platform_db_dir_indexes():
+    conn = tenant_repo.get_platform_conn()
+    try:
+        return {
+            n for (n,) in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+            if "db_dir" in n
+        }
+    finally:
+        conn.close()
+
+
+def _make_legacy_platform_db(rows):
+    """用 v0.9.7 **之前**的 DDL 重建 platform.db 并插入 `rows`（照 must #14 的做法）。"""
+    import sqlite3
+
+    p = tenant_repo._platform_db_path()
+    p.unlink(missing_ok=True)
+    conn = sqlite3.connect(p)
+    conn.executescript(_PRE_V097_TENANTS_DDL)
+    for tid, slug, db_dir in rows:
+        conn.execute(
+            "INSERT INTO tenants (id, slug, name, status, db_dir) VALUES (?,?,?, 'active', ?)",
+            (tid, slug, slug.upper(), db_dir),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_d2_fresh_platform_db_has_db_dir_unique_index(tmp_db_path):
+    """新建 platform.db 后 `idx_tenants_db_dir` 必须在。
+
+    取材=revert：注释掉 `_run_platform_migrations` 里那行 `CREATE UNIQUE INDEX` → 本测红。
+    """
+    tenant_repo.init_platform_db()
+    assert "idx_tenants_db_dir" in _platform_db_dir_indexes(), (
+        "新库缺 `idx_tenants_db_dir` —— 两个租户可指向同一目录 = OOS-1v2 文件边界形同虚设。"
+    )
+
+
+def test_d2_legacy_platform_db_gains_db_dir_unique_index(tmp_db_path):
+    """⭐ **存量** platform.db（无索引）经 `init_platform_db()` 后**有**索引。
+
+    与 must #14 同源理由：`platform_schema.sql` 对已存在的库是 no-op
+    ⇒ 存量库拿到该性质的**唯一途径**是 `_run_platform_migrations`。
+    而存量库正是内测服那台。
+    """
+    _make_legacy_platform_db([(1, "default", ".")])
+    assert not _platform_db_dir_indexes(), "存量库构造失败 —— 它本就带索引，本测无判别力"
+
+    tenant_repo.init_platform_db()
+
+    assert "idx_tenants_db_dir" in _platform_db_dir_indexes(), (
+        "存量 platform.db 升级后仍无 `idx_tenants_db_dir`。"
+    )
+
+
+def test_d2_duplicate_db_dir_is_refused_by_name_not_by_bare_integrity_error(tmp_db_path):
+    """⭐⭐ 存量库带重值时：必须抛**点名了是哪些行**的 `RuntimeError`，而**不是**裸 `IntegrityError`。
+
+    ⚠️ **这条测同时钉住一个顺序性质**（实施期踩到才发现）：
+    `init_platform_db()` 先 `executescript(platform_schema.sql)` 再跑 `_run_platform_migrations()`。
+    我最初把 `CREATE UNIQUE INDEX` **同时**写进了 schema ⇒ 存量库带重值时
+    **schema 那行先炸**，抛的是 `sqlite3.IntegrityError: UNIQUE constraint failed: tenants.db_dir`
+    ——**不告诉运维是哪两行**，而这条迁移跑在**启动路径**上。
+    ⇒ 索引现在**只有一个创建点**（迁移内、预检之后）。
+    ⭐ 本测的判据是**异常类型 + 消息内容**，而不是「有没有索引」——
+    后者表示不了「运维能不能看懂为什么起不来」这个真正要守的性质。
+    """
+    _make_legacy_platform_db([(1, "acme", "tenants/x"), (2, "beta", "tenants/x")])
+
+    raised = None
+    try:
+        tenant_repo.init_platform_db()
+    except Exception as e:                       # noqa: BLE001 —— 要区分类型，必须先抓下来
+        raised = e
+
+    assert raised is not None, "存量重值竟未被拒绝 —— 预检失效（或索引压根没建）"
+    assert isinstance(raised, RuntimeError), (
+        f"抛的是 {type(raised).__name__} 而非预检的 RuntimeError：{raised!r}\n"
+        "    ⇒ 说明索引在预检**之前**就被创建了（检查 platform_schema.sql 有没有又建一遍）。"
+    )
+    msg = str(raised)
+    for needle in ("tenants/x", "1:acme", "2:beta"):
+        assert needle in msg, f"消息未点名 {needle!r} —— 运维看不出是哪两行撞了：\n{msg}"
+
+
+def test_d2_unique_index_actually_refuses_a_second_tenant_on_same_db_dir(tmp_db_path):
+    """索引**真的**在拦：已有 `db_dir='.'` 的 tenant#1 时，插第二个同 `db_dir` 必须失败。
+
+    ⚠️ 与上一条互补：上一条测「存量已经重了怎么办」，本条测「今后还能不能再重」。
+    """
+    import sqlite3
+
+    tenant_repo.init_platform_db()
+    tenant_repo.seed_default_tenant()            # tenant#1，db_dir='.'
+    conn = tenant_repo.get_platform_conn()
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO tenants (id,slug,name,status,db_dir) VALUES (2,'t2','T2','suspended','.')"
+            )
+    finally:
+        conn.close()
