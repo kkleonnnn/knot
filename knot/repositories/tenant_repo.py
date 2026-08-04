@@ -14,8 +14,24 @@ from pathlib import Path
 from knot.config import SQLITE_DB_PATH
 from knot.core.tenant_context import TenantContextError
 from knot.repositories import platform_audit_repo  # 同层（Contract 4 禁 repositories → services）
+from knot.repositories import platform_migrations as _pm  # v0.9.15：平台库 schema/迁移已拆出（size gate）
 
-_PLATFORM_SCHEMA = (Path(__file__).parent / "platform_schema.sql").read_text(encoding="utf-8")
+
+def init_platform_db() -> None:
+    """建 platform.db + schema + additive 迁移（幂等）。
+
+    ⚠️ **薄壳，刻意保留**：实现已搬到 `platform_migrations`（v0.9.15 size gate），
+    但全仓 10+ 处调用点写的都是 `tenant_repo.init_platform_db()` ——
+    保留本壳让那些调用点 **byte-equal 不变**（照 `base.py` re-export
+    `migrations._migrate_uploads_*` 的既有做法）。连接获取仍在本模块。
+    """
+    _pm.init_platform_db(get_platform_conn)
+
+
+def _run_platform_migrations(conn) -> None:
+    """[兼容壳] 见 `platform_migrations.run_platform_migrations`（测按此名引用）。"""
+    _pm.run_platform_migrations(conn)
+
 
 # v0.9.0 生产 tenant#1 库目录（相对 SQLITE_DB_PATH.parent）；存量迁移把 knot.db 迁入此处。
 DEFAULT_TENANT_DB_DIR = "tenants/1"
@@ -32,43 +48,6 @@ def get_platform_conn() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
-
-
-def _run_platform_migrations(conn) -> None:
-    """平台库 additive 迁移（**本仓第一条** —— v0.9.7）。
-
-    ⚠️ **为什么必须有这个函数**：`platform_schema.sql` 只有 `CREATE TABLE IF NOT EXISTS`
-    ⇒ 对**已存在**的 `platform.db`，往 schema 里加列是**完全无效**的（executescript 直接 no-op）。
-    此前平台库从未加过列，故一直没暴露；v0.9.7 是第一次。
-    范式照租户库 `repositories/migrations.py`（18 处先例）：幂等 `PRAGMA table_info` → `ALTER TABLE ADD COLUMN`。
-    """
-    # v0.9.7 B-3 ③: tenants.allowed_http_hosts —— per-tenant egress allowlist（部署方控制）。
-    # 新库由 platform_schema.sql 的 CREATE 直接带上；本 ALTER 兜住存量库。三态语义见该文件注释。
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()}
-    if "allowed_http_hosts" not in cols:
-        conn.execute("ALTER TABLE tenants ADD COLUMN allowed_http_hosts TEXT")
-
-    # v0.9.8: tenants.updated_at —— 平台元数据变更时间线（此前缺 ⇒「谁改了 db_dir」无时间线）。
-    # ⭐ **本条是本机制的第二个用户** —— 它顺带证明「加平台列」不是一次性动作而是可组合的：
-    #   从**既无 allowed_http_hosts 也无 updated_at** 的 pre-v0.9.7 存量库升级，一次调用后两列都在
-    #   （守护者 M4：只从 pre-v0.9.8 起测只能证明「第二条能跑」，证明不了「两条能串起来」）。
-    # 逐块重读列集 —— 照 `migrations.py` 的既有惯用（同一张表 `users` 在 :57/:121/:148 读了三次）。
-    # ⚠️ **理由是「块间独立」，不是「否则会坏」**（实施期取材证伪了我原先写的诊断）：
-    #   对 additive-only 且检查**不同**列的迁移，顶部取一次快照**永远足够** ——
-    #   陈旧快照缺的正是要加的列，条件照样成立。重读的价值在于每块自包含
-    #   ⇒ 将来插入/重排迁移块时不必回溯前面改了什么。**别据此写「不重读就会坏」的测。**
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()}
-    if "updated_at" not in cols:
-        conn.execute("ALTER TABLE tenants ADD COLUMN updated_at TEXT")
-
-
-def init_platform_db() -> None:
-    """建 platform.db + executescript(platform schema) + additive 迁移（幂等 · IF NOT EXISTS）。"""
-    conn = get_platform_conn()
-    conn.executescript(_PLATFORM_SCHEMA)
-    _run_platform_migrations(conn)      # v0.9.7：executescript 后 —— 存量库加列的唯一途径
-    conn.commit()
-    conn.close()
 
 
 def list_tenants() -> list:
