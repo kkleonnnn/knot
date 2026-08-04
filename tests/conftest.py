@@ -6,6 +6,7 @@ R-37：测试 master key 用 monkeypatch.setenv + autouse fixture 隔离；
 """
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -273,3 +274,54 @@ def no_network(monkeypatch):
     monkeypatch.setattr(requests, "post", _probe)
     monkeypatch.setattr(requests, "head", _probe)      # v0.9.7：探测侧走 HEAD
     return calls
+
+
+# ─── 真实数据目录不可被测试触碰（v0.9.15 · 事故驱动的安全网）──────────────
+
+_REAL_DATA_DIR = Path(__file__).resolve().parent.parent / "knot" / "data"
+
+
+def _real_data_fingerprint():
+    """真实数据目录的**廉价**指纹：`platform.db` 的 (size, mtime_ns) + `tenants/` 的顶层项。
+
+    2 次 stat + 1 次 listdir ⇒ 每个测跑一次也可忽略不计。
+    """
+    plat = _REAL_DATA_DIR / "platform.db"
+    tdir = _REAL_DATA_DIR / "tenants"
+    return (
+        (plat.stat().st_size, plat.stat().st_mtime_ns) if plat.exists() else None,
+        tuple(sorted(p.name for p in tdir.iterdir())) if tdir.exists() else None,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_test_may_touch_real_data_dir():
+    """⛔ **任何测试都不得改动真实的 `knot/data/`** —— 改了就让**那一个测**红。
+
+    ⚠️ **这条是事故驱动的，不是预防性洁癖**（v0.9.15 实测）：
+    一条测用了 `monkeypatch.undo()` 想「只撤掉自己那一个补丁」，
+    而 `monkeypatch` 是**函数级共享**的 fixture ⇒ `undo()` 把 **`tmp_db_path` 打的
+    `SQLITE_DB_PATH` 补丁一起撤掉**了 ⇒ 后续调用打到**真实** `knot/data/platform.db`，
+    在里面建了一行租户 + 一个真实租户目录。
+    **当时没有任何东西响** —— 是我事后手工 `sqlite3` 查真库才发现。
+
+    ⭐ **判据锚在「系统真的产出了什么」**（本弧核心教训）：不检查「补丁在不在」
+    （那是描述），而是检查**真实目录有没有被改动**（那是后果）。
+    ⇒ 任何走法（`undo()` / 忘记用 `tmp_db_path` / 直接写绝对路径）都会被同一条判据抓到。
+
+    ⚠️ 判据是**变更**而非「存在」：本地开发机上这些文件本来就在（且 gitignored），
+    CI 上则完全不存在 —— 两种环境下「跑测前后指纹相同」都成立。
+    """
+    before = _real_data_fingerprint()
+    yield
+    after = _real_data_fingerprint()
+    assert after == before, (
+        "⛔ 本测改动了**真实的** knot/data/ —— 测试绝不能碰生产数据目录。\n"
+        f"    跑测前: {before}\n"
+        f"    跑测后: {after}\n"
+        "  常见原因：\n"
+        "    · 用了 `monkeypatch.undo()` —— 它会**连带撤掉 `tmp_db_path` 的 SQLITE_DB_PATH 补丁**\n"
+        "      ⇒ 要「先失败后成功」请用**按调用次数**失败的 stub，不要 undo()；\n"
+        "    · 忘记声明 `tmp_db_path` fixture；\n"
+        "    · 直接拼了绝对路径 / 读了未 monkeypatch 的 `SQLITE_DB_PATH`。"
+    )

@@ -163,3 +163,57 @@ def test_no_regex_literal_inlined_in_fstring():
         "    ⇒ 若这是诊断消息，它会**恒报空结果**：红是红了，但说的是假话。\n"
         "    修：把 pattern 提为模块级 `re.compile(...)` 常量，f-string 里只放结果变量。"
     )
+
+
+# ─── v0.9.15：禁 `monkeypatch.undo()`（事故驱动 · 已复发一次）──────────────
+
+def test_no_monkeypatch_undo_in_tests() -> None:
+    """⛔ 测试里**不得**调用 `monkeypatch.undo()`。
+
+    ⚠️ **为什么**：`monkeypatch` 是**函数级共享**的 fixture ⇒ `undo()` 撤的**不只是你那一个补丁**，
+    而是**该测所有 fixture 装的全部补丁** —— 包括 `tmp_db_path` 打的 `SQLITE_DB_PATH`。
+    ⇒ `undo()` 之后的代码会打到**真实的 `knot/data/platform.db`**。
+
+    ⭐⭐ **这条规则本仓早就学到过，但只是一句注释，于是原地复发**（v3.1-B #5 的教科书实例）：
+      · **第一次**：`tests/repositories/test_default_source_cascade.py:85` 已写着
+        「不 `monkeypatch.undo()`：会连带撤掉 `tmp_db_path` fixture 的 `SQLITE_DB_PATH` patch」
+        —— **纯注释，无守护**；
+      · **第二次（v0.9.15 实测）**：我在 provisioning 测里用了它 ⇒ 在**真库**建了一行租户
+        \+ 一个真实租户目录，**当时没有任何东西响**，是我事后手工 `sqlite3` 查真库才发现。
+
+    ⭐ **与运行期安全网的分工（两半，缺一不可）**：
+      · `tests/conftest.py::_no_test_may_touch_real_data_dir` —— **检测**：任何路径改动了真实
+        `knot/data/` 都会让那一个测红。它兜住**所有**走法，但**是事后的**（伤害已经发生）。
+      · **本测** —— **预防**：把已知的那条机制在**静态**层面关掉，跑之前就红。
+    ⇒ 「先失败再成功」的测请用**按调用次数**失败的 stub（见
+      `tests/repositories/test_tenant_provisioning.py::test_resume_when_row_exists_but_db_missing`）。
+
+    ⚠️ **判据故意宽到「任何 `.undo()` 调用」**（不限于名字叫 `monkeypatch` 的那个变量）：
+    否则 `mp = monkeypatch; mp.undo()` 这类别名就能绕过 —— 而 `.undo()` 在本仓测里
+    **零合法用法**（AST 实测 0 处调用点），宽判据没有误报成本。
+    ⚠️ 用 AST 而非文本：散文里提到 `monkeypatch.undo()` 的地方有 4 处（含本 docstring 自己）——
+    文本匹配会**匹配到自己**（R-SENTINEL-AST 的第 4 个数据点）。
+    """
+    hits = []
+    for path in sorted(_TESTS.rglob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "undo"
+            ):
+                hits.append(f"{path.relative_to(_TESTS.parent)}:{node.lineno}")
+
+    assert not hits, (
+        "测试里出现了 `.undo()` 调用：\n  " + "\n  ".join(hits) + "\n\n"
+        "  ⛔ `monkeypatch.undo()` 会**连带撤掉 `tmp_db_path` 的 `SQLITE_DB_PATH` 补丁**\n"
+        "     （同一个 function-scoped fixture）⇒ 之后的代码会写进**真实的 knot/data/**。\n"
+        "  ⇒ 要「先失败后成功」，用**按调用次数**失败的 stub：\n"
+        "       calls = {'n': 0}; real = mod.fn\n"
+        "       def _flaky(): calls['n'] += 1; raise ... if calls['n'] == 1 else real()\n"
+        "  （实测代价：v0.9.15 一条测据此在真库建了一行租户 + 一个真实租户目录。）"
+    )

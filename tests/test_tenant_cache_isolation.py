@@ -215,8 +215,15 @@ def test_ds_status_cache_cross_tenant_miss():
         reset_active_tenant(tok)
 
 
-def test_ds_stats_cache_endpoint_cross_tenant_isolation(monkeypatch):
+def test_ds_stats_cache_endpoint_cross_tenant_isolation(monkeypatch, tmp_db_path):
     """#5 硬化（守护者 Stage 4）：**驱动生产端点** admin_datasources_stats 于两租户 ctx 证隔离 + R-AS-2 身份。
+
+    ⚠️ **`tmp_db_path` 是 v0.9.15 补的，不是装饰**：本文件其余 11 条只碰内存缓存，
+    唯独本条**驱动真端点** ⇒ 会走到 `get_conn()`。缺了它就用**真实** `SQLITE_DB_PATH` 解析
+    ⇒ 在 `knot/data/tenants/2/` 建出一个真实的库文件。
+    ⭐ **它已经这样静默跑了很久** —— 实测数据目录里那个「来历不明」的 `tenants/2`
+    （2026-07-29 的空库、0 张表、平台库里无对应行）**就是本测建的**。
+    在 `conftest::_no_test_may_touch_real_data_dir` 装上之前，**没有任何东西会响**。
 
     原测自填自读 `.get(tid)` = tautology（不走端点，端点 revert 成全局键也不红）。改用「list_datasources 调用次数」
     作 cache-miss/重算的探针：tenant#1 首调 miss(算一次) + 再调 hit(不算)；tenant#2 若隔离→miss 重算(第 2 次)，

@@ -41,6 +41,7 @@
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import subprocess
 import tarfile
@@ -60,6 +61,9 @@ _REQUIRED_RULES = (
 
 
 def _docker_ok() -> bool:
+    """**收集期**的快速探测（纯提速）。⚠️ 在 CI 上恒 `True` —— 理由见 `requires_docker`。"""
+    if os.environ.get("CI"):
+        return True          # CI 上决不让收集期把这批测跳掉；判定权归 `_require_docker()`
     try:
         return subprocess.run(["docker", "buildx", "version"], check=False,
                               capture_output=True, timeout=20).returncode == 0
@@ -67,10 +71,40 @@ def _docker_ok() -> bool:
         return False
 
 
+#: **收集期**跳过（纯速度优化）。⚠️ **不是** Docker 可用性的判定权所在 —— 那在
+#: `_require_docker()`（**调用期**）。两者分工，且这个分工是实测逼出来的：
+#:   · `skipif` 在**收集期**求值 ⇒ 管不了「开跑时 Docker 活着、跑到一半 daemon 死了」
+#:     （v0.9.15 实测：本文件 14 条因此**全红**而不是跳过）；
+#:   · 而若让它在 CI 上也能跳，则 `_require_docker()` 的 **CI 硬红永远轮不到执行**
+#:     ⇒ 阻断闸门会**静默缺席**。故 `_docker_ok()` 在 `CI` 下恒 True。
 requires_docker = pytest.mark.skipif(
     not _docker_ok(),
-    reason="需要 docker buildx —— 阻断执行点是 CI 的 dockerignore-context job（见 ci.yml）",
+    reason="本机 docker buildx 不可用 —— 收集期跳过（CI 上不跳，见 _require_docker）",
 )
+
+
+def _require_docker() -> None:
+    """Docker 不可用时：**CI 上硬红，本机跳过** —— 这个不对称是刻意的。
+
+    ⚠️ **为什么不一律跳过**：本文件是**阻断闸门**（`ci.yml` 的 `dockerignore-context` job）。
+    若在 CI 上也跳过，构建上下文泄漏这条守护就会**静默缺席** ——
+    而「守护静默变成不存在」正是本弧反复吃过瘪的形状。CI 上 docker 必然可用
+    ⇒ 那里连不上是**基础设施故障**，值得红。
+    ⚠️ **为什么本机不一律硬红**：本机 Docker Desktop 常态是关着的（实测本会话就停了两次），
+    一律硬红会让「跑一次全量」在与本片无关的原因上失败 ⇒ 人会开始习惯性忽略红色，
+    那比跳过更危险。跳过时 pytest 会**显式列出原因**，不是静默。
+    """
+    proc = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=60)
+    if proc.returncode == 0:
+        return
+    msg = (
+        "docker 不可用（构建上下文闸门需要它）：\n"
+        f"{proc.stderr.strip() or proc.stdout.strip()}\n"
+        "  ⇒ 本机请先启动 Docker Desktop（`open -a Docker`）后重跑。"
+    )
+    if os.environ.get("CI"):
+        pytest.fail(f"[CI] {msg}")
+    pytest.skip(msg)
 
 
 def _context_entries(ctx_dir: pathlib.Path, tmp_out: pathlib.Path) -> set[str]:
@@ -81,13 +115,23 @@ def _context_entries(ctx_dir: pathlib.Path, tmp_out: pathlib.Path) -> set[str]:
     不会把 `ci.yml:134` 那条 `continue-on-error` 当初要避的 rate-limit 噪声请回来。
     ⚠️ tar **必须写到上下文之外** —— 实测写在里面会自包含（下次跑还会含上次的 tar）。
     """
+    _require_docker()
     df = tmp_out / "ctx.Dockerfile"
     df.write_text("FROM scratch\nCOPY . /ctx\n", encoding="utf-8")
     tar_path = tmp_out / "ctx.tar"
-    subprocess.run(
+    proc = subprocess.run(
         ["docker", "buildx", "build", "-f", str(df),
          "--output", f"type=tar,dest={tar_path}", str(ctx_dir)],
-        capture_output=True, check=True, timeout=600,
+        capture_output=True, text=True, timeout=600,
+    )
+    # ⚠️ **不用 `check=True`**（v0.9.15 修）：那样只抛裸 `CalledProcessError`，
+    #    **把 docker 自己的 stderr 全吞掉** ⇒ 排查者看不到真因。
+    #    实测代价：daemon 停了导致本文件 14 条全红，而报错里**一个字都没说**是这个原因，
+    #    我花了两步手工复现才查到那句「Cannot connect to the Docker daemon」。
+    #    ⇒ 同一族第三次（v0.9.13 吞 tar 的 stderr · v0.9.14 吞脚本退出码 · 本次吞 docker 的 stderr）。
+    assert proc.returncode == 0, (
+        f"`docker buildx build` 失败（rc={proc.returncode}）—— **docker 自己的输出**：\n"
+        f"--- stderr ---\n{proc.stderr}\n--- stdout ---\n{proc.stdout}"
     )
     with tarfile.open(tar_path) as t:
         # ⚠️ 必须按 `isfile()` 过滤 —— tar 的**目录条目**名字**不带**尾斜杠

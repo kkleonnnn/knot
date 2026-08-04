@@ -88,6 +88,24 @@ def get_tenant(tenant_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def get_tenant_by_slug(slug: str) -> dict | None:
+    """按 slug 取租户 —— **不过滤 status**（v0.9.15，供开通编排用）。
+
+    ⚠️ **命名约定（本文件已有，此处沿用）**：`get_*` = 原样取行、**不过滤** status；
+    `resolve_*` = 只返「**可服务**」的（`status=='active'`）。
+    ⭐ **为什么开通需要不过滤的那一种**：开通要判断「这个 slug 是不是已经存在」，
+    而**已存在的往往正是 `suspended`** 的那些（本片开通出来的租户恒 suspended）
+    ⇒ 用 `resolve_tenant_by_slug` 会把它们看成「不存在」，于是重复开通撞
+    `UNIQUE(slug)` 抛裸异常 —— 那正是「可重试」失效的形态。
+    ⚠️ **严禁**把本函数接进请求/登录路径：那两条**必须**走 `resolve_*`
+    （B-2 承重 —— 否则平台方停用租户后，该租户用户手里 7 天有效期内的 JWT 继续可用）。
+    """
+    conn = get_platform_conn()
+    row = conn.execute("SELECT * FROM tenants WHERE slug=?", (slug,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 #: `update_tenant` 允许改的字段白名单（v0.9.8）。
 #: ⚠️ **刻意不含** `id` / `slug` / `created_at`：前两个是身份（改它等于换租户，而 `slug` 还是登录链接的一部分），
 #: `created_at` 是事实。要改身份类字段应当是一次显式评审的迁移，不是走这个通用写口。
