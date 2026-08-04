@@ -13,7 +13,10 @@ from pathlib import Path
 
 from knot.config import SQLITE_DB_PATH
 from knot.core.logging_setup import logger
-from knot.core.tenant_context import current_tenant  # v0.9.0 get_conn 双层解析（fail-closed）
+from knot.core.tenant_context import (  # v0.9.0 get_conn 双层解析（fail-closed）
+    TenantContextError,  # v0.9.15 d2'：db_dir 逃出数据根时 raise（与 uploads 侧同型）
+    current_tenant,
+)
 from knot.repositories import migrations
 
 # 再导出上传库迁移函数：既有 base.<fn> 引用（tests / engine_cache 注释）与 init_db 内部调用保持 byte-equal。
@@ -29,8 +32,23 @@ def _tenant_db_path() -> Path:
     = 数据目录锚点 `SQLITE_DB_PATH.parent` / `tenant.db_dir` / `knot.db`。
     db_dir='tenants/1'(生产) → `.../data/tenants/1/knot.db`；db_dir='.'(测试) → `.../data/knot.db`
     （= 锚点本身，保直读 SQLITE_DB_PATH 的既有测试断言 byte-equal）。SQLITE_DB_PATH 是 str，须 Path() 包。
+
+    ⭐ **v0.9.15 d2'：校验解析路径在数据根内（防 `db_dir='../x'` 逃出租户边界）。**
+    补的是一条**既有**不对称 —— 同形状守护此前只有它的两个兄弟有，唯独主库这条没有：
+      · `services/upload_engine.py::_tenant_uploads_path`（uploads 读侧）
+      · `repositories/tenancy_migration`（C4 迁移写侧 —— v0.9.2 Stage 4 对抗 critic 命中才补）
+    而 `get_conn()` 紧随本函数 `mkdir(parents=True, exist_ok=True)`
+    ⇒ 没有本校验时，`db_dir='../evil'` 会**在数据根之外建目录并创建主库** = OOS-1v2 文件边界逃逸。
+    ⚠️ **本校验不因「db_dir 由服务端生成」而可省**：运维直改平台库仍可写入任意值
+    （同 v0.9.8 的诚实边界 —— 只声称代码路径受控）。
+    判据与 uploads 侧**逐字同形**（`root != p.parent and root not in p.parents`）：
+    刻意不发明第二种写法，否则两处会各自漂。
     """
-    return Path(SQLITE_DB_PATH).parent / current_tenant()["db_dir"] / "knot.db"
+    root = Path(SQLITE_DB_PATH).parent.resolve()
+    p = (root / current_tenant()["db_dir"] / "knot.db").resolve()
+    if root != p.parent and root not in p.parents:
+        raise TenantContextError(f"租户库路径逃出数据根：{p} 不在 {root} 内（db_dir 非法）")
+    return p
 
 
 def get_conn() -> sqlite3.Connection:

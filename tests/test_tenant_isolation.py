@@ -34,13 +34,64 @@ def test_iso2_get_conn_resolves_db_dir_production_layout(tmp_db_path):
     """② set ctx(db_dir='tenants/2') → get_conn 解析到 anchor.parent/tenants/2/knot.db。
 
     production-layout（db_dir='tenants/N' 非仅 '.' — Stage3 #8：防路径拼接只在 '.' 下成立的假绿）。
+
+    ⚠️ **v0.9.15 d2' 起期望值须 `.resolve()`**：`_tenant_db_path()` 现在返回**校验过的规范化路径**
+    （与 `upload_engine._tenant_uploads_path` 同型 —— **被校验的对象必须就是被返回的对象**，
+    否则校验的和交出去的不是一回事）。macOS 上 `/var` 是 `/private/var` 的符号链接
+    ⇒ 不 resolve 两侧就会比出「同一个文件、不同字面」的假红。
+    ⭐ **这不是削弱**：判别力仍在拼接本身 —— 实测把 `db_dir` 段去掉（解析成锚点自身）本测仍红。
     """
     anchor_parent = Path(tmp_db_path).parent
     tok = tc._active_tenant_ctx.set({"id": 2, "slug": "t2", "name": "T2", "status": "active", "db_dir": "tenants/2"})
     try:
-        assert base._tenant_db_path() == anchor_parent / "tenants" / "2" / "knot.db"
+        assert base._tenant_db_path() == (anchor_parent / "tenants" / "2" / "knot.db").resolve()
         c = base.get_conn(); c.close()
         assert (anchor_parent / "tenants" / "2" / "knot.db").exists()
+    finally:
+        tc._active_tenant_ctx.reset(tok)
+
+
+def test_iso2b_main_db_path_escaping_data_root_is_blocked(tmp_db_path, monkeypatch):
+    """⭐ **v0.9.15 d2'**：`db_dir='../evil'` → 主库路径解析必须**拒绝**，且数据根外**不得**出现任何东西。
+
+    **补的是一条既有不对称**：同形状守护此前只有两个兄弟有 —— `upload_engine._tenant_uploads_path`
+    （uploads 读侧）与 `tenancy_migration`（C4 迁移写侧，v0.9.2 Stage 4 对抗才补）——
+    **唯独主库 `knot.db` 这条没有**，而 `get_conn()` 紧随其后会 `mkdir(parents=True)`
+    ⇒ 没守护时会**在数据根之外建目录并创建主库** = OOS-1v2 文件边界逃逸。
+
+    ⚠️ **安全属性是「什么没发生」，不是「抛了异常」**（v3.1-B #2）：
+    故这里 `try/except` 后**无条件**断言「数据根外零产物」，而不是把它放在 `pytest.raises` 里
+    —— 后者一旦守护被摘掉就停在 `DID NOT RAISE`，**真属性的断言根本不执行**。
+
+    ⚠️⚠️ **数据根故意再放深一层（`dataroot/`），逃逸目标才是 per-test 的** ——
+    初版直接用 `tmp_db_path` 的 anchor 目录，于是 `..` 指向 **`tempfile` 的共享根**
+    ⇒ 跑一次 revert-to-bad 真把 `<shared-tmp>/evil` 建了出来，**残留污染之后每一次运行**
+    （实测：还原守护后本测仍红，因为上一轮的逃逸产物还在）。
+    ⇒ **一条通用教训**：断言「X 之外什么都没发生」的测，必须让「X 之外」也落在
+    **per-test** 的清理范围内 —— 否则**一次失败会毒化后续所有运行**。
+    """
+    outer = Path(tmp_db_path).parent                      # per-test mkdtemp，随 tmp 回收
+    dataroot = outer / "dataroot"
+    dataroot.mkdir()
+    monkeypatch.setattr(base, "SQLITE_DB_PATH", str(dataroot / "knot.db"))
+    outside = (dataroot / ".." / "evil").resolve()        # == outer/evil：数据根**外**，但仍在 per-test 树内
+    tok = tc._active_tenant_ctx.set(
+        {"id": 2, "slug": "t2", "name": "T2", "status": "active", "db_dir": "../evil"}
+    )
+    raised = None
+    try:
+        try:
+            base.get_conn().close()
+        except Exception as e:                       # noqa: BLE001 —— 属性断言必须无条件执行
+            raised = e
+        # ① 真属性：数据根外不得出现该目录/文件（**无条件断言**）
+        assert not outside.exists(), (
+            f"db_dir='../evil' 在数据根**外**造出了 {outside} —— 文件边界已被逃逸。\n"
+            f"    （`get_conn` 会 mkdir(parents=True) ⇒ 缺含容校验时它真的会建出来。）"
+        )
+        # ② 其次才是「有没有给出可操作的说明」
+        assert raised is not None, "db_dir='../evil' 竟未被拒绝（含容校验缺失或被绕过）"
+        assert "逃出数据根" in str(raised), f"拒绝了但消息不可操作：{raised!r}"
     finally:
         tc._active_tenant_ctx.reset(tok)
 
