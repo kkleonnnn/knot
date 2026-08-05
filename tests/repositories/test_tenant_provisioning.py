@@ -40,7 +40,7 @@ def test_db_dir_is_opaque_lowercase_hex_and_not_derived_from_slug(tmp_db_path):
     ⭐ 纯小写 hex 还顺带关掉一个洞（守护者 Q1）：macOS/Windows 文件系统**大小写不敏感**，
     而 SQLite `UNIQUE(slug)` **大小写敏感** ⇒ `AcmeCo` 与 `acmeco` 会是两个租户**共用一个目录**。
     """
-    out = tp.create_tenant(slug="AcmeCo", name="Acme", allowed_http_hosts=_HOSTS)
+    out = tp.create_tenant(slug="acmeco", name="Acme", allowed_http_hosts=_HOSTS)
     db_dir = out["tenant"]["db_dir"]
 
     assert re.fullmatch(r"tenants/[0-9a-f]{16}", db_dir), (
@@ -49,16 +49,37 @@ def test_db_dir_is_opaque_lowercase_hex_and_not_derived_from_slug(tmp_db_path):
     )
     assert "acmeco" not in db_dir.lower(), "db_dir 含 slug 片段 ⇒ 它又变成调用方可影响的了"
 
+    # ⭐⭐ **结构级判据**（v3.1-B #7「顶班」）：d2'' 的 slug 校验会**替本测挡住**恶意 slug
+    # ⇒ 若只靠「传个恶意 slug 看 db_dir」，`_new_db_dir` 退化成派生式时**没人会红**。
+    # ⇒ 独立断言它**根本不接受任何输入** —— slug 影响不了它，是**构造上**不可能，而非碰巧。
+    import inspect
+    assert list(inspect.signature(tp._new_db_dir).parameters) == [], (
+        "`_new_db_dir` 开始接受参数了 —— 那意味着 `db_dir` 又变成**可被输入影响**的了。\n"
+        "  ⇒ 它必须是零输入的服务端生成；调用方对它的影响面应当是**空**。"
+    )
+
 
 def test_hostile_slug_cannot_reach_the_filesystem(tmp_db_path):
     """`slug='../evil'` 也只能得到不透明 `db_dir`，且数据根外**零产物**。
 
     ⚠️ 属性是「什么没发生」⇒ **无条件**断言数据根外为空，不依赖「抛没抛异常」。
+
+    ⚠️ **v0.9.15 Stage 4 #2 之后本测的门变早了**：d2'' 的 slug 校验现在**先**拒掉 `../evil`
+    ⇒ 本测不再能测到「万一它过了，`db_dir` 也不受它影响」那一层深度。
+    ⇒ **那一层改由上一条测的「`_new_db_dir` 零参数」结构断言守**（两层各自独立，见 v3.1-B #7 顶班）。
+    本测保留的性质是：**恶意 slug 一路下来，数据根外零产物**（无论被哪一层挡住）。
     """
     root = base._tenant_db_path().parent.resolve()      # autouse tenant#1，db_dir='.' ⇒ 数据根
-    out = tp.create_tenant(slug="../evil", name="X", allowed_http_hosts="")
-    assert re.fullmatch(r"tenants/[0-9a-f]{16}", out["tenant"]["db_dir"])
-    assert not (root.parent / "evil").exists(), "数据根外出现了 evil —— slug 摸到了文件系统"
+    raised = None
+    try:
+        tp.create_tenant(slug="../evil", name="X", allowed_http_hosts="")
+    except Exception as e:                              # noqa: BLE001 —— 属性断言必须无条件执行
+        raised = e
+    # ① 真属性（**无条件**）：数据根外零产物
+    assert not (root.parent / "evil").exists(), "数据根外出现了 evil —— 恶意 slug 摸到了文件系统"
+    # ② 其次才是「被挡住了、且说得清」
+    assert raised is not None, "`../evil` 竟被接受"
+    assert "不合法" in str(raised), f"拒绝了但消息不可操作：{raised!r}"
 
 
 # ── §1.3 ctx 绝不泄漏（Q3：直接比对 contextvar，成功 + 异常两条路径）────────
@@ -229,3 +250,87 @@ def test_allowed_http_hosts_empty_string_is_preserved_not_nulled(tmp_db_path):
     assert out["tenant"]["allowed_http_hosts"] == "", (
         "空串被写成了 NULL ⇒ 「明确禁止」被静默变成「未配置」（起源租户会回退 env）"
     )
+
+
+# ── d2''：slug 格式校验（v0.9.15 Stage 4 #2）───────────────────────────────
+
+@pytest.mark.parametrize("bad", [
+    "Acme",             # ⭐ 大写 —— 决定性理由：UNIQUE 区分大小写而登录链接肉眼相同
+    "ACME",
+    "a",                # 太短（<2）
+    "a" * 32,           # 太长（>31）
+    "-acme",            # 首字符不能是 `-`
+    "ac me",            # 空格
+    "ac/me",            # `/` —— 它进 URL
+    "ac&me", "ac#me",
+    "会员",              # 非 ASCII（slug 是 URL 组件，须转写）
+    "../evil",          # 路径穿越形态（隔离性质已由不透明 db_dir 兜住，但仍不该收）
+])
+def test_d2pp_invalid_slug_is_refused(bad, tmp_db_path):
+    """非法 slug ⇒ 拒绝，且**零副作用**（不建行、不建库）。
+
+    ⭐ **仅小写的决定性理由是大小写，不是整洁**（守护者 Q4）：SQLite `UNIQUE` 对 TEXT
+    **区分**大小写 ⇒ `Acme` 与 `acme` 会是**两个租户**，而登录链接 `?c=Acme` / `?c=acme`
+    **肉眼完全一样** ⇒ 混淆/钓鱼面。
+    ⚠️ 这一半与不透明 `db_dir` 关掉的那一半是**两个**洞 —— 一条论证只关得掉一个
+    （Stage 4 #2：我此前把「大小写」那条论证当成两个洞都关了）。
+    """
+    n_before = len(tenant_repo.list_tenants())
+    with pytest.raises(tp.TenantProvisioningError, match="不合法"):
+        tp.create_tenant(slug=bad, name="X", allowed_http_hosts="")
+    assert len(tenant_repo.list_tenants()) == n_before, f"非法 slug {bad!r} 仍建了行"
+
+
+@pytest.mark.parametrize("ok", ["ac", "acme", "acme-inc", "a1", "x9-y8-z7", "a" + "b" * 30])
+def test_d2pp_valid_slug_is_accepted(ok, tmp_db_path):
+    """⭐ **反向守护**：合法 slug 必须**过** —— 否则「一律拒绝」也能让上面那组通过。"""
+    out = tp.create_tenant(slug=ok, name="X", allowed_http_hosts="")
+    assert out["tenant"]["slug"] == ok
+
+
+def test_d2pp_regex_is_a_single_source_of_truth():
+    """⭐ API 层的 `Field(pattern=…)` 必须**引用**写口那个正则，不得自带一份字面。
+
+    ⚠️ 本仓形状：「一个谓词、多个执行点」是**正确的**；「多份判断」才是 N 份清单病。
+
+    ⚠️⚠️ **本测初版的判据锚在一个名字上（`pa._SLUG_PATTERN is …`），那是错的** ——
+    我随后把那个别名改成限定名 `tenant_provisioning.SLUG_PATTERN`（为挤 size gate），
+    **正则依然是单一真相源，而测红了** ⇒ 它测的是「叫什么」而不是「是不是一份」。
+    同一轮里第二次撞上同一形状：**判据要锚在性质上，不是锚在名字/写法上**。
+    且初版第二条断言 `SLUG_PATTERN in pats` 是**相等**比较 ⇒ 抄一份一模一样的字面**照样绿**。
+
+    ⇒ 改双判据：
+    ① **AST**（与名字无关）：`pattern=` 的实参必须是**引用**（`Name`/`Attribute`），
+       ⛔ 不得是字符串常量 —— 抄字面即红，无论抄得多像。
+    ② **行为**：构建出的字段上挂的 pattern 与 `tp.SLUG_PATTERN` 相等（引用指错常量即红）。
+    """
+    import ast
+    import pathlib
+
+    from knot.api import platform_admin as pa
+
+    # ① AST：找 `slug: str = Field(pattern=<expr>)` 的那个 <expr>
+    src = pathlib.Path(pa.__file__).read_text(encoding="utf-8")
+    found = []
+    for node in ast.walk(ast.parse(src)):
+        if not (isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "slug"):
+            continue
+        call = node.value
+        if isinstance(call, ast.Call):
+            for kw in call.keywords:
+                if kw.arg == "pattern":
+                    found.append(kw.value)
+    assert found, "`platform_admin` 里没有任何 `slug: … = Field(pattern=…)`（d2'' 校验点消失了？）"
+    for expr in found:
+        assert not isinstance(expr, ast.Constant), (
+            f"API 层把 slug 正则写成了**字面常量** {expr.value!r} —— 那就是第二份判断，"
+            "必然与写口漂开。必须引用 `tenant_provisioning.SLUG_PATTERN`。"
+        )
+        assert isinstance(expr, ast.Name | ast.Attribute), (
+            f"`pattern=` 实参形态意外（{type(expr).__name__}）—— 本测只认「引用单一真相源」这一种写法"
+        )
+
+    # ② 行为：字段上真的挂着那个正则
+    field = pa.TenantCreateRequest.model_fields["slug"]
+    pats = [getattr(m, "pattern", None) for m in field.metadata]
+    assert tp.SLUG_PATTERN in pats, f"slug 字段没挂上写口那个 pattern：{pats}"

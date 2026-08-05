@@ -42,10 +42,10 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security.utils import get_authorization_scheme_param
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from knot.core.logging_setup import logger
-from knot.repositories import platform_audit_repo, tenant_repo
+from knot.repositories import platform_audit_repo, tenant_provisioning, tenant_repo
 
 router = APIRouter()
 
@@ -231,7 +231,9 @@ class TenantCreateRequest(BaseModel):
     否则开通动作就替部署方**静默选了一种语义**。Pydantic 无默认值 = 必填，而 `""` 是合法值。
     """
 
-    slug: str
+    # d2''：正则取自写口的**单一真相源**（禁抄第二份）。它须在**导入期**可得 ⇒ `tenant_provisioning`
+    # 只能顶层 import ⇒ 端点内原那处延迟 import 不再买到任何东西（模块已加载）故删（零循环风险）。
+    slug: str = Field(pattern=tenant_provisioning.SLUG_PATTERN)
     name: str
     allowed_http_hosts: str
 
@@ -279,8 +281,6 @@ async def create_tenant_platform(
     Raises:
         409: slug 正在服务中 / 行与库都已存在（消息里给出可走的下一步）。
     """
-    from knot.repositories import tenant_provisioning
-
     response.headers["Cache-Control"] = "no-store"
     try:
         out = tenant_provisioning.create_tenant(

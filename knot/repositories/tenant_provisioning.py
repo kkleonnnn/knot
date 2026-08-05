@@ -33,6 +33,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 
 from knot.core.logging_setup import logger
@@ -44,6 +45,21 @@ from knot.repositories import base, platform_audit_repo, tenant_repo
 #: ⇒ `assert_no_second_active_tenant_served` 让**全站**每个请求 fail-closed（拒绝服务）。
 #: 「激活」是 lift 门之后的独立动作，走 `tenant_repo.update_tenant`。
 _NEW_TENANT_STATUS = "suspended"
+
+#: slug 的合法形态 —— **仅小写**（v0.9.15 d2''，守护者 Q4 裁定的口径）。
+#: ⭐ **决定性理由是大小写，不是「整洁」**：SQLite 的 `UNIQUE` 对 TEXT **大小写敏感**
+#: ⇒ `Acme` 与 `acme` 会是**两个租户**，而它们的登录链接 `?c=Acme` / `?c=acme`
+#: **肉眼完全一样** ⇒ 混淆 / 钓鱼面。仅小写一次关掉它，且**不需要 schema 迁移**
+#: （`COLLATE NOCASE` 要改表）。
+#: ⚠️ **另一半洞由不透明 `db_dir` 关掉**（大小写不敏感文件系统会让两者共用目录）——
+#: 那两半是**两个**洞，一条论证只关得掉一个（守护者 Stage 4 #2 指出我把它当一条用了）。
+#: ⚠️ 还挡功能面：无校验时 slug 可含 `/` `&` `#` 空格 unicode 或 500 字符 ——
+#: 它既进 URL（`?c=`）也进 `platform_audit.tenant_slug`。
+#: ⚠️ 非 ASCII 必须由调用方转写：对一个 **URL 组件**来说这是正确的收窄，不是不便。
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}$")
+#: 给 Pydantic `Field(pattern=...)` 用的同一个字面 —— **单一真相源**，两个执行点
+#: （本仓既有形状：「一个谓词、多个执行点」是正确的，「多份判断」才是 N 份清单病）。
+SLUG_PATTERN = SLUG_RE.pattern
 
 
 class TenantProvisioningError(RuntimeError):
@@ -130,6 +146,14 @@ def create_tenant(
     """
     if not slug or not name:
         raise TenantProvisioningError("slug / name 不得为空")
+    if not SLUG_RE.match(slug):
+        raise TenantProvisioningError(
+            f"slug {slug!r} 不合法 —— 须匹配 `{SLUG_PATTERN}`（**仅小写**，2–31 字符，"
+            "首字符为字母或数字，其余可含 `-`）。\n"
+            "  ⇒ 为什么仅小写：数据库的唯一性检查**区分**大小写 ⇒ `Acme` 与 `acme` 会是两个租户，"
+            "而它们的登录链接肉眼**完全一样**（混淆/钓鱼面）。\n"
+            "  ⇒ 非 ASCII 请转写（slug 是 URL 组件）。"
+        )
 
     existing = tenant_repo.get_tenant_by_slug(slug)   # get_* = 不过滤 status（见该函数 docstring）
     if existing is not None:
