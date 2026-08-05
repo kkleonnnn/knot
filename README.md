@@ -144,7 +144,7 @@ docker logs knot | tail -10
 ### 6. 浏览器首次操作（5 分钟）
 
 1. `http://<server-ip>:8000` → Login 屏出现
-2. **admin 初始口令**（v0.8.20 起）：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；未设则**首次启动随机生成并打印在日志一次**（`docker logs knot | grep "seed admin"`）。用 `admin` + 该口令登录 — ⚠️ **首登强制改密**（must_change_password=1）。遗失可 `python -m knot.scripts.reset_admin_password` 重置。
+2. **admin 初始口令**（v0.8.20 起）：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；未设则**首次启动随机生成并打印在日志一次**（`docker logs knot | grep "seed admin"`）。用 `admin` + 该口令登录 — ⚠️ **首登强制改密**（must_change_password=1）。遗失可 `python -m knot.scripts.reset_admin_password --tenant 1` 重置（**`--tenant` v0.9.15 起必填** —— 破坏性工具不得有默认目标；单租户部署即 `1`）。
    - 🛡️ **v0.6.5.0 起 2FA 默认强制**：改密后即被引导**绑定 TOTP**（Authenticator 扫码 + 存恢复码；含 admin，无豁免）。快速评估可设 `KNOT_TOTP_REQUIRED=false` 关闭（详 [DEPLOY](DEPLOY.md) §5）。
 3. 「API & 模型」tab：填 LLM provider key（与 .env 一致或独立）+ 给 3 个 agent 选模型
 4. 「数据源」tab：配置 1 个业务库（Doris / MySQL / HTTP 数据源；db_type ∈ doris|mysql|http）

@@ -273,7 +273,7 @@ sleep 10 && docker logs knot | tail -10
 
 - **admin 初始口令（v0.8.20 F7 起）**：seed 逻辑在 `knot/repositories/base.py:213`（原文档误引 `:94`）—— 设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；**未设则首启随机强口令 + 日志打印一次**（`docker logs knot | grep "seed admin"`）。**不再有跨部署同一 admin123**（旧硬编默认已废，R-LP-v3-EX-3-1）。
 - 首登 `must_change_password=1` 强制改密（服务端硬门：改密前只能调 `/api/auth/*`）。
-- **必做**：登录后改密码 + 改用户名（不叫 admin，防字典爆破）；口令遗失 → `python -m knot.scripts.reset_admin_password`。
+- **必做**：登录后改密码 + 改用户名（不叫 admin，防字典爆破）；口令遗失 → `python -m knot.scripts.reset_admin_password --tenant <slug|id>`（**`--tenant` v0.9.15 起必填** —— 破坏性工具不得有默认目标；单租户部署传 `--tenant 1`）。
 - 首启竞态提醒：随机口令仅在日志一次性可见，**部署后尽快首登占位**（防他人抢先首登）。
 
 ### 3. 公网部署必加 HTTPS 反向代理
@@ -788,7 +788,7 @@ find . \( -name '*.bak' -o -name '*.bak-*' \) -exec du -ch {} + | tail -1   # �
 - OpenRouter API Key — 已经在 OR 后台，可不存
 
 ### Q5: admin 初始口令怎么拿 / 多久必须改？
-v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之，未设则首启随机生成、**在启动日志打印一次**（`docker logs knot | grep "seed admin"`）。**部署后尽快首登**（must_change_password 强制改密 + 强制 enroll）；随机口令仅一次可见，遗失用 `python -m knot.scripts.reset_admin_password` 重置。
+v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之，未设则首启随机生成、**在启动日志打印一次**（`docker logs knot | grep "seed admin"`）。**部署后尽快首登**（must_change_password 强制改密 + 强制 enroll）；随机口令仅一次可见，遗失用 `python -m knot.scripts.reset_admin_password --tenant <slug|id>` 重置（**`--tenant` v0.9.15 起必填**，单租户部署传 `--tenant 1`）。
 
 ---
 
@@ -925,6 +925,27 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   要搬数据是一次显式迁移：停用 → 搬文件 → 校验 → 改指向。
 
 ---
+
+## ⛔ 破坏性 CLI 一律要显式 `--tenant`（v0.9.15 起 · **一次真实事故立的规矩**）
+
+**规则一句话：破坏性工具不得有默认目标。**
+
+**为什么**：这些脚本原先在缺目标时会回退「唯一 active 租户」。在只有一个租户的年代那无处可错；
+**v0.9.15 起新开通的租户是 `suspended`** ⇒ 回退**恒选中起源租户（= 部署方自己）**，
+而你此刻心里想的是那个新租户 ⇒ **动作静默作用在错误的库上，输出照样报「完成」**。
+（这不是推理：v0.9.15 Stage 4 期间它真的发生过一次 —— 一个被静默吞掉的 flag
+重置了起源租户的 admin 口令，且看不出任何异常。）
+
+| 脚本 | 目标参数 | 只读模式 |
+|---|---|---|
+| `reset_admin_password` | `--tenant <slug\|id>` **必填** | 无（本就是写操作） |
+| `migrate_encrypt_v045` | `--tenant <id>` 或 `--all-tenants`，**必填其一** | `--dry-run`（仍需目标） |
+| `purge_audit_log` | `--tenant <id>` **真跑必填** | `--dry-run` **可不带目标**（0 副作用，且会打印它解析到了谁） |
+| `scan_secrets_at_rest` | `--tenant` 可选 | **只读 CLI**，回退无害 |
+
+⇒ 单租户部署一律传 **`--tenant 1`**（起源租户恒为 id=1）。
+⇒ 列出租户 id / slug：`GET /api/platform/tenants`（**不要**靠 `ls data/tenants/` 猜 ——
+`db_dir` 是服务端生成的不透明随机串，刻意不可辨识）。
 
 ## ⚠️ 多租户运维门（v0.9.3 起 · lift R-T-GATE 前）
 

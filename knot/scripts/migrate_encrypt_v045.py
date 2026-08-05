@@ -248,8 +248,13 @@ def _main() -> int:
     ap = argparse.ArgumentParser(description="敏感列静态加密迁移（一次性 / 幂等）")
     ap.add_argument("--dry-run", action="store_true",
                     help="只统计 would-encrypt，0 副作用（不写 DB / 不建 bak）")
-    g = ap.add_mutually_exclusive_group()
-    g.add_argument("--tenant", type=int, default=None, help="租户 id（默认 = 单租户解析）")
+    # ⭐ **v0.9.15 Stage 4 #5：目标必须显式二选一，⛔ 无「默认目标」**（破坏性工具不得有默认目标）。
+    # **因果**：本片之前全仓只可能有一个租户 ⇒ 原 `resolve_single_tenant()` 回退无处可错；
+    # 本片起新租户开成 `suspended` ⇒ 回退恒解析到**起源租户** ⇒ 运维想迁新租户、
+    # 实际**重写了部署方自己的凭据列**而输出照样报「完成」= 与 #1 事故同形（该回退已物理删除）。
+    # 守护：`tests/scripts/test_destructive_cli_requires_target.py`（行为 + AST + 分类三层）。
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--tenant", type=int, default=None, help="租户 id（与 --all-tenants 二选一，**必填其一**）")
     g.add_argument("--all-tenants", action="store_true",
                    help="遍历平台库全部租户（**含 suspended** —— 其库文件里的明文同样在磁盘上）")
     args = ap.parse_args()
@@ -259,14 +264,12 @@ def _main() -> int:
 
     if args.all_tenants:
         tenants = _tr.list_tenants()
-    elif args.tenant:
+    else:
         t = _tr.get_tenant(args.tenant)
         if not t:
             sys.stderr.write(f"\n\033[91m[迁移失败] 租户 {args.tenant} 不存在\033[0m\n")
             return 1
         tenants = [t]
-    else:
-        tenants = [_tr.resolve_single_tenant()]
 
     prefix = "[dry-run] " if args.dry_run else ""
     done: list[str] = []

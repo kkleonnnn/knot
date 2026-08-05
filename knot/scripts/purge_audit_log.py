@@ -90,14 +90,37 @@ def purge(dry_run: bool = False, db_path: str | None = None,
 def _main() -> int:
     ap = argparse.ArgumentParser(description="v0.4.6 审计日志 retention 清理（独立 entrypoint）")
     ap.add_argument("--dry-run", action="store_true", help="只统计 would_delete，0 副作用")
-    ap.add_argument("--tenant", type=int, default=None, help="租户 id（默认 = 单租户解析 tenant#1）")
+    ap.add_argument(
+        "--tenant", type=int, default=None,
+        help="租户 id。**真跑时必填**（破坏性动作不得有默认目标）；`--dry-run` 可省（0 副作用，"
+             "且会打印实际解析到的租户）。",
+    )
     args = ap.parse_args()
     # v0.9.0 C2：standalone CLI 无 middleware/ctx → 显式 set tenant ctx（in-process auto-purge 调用方已有 ctx，
     # purge() 不自设以免覆盖调用方 ctx）。finally reset。
     from knot.core import tenant_context as _tc
     from knot.repositories import tenant_repo as _tr
+
+    # ⭐ **v0.9.15 Stage 4 #5（执行者自查，#1 同族第二实例）：真跑必须有显式目标。**
+    # **为什么是本片引起的**：本片之前全仓只可能存在一个租户 ⇒ `resolve_single_tenant()` 回退
+    # 无处可错。本片开始**把新租户开成 `suspended`** ⇒ 回退恒解析到**起源租户**，
+    # 而运维此刻心里想的是那个新租户 ⇒ 「删错公司的审计」与 #1 的事故是**同一个形状**
+    # （动作静默作用在错误的对象上，且输出照样说「完成」）。
+    # ⚠️ `--dry-run` **刻意仍可省**：它 0 副作用（跳过 bak + DELETE），
+    #    规则管的是**破坏性动作**；但预览若不说自己看的是谁，同样会误导 ⇒ 故下面打印解析结果。
+    if args.tenant is None and not args.dry_run:
+        sys.stderr.write(
+            "\n\033[91m[拒绝执行] 真跑必须显式 --tenant <id>：破坏性动作不得有默认目标。\033[0m\n"
+            "  · 先看会删什么：加 --dry-run（可不带 --tenant）\n"
+            "  · 列出租户 id：GET /api/platform/tenants\n"
+            "  ⚠️ 曾经的回退是「唯一 active 租户」= **起源租户** —— 新开通的租户是 suspended，"
+            "回退**永远不会**选中它（v0.9.15 Stage 4 #1 的事故就是这个形状）。\n"
+        )
+        return 2
     _tok = _tc.set_active_tenant(_tr.get_tenant(args.tenant) if args.tenant else _tr.resolve_single_tenant())
     try:
+        t = _tc.current_tenant()
+        print(f"→ 目标租户 id={t['id']} slug={t['slug']!r}" + ("（--dry-run 回退解析）" if args.tenant is None else ""))
         stats = purge(dry_run=args.dry_run)
         prefix = "[dry-run] " if args.dry_run else ""
         print(f"{prefix}清理完成: {stats}")
