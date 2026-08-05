@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.14 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.15 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -273,7 +273,7 @@ sleep 10 && docker logs knot | tail -10
 
 - **admin 初始口令（v0.8.20 F7 起）**：seed 逻辑在 `knot/repositories/base.py:213`（原文档误引 `:94`）—— 设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之；**未设则首启随机强口令 + 日志打印一次**（`docker logs knot | grep "seed admin"`）。**不再有跨部署同一 admin123**（旧硬编默认已废，R-LP-v3-EX-3-1）。
 - 首登 `must_change_password=1` 强制改密（服务端硬门：改密前只能调 `/api/auth/*`）。
-- **必做**：登录后改密码 + 改用户名（不叫 admin，防字典爆破）；口令遗失 → `python -m knot.scripts.reset_admin_password`。
+- **必做**：登录后改密码 + 改用户名（不叫 admin，防字典爆破）；口令遗失 → `python -m knot.scripts.reset_admin_password --tenant <slug|id>`（**`--tenant` v0.9.15 起必填** —— 破坏性工具不得有默认目标；单租户部署传 `--tenant 1`）。
 - 首启竞态提醒：随机口令仅在日志一次性可见，**部署后尽快首登占位**（防他人抢先首登）。
 
 ### 3. 公网部署必加 HTTPS 反向代理
@@ -788,7 +788,7 @@ find . \( -name '*.bak' -o -name '*.bak-*' \) -exec du -ch {} + | tail -1   # �
 - OpenRouter API Key — 已经在 OR 后台，可不存
 
 ### Q5: admin 初始口令怎么拿 / 多久必须改？
-v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之，未设则首启随机生成、**在启动日志打印一次**（`docker logs knot | grep "seed admin"`）。**部署后尽快首登**（must_change_password 强制改密 + 强制 enroll）；随机口令仅一次可见，遗失用 `python -m knot.scripts.reset_admin_password` 重置。
+v0.8.20 起**无固定默认 admin123**：设 `KNOT_INITIAL_ADMIN_PASSWORD` 则用之，未设则首启随机生成、**在启动日志打印一次**（`docker logs knot | grep "seed admin"`）。**部署后尽快首登**（must_change_password 强制改密 + 强制 enroll）；随机口令仅一次可见，遗失用 `python -m knot.scripts.reset_admin_password --tenant <slug|id>` 重置（**`--tenant` v0.9.15 起必填**，单租户部署传 `--tenant 1`）。
 
 ---
 
@@ -870,6 +870,82 @@ https://<你的域名>/?c=<公司代号>
 > **整站（含 `/api/platform/*`）全部 fail-closed**。故障预案**不要**依赖它。
 
 ---
+
+## 🏢 开通一家新公司（v0.9.15 起 · `POST /api/platform/tenants`）
+
+**前置**：平台密钥已配（`kpa_` 前缀 · 禁含 `.` · ≥32 字符），见上文平台面小节。
+
+```bash
+curl -sS -X POST http://<host>/api/platform/tenants \
+  -H "Authorization: Bearer $KNOT_PLATFORM_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"slug":"acme","name":"Acme Inc","allowed_http_hosts":"api.acme.example"}'
+```
+
+**返回 201**：`{"tenant": {...}, "initial_password": "<仅此一次>", "resumed": false}`
+
+### ⚠️ 四条必读
+
+1. **开出来的租户是 `suspended`（不可服务）** —— 服务端强制，请求与登录两条解析路径**都看不见它**。
+   「激活」是 **lift R-T-GATE 之后**的独立动作（且直接 `UPDATE` 前请读下文运维门）。
+2. **`initial_password` 只给一次** —— 不入库（只存 bcrypt 哈希）、不进日志、不进审计。
+   **丢了不能再查**，恢复路径是显式重置：
+   ```bash
+   python -m knot.scripts.reset_admin_password --tenant <slug>
+   ```
+3. **`allowed_http_hosts` 必填，且 `""` 与「不传」语义不同**：
+   `""` = 部署方明确的「**禁止出网**」；不传 = 422（**刻意不给默认值** —— 否则开通动作
+   就替你静默选了一种语义）。三态含义见 `platform_schema.sql` 的列注释。
+4. ⛔ **别靠目录名认租户**（Stage 3 Q1）：`db_dir` 是服务端生成的**无意义随机串**
+   （如 `tenants/43b658915072c9b2`），**刻意不可辨识、且不可更改**。
+   要查「哪家公司对应哪个目录」请用 `GET /api/platform/tenants` 或 `GET /api/platform/audit`
+   —— **不要** `ls data/tenants/` 然后自己发明一套猜法。
+   ⚠️ 为什么不用公司代号当目录名：代号是调用方传的且**无格式校验** ⇒ `../` 就能让库建到
+   数据目录之外；且 macOS/Windows 文件名**不分大小写**而 `UNIQUE(slug)` **分** ⇒
+   `AcmeCo` 与 `acmeco` 会是两家公司**共用一个目录**。
+
+### 幂等 / 续做（重复调用同一个 slug 会怎样）
+
+| 状态 | 行为 |
+|---|---|
+| 该 slug 不存在 | 正常开通 |
+| 行已存在 + `suspended` + **库还没建** | **续做**（补建库 + 返回**新**的初始口令 —— 库是全新的） |
+| 行已存在 + `suspended` + **库已建好** | **409 拒绝**，消息指向 `reset_admin_password --tenant` |
+| 行已存在 + `active` | **409 拒绝**（不碰在服务的租户） |
+
+⚠️ 第三行「不续做」是**唯一不猜的选择**：此时无法区分「上次建库后被中断」与
+「一个真实在用、只是被停用的租户」—— 续做会重置一个**可能在用**的租户的管理员口令。
+
+### 起源租户（tenant#1）的两条禁令
+
+- ⛔ **不得停用**（写口会拒）：它是 file catalog 层（部署方的真实库表/词典/业务口径）的唯一归属者。
+  停用它 ⇒ 若另有 active 租户则**服务仍能起来**，而 file 层对被服务租户**静默变空**
+  （查询不报错、只是什么都查不到）。真要下线整个部署请**停进程**。
+- ⛔ **`db_dir` 不得修改**（写口会拒）：改指向而**数据不跟着搬** ⇒「租户还在、数据不见了」。
+  要搬数据是一次显式迁移：停用 → 搬文件 → 校验 → 改指向。
+
+---
+
+## ⛔ 破坏性 CLI 一律要显式 `--tenant`（v0.9.15 起 · **一次真实事故立的规矩**）
+
+**规则一句话：破坏性工具不得有默认目标。**
+
+**为什么**：这些脚本原先在缺目标时会回退「唯一 active 租户」。在只有一个租户的年代那无处可错；
+**v0.9.15 起新开通的租户是 `suspended`** ⇒ 回退**恒选中起源租户（= 部署方自己）**，
+而你此刻心里想的是那个新租户 ⇒ **动作静默作用在错误的库上，输出照样报「完成」**。
+（这不是推理：v0.9.15 Stage 4 期间它真的发生过一次 —— 一个被静默吞掉的 flag
+重置了起源租户的 admin 口令，且看不出任何异常。）
+
+| 脚本 | 目标参数 | 只读模式 |
+|---|---|---|
+| `reset_admin_password` | `--tenant <slug\|id>` **必填** | 无（本就是写操作） |
+| `migrate_encrypt_v045` | `--tenant <id>` 或 `--all-tenants`，**必填其一** | `--dry-run`（仍需目标） |
+| `purge_audit_log` | `--tenant <id>` **真跑必填** | `--dry-run` **可不带目标**（0 副作用，且会打印它解析到了谁） |
+| `scan_secrets_at_rest` | `--tenant` 可选 | **只读 CLI**，回退无害 |
+
+⇒ 单租户部署一律传 **`--tenant 1`**（起源租户恒为 id=1）。
+⇒ 列出租户 id / slug：`GET /api/platform/tenants`（**不要**靠 `ls data/tenants/` 猜 ——
+`db_dir` 是服务端生成的不透明随机串，刻意不可辨识）。
 
 ## ⚠️ 多租户运维门（v0.9.3 起 · lift R-T-GATE 前）
 

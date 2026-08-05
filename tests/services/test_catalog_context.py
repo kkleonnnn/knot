@@ -9,9 +9,24 @@
 """
 import contextvars
 
+import pytest
+
 from knot.models.audit import AuditAction
 from knot.models.errors import KnotError, CatalogContextException
 from knot.services.agents import catalog as catalog_loader
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db_for_this_file(tmp_db_path):
+    """⚠️ **v0.9.15 补**：本文件**每条**测都会走到 `current_catalog()` 的回退/读取路径
+    ⇒ 触到 catalog lazy loader ⇒ 触到 `get_conn()`。
+
+    缺 `tmp_db_path` 时它用**真实** `SQLITE_DB_PATH` 解析，在 `knot/data/knot.db`
+    建出一个真实（空）库 —— 而这**一直在发生**，直到
+    `conftest::_no_test_may_touch_real_data_dir`（v0.9.15）把它抓出来。
+    ⭐ **用 file 级 autouse 而不是逐条加参数**：逐条加会漏 —— 实测我先补了第一条，
+    第二条立刻接着报；**判据的作用域要与「哪些测会触到 DB」相等，而那是整个文件**。
+    """
 
 
 # ─── current_catalog() ContextVar 优先 + 全局回退（R-PB-A1-15）─────────

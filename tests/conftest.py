@@ -281,17 +281,78 @@ def no_network(monkeypatch):
 _REAL_DATA_DIR = Path(__file__).resolve().parent.parent / "knot" / "data"
 
 
-def _real_data_fingerprint():
-    """真实数据目录的**廉价**指纹：`platform.db` 的 (size, mtime_ns) + `tenants/` 的顶层项。
+#: 指纹里**必须忽略**的瞬态文件后缀 —— SQLite 的 WAL/SHM 会随任何一次合法连接开合而生灭。
+#: ⚠️ 忽略它们**不留缺口**：真正要抓的是「**库文件本身**被创建/改动」，而库文件不带这些后缀。
+_TRANSIENT_SUFFIXES = ("-wal", "-shm")
 
-    2 次 stat + 1 次 listdir ⇒ 每个测跑一次也可忽略不计。
+
+def _real_data_fingerprint():
+    """真实数据目录的廉价指纹：**顶层条目名集合** + `tenants/` 条目名 + `platform.db` 的 (size, mtime)。
+
+    ⚠️⚠️ **初版只看 `platform.db` 与 `tenants/`，于是漏掉了锚点 `knot/data/knot.db`**
+    （v0.9.15 实测：全量跑完锚点被某个测重建出来，而本网**一声没响**）。
+    ⇒ **我声称守护「整个数据目录」，扫描面却只有 2 个条目** —— 与 rglob 扫太宽是同一个病的反面：
+      **判据的作用域必须与它声称的作用域相等。**
+    ⇒ 改为「顶层条目名集合」：新文件出现/消失即可见，且仍只 2 次 listdir + 1 次 stat。
+
+    ⚠️ 刻意**只取名字**不取每个文件的 mtime：那样每次跑要 stat ~35 个 `.bak`，
+    而「已有备份被改动」不是本网要防的东西（测不该碰数据目录**任何**东西，而新增/删除
+    是它唯一能造成的可见后果 —— 改已有 `.bak` 的内容没有任何代码路径会做）。
     """
+    def _names(d):
+        if not d.exists():
+            return None
+        return tuple(sorted(
+            p.name for p in d.iterdir()
+            if not p.name.endswith(_TRANSIENT_SUFFIXES)
+        ))
+
     plat = _REAL_DATA_DIR / "platform.db"
-    tdir = _REAL_DATA_DIR / "tenants"
     return (
+        _names(_REAL_DATA_DIR),                     # ⭐ 顶层全集（含锚点 knot.db —— 初版漏的那个）
+        _names(_REAL_DATA_DIR / "tenants"),
         (plat.stat().st_size, plat.stat().st_mtime_ns) if plat.exists() else None,
-        tuple(sorted(p.name for p in tdir.iterdir())) if tdir.exists() else None,
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _redirect_data_root_away_from_the_real_one():
+    """⭐⭐ **整个测试 session 的数据根一律指向临时目录** —— 结构性地让「忘了 `tmp_db_path`」无害。
+
+    ⚠️ **为什么在这个层级做，而不是逐条补 `tmp_db_path`**（v0.9.15 实测逼出来的）：
+    `_no_test_may_touch_real_data_dir` 装上并改成「报完即清」之后，一次
+    `pytest tests/services/` 就报出 **16 条** culprit —— 而那只是一个子目录。
+    逐条加参数是在**猜**「哪些测会触到 DB」，而实测证明我猜不准（同一文件里补了第一条、
+    第二条立刻接着报）。
+    ⇒ **判据的作用域必须与被守护的东西相等**：被守护的是「**任何**测都不许碰真实数据根」，
+      那么重定向就该作用在**整个 session**，而不是逐个测试点。
+
+    **与 `tmp_db_path` 的关系（互补，不重复）**：
+      · 本 fixture = **兜底**（session 级一次）：忘了声明的测落进 session tmp，不落真实目录；
+      · `tmp_db_path` = **per-test 隔离**（每个测一份干净库）—— 它 monkeypatch 同一个属性，
+        用完自动还原到**本 fixture 设的值**（不是真实值）⇒ 两层叠加安全。
+
+    ⚠️ **诚实边界**：`import` / collection 期的副作用**它管不到**（session fixture 在
+    首个测 setup 时才生效，而模块 import 发生在收集期）—— 实测 `knot/data/logs`
+    就是这样被建出来的。那条仍是已知盲区（`logs` 只是日志目录，非数据）。
+    """
+    import tempfile
+
+    from knot.repositories import base as _base
+    from knot.repositories import tenant_repo as _tr
+
+    d = tempfile.mkdtemp(prefix="knot_session_dataroot_")
+    anchor = os.path.join(d, "knot.db")
+    saved = [(_base, _base.SQLITE_DB_PATH), (_tr, _tr.SQLITE_DB_PATH)]
+    # ⚠️ 两个模块各自在 import 时把 SQLITE_DB_PATH 拷进了自己的命名空间 ⇒ 必须分别设
+    #    （与 `tmp_db_path` 里同一条注释同源；漏一个就等于没设）。
+    for mod, _old in saved:
+        mod.SQLITE_DB_PATH = anchor
+    try:
+        yield anchor
+    finally:
+        for mod, old in saved:
+            mod.SQLITE_DB_PATH = old
 
 
 @pytest.fixture(autouse=True)
@@ -311,10 +372,32 @@ def _no_test_may_touch_real_data_dir():
 
     ⚠️ 判据是**变更**而非「存在」：本地开发机上这些文件本来就在（且 gitignored），
     CI 上则完全不存在 —— 两种环境下「跑测前后指纹相同」都成立。
+
+    ⭐⭐ **本网会把自己检测到的新增物清掉（自愈）—— 这不是顺手，是判据成立的前提**：
+    差分判据有个致命性质 —— **损害一旦存在，后续测的「跑测前」就已包含它 ⇒ 全部静默**。
+    实测代价：我为此跑了**四次** 6 分钟的全量，每次只抓到**一条** culprit
+    （`test_ds_stats_cache_endpoint_*` → `test_catalog_context` → `test_catalog_loaders`
+    → `test_catalog_race`），因为第一条留下的锚点把后面全遮住了。
+    ⇒ 报完即清 ⇒ **一次全量报出全部**，而且顺带把测造的垃圾收拾干净。
+    ⚠️ **只清「本测新增的顶层条目」**（差集），绝不碰跑测前就存在的东西。
     """
     before = _real_data_fingerprint()
     yield
     after = _real_data_fingerprint()
+
+    # ── 自愈：把本测新增的顶层条目清掉，让下一条测在干净基线上被测量 ──────
+    if after != before:
+        import shutil
+        added = set(after[0] or ()) - set(before[0] or ())
+        for name in added:
+            victim = _REAL_DATA_DIR / name
+            if victim.is_dir():
+                shutil.rmtree(victim, ignore_errors=True)
+            else:
+                victim.unlink(missing_ok=True)
+                for sfx in _TRANSIENT_SUFFIXES:          # 连带它的 WAL/SHM（指纹里被忽略）
+                    (_REAL_DATA_DIR / (name + sfx)).unlink(missing_ok=True)
+
     assert after == before, (
         "⛔ 本测改动了**真实的** knot/data/ —— 测试绝不能碰生产数据目录。\n"
         f"    跑测前: {before}\n"

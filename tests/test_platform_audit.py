@@ -92,11 +92,18 @@ def test_seed_emits_create_audit_in_same_transaction(tmp_db_path):
 
 
 def test_update_records_before_and_after(tmp_db_path):
-    """must #2：`detail` 记 before→after，且 `tenants.updated_at` 被 stamp。"""
-    assert tenant_repo.update_tenant(1, status="suspended", actor="cli:kk", source="cli:test") is True
+    """must #2：`detail` 记 before→after，且 `tenants.updated_at` 被 stamp。
+
+    ⚠️ **v0.9.15 改用 `name` 而不再用 `status="suspended"`**：d4 起，把**起源租户**改为非 active
+    会被 `update_tenant` 拒绝（起源租户是 file catalog 层的唯一归属者，停用它会让 file 层
+    对被服务租户静默变空）。本测要验的是「before→after 被记下来」，**与用哪个字段无关**
+    ⇒ 换一个仍在白名单里的字段，测的性质不变。
+    ⇒ 「起源租户不得被停用」本身由 `test_d4_owner_tenant_cannot_be_suspended` 单独守。
+    """
+    assert tenant_repo.update_tenant(1, name="改过的名字", actor="cli:kk", source="cli:test") is True
     r = _audit_rows()[0]
     assert r["action"] == "platform.tenant_update" and r["actor"] == "cli:kk", r
-    assert '"from": "active"' in r["detail_json"] and '"to": "suspended"' in r["detail_json"], r
+    assert '"from": "默认租户"' in r["detail_json"] and '"to": "改过的名字"' in r["detail_json"], r
     assert tenant_repo.get_tenant(1)["updated_at"], "updated_at 未被 stamp"
 
 
@@ -607,4 +614,152 @@ def test_legacy_single_tenant_paths_are_all_unauthenticated(tmp_db_path):
         "⇒ v0.9.9 的「不给漂移审计加限流」这个判断**当场到期** —— 攻击者可任意写审计行。\n"
         "若你正在做 P4（scheduler tick 租户域化）：要么让那条路不经 `get_current_user`，"
         "要么同片重新评估限流。"
+    )
+
+
+# ─── v0.9.15 d4：起源租户保护 + `db_dir` 禁改 ──────────────────────────────
+
+def test_d4_owner_tenant_cannot_be_suspended(tmp_db_path):
+    """⭐ 起源租户（`OWNER_TENANT_ID`）不得被改成非 `active`。
+
+    ⚠️ **为什么这是承重的、不是洁癖**：`resolve_single_tenant()` 只要求「恰 1 个 active」，
+    **不要求那一个是起源租户** ⇒ 停用 tenant#1 + 另有 active tenant#2 时 **boot 仍成功**，
+    而 file catalog 层的 owner-gate（v0.9.6）对被服务租户**返回全空**
+    ⇒ 部署方写的真实库表/词典/业务口径整体消失，而**查询不报错、只是什么都查不到**。
+    v0.9.6 只加了启动期 WARN 兜可诊断性，根治在此（R-T-GATE 清单登记项）。
+
+    ⚠️ 判据同时断言**没有副作用**（v3.1-B #2「安全属性是什么没发生」）：
+    被拒之后 status 必须仍是 `active`，且**不得**留下审计记录（没发生的事不该有记录）。
+    """
+    n_before = len(_audit_rows(limit=200))
+    with pytest.raises(ValueError, match="起源租户"):
+        tenant_repo.update_tenant(1, status="suspended", actor="cli:kk")
+
+    assert tenant_repo.get_tenant(1)["status"] == "active", "被拒了但 status 还是被改了"
+    assert len(_audit_rows(limit=200)) == n_before, "被拒的变更留下了审计记录"
+
+
+def test_d4_non_owner_tenant_can_still_be_suspended(tmp_db_path):
+    """⭐ **反向守护**：非起源租户仍**可以**被停用 —— 否则「一律拒绝」也让上一条通过。
+
+    没有这条，把守护写成 `raise` 无条件拒绝所有 status 变更也能让前一条绿 = 把功能删掉。
+    """
+    conn = tenant_repo.get_platform_conn()
+    conn.execute(
+        "INSERT INTO tenants (id,slug,name,status,db_dir) VALUES (2,'t2','T2','active','tenants/2')"
+    )
+    conn.commit()
+    conn.close()
+
+    assert tenant_repo.update_tenant(2, status="suspended", actor="cli:kk") is True
+    assert tenant_repo.get_tenant(2)["status"] == "suspended"
+
+
+def test_d4_db_dir_is_no_longer_mutable(tmp_db_path):
+    """⭐ `db_dir` 已移出 `_MUTABLE_TENANT_FIELDS` ⇒ 走写口改它必须 `ValueError`。
+
+    ⚠️ **为什么比 `id`/`slug` 更狠**：那三个改了是「身份错」，`db_dir` 改了是**数据没了** ——
+    它是该租户全部数据的物理位置，改指向而**数据不跟着搬** ⇒
+    「租户还在、数据不见了」+ 旧目录变成无人引用的孤儿。
+    要搬数据必须是显式迁移（停用 → 搬文件 → 校验 → 改指向）。
+    """
+    assert "db_dir" not in tenant_repo._MUTABLE_TENANT_FIELDS
+    with pytest.raises(ValueError, match="不接受字段"):
+        tenant_repo.update_tenant(1, db_dir="tenants/somewhere-else")
+    assert tenant_repo.get_tenant(1)["db_dir"] == ".", "被拒了但 db_dir 还是被改了"
+
+
+# ─── v0.9.15 d6：`INSERT INTO tenants` 的**精确写口集合** ─────────────────
+
+def _functions_containing_sql(needle: str) -> set[str]:
+    """含该 SQL 字面的**外层函数名**集合（AST 定位 enclosing function）。
+
+    ⭐ **为什么判据是「函数名集合」而不是 `file:line` 计数**：
+      · 行号会漂 ⇒ 用它当基线，每次无关改动都要更新一次（本仓已吃过这个瘪）；
+      · 「**谁**是写口」才是要守的性质，而它的载体是**函数**。
+    ⚠️ SQL 是字符串字面量 ⇒ 用 AST 找**字符串常量**、再用 AST 找它的外层函数
+    （R-SENTINEL-AST：这里 AST 用得着 —— 我要的不是「哪张表」而是「哪个函数」）。
+    """
+    import ast as _ast
+
+    found: set[str] = set()
+    for path in _py_files():
+        try:
+            tree = _ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in _ast.walk(tree):
+            if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                continue
+            for sub in _ast.walk(node):
+                if isinstance(sub, _ast.Constant) and isinstance(sub.value, str) and needle in sub.value:
+                    found.add(node.name)
+                    break
+    return found
+
+
+def test_d6_insert_into_tenants_write_sites_are_exactly_two():
+    """⭐ 全仓 `INSERT INTO tenants` 只允许出现在 `{seed_default_tenant, create_tenant}`。
+
+    **为什么是「精确集合」而不是 kk 原话的「恰一处」**（守护者 §II-2 订正）：
+    实测今天恰 1 处 = `seed_default_tenant`；本片加 `create_tenant` 就是 2 处。
+    而**让 seed 委托给 `create_tenant` 不可行** —— 后者强制 `suspended`，而 tenant#1 必须 `active`。
+    ⇒ 判据改精确集合，**保住 kk 真正要的性质：第三处不得静默出现**，且与现实相符。
+    ⛔ **别为了凑「一处」去动 seed 的 status** —— 那会让首启建出一个不可服务的起源租户。
+
+    ⚠️ 与 `UPDATE tenants` 恰一处那条同源理由：choke point 之外的写**不会**同事务写审计
+    （⇒ 出现「建了租户但没记」）、也不会走 `db_dir` 生成与 `allowed_http_hosts` 必填校验。
+
+    取材=injection：在任何第三个函数里写一句含 `INSERT INTO tenants` 的 SQL → 本测红并点名它。
+    """
+    want = {"seed_default_tenant", "create_tenant"}
+    got = _functions_containing_sql("INSERT INTO tenants")
+    extra, missing = sorted(got - want), sorted(want - got)
+    assert not (extra or missing), (
+        "`INSERT INTO tenants` 的写口集合与预期不符：\n"
+        f"  · 多出（**绕过 choke point 的新写口**）：{extra or '无'}\n"
+        f"  · 缺失（预期的写口不见了）：{missing or '无'}\n"
+        f"  实际={sorted(got)}  预期={sorted(want)}\n\n"
+        "  ⇒ 新增写口必须：同事务写平台审计 · 生成不透明 `db_dir` · 强制 `suspended` ·\n"
+        "     `allowed_http_hosts` 必填。做齐之后再把函数名加进本测的 `want`（那一行就是评审留痕）。"
+    )
+
+
+def test_d6_initial_password_never_reaches_logger_or_audit_detail():
+    """⭐ 初始口令**绝不**流进 `logger.*` 或平台审计的 `detail`（AST · 生产码）。
+
+    ⚠️ **为什么要静态查而不只靠行为测**：行为测只能证明「**我造的那次**没泄漏」；
+    而泄漏的典型形态是**将来某次改动顺手把变量加进日志**（本仓 #262 族：
+    `logging.exception` 带 locals / 把整份 allowlist 插进异常消息）。
+    ⇒ 静态判据守的是「这个变量**不出现在**那些调用的实参里」。
+
+    判据：在 `tenant_provisioning.py` 里，凡 `logger.*(...)` 与 `platform_audit_repo.insert(...)`
+    的**实参子树**中，都不得出现名字 `pwd` / `initial_password` / `password`。
+    取材=injection：把 `logger.info(f"... {pwd}")` 写进去 → 本测红并点名行号。
+    """
+    import ast as _ast
+
+    src = (_KNOT / "repositories" / "tenant_provisioning.py").read_text(encoding="utf-8")
+    tree = _ast.parse(src)
+    banned = {"pwd", "initial_password", "password", "pwd_hash"}
+    offenders = []
+
+    for node in _ast.walk(tree):
+        if not isinstance(node, _ast.Call):
+            continue
+        f = node.func
+        is_log = isinstance(f, _ast.Attribute) and isinstance(f.value, _ast.Name) and f.value.id == "logger"
+        is_audit = isinstance(f, _ast.Attribute) and f.attr == "insert"
+        if not (is_log or is_audit):
+            continue
+        for sub in _ast.walk(node):
+            if isinstance(sub, _ast.Name) and sub.id in banned:
+                offenders.append(
+                    f"{'logger' if is_log else 'audit.insert'} @ line {node.lineno} 引用了 `{sub.id}`"
+                )
+
+    assert not offenders, (
+        "初始口令（或其哈希）出现在日志/审计调用的实参里：\n  " + "\n  ".join(offenders) + "\n\n"
+        "  ⇒ 口令是**一次性**凭据：只在响应体返回一次，不入库（只存 bcrypt 哈希）、不入审计、不进日志。\n"
+        "  ⚠️ 审计的 `detail` 会被 `GET /api/platform/audit` **返回** ⇒ 记进去等于经端点吐出去。"
     )

@@ -26,6 +26,19 @@ def _content(cid):
             "relations": [], "catalog_id": cid}
 
 
+@pytest.fixture(autouse=True)
+def _isolate_db_for_this_file(tmp_db_path):
+    """⚠️ **v0.9.15 补**：本文件直接 `from knot.repositories.base import get_conn`（`:19`）
+    并经 `query_helper` 走 catalog 读取 ⇒ 必然触到真实 DB 解析。
+
+    缺 `tmp_db_path` 时在 `knot/data/knot.db` 建出真实（空）库。
+    由 `conftest::_no_test_may_touch_real_data_dir` 抓出（它在同一次运行里点名了本文件**两条**
+    —— 那是该网改成「报完即清」之后才做到的：差分判据下第一条留下的锚点会把后面全遮住）。
+    ⇒ file 级覆盖，理由同 `test_catalog_context` / `test_catalog_loaders`：
+    **判据作用域取「会触到 DB 的那些」的超集**，逐条加必漏。
+    """
+
+
 # ─── R-PB-A1-21 race 100× 0 交叉污染（布尔严格）──────────────────────
 
 @pytest.mark.race

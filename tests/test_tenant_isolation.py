@@ -10,12 +10,14 @@ fixtures：tmp_db_path（tests/conftest.py）已建 platform.db + seed tenant#1(
 """
 import concurrent.futures
 import contextvars
+import io
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from knot.core import tenant_context as tc
+from knot.core.logging_setup import logger      # iso2c：loguru sink 捕获逃逸留痕（caplog 抓不到 loguru）
 from knot.repositories import base, tenant_repo
 
 # ─────────────────────── 隔离（fail-closed + 文件边界）───────────────────────
@@ -94,6 +96,56 @@ def test_iso2b_main_db_path_escaping_data_root_is_blocked(tmp_db_path, monkeypat
         assert "逃出数据根" in str(raised), f"拒绝了但消息不可操作：{raised!r}"
     finally:
         tc._active_tenant_ctx.reset(tok)
+
+
+def test_iso2c_escape_attempt_is_logged_with_who_and_what(tmp_db_path, monkeypatch):
+    """⭐ **v0.9.15 Stage 4 #3**：逃逸事件必须**留痕，且痕迹要说清「谁」和「哪个值」**。
+
+    **为什么 iso2b 不够**：那条只断言「拒绝了 + 数据根外零产物」。而请求路径上
+    `api/deps.py` 会把 `TenantContextError` 折成自己的 `HTTPException(401, "TENANT_UNAVAILABLE")`
+    ⇒ 原消息被丢弃 ⇒ 一次 **OOS-1v2 文件边界违规**与「租户停用/不存在」在运维视角**不可区分**。
+
+    ⚠️ **判据锚在「系统真的产出了什么」，不是「源码里写了 logger.error」**（R-SENTINEL-AST 自诊断）——
+    这条**必须**如此，因为初版修法**源码看着完全正确而产出是个空壳**：
+    `logger` 是 **loguru**，写 stdlib 的 `logger.error(msg, extra={...})` 时 kwargs
+    **只喂 `str.format()`**，消息无占位符 ⇒ 整个 dict **静默丢弃**，实测输出仅 `'tenant_db_path_escape\\n'`
+    ⇒ 「发生了逃逸」有了，「**是谁**」没了。结构型哨兵（断言存在 `logger.error` 调用）会**祝福**那个空壳。
+
+    ⚠️ 用 loguru sink 而**非 `caplog`**：`caplog` 只抓 stdlib logging ⇒ 对 loguru **恒空**
+    ⇒ 正向断言会假红、反向断言会恒绿（本仓已踩 3 次，见 `test_test_hygiene` 那条哨兵）。
+    这里方向是**正向**（断内容在），故一旦接错 sink 会响亮地红，不会静默通过。
+    """
+    outer = Path(tmp_db_path).parent
+    dataroot = outer / "dataroot"
+    dataroot.mkdir()
+    monkeypatch.setattr(base, "SQLITE_DB_PATH", str(dataroot / "knot.db"))
+
+    buf = io.StringIO()
+    sink_id = logger.add(buf, format="{message}", level="ERROR")
+    tok = tc._active_tenant_ctx.set(
+        {"id": 42, "slug": "t42", "name": "T42", "status": "active", "db_dir": "../evil"}
+    )
+    try:
+        try:
+            base.get_conn().close()
+        except Exception:                            # noqa: BLE001 —— 本测只关心痕迹，拒绝本身由 iso2b 守
+            pass
+        out = buf.getvalue()
+        assert "tenant_id=42" in out, (
+            f"逃逸留痕里没有**是谁** —— 运维无法知道哪个租户的 db_dir 非法。\n"
+            f"    日志原文：{out!r}\n"
+            f"    ⚠️ 最可能的原因：用了 stdlib 的 `extra={{...}}`；loguru 会静默丢弃它（见 docstring）。"
+        )
+        assert "'../evil'" in out, (
+            f"逃逸留痕里没有**哪个值**非法 —— 无法定位要改平台库的哪一行。\n    日志原文：{out!r}"
+        )
+        # 反向：⛔ env 派生的数据根**不得**进日志（#262 家族 —— v0.9.7 那条 egress 消息就是这么泄的）
+        assert str(dataroot) not in out, (
+            f"留痕泄漏了 env 派生的数据根路径（#262 家族）：{out!r}"
+        )
+    finally:
+        tc._active_tenant_ctx.reset(tok)
+        logger.remove(sink_id)
 
 
 def test_iso3_double_tenant_file_isolation(tmp_db_path):
