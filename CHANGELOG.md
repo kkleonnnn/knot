@@ -5,7 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.14 — 依赖钉版本（全树精确 pin + 阻断式 locked-runtime lane）
+## [Unreleased] - v0.9.15 — 租户开通（provisioning · lift 弧 P2）
+
+> **定性**：平台面**第一个写端点**。开通出来的租户**恒 suspended**（不可服务、对请求与登录两条
+> 解析路径都不可见）⇒ 本片可在 R-T-GATE lift 之前完整落地，**全站行为不变**。
+
+### 做了什么
+
+- **`POST /api/platform/tenants`**（与两个 GET 共用同一道 out-of-band 密钥闸）——
+  建租户行 + 建该租户的库 + seed admin，返回**仅此一次**的初始口令（`Cache-Control: no-store`）。
+- **`db_dir` 由服务端生成的不透明串**（`tenants/<16 位小写 hex>`），调用方**无输入面**。
+  ⚠️ 草案曾提案 `tenants/<slug>`，被 Stage 3 判 blocking：`slug` 由调用方传且**零格式校验**
+  ⇒「服务端派生」是空的（`slug='../evil'` 会把主库路径逃逸经 API 复现）。
+  ⭐ 纯小写 hex 还顺带关掉一个洞：macOS/Windows 文件系统**大小写不敏感**而 `UNIQUE(slug)`
+  **大小写敏感** ⇒ `AcmeCo` 与 `acmeco` 会是两个租户**共用一个目录**。
+- **`db_dir` 唯一索引**（平台库 additive 迁移第三条，也是第一条非「加列」的）+ **存量重值预检**
+  （有重值就**点名是哪些行**，而不是让 SQLite 抛裸 `IntegrityError`）。
+- **per-tenant 初始口令**：不再沿用单一全局 `KNOT_INITIAL_ADMIN_PASSWORD`
+  （那意味着「A 公司能进 B 公司」，而开通动作本身就在制造它）。
+- **起源租户不得被停用** + **`db_dir` 移出可改白名单**（写口 `update_tenant`）。
+- ⭐ **修一处既有安全缺口**：主租户库路径解析**无含容校验**，而 `get_conn` 紧接着
+  `mkdir(parents=True)` ⇒ `db_dir='../evil'` 会**在数据根之外**建目录并创建主库。
+  同形状守护它的两个兄弟都有（uploads 读侧 / C4 迁移写侧）—— **唯独主库这条没有**。
+
+### ⚠️ 治理留痕
+
+- **v0.9.5 E2「不引入 platform 写操作」正式反转**（kk 2026-08-03 追认）：E2 的理由是
+  「平台侧动作没有审计落点」，而 **v0.9.8 已给了落点** ⇒ 前提消失。
+  ⇒ `test_iso6b` 从「前缀下零写方法」收窄为**精确集合** `{POST /api/platform/tenants}` ——
+  **那是兑现它自己失败消息里写明的解锁条件**（「要加写端点，先做平台审计落点」），不是放宽它。
+- ⚠️ **commit 5 的内容是被 checkpoint 工具自动提交并推送的**（`731fbc4 ✂ 剪毛提交`），
+  未走 PR/评审。**评审单位因此是最终 diff，不是 commit 边界**。
+- ⚠️ **一次事故**：我的测因 `monkeypatch.undo()` 写进了**真实**平台库（建了一行租户 + 一个真实
+  租户目录）。已清理（WAL-safe 备份后删行删目录；审计行**刻意保留** —— append-only，
+  删它等于让审计说谎）。⭐ **它没把环境打挂，恰因为「开通出 suspended」这条裁定**。
+
+### 测试基础设施（事故驱动，超出本片原范围）
+
+- `conftest::_no_test_may_touch_real_data_dir` —— 任何测改动真实 `knot/data/` 即红，**且报完即清**
+  （差分判据的致命性质：损害一旦存在，后续测的基线已含它 ⇒ 只报第一个。为此白跑四次全量）。
+- `test_no_monkeypatch_undo_in_tests` —— 静态禁 `.undo()`（它会**连带撤掉** `tmp_db_path` 的补丁）。
+- **session 级数据根重定向** —— 忘了 `tmp_db_path` 的测落进临时目录，不落真实目录。
+- ⭐ 这套网**抓到 4 条既有 bug**、解答了 `knot/data/tenants/2` 那个「来历不明的孤儿」的来历。
+- **`.gitignore` 两族规则之间的缝**：`*.bak` 与 `**/data/*.db-shm` 都不匹配 `X.bak-shm`
+  ⇒ 24 个备份旁文件曾被 checkpoint 工具扫进 git（已摘出跟踪 + 补 `**/data/*.bak-*`）。
+
+---
+
+## [已发布] - v0.9.14 — 依赖钉版本（全树精确 pin + 阻断式 locked-runtime lane）
 
 > **定性：0 业务码。** 新增 `requirements.lock`（**51 pin**）+ 生成脚本 + 闭合判据脚本
 > + 7 条哨兵 + 一条**阻断** CI job；改 `Dockerfile` 安装两行 / `requirements.txt` 区间 /
