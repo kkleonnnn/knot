@@ -45,8 +45,26 @@ def _tenant_db_path() -> Path:
     刻意不发明第二种写法，否则两处会各自漂。
     """
     root = Path(SQLITE_DB_PATH).parent.resolve()
-    p = (root / current_tenant()["db_dir"] / "knot.db").resolve()
+    t = current_tenant()
+    p = (root / t["db_dir"] / "knot.db").resolve()
     if root != p.parent and root not in p.parents:
+        # ⭐ **必须留痕**（v0.9.15 Stage 4 #3）：fail-closed 顺序是对的（raise 在 `get_conn` 的
+        #   `mkdir` 之前 ⇒ 逃逸目录不会被创建），但**请求路径会把它折成一条普通 401** ——
+        #   `api/deps.py` 捕 `TenantContextError` → 自己的 `HTTPException(401, "TENANT_UNAVAILABLE")`
+        #   ⇒ 原消息被丢弃 ⇒ 一次 **OOS-1v2 文件边界违规**与「租户停用/不存在」**无法区分**，
+        #   且全程零日志 ⇒ **事件不留痕**。
+        #   ⇒ 在**抛处**记（这里才是「事情真的发生的那一行」）。先例：v0.9.9 漂移写平台审计 · v0.9.6/.10 启动期 WARN。
+        #
+        # ⚠️ **两条写法约束，都是踩过才知道的**：
+        # ① **必须 f-string，不能用 stdlib 的 `extra={...}`** —— `logger` 是 **loguru**，
+        #    kwargs **只喂 `str.format()`**；消息无占位符 ⇒ 整个 dict **被静默丢弃**
+        #    ⇒ 只剩裸串「发生了逃逸」而**不说是谁**。实测：本行初版正是那样，输出 `'tenant_db_path_escape\n'`。
+        #    （= 本仓「消息说的对吗」第 ④ 种失效的新形态：打印了，而什么也没说。）
+        # ② **只记 `tenant_id` + `db_dir`，⛔ 不记 `p` / `root`** —— 它们由 `SQLITE_DB_PATH`
+        #    派生 = **env 派生值**，进日志即 #262 家族（v0.9.7 那条 egress 拒绝消息就是这么泄的
+        #    内网主机清单）；`test_no_env_value_in_messages` 的 f-string 支正好覆盖这里。
+        #    诊断力不减：非法的是 `db_dir` 本身，`root` 运维自己就知道。
+        logger.error(f"tenant_db_path_escape: tenant_id={t['id']} db_dir={t['db_dir']!r} —— 解析后逃出数据根，已拒绝建库")
         raise TenantContextError(f"租户库路径逃出数据根：{p} 不在 {root} 内（db_dir 非法）")
     return p
 
