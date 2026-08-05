@@ -667,3 +667,99 @@ def test_d4_db_dir_is_no_longer_mutable(tmp_db_path):
     with pytest.raises(ValueError, match="不接受字段"):
         tenant_repo.update_tenant(1, db_dir="tenants/somewhere-else")
     assert tenant_repo.get_tenant(1)["db_dir"] == ".", "被拒了但 db_dir 还是被改了"
+
+
+# ─── v0.9.15 d6：`INSERT INTO tenants` 的**精确写口集合** ─────────────────
+
+def _functions_containing_sql(needle: str) -> set[str]:
+    """含该 SQL 字面的**外层函数名**集合（AST 定位 enclosing function）。
+
+    ⭐ **为什么判据是「函数名集合」而不是 `file:line` 计数**：
+      · 行号会漂 ⇒ 用它当基线，每次无关改动都要更新一次（本仓已吃过这个瘪）；
+      · 「**谁**是写口」才是要守的性质，而它的载体是**函数**。
+    ⚠️ SQL 是字符串字面量 ⇒ 用 AST 找**字符串常量**、再用 AST 找它的外层函数
+    （R-SENTINEL-AST：这里 AST 用得着 —— 我要的不是「哪张表」而是「哪个函数」）。
+    """
+    import ast as _ast
+
+    found: set[str] = set()
+    for path in _py_files():
+        try:
+            tree = _ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in _ast.walk(tree):
+            if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                continue
+            for sub in _ast.walk(node):
+                if isinstance(sub, _ast.Constant) and isinstance(sub.value, str) and needle in sub.value:
+                    found.add(node.name)
+                    break
+    return found
+
+
+def test_d6_insert_into_tenants_write_sites_are_exactly_two():
+    """⭐ 全仓 `INSERT INTO tenants` 只允许出现在 `{seed_default_tenant, create_tenant}`。
+
+    **为什么是「精确集合」而不是 kk 原话的「恰一处」**（守护者 §II-2 订正）：
+    实测今天恰 1 处 = `seed_default_tenant`；本片加 `create_tenant` 就是 2 处。
+    而**让 seed 委托给 `create_tenant` 不可行** —— 后者强制 `suspended`，而 tenant#1 必须 `active`。
+    ⇒ 判据改精确集合，**保住 kk 真正要的性质：第三处不得静默出现**，且与现实相符。
+    ⛔ **别为了凑「一处」去动 seed 的 status** —— 那会让首启建出一个不可服务的起源租户。
+
+    ⚠️ 与 `UPDATE tenants` 恰一处那条同源理由：choke point 之外的写**不会**同事务写审计
+    （⇒ 出现「建了租户但没记」）、也不会走 `db_dir` 生成与 `allowed_http_hosts` 必填校验。
+
+    取材=injection：在任何第三个函数里写一句含 `INSERT INTO tenants` 的 SQL → 本测红并点名它。
+    """
+    want = {"seed_default_tenant", "create_tenant"}
+    got = _functions_containing_sql("INSERT INTO tenants")
+    extra, missing = sorted(got - want), sorted(want - got)
+    assert not (extra or missing), (
+        "`INSERT INTO tenants` 的写口集合与预期不符：\n"
+        f"  · 多出（**绕过 choke point 的新写口**）：{extra or '无'}\n"
+        f"  · 缺失（预期的写口不见了）：{missing or '无'}\n"
+        f"  实际={sorted(got)}  预期={sorted(want)}\n\n"
+        "  ⇒ 新增写口必须：同事务写平台审计 · 生成不透明 `db_dir` · 强制 `suspended` ·\n"
+        "     `allowed_http_hosts` 必填。做齐之后再把函数名加进本测的 `want`（那一行就是评审留痕）。"
+    )
+
+
+def test_d6_initial_password_never_reaches_logger_or_audit_detail():
+    """⭐ 初始口令**绝不**流进 `logger.*` 或平台审计的 `detail`（AST · 生产码）。
+
+    ⚠️ **为什么要静态查而不只靠行为测**：行为测只能证明「**我造的那次**没泄漏」；
+    而泄漏的典型形态是**将来某次改动顺手把变量加进日志**（本仓 #262 族：
+    `logging.exception` 带 locals / 把整份 allowlist 插进异常消息）。
+    ⇒ 静态判据守的是「这个变量**不出现在**那些调用的实参里」。
+
+    判据：在 `tenant_provisioning.py` 里，凡 `logger.*(...)` 与 `platform_audit_repo.insert(...)`
+    的**实参子树**中，都不得出现名字 `pwd` / `initial_password` / `password`。
+    取材=injection：把 `logger.info(f"... {pwd}")` 写进去 → 本测红并点名行号。
+    """
+    import ast as _ast
+
+    src = (_KNOT / "repositories" / "tenant_provisioning.py").read_text(encoding="utf-8")
+    tree = _ast.parse(src)
+    banned = {"pwd", "initial_password", "password", "pwd_hash"}
+    offenders = []
+
+    for node in _ast.walk(tree):
+        if not isinstance(node, _ast.Call):
+            continue
+        f = node.func
+        is_log = isinstance(f, _ast.Attribute) and isinstance(f.value, _ast.Name) and f.value.id == "logger"
+        is_audit = isinstance(f, _ast.Attribute) and f.attr == "insert"
+        if not (is_log or is_audit):
+            continue
+        for sub in _ast.walk(node):
+            if isinstance(sub, _ast.Name) and sub.id in banned:
+                offenders.append(
+                    f"{'logger' if is_log else 'audit.insert'} @ line {node.lineno} 引用了 `{sub.id}`"
+                )
+
+    assert not offenders, (
+        "初始口令（或其哈希）出现在日志/审计调用的实参里：\n  " + "\n  ".join(offenders) + "\n\n"
+        "  ⇒ 口令是**一次性**凭据：只在响应体返回一次，不入库（只存 bcrypt 哈希）、不入审计、不进日志。\n"
+        "  ⚠️ 审计的 `detail` 会被 `GET /api/platform/audit` **返回** ⇒ 记进去等于经端点吐出去。"
+    )
