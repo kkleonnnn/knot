@@ -10,6 +10,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from knot.services.agents.catalog_state import carrier_names
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -37,6 +39,21 @@ def _is_stateful_catalog(node: ast.ImportFrom) -> bool:
     if node.level and node.module and node.module.split(".")[-1] == "catalog":
         return True
     return False
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db_for_this_file(tmp_db_path):
+    """⚠️ **v0.9.15 补**：本文件的 `reload` / `parse` 类测会走 catalog loader ⇒ 触到 `get_conn()`。
+
+    缺 `tmp_db_path` 时它用**真实** `SQLITE_DB_PATH` 解析，在 `knot/data/knot.db`
+    建出一个真实（空）库 —— 由 `conftest::_no_test_may_touch_real_data_dir` 抓出
+    （`test_reload_function_repopulates_module_attr_live` 是它在全量里指名的第三条）。
+
+    ⭐ **为什么用 file 级而不是只给那一条加**：本文件前四条是纯 AST/静态检查、不碰 DB，
+    但我**无法廉价证明**剩下四条 reload/parse 里哪几条真会触到 ——
+    而逐条加会漏（同文件已实测过一次：补了第一条，第二条立刻接着报）。
+    ⇒ **判据的作用域取「会触到 DB 的那些」的超集**；对静态测的代价只是多建一个临时目录。
+    """
 
 
 def test_no_value_binding_from_import_of_catalog_globals():
