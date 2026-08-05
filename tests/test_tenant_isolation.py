@@ -222,12 +222,30 @@ def test_iso6a_platform_tenants_route_is_read_only_and_platform_gated():
     )
 
 
-def test_iso6b_no_write_methods_under_platform_prefix():
-    """⑥b（v0.9.5）：`/api/platform/` 前缀下**不得有任何写方法** —— 原 ⑥ 的真实意图，且更强。
+#: `/api/platform/` 前缀下**允许**的写方法 —— **精确集合，不是「允许有写」**（v0.9.15）。
+#: ⚠️ 增删本集合 = 一次**显式、需评审**的改动。**严禁**把 iso6b 放宽成
+#: 「前缀下可以有写方法」—— 那样**第二条**写端点就能悄悄进来，而这条测的全部价值就是拦住它。
+_PLATFORM_WRITE_ALLOWLIST = frozenset({"POST /api/platform/tenants"})
 
-    原测只挡一个**路径字面**；本测挡**整个前缀的写面** ⇒ 直接守 E2 / R-v095-6
-    （本片零 platform 写操作；租户开通/停用骨架不在本片）。
-    取材=注入：`app.post("/api/platform/whatever")` → 本测红。
+
+def test_iso6b_platform_prefix_write_methods_are_exactly_the_allowlist():
+    """⑥b：`/api/platform/` 前缀下的写方法集合**精确等于** `_PLATFORM_WRITE_ALLOWLIST`。
+
+    **历史**（v0.9.5 → v0.9.15 的收窄，不是放宽）：
+    本测原为「前缀下**不得有任何**写方法」，是 **E2**（资深 2026-07-29「本片不引入 platform
+    写操作」）的实际载体。而 **E2 的理由是「平台侧动作没有审计落点」** —— 那句话就写在
+    本测原来的失败消息里，并给出了解锁条件：
+
+        「⇒ 要加写端点，**先做平台审计落点（B-3 之后）**」
+
+    ⭐ **v0.9.8 已给了落点**（`platform_audit` 表 + 与被记录动作**同事务、单次 commit** 的写口）
+    ⇒ E2 的前提消失，kk 2026-08-03 **追认反转**。
+    ⇒ 故本次改动是**兑现这条测自己写明的解锁条件**，而不是绕过它。
+    ⭐ 这也是「测的**理由**退役」被处理对的一次：理由被兑现 ⇒ 断言**按其自陈的条件收窄**并留档，
+    而不是「理由过期了而断言还绿着」（本弧见过三次处理错的）。
+
+    取材=注入：`@router.post("/api/platform/whatever")` → 本测红（集合多出一项）；
+    把开通端点删掉 → 本测也红（集合少一项）⇒ **双向**，不只防「多」。
     """
     from fastapi.routing import APIRoute
 
@@ -241,11 +259,21 @@ def test_iso6b_no_write_methods_under_platform_prefix():
         for m in (r.methods or ())
         if m in ("POST", "PUT", "PATCH", "DELETE")
     )
-    assert not writes, (
-        f"`/api/platform/` 下出现写方法：{writes}\n"
-        "E2（资深 2026-07-29 拍板）：本片**不引入 platform 写操作** —— 因为平台侧动作"
-        "**没有审计落点**（`audit_service.log` → `get_conn` = 租户库；平台动作无租户库可写），"
-        "而「建/停租户」正是最需要审计的动作。⇒ 要加写端点，先做平台审计落点（B-3 之后）。"
+    got = frozenset(writes)
+    extra = sorted(got - _PLATFORM_WRITE_ALLOWLIST)
+    missing = sorted(_PLATFORM_WRITE_ALLOWLIST - got)
+    assert not (extra or missing), (
+        f"`/api/platform/` 前缀下的写方法集合与 allowlist 不符：\n"
+        f"  · 多出（**未经评审就加进来的写端点**）：{extra or '无'}\n"
+        f"  · 缺失（**allowlist 里声明了却不存在**）：{missing or '无'}\n"
+        f"  实际={sorted(got)}  allowlist={sorted(_PLATFORM_WRITE_ALLOWLIST)}\n\n"
+        "  ⚠️ 若你在加**第二条**平台写端点：先想清楚它的审计落点与幂等语义，\n"
+        "     然后把它显式加进 `_PLATFORM_WRITE_ALLOWLIST`（那一行就是评审留痕）。\n"
+        "  ⛔ **不要**把本测放宽成「前缀下允许有写方法」—— 那样第三条、第四条就能悄悄进来，\n"
+        "     而本测的全部价值就是拦住它们。\n"
+        "  （历史：v0.9.5–v0.9.14 期间本测断的是「零写方法」= E2 的载体；\n"
+        "    E2 的理由「平台侧无审计落点」已由 v0.9.8 的 `platform_audit` 兑现，\n"
+        "    kk 2026-08-03 追认反转 ⇒ 收窄为精确集合。）"
     )
 
 
@@ -389,16 +417,19 @@ def test_platform_migration_is_idempotent(tmp_db_path):
 
 
 def test_iso8_flatten_route_snapshot():
-    """⑧ flatten 路由精确计数（精确 == 146 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
+    """⑧ flatten 路由精确计数（精确 == 147 非 >=80 软下限 — Stage3 #9：增/删路由即红）。
 
     v0.9.5：144 → **145**（新增平台只读端点 `GET /api/platform/tenants`）。
     v0.9.8：145 → **146**（新增平台只读端点 `GET /api/platform/audit` —— 审计的价值在事后可读，
     一张只能靠 `sqlite3` 手查的表在事故现场没人会想起它；v0.9.5 E4「零消费者 = 死码」同款理由）。
+    v0.9.15：146 → **147**（新增 `POST /api/platform/tenants` = 租户开通，**平台面第一个写端点**；
+    E2「不引入 platform 写操作」的前提「平台侧无审计落点」已由 v0.9.8 兑现 ⇒ kk 追认反转。
+    该端点的写面由 `test_iso6b_...are_exactly_the_allowlist` **精确集合**守，不是「允许有写」）。
     """
     from knot.main import app
     from tests._route_count import flatten_app_routes
-    assert len(flatten_app_routes(app)) == 146, (
-        "路由数漂移（v0.9.8 起 146 = 145 + `GET /api/platform/audit`；middleware 非 route）")
+    assert len(flatten_app_routes(app)) == 147, (
+        "路由数漂移（v0.9.15 起 147 = 146 + `POST /api/platform/tenants`；middleware 非 route）")
 
 
 # ─────────────────────── 绊线（tripwire · 列缺席 · OOS-1v2）───────────────────────

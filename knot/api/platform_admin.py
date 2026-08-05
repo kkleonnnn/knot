@@ -214,3 +214,87 @@ async def list_platform_audit(
             conn, limit=min(max(1, limit), _MAX_AUDIT_LIMIT), before_id=before_id)
     finally:
         conn.close()
+
+
+# ─── v0.9.15 d1：租户开通（**平台面第一个写端点** —— E2 已由 kk 2026-08-03 追认反转）────
+
+class TenantCreateRequest(BaseModel):
+    """开通请求体。
+
+    ⚠️ **刻意没有 `status` 字段** —— 服务端恒写 `suspended`（`tenant_provisioning`）。
+    若它可传，一个调用就能造出第二个 active 租户 ⇒ `assert_no_second_active_tenant_served()`
+    让**全站每个请求** fail-closed。「激活」是 lift 门之后的独立动作。
+    ⚠️ **刻意没有 `db_dir` 字段** —— 由服务端生成不透明串。调用方若能影响它，
+    `db_dir='../x'` 就把主库路径逃逸变成 API 可达（Stage 3 §I-1 blocking 的全部理由）。
+    ⚠️ `allowed_http_hosts` **必填且允许空串**：v0.9.7 三态里 `''`（部署方明确的「禁」）
+    与 `NULL`（未配置 ⇒ 起源租户回退 env）**语义不同** ⇒ 不能用「留空 = 默认」，
+    否则开通动作就替部署方**静默选了一种语义**。Pydantic 无默认值 = 必填，而 `""` 是合法值。
+    """
+
+    slug: str
+    name: str
+    allowed_http_hosts: str
+
+
+class TenantCreated(BaseModel):
+    """开通响应 —— **独立模型，绝不复用 `TenantPublic`**。
+
+    ⚠️ 理由：本模型带 `initial_password`，而 `TenantPublic` 是 **`GET /api/platform/tenants`**
+    的响应契约。混用会让口令**出现在列表端点**里 —— 那是「一次性凭据变成可反复读取」。
+    ⇒ 两个模型物理分开；嵌套的租户信息仍走 `TenantPublic`（它**不含** `allowed_http_hosts`，
+    那是部署方内网主机清单）。
+    """
+
+    tenant: TenantPublic
+    initial_password: str
+    resumed: bool
+
+
+@router.post("/api/platform/tenants", response_model=TenantCreated, status_code=201)
+async def create_tenant_platform(
+    body: TenantCreateRequest,
+    response: Response,
+    actor: str = Depends(require_platform_secret),
+) -> dict:
+    """开通一个租户（**恒 `suspended`**）；初始 admin 口令**仅此一次**在响应里返回。
+
+    ⭐ **本端点使 `/api/platform/` 前缀下第一次出现写方法** ——
+    `tests/test_tenant_isolation.py::test_iso6b_no_write_methods_under_platform_prefix`
+    因此从「前缀下零写方法」收窄为「**精确等于本端点这一条**」。
+    ⚠️ **那不是放宽它，而是兑现它自己写明的解锁条件** —— 该测的失败消息原文：
+      「E2：本片**不引入 platform 写操作** —— 因为平台侧动作**没有审计落点**…
+        ⇒ 要加写端点，**先做平台审计落点（B-3 之后）**」
+    v0.9.8 已给了落点（`platform_audit` + 同事务单次 commit 写口）⇒ 前提消失。
+    ⚠️ 收窄必须是**精确集合**，**不得**改成「允许前缀下有写方法」——
+    后者会让**第二条**写端点悄悄进来，而那条测的全部价值就是拦住它。
+
+    ⚠️ **`no-store` 是承重的，不是礼节**：响应体含一次性明文口令 ⇒ 不得被中间层缓存/落盘。
+    ⚠️ **口令丢了不能「再查一次」** —— 不入库（只存 bcrypt 哈希）、不入审计、不进日志；
+    恢复路径是显式重置：`python -m knot.scripts.reset_admin_password --tenant <slug>`。
+
+    Returns:
+        201 + `{tenant, initial_password, resumed}`；`resumed=True` = 行早已存在、本次只补建库
+        （见 `tenant_provisioning.create_tenant` 四分支）。
+
+    Raises:
+        409: slug 正在服务中 / 行与库都已存在（消息里给出可走的下一步）。
+    """
+    from knot.repositories import tenant_provisioning
+
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        out = tenant_provisioning.create_tenant(
+            slug=body.slug,
+            name=body.name,
+            allowed_http_hosts=body.allowed_http_hosts,
+            actor=actor,            # = "platform"（E1：无「谁做的」身份，DEPLOY 已写明该代价）
+            source="api",
+        )
+    except tenant_provisioning.TenantProvisioningError as e:
+        # ⚠️ 消息**原样**交给运维：它带的是可操作的下一步（改哪个字段 / 跑哪条命令），
+        #    而这几条分支都不含任何凭据或内网信息。
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    logger.info(
+        f"平台开通租户 slug={out['tenant']['slug']} id={out['tenant']['id']} resumed={out['resumed']}"
+    )   # ⛔ 绝不记 initial_password
+    return out

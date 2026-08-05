@@ -111,6 +111,7 @@
  "POST /api/knowledge/upload": "TENANT_ADMIN",
  "POST /api/messages/{message_id}/feedback": "AUTHENTICATED",
  "POST /api/messages/{message_id}/pin": "AUTHENTICATED",
+ "POST /api/platform/tenants": "PLATFORM_SECRET",
  "POST /api/prompts/upload": "TENANT_ADMIN",
  "POST /api/saved-reports/{report_id}/run": "AUTHENTICATED",
  "POST /api/totp/enroll-complete": "AUTHENTICATED",

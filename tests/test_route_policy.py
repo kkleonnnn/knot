@@ -181,8 +181,13 @@ def test_D1_policy_class_counts_are_pinned():
     actual = build_actual_policy_map()
     import collections
     got = collections.Counter(actual.values())
+    # v0.9.8: PLATFORM_SECRET 1→2（+`GET /api/platform/audit`）
+    # v0.9.15: 2→3（+`POST /api/platform/tenants` = 租户开通，平台面第一个**写**端点）
+    #   ⭐ 该次改动的**理想形状**（实测如此）：只有 PLATFORM_SECRET +1，
+    #     其余四类**一个都没动**（TENANT_ADMIN 仍 90）⇒ **没有任何既有路由失去守护**。
+    #     若将来某次改动里 TENANT_ADMIN 减少而别的类增加，那才是要停下来查的信号。
     want = {TENANT_ADMIN: 90, REPORT_PERMISSION: 10, AUTHENTICATED: 34,
-            PLATFORM_SECRET: 2, PUBLIC_OR_OUT_OF_BAND: 4}   # v0.9.8: 1→2（+GET /api/platform/audit）
+            PLATFORM_SECRET: 3, PUBLIC_OR_OUT_OF_BAND: 4}
     assert dict(got) == want, (
         f"策略类分布漂移：\n  实际 {dict(sorted(got.items()))}\n  期望 {dict(sorted(want.items()))}\n"
         f"若有意：跑 `{_REGEN}` 并同步本测的 want。"

@@ -401,3 +401,102 @@ def test_audit_endpoint_pagination_is_bounded_and_cursor_works(client, monkeypat
     cursor = all_rows[1]["id"]
     page = client.get(f"{_AUDIT_URL}?before_id={cursor}", headers=_hdr(_GOOD)).json()
     assert page and all(r["id"] < cursor for r in page), f"游标失效：{[r['id'] for r in page]}"
+
+
+# ─── v0.9.15 d1：`POST /api/platform/tenants`（平台面第一个写端点）────────────
+
+_BODY = {"slug": "acme", "name": "Acme Inc", "allowed_http_hosts": "api.acme.example"}
+
+
+def test_create_shares_the_same_secret_gate(client, monkeypatch):
+    """写端点与两个 GET **共用同一道密钥闸**：未配 503 / 错密钥 401 / 对 201。
+
+    ⚠️ 为什么单独测而不是「反正挂了同一个 Depends」：`require_platform_secret` 是
+    **依赖工厂之外**的普通依赖，漏挂它**不会有任何编译期信号**；而路由策略快照虽会红，
+    那是**依赖层**的快照（chore 硬注记：**快照绿 ≠ 授权完好**）。⇒ 端点层再钉一次。
+    """
+    monkeypatch.delenv(_ENV, raising=False)
+    assert client.post(_URL, json=_BODY, headers=_hdr("whatever")).status_code == 503
+
+    monkeypatch.setenv(_ENV, _GOOD)
+    assert client.post(_URL, json=_BODY, headers=_hdr("kpa_" + "z" * 40)).status_code == 401
+    r = client.post(_URL, json=_BODY, headers=_hdr(_GOOD))
+    assert r.status_code == 201, r.text
+
+
+def test_create_forces_suspended_and_ignores_caller_supplied_status_and_db_dir(client, monkeypatch):
+    """⭐ 调用方**无法**指定 `status` / `db_dir` —— 传了也不生效（Pydantic 不认这两个字段）。
+
+    ⚠️ 这两条各自堵一个具体后果：
+      · `status='active'` ⇒ 一个调用就造出第二 active 租户 ⇒ **全站**每请求 fail-closed；
+      · `db_dir='../evil'` ⇒ 主库路径逃逸变成 **API 可达**（Stage 3 §I-1 blocking 的全部理由）。
+    """
+    monkeypatch.setenv(_ENV, _GOOD)
+    r = client.post(
+        _URL,
+        json={**_BODY, "status": "active", "db_dir": "../evil"},
+        headers=_hdr(_GOOD),
+    )
+    assert r.status_code == 201, r.text
+    t = r.json()["tenant"]
+    assert t["status"] == "suspended", "调用方传的 status 生效了 —— 会造出第二 active 租户"
+    assert t["db_dir"].startswith("tenants/") and "evil" not in t["db_dir"], (
+        f"调用方影响了 db_dir：{t['db_dir']!r} —— 路径逃逸变成 API 可达"
+    )
+
+
+def test_create_response_is_no_store_and_carries_the_one_time_password(client, monkeypatch):
+    """响应含一次性明文口令 ⇒ **必须** `Cache-Control: no-store`（承重，不是礼节）。"""
+    monkeypatch.setenv(_ENV, _GOOD)
+    r = client.post(_URL, json=_BODY, headers=_hdr(_GOOD))
+    assert r.status_code == 201, r.text
+    assert r.headers.get("Cache-Control") == "no-store", (
+        "响应体带明文口令却未禁缓存 —— 中间层可能落盘"
+    )
+    assert r.json()["initial_password"], "没返回初始口令 ⇒ 运维拿不到、只能去重置"
+
+
+def test_initial_password_never_appears_in_the_list_endpoint(client, monkeypatch):
+    """⭐ 口令**绝不**出现在 `GET /api/platform/tenants` —— 一次性凭据不得变成可反复读取。
+
+    这条钉住「响应模型物理分开」那个决定：`TenantCreated` 带口令，`TenantPublic` 不带；
+    若有人图省事把口令加进 `TenantPublic`，本测红。
+    """
+    monkeypatch.setenv(_ENV, _GOOD)
+    pwd = client.post(_URL, json=_BODY, headers=_hdr(_GOOD)).json()["initial_password"]
+    r = client.get(_URL, headers=_hdr(_GOOD))
+    assert r.status_code == 200, r.text
+    assert pwd not in r.text, "初始口令出现在列表端点里 —— 一次性凭据变成可反复读取"
+    assert "initial_password" not in r.text
+    assert "allowed_http_hosts" not in r.text, (
+        "allowed_http_hosts 出现在列表响应里 —— 那是部署方内网主机清单"
+    )
+
+
+def test_create_conflicts_return_409_with_actionable_message(client, monkeypatch):
+    """两条拒绝分支 → **409**，且消息给出可走的下一步（不是裸 500）。"""
+    monkeypatch.setenv(_ENV, _GOOD)
+    assert client.post(_URL, json=_BODY, headers=_hdr(_GOOD)).status_code == 201
+
+    r = client.post(_URL, json=_BODY, headers=_hdr(_GOOD))       # 行 + 库都在 ⇒ 不续做
+    assert r.status_code == 409, r.text
+    assert "reset_admin_password" in r.json()["detail"], "409 没给出恢复出口"
+
+    r2 = client.post(_URL, json={**_BODY, "slug": "default"}, headers=_hdr(_GOOD))
+    assert r2.status_code == 409 and "正在服务中" in r2.json()["detail"]
+
+
+def test_create_requires_allowed_http_hosts_but_accepts_empty_string(client, monkeypatch):
+    """`allowed_http_hosts` **必填**（漏传 422）但 `''` 合法（= 部署方明确的「禁」）。
+
+    ⚠️ v0.9.7 三态：`''` ≠ `NULL`（未配置 ⇒ 起源租户回退 env）
+    ⇒ 不能用「留空 = 默认」，否则开通动作替部署方**静默选了一种语义**。
+    """
+    monkeypatch.setenv(_ENV, _GOOD)
+    r = client.post(_URL, json={"slug": "x1", "name": "X"}, headers=_hdr(_GOOD))
+    assert r.status_code == 422, f"漏传 allowed_http_hosts 竟被接受：{r.text}"
+
+    r2 = client.post(
+        _URL, json={"slug": "x2", "name": "X", "allowed_http_hosts": ""}, headers=_hdr(_GOOD)
+    )
+    assert r2.status_code == 201, r2.text
