@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 
 from knot.config import SQLITE_DB_PATH
-from knot.core.tenant_context import TenantContextError
+from knot.core.tenant_context import OWNER_TENANT_ID, TenantContextError
 from knot.repositories import platform_audit_repo  # 同层（Contract 4 禁 repositories → services）
 from knot.repositories import platform_migrations as _pm  # v0.9.15：平台库 schema/迁移已拆出（size gate）
 
@@ -109,7 +109,12 @@ def get_tenant_by_slug(slug: str) -> dict | None:
 #: `update_tenant` 允许改的字段白名单（v0.9.8）。
 #: ⚠️ **刻意不含** `id` / `slug` / `created_at`：前两个是身份（改它等于换租户，而 `slug` 还是登录链接的一部分），
 #: `created_at` 是事实。要改身份类字段应当是一次显式评审的迁移，不是走这个通用写口。
-_MUTABLE_TENANT_FIELDS = ("status", "db_dir", "allowed_http_hosts", "name")
+#: ⚠️ **v0.9.15 d4：`db_dir` 已从本白名单移出** —— `db_dir` 建成后**永不重写**。
+#: **为什么**：它是那个租户全部数据的**物理位置**。改它 = 让该租户指向另一个（或不存在的）库，
+#: 而**数据不会跟着搬** ⇒ 「租户还在、数据不见了」，且旧目录变成无人引用的孤儿。
+#: 真要搬数据必须是一次**显式的迁移**（停用 → 搬文件 → 校验 → 改指向），不是走通用写口改一个字段。
+#: ⇒ 与 `id`/`slug`/`created_at` 同一条理由，只是它更狠：那三个改了是「身份错”，这个改了是「数据没了」。
+_MUTABLE_TENANT_FIELDS = ("status", "allowed_http_hosts", "name")
 
 
 def seed_default_tenant(db_dir: str = DEFAULT_TENANT_DB_DIR) -> None:
@@ -156,10 +161,35 @@ def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | Non
     if bad:
         raise ValueError(
             f"update_tenant 不接受字段 {sorted(bad)}；可改字段 = {list(_MUTABLE_TENANT_FIELDS)}。"
-            "（`id` / `slug` / `created_at` 刻意不可改 —— 那是身份与事实，改它应走显式评审的迁移。）"
+            "（`id` / `slug` / `created_at` / `db_dir` 刻意不可改 —— 前三个是身份与事实；"
+            "`db_dir` 是数据的**物理位置**，改它数据不会跟着搬 ⇒ 「租户还在、数据不见了」。"
+            "要搬数据请走显式迁移：停用 → 搬文件 → 校验 → 改指向。）"
         )
     if not fields:
         return False
+
+    # ── v0.9.15 d4：起源租户不得被停用 ────────────────────────────────────
+    # ⚠️ **为什么单独挡它**：`resolve_single_tenant()` 只要求「恰 1 个 active」，
+    #   **不要求那一个是起源租户**（`OWNER_TENANT_ID`）⇒ 停用 tenant#1 + 有个 active tenant#2 时
+    #   **boot 会成功**，而 file catalog 层（`catalog_loaders.load_file_layer` 的 owner-gate）
+    #   对被服务的那个租户**静默返回全空** —— 部署方写的真实库表/词典/业务口径整体消失，
+    #   而查询不报错、只是「什么都查不到」。v0.9.6 只加了启动期 WARN 兜可诊断性，根治在此。
+    # ⚠️ **为什么不能用共用谓词 `is_owner_tenant()`**（我第一版就是这么写的，错的）：
+    #   它**不接参数** —— 它答的是「**我当前服务的**是不是起源租户」（读 ctx、无 ctx 时 fail-closed），
+    #   而这里要问的是「**这个 id** 是不是起源租户」。**两个不同的问题。**
+    #   且 `update_tenant` **必须能在无 ctx 下工作**（v0.9.8 立的，有专测
+    #   `test_platform_audit.py::…无 ctx 也能改`）⇒ 用那个谓词会直接把无 ctx 路径打死。
+    #   ⇒ 用**常量** `OWNER_TENANT_ID`（那才是共享真相源），并沿用本仓的严格 int 纪律
+    #   （`type(x) is int` —— `True == 1` 且 `1.0 == 1`，宽松比较会把 `True`/`1.0` 当成 owner）。
+    _is_owner_id = type(tenant_id) is int and tenant_id == OWNER_TENANT_ID
+    if fields.get("status") is not None and fields["status"] != "active" and _is_owner_id:
+        raise ValueError(
+            f"拒绝把**起源租户**（id={tenant_id}）改为 {fields['status']!r} —— "
+            "起源租户是 file catalog 层（部署方的真实库表/词典/业务口径）的唯一归属者。\n"
+            "  停用它 ⇒ 若另有 active 租户则 boot 仍成功，而 file 层对被服务租户**静默变空** "
+            "（查询不报错、只是什么都查不到）。\n"
+            "  ⇒ 真要下线整个部署，请停服务进程，而不是把起源租户标成 suspended。"
+        )
 
     conn = get_platform_conn()
     try:

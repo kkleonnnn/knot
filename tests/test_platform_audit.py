@@ -92,11 +92,18 @@ def test_seed_emits_create_audit_in_same_transaction(tmp_db_path):
 
 
 def test_update_records_before_and_after(tmp_db_path):
-    """must #2：`detail` 记 before→after，且 `tenants.updated_at` 被 stamp。"""
-    assert tenant_repo.update_tenant(1, status="suspended", actor="cli:kk", source="cli:test") is True
+    """must #2：`detail` 记 before→after，且 `tenants.updated_at` 被 stamp。
+
+    ⚠️ **v0.9.15 改用 `name` 而不再用 `status="suspended"`**：d4 起，把**起源租户**改为非 active
+    会被 `update_tenant` 拒绝（起源租户是 file catalog 层的唯一归属者，停用它会让 file 层
+    对被服务租户静默变空）。本测要验的是「before→after 被记下来」，**与用哪个字段无关**
+    ⇒ 换一个仍在白名单里的字段，测的性质不变。
+    ⇒ 「起源租户不得被停用」本身由 `test_d4_owner_tenant_cannot_be_suspended` 单独守。
+    """
+    assert tenant_repo.update_tenant(1, name="改过的名字", actor="cli:kk", source="cli:test") is True
     r = _audit_rows()[0]
     assert r["action"] == "platform.tenant_update" and r["actor"] == "cli:kk", r
-    assert '"from": "active"' in r["detail_json"] and '"to": "suspended"' in r["detail_json"], r
+    assert '"from": "默认租户"' in r["detail_json"] and '"to": "改过的名字"' in r["detail_json"], r
     assert tenant_repo.get_tenant(1)["updated_at"], "updated_at 未被 stamp"
 
 
@@ -608,3 +615,55 @@ def test_legacy_single_tenant_paths_are_all_unauthenticated(tmp_db_path):
         "若你正在做 P4（scheduler tick 租户域化）：要么让那条路不经 `get_current_user`，"
         "要么同片重新评估限流。"
     )
+
+
+# ─── v0.9.15 d4：起源租户保护 + `db_dir` 禁改 ──────────────────────────────
+
+def test_d4_owner_tenant_cannot_be_suspended(tmp_db_path):
+    """⭐ 起源租户（`OWNER_TENANT_ID`）不得被改成非 `active`。
+
+    ⚠️ **为什么这是承重的、不是洁癖**：`resolve_single_tenant()` 只要求「恰 1 个 active」，
+    **不要求那一个是起源租户** ⇒ 停用 tenant#1 + 另有 active tenant#2 时 **boot 仍成功**，
+    而 file catalog 层的 owner-gate（v0.9.6）对被服务租户**返回全空**
+    ⇒ 部署方写的真实库表/词典/业务口径整体消失，而**查询不报错、只是什么都查不到**。
+    v0.9.6 只加了启动期 WARN 兜可诊断性，根治在此（R-T-GATE 清单登记项）。
+
+    ⚠️ 判据同时断言**没有副作用**（v3.1-B #2「安全属性是什么没发生」）：
+    被拒之后 status 必须仍是 `active`，且**不得**留下审计记录（没发生的事不该有记录）。
+    """
+    n_before = len(_audit_rows(limit=200))
+    with pytest.raises(ValueError, match="起源租户"):
+        tenant_repo.update_tenant(1, status="suspended", actor="cli:kk")
+
+    assert tenant_repo.get_tenant(1)["status"] == "active", "被拒了但 status 还是被改了"
+    assert len(_audit_rows(limit=200)) == n_before, "被拒的变更留下了审计记录"
+
+
+def test_d4_non_owner_tenant_can_still_be_suspended(tmp_db_path):
+    """⭐ **反向守护**：非起源租户仍**可以**被停用 —— 否则「一律拒绝」也让上一条通过。
+
+    没有这条，把守护写成 `raise` 无条件拒绝所有 status 变更也能让前一条绿 = 把功能删掉。
+    """
+    conn = tenant_repo.get_platform_conn()
+    conn.execute(
+        "INSERT INTO tenants (id,slug,name,status,db_dir) VALUES (2,'t2','T2','active','tenants/2')"
+    )
+    conn.commit()
+    conn.close()
+
+    assert tenant_repo.update_tenant(2, status="suspended", actor="cli:kk") is True
+    assert tenant_repo.get_tenant(2)["status"] == "suspended"
+
+
+def test_d4_db_dir_is_no_longer_mutable(tmp_db_path):
+    """⭐ `db_dir` 已移出 `_MUTABLE_TENANT_FIELDS` ⇒ 走写口改它必须 `ValueError`。
+
+    ⚠️ **为什么比 `id`/`slug` 更狠**：那三个改了是「身份错」，`db_dir` 改了是**数据没了** ——
+    它是该租户全部数据的物理位置，改指向而**数据不跟着搬** ⇒
+    「租户还在、数据不见了」+ 旧目录变成无人引用的孤儿。
+    要搬数据必须是显式迁移（停用 → 搬文件 → 校验 → 改指向）。
+    """
+    assert "db_dir" not in tenant_repo._MUTABLE_TENANT_FIELDS
+    with pytest.raises(ValueError, match="不接受字段"):
+        tenant_repo.update_tenant(1, db_dir="tenants/somewhere-else")
+    assert tenant_repo.get_tenant(1)["db_dir"] == ".", "被拒了但 db_dir 还是被改了"
