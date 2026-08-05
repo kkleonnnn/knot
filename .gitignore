@@ -19,6 +19,10 @@ env/
 **/data/tenants/
 # v0.9.0 C4：存量迁移的跨进程 flock 锁文件（tenancy_migration.py:359 在数据根建 .c4-migration.lock）——
 # 迁完留存无害但属 runtime 产物；缺此则永久挂在 git status 未跟踪区，易被顺手 commit 进仓。
+# v0.9.15：`.bak` 的 WAL/SHM 旁文件 —— **两族规则之间的缝**（实测被 checkpoint 工具扫进 git 24 个）。
+#   `**/data/*.db-shm` 不匹配 `X.bak-shm`（结尾不是 `.db-shm`）；`*.bak` 也不匹配（结尾不是 `.bak`）。
+#   ⇒ 用 `*.bak-*` 一并盖住 `-shm` / `-wal` 以及将来任何 `.bak` 旁文件形态。
+**/data/*.bak-*
 **/data/*.lock
 **/data/logs/
 
