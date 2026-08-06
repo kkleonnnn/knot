@@ -12,7 +12,7 @@ import contextvars
 import pytest
 
 from knot.models.audit import AuditAction
-from knot.models.errors import KnotError, CatalogContextException
+from knot.models.errors import CatalogContextException, KnotError
 from knot.services.agents import catalog as catalog_loader
 
 
@@ -60,7 +60,7 @@ def test_set_active_catalog_ctx_overrides_globals():
 def test_contextvar_request_scope_isolated_across_contexts():
     """ContextVar 请求作用域：copy_context 内 set 不泄漏到外层（async 上下文隔离基础）。"""
     def _inner():
-        token = catalog_loader.set_active_catalog_ctx(
+        catalog_loader.set_active_catalog_ctx(
             {"lexicon": {}, "tables": [], "business_rules": "", "relations": [], "catalog_id": 99}
         )
         assert catalog_loader.current_catalog()["catalog_id"] == 99

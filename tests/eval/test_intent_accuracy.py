@@ -12,13 +12,12 @@ import os
 
 import pytest
 
-from tests.eval.conftest import load_cases
-
 from knot.services.agents.orchestrator import (
     INTENT_TO_HINT,
     VALID_INTENTS,
     run_clarifier,
 )
+from tests.eval.conftest import load_cases
 
 CASES = load_cases()
 

@@ -56,6 +56,7 @@ def _run(args: list[str], env_extra: dict | None = None):
     return subprocess.run(
         [sys.executable, "-m", _MOD, *args],
         capture_output=True, text=True, timeout=120, env=env,
+        check=False,
     )
 
 

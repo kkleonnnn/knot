@@ -118,6 +118,7 @@ def _lark_router(counter):
 
 def test_lark_three_step_double_encoded_content(monkeypatch):
     import json as _json
+
     import requests
     counter = {"token": 0}
     monkeypatch.setattr(requests, "post", _lark_router(counter))

@@ -17,7 +17,7 @@ def test_upsert_creates_new_row(tmp_db_path):
 def test_upsert_replaces_on_unique_conflict(tmp_db_path):
     """R-18 幂等：UNIQUE (scope_type, scope_value, budget_type) 冲突时
     INSERT OR REPLACE 应覆盖 threshold/action 而非抛 IntegrityError。"""
-    rid1 = budget_repo.upsert("user", "1", "monthly_cost_usd", 5.0, action="warn")
+    budget_repo.upsert("user", "1", "monthly_cost_usd", 5.0, action="warn")
     rid2 = budget_repo.upsert("user", "1", "monthly_cost_usd", 10.0, action="warn")
     # INSERT OR REPLACE 删旧再插新，rid 可能变化
     assert rid2 > 0

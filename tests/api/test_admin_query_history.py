@@ -34,7 +34,7 @@ def test_query_history_shape(client, admin_token):
 
 
 def test_query_history_period_parsing(client, admin_token):
-    for period, expected in [("7d", 7), ("30d", 30), ("90d", 90), ("14", 14)]:
+    for period, _ in [("7d", 7), ("30d", 30), ("90d", 90), ("14", 14)]:
         r = client.get(f"/api/admin/query-history?period={period}", headers=_auth(admin_token))
         assert r.status_code == 200
         # period 字段不直接返回，但 size/page 总是返回；只需确保不崩

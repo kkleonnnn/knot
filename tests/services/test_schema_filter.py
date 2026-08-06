@@ -34,9 +34,11 @@ def test_filter_below_max_returns_unchanged():
 
 
 def test_filter_metadata_query_lists_names():
-    text = "### t1\n- f\n\n### t2\n- f\n"
-    out = schema_filter.filter_schema_for_question("有哪些表", text, max_tables=1) if False else schema_filter.filter_schema_for_question(text, "数据库里有哪些表", max_tables=1)
-    # below threshold short-circuits before metadata logic; force a third table
+    # ⚠️ 本测原有两行**死代码**（v0.9.15 后 chore 清 lint 时发现并删除）：
+    #   `out = f("有哪些表", text, …) if False else f(text, "…", …)` ——
+    #   `if False` 让第一个调用（**参数还是反的**）永不执行，而 `out` **从未被断言**。
+    #   删掉零覆盖损失（真断言在下面的 out2），但留着会让本测**看起来**覆盖了小文本那一路。
+    # 小文本在阈值以下会在 metadata 逻辑之前短路 ⇒ 必须造够多的表才测得到「列所有表名」。
     big = "\n\n".join(f"### t{i}\n- f" for i in range(20))
     out2 = schema_filter.filter_schema_for_question(big, "有哪些表", max_tables=5)
     assert "### 所有表名" in out2

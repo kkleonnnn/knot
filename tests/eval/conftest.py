@@ -10,8 +10,8 @@ v0.3.0：knot 已 pip install -e；不再需要 sys.path hack。
 """
 from pathlib import Path
 
-import yaml
 import pytest
+import yaml
 
 HERE = Path(__file__).parent
 

@@ -94,7 +94,7 @@ def _require_docker() -> None:
     一律硬红会让「跑一次全量」在与本片无关的原因上失败 ⇒ 人会开始习惯性忽略红色，
     那比跳过更危险。跳过时 pytest 会**显式列出原因**，不是静默。
     """
-    proc = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=60)
+    proc = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=60, check=False)
     if proc.returncode == 0:
         return
     msg = (
@@ -123,6 +123,7 @@ def _context_entries(ctx_dir: pathlib.Path, tmp_out: pathlib.Path) -> set[str]:
         ["docker", "buildx", "build", "-f", str(df),
          "--output", f"type=tar,dest={tar_path}", str(ctx_dir)],
         capture_output=True, text=True, timeout=600,
+        check=False,
     )
     # ⚠️ **不用 `check=True`**（v0.9.15 修）：那样只抛裸 `CalledProcessError`，
     #    **把 docker 自己的 stderr 全吞掉** ⇒ 排查者看不到真因。

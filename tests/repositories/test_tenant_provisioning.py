@@ -17,7 +17,8 @@ import bcrypt
 import pytest
 
 from knot.core import tenant_context as tc
-from knot.repositories import base, tenant_provisioning as tp, tenant_repo
+from knot.repositories import base, tenant_repo
+from knot.repositories import tenant_provisioning as tp
 
 _HOSTS = "api.example.com"
 

@@ -7,12 +7,12 @@
 - 非 KnotError 异常走 to_response_unknown
 """
 from knot.models.errors import (
-    KnotError,
     BudgetExceededError,
     BusinessDBError,
     ConfigMissingError,
     CrossGroupSQLError,
     DataSourceUnavailableError,
+    KnotError,
     LLMAuthError,
     LLMNetworkError,
     LLMRateLimitError,

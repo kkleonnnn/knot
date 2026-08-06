@@ -329,6 +329,7 @@ def test_Sd7_regen_script_derives_base_image_from_dockerfile() -> None:
         text=True,
         cwd=REPO,
         timeout=60,
+        check=False,
     )
     assert proc.returncode == 0, (
         f"regen_lock.sh --print-base 失败（rc={proc.returncode}）:\n"

@@ -269,3 +269,30 @@ def test_deploy_md_top_version_synced_with_main():
         f"    顶部出现的版本串：{found}\n"
         f"    ⇒ 每片 bump 版本时同步 DEPLOY.md 顶部那一行。"
     )
+
+
+def test_contributing_ruff_command_matches_ci():
+    """⭐ `CONTRIBUTING.md` 的 ruff 命令必须与 `ci.yml` **逐字相同**（双侧派生，无第三份字面）。
+
+    ⚠️ **这条哨兵是「扫两侧」的产物**（v3.1-B #8）：2026-08-06 把 CI 的 ruff 扫描面从 `knot/`
+    扩到 `knot/ tests/ scripts/` 时，全仓有 **33 个文件**提到旧命令 ——
+    其中 `CONTRIBUTING.md` 是**活文档**（贡献者照着跑），必须同步；
+    `CHANGELOG.md` 与 `docs/plans/*` 是**历史记录**（当时确实只扫 `knot/`），**改它们等于篡改历史**。
+    ⇒ 本测只钉活文档那一处，且**两边都从文件里读**（不写死期望值 ⇒ 下次改 CI 不必改本测）。
+    """
+    ci = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    m = re.search(r"^\s*run:\s*(ruff check [^\n]+)$", ci, flags=re.MULTILINE)
+    assert m, "ci.yml 里找不到 `run: ruff check …` 步骤（步骤被重构了？本测需同步）"
+    ci_cmd = m.group(1).strip()
+
+    contributing = Path("CONTRIBUTING.md").read_text(encoding="utf-8")
+    m2 = re.search(r"^(ruff check [^\n#]+)", contributing, flags=re.MULTILINE)
+    assert m2, "CONTRIBUTING.md 里找不到 `ruff check …` 行"
+    doc_cmd = m2.group(1).strip()
+
+    assert doc_cmd == ci_cmd, (
+        f"CONTRIBUTING 的 lint 命令与 CI 漂开了：\n"
+        f"    CI:           {ci_cmd!r}\n"
+        f"    CONTRIBUTING: {doc_cmd!r}\n"
+        f"  ⇒ 贡献者照文档跑会得到与闸门不同的结果（本地绿、CI 红，或反之）。"
+    )

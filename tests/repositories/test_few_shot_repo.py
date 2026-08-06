@@ -24,8 +24,8 @@ def test_update_few_shot(tmp_db_path):
 
 
 def test_only_active_filter(tmp_db_path):
-    a = few_shot_repo.create_few_shot("A", "S", is_active=1)
-    b = few_shot_repo.create_few_shot("B", "S", is_active=0)
+    few_shot_repo.create_few_shot("A", "S", is_active=1)
+    few_shot_repo.create_few_shot("B", "S", is_active=0)
     active = few_shot_repo.list_few_shots(only_active=True)
     assert len(active) == 1
     assert active[0]["question"] == "A"

@@ -11,7 +11,6 @@ R-PB-B2-补2（R-62 同步偿还）：v0.6.2.0 给 user_repo._USER_ENCRYPTED_COL
 from knot.repositories.user_repo import _USER_ENCRYPTED_COLS
 from knot.services.audit_service import _PII_BLACKLIST, _REDACTED, _scrub
 
-
 # ─── R-PB-B2-补2 R-62 同步偿还 ────────────────────────────────────────
 
 def test_pii_blacklist_superset_user_encrypted_cols():

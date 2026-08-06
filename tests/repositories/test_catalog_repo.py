@@ -13,7 +13,6 @@ from knot.models.errors import MetadataError
 from knot.repositories import catalog_repo
 from knot.repositories.base import get_conn, init_db
 
-
 # ─── R-PB-A1-1 OOS-1v2（租户库内禁列）：0 tenant_id/project_id ────────────────────
 
 def test_A1_1_catalogs_schema_no_tenant(tmp_db_path):

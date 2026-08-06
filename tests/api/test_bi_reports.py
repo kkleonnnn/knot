@@ -294,7 +294,7 @@ def test_analyze_history_too_long_400(client, auth_headers):
 def test_analyze_blocked_when_over_monthly_budget(client, auth_headers, monkeypatch):
     """成本控制：月预算 status=='block' → 402 pre-block，绝不触发 LLM 花费（脚本 loop 财务 DoS 护栏）。"""
     import knot.services.agents.da_asst as da
-    import knot.services.budget_service as budget_service
+    from knot.services import budget_service
     rid = client.post("/api/bi/reports", json={
         "title": "预算门", "sql_text": "SELECT 1"}, headers=auth_headers).json()["id"]
     called = {"llm": False}

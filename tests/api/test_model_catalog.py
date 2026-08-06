@@ -105,8 +105,8 @@ def test_sync_or_catalog_requires_admin(client):
 
 def test_sync_or_catalog_network_failure_returns_503(client, auth_headers, monkeypatch):
     """OR API 失败时端点应 503 不写表（守护者数据准确性原则 — 不刷写错误数据）。"""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     def _fail_open(*args, **kwargs):
         raise urllib.error.URLError("simulated network failure")

@@ -6,7 +6,6 @@ catalog 隔离（list_audit catalog_id 过滤）+ get_by_message（engine 派生
 from knot.repositories import semantic_audit_repo as sar
 from knot.repositories.base import get_conn
 
-
 # ─── OOS-1v2（租户库内禁列） + schema ──────────────────────────────────────────────
 
 def test_schema_no_tenant_and_has_catalog_id(tmp_db_path):

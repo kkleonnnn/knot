@@ -4,14 +4,12 @@
 """
 from __future__ import annotations
 
-from typing import Optional
-
 import pytest
 
 from knot.repositories import audit_repo
 
 
-def _last_action(action_prefix: str) -> Optional[dict]:
+def _last_action(action_prefix: str) -> dict | None:
     rows = audit_repo.list_filtered(page=1, size=200)
     for r in rows:
         if r["action"].startswith(action_prefix):

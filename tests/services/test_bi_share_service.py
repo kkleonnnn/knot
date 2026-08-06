@@ -60,8 +60,8 @@ def test_missing_tg_creds_fails_before_send(monkeypatch):
                         lambda ids: [{"id": 1, "name": "t", "platform": "tg", "chat_id": "-1", "region": None}])
     monkeypatch.setattr(svc.settings_repo, "get_app_setting", lambda k, default="": "")  # 无凭据
     called = []
-    monkeypatch.setattr(svc, "TelegramImageAdapter",
-                        lambda: type("X", (), {"send_image": lambda *a, **k: called.append(1)})())
+    _Stub = type("X", (), {"send_image": lambda *a, **k: called.append(1)})
+    monkeypatch.setattr(svc, "TelegramImageAdapter", _Stub)
     with pytest.raises(svc.ShareValidationError):
         svc.share_report(b"PNG", [1])
     assert called == []                                    # 凭据缺 → fan-out 前失败

@@ -14,7 +14,7 @@ def _seed_old_audit_rows(n: int = 50, days_ago: int = 100):
     """fixture 辅助：直接 SQL 插入 n 行 created_at = N 天前的 audit_log。"""
     from knot.repositories.base import get_conn
     conn = get_conn()
-    for i in range(n):
+    for _ in range(n):
         conn.execute(
             "INSERT INTO audit_log (action, resource_type, success, "
             "                       detail_json, created_at) "
