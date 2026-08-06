@@ -248,10 +248,9 @@ def _main() -> int:
     ap = argparse.ArgumentParser(description="敏感列静态加密迁移（一次性 / 幂等）")
     ap.add_argument("--dry-run", action="store_true",
                     help="只统计 would-encrypt，0 副作用（不写 DB / 不建 bak）")
-    # ⭐ **v0.9.15 Stage 4 #5：目标必须显式二选一，⛔ 无「默认目标」**（破坏性工具不得有默认目标）。
-    # **因果**：本片之前全仓只可能有一个租户 ⇒ 原 `resolve_single_tenant()` 回退无处可错；
-    # 本片起新租户开成 `suspended` ⇒ 回退恒解析到**起源租户** ⇒ 运维想迁新租户、
-    # 实际**重写了部署方自己的凭据列**而输出照样报「完成」= 与 #1 事故同形（该回退已物理删除）。
+    # ⭐ **v0.9.15 #5：目标必须显式二选一，⛔ 无「默认目标」**（破坏性工具不得有默认目标）。
+    # **因果**：本片起新租户开成 `suspended` ⇒ 原 `resolve_single_tenant()` 回退恒中**起源租户**
+    # ⇒ 运维想迁新租户、实际重写了部署方自己的凭据列而输出照样报「完成」（该回退已物理删除）。
     # 守护：`tests/scripts/test_destructive_cli_requires_target.py`（行为 + AST + 分类三层）。
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--tenant", type=int, default=None, help="租户 id（与 --all-tenants 二选一，**必填其一**）")
@@ -261,6 +260,7 @@ def _main() -> int:
 
     from knot.core import tenant_context as _tc
     from knot.repositories import tenant_repo as _tr
+    from knot.services import cli_audit
 
     if args.all_tenants:
         tenants = _tr.list_tenants()
@@ -278,6 +278,7 @@ def _main() -> int:
         tok = _tc.set_active_tenant(t)
         try:
             stats = migrate(dry_run=args.dry_run)
+            cli_audit.record_migration(t, stats, dry_run=args.dry_run)
             print(f"{prefix}{label} 迁移完成: {stats}")
             done.append(label)
         except Exception as e:
