@@ -40,6 +40,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   租户目录）。已清理（WAL-safe 备份后删行删目录；审计行**刻意保留** —— append-only，
   删它等于让审计说谎）。⭐ **它没把环境打挂，恰因为「开通出 suspended」这条裁定**。
 
+### chore（riding v0.9.15 **不 bump** · 沿用 `6764e0e` 先例）—— 破坏性 CLI 的审计留痕（`BL-v0915-3`）
+
+**起因是一次真实的对账失败**：v0.9.15 合并后 kk 用我报的口令登不进去。查得动的是
+5 次 `auth.login_fail`（`attempted_username: "admin"` / `reason: "bad_password"`）；
+**查不动的是那个哈希什么时候被谁写的** —— 因为 `reset_admin_password` **写库不写审计**。
+⇒ 「同一件事经端点做有痕、经 CLI 做无痕」这处**不对称**就是本 chore 修的东西
+（端点侧一直有 `user.password_reset`，成功/失败都记 —— 实读真实库确认）。
+
+- **新 `knot/services/cli_audit.py`** = 三个破坏性 CLI 的**唯一**审计写口。
+  ⛔ **刻意不走 `audit_service.log`**：它 ① 自开连接 ⇒ 与动作**两个事务**；② R-47 **fail-soft 吞异常**
+  ⇒ 「口令改了、审计没写、还打印 ✓」原样保留 = **没修成**。R-47 的原意是「请求路径业务不阻断」，
+  CLI 没有这个需求，其正确行为恰恰相反：**宁可做不了，也不要做了查不到。**
+- **`audit_repo.insert` 加可选 `conn=`**：给了就用调用方连接、**不 commit 不 close**
+  ⇒ `reset_admin_password` 的 `UPDATE users` 与审计 INSERT **同连接、同事务、单次 commit**
+  （v0.9.8 platform_audit 那条承重设计的租户侧等价物）。
+  `conn=None` 走原路径 ⇒ 唯一生产调用方 `audit_service.log` **byte-equal**。
+- **`purge_audit_log`**：`trigger != "auto"` 时**无条件**记（删 0 行也记 —— 「跑了没删」与「压根没跑」
+  事后必须可区分）；`auto` 保持 `deleted > 0`（每次启动都跑，无条件记会刷满噪声 —— 同 v0.9.9 判断）。
+  ⇒ **判别式是「谁触发的」，不是「删了几行」**。顺带补上 `trigger="cli"`——
+  它是**有声明无生产者**的现成实例（docstring 写着 auto/manual/cli，而全仓只有 `auto` 有人传）。
+- **`migrate_encrypt_v045`**：新 Literal `crypto.migrate_encrypt` + resource_type `crypto`。
+  ⚠️ **诚实收窄：这里做不到同事务** —— `migrate()` 逐表 commit，无覆盖全程的事务；
+  保证降为「审计写失败**不吞** ⇒ **退 0 ⇒ 审计行一定存在**」。
+- **detail 白名单**：⛔ 不含口令/哈希，也**不含 `backup_path`** —— 它由 `SQLITE_DB_PATH` 派生
+  = env 派生值，进审计即 #262 家族。
+
+⭐⭐ **本 chore 最该读的一条：「有没有审计行」这个直觉判据没有判别力。**
+旧实现（两个事务 + fail-soft）在**正常路径上也会**留下审计行 ⇒ 该判据分不清两个实现。
+能分清的只有**注入失败时的行为**：旧 = 哈希变了 + 打印 ✓；新 = 哈希没变 + 异常上抛。
+⇒ oracle 取「**哈希变没变**」。取材实证：退回旧实现 → `1 failed, 12 passed`（**唯一抓住**）。
+另五次取材各自唯一抓住（purge 条件 / `backup_path` 泄漏 / helper 吞异常 / 过期豁免 / 签名带凭据）。
+
+⚠️ **实施期我自己犯的三个同形错**（全文见 `docs/plans/chore-cli-audit-trail.md` §4.3）：
+① 哨兵先把 `purge_audit_log` 判成违规 —— 实际它**对的**（`purge()` 被服务端 auto-purge 共用，
+改走会抛异常的 `cli_audit` 会**崩掉 boot**）⇒ **「唯一写口」规则的作用面是「只有该形态会走的写者」**，
+强行统一会把两条**互斥**的正确策略混成一条。
+② 反向判据用**裸子串** `log` 搜文本 ⇒ **假通过**，命中的是我自己那行**讨论** `audit_service.log` 的注释
+⇒ R-SENTINEL-AST 根因原话再次应验；改成两测**共用一次 AST 测量**才真抓住。
+③ 字符串手术**吃掉两个测**而全绿（13→10）—— 靠 `pytest --collect-only` **节点 ID 集合**比对发现。
+⇒ 三个都是**判据锚错了对象**（锚在「有没有行」/文本子串/绿不绿）。
+
 ### ⛔ Stage 4 修四条 —— 其中一条是一次真实事故换来的
 
 - **`reset_admin_password` 强制 `--tenant`**：该脚本此前**完全没有参数解析** ⇒ 有人按本版开通端点

@@ -68,7 +68,13 @@ def purge(dry_run: bool = False, db_path: str | None = None,
     stats = {"days": days, "deleted": deleted, "backup_path": backup_path, "trigger": trigger}
 
     # R-57 meta-audit：真跑后写入；dry-run 不写
-    if not dry_run and deleted > 0:
+    # ⭐ **`BL-v0915-3`：`deleted > 0` 这个条件只对 `auto` 保留。**
+    #   人触发的破坏性动作**不论结果**都要可追溯 —— 「跑了、什么都没删」与「压根没跑」
+    #   在事后对账时必须可区分（v0.9.15 那次口令重置查无此事，就是这个坑的另一形态）。
+    #   ⚠️ 而 `auto` 每次启动都跑、绝大多数时候删 0 行 ⇒ 无条件记会把审计表刷满噪声
+    #   （同 v0.9.9 的判断：预期路径刻意不记）。
+    #   ⇒ 判别式是「**谁触发的**」，不是「删了几行」。
+    if not dry_run and (deleted > 0 or trigger != "auto"):
         audit_service.log(
             actor=actor, action="audit.purge", resource_type="audit",
             detail={"days": days, "deleted_count": deleted, "trigger": trigger},
@@ -121,7 +127,10 @@ def _main() -> int:
     try:
         t = _tc.current_tenant()
         print(f"→ 目标租户 id={t['id']} slug={t['slug']!r}" + ("（--dry-run 回退解析）" if args.tenant is None else ""))
-        stats = purge(dry_run=args.dry_run)
+        # ⭐ `trigger="cli"`：这个值**文档声明已久却从无生产者**（`purge()` docstring 写着
+        #   「auto / manual / cli」，而全仓只有 `main.py` 传 `auto`、其余走默认 `manual`）
+        #   ⇒ 顺手补上它的生产者（v3.1-B #6「新声明的有生产者吗」的反向实例）。
+        stats = purge(dry_run=args.dry_run, trigger="cli")
         prefix = "[dry-run] " if args.dry_run else ""
         print(f"{prefix}清理完成: {stats}")
         return 0

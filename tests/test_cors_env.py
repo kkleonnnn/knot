@@ -29,8 +29,13 @@ def restore_cors_env(monkeypatch):
 
 
 def test_cors_unset_defaults_to_star_no_credentials(restore_cors_env):
-    """KNOT_CORS_ORIGINS 未设 → ["*"] + credentials=False（CORS 规范要求）。"""
-    os.environ.pop("KNOT_CORS_ORIGINS", None)
+    """KNOT_CORS_ORIGINS 未设 → ["*"] + credentials=False（CORS 规范要求）。
+
+    ⚠️ 原有一行 `os.environ.pop("KNOT_CORS_ORIGINS", None)` 已删：`restore_cors_env` fixture
+    **已经**用 `monkeypatch.delenv(..., raising=False)` 删过（且会自动还原）⇒ 那行**冗余**，
+    而它的形态会漏还原、污染整个 session（`BL-v0915-3` 实施期我刚踩过一次）。
+    守护：`tests/test_test_hygiene.py::test_no_hand_rolled_env_mutation_inside_tests`。
+    """
     mod = _reload_knot_main()
     assert mod._cors_origins == ["*"]
     assert mod._cors_allow_credentials is False

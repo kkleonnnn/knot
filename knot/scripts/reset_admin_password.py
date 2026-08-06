@@ -35,6 +35,7 @@ import sys
 import bcrypt
 
 from knot.repositories.base import get_conn, init_db
+from knot.services import cli_audit
 
 
 def _resolve_target(spec: str) -> dict:
@@ -92,8 +93,15 @@ def main(argv: list[str] | None = None) -> None:
             "UPDATE users SET password_hash=?, must_change_password=1 WHERE username='admin'",
             (pwd_hash,),
         )
-        conn.commit()
         n = cur.rowcount
+        if n:
+            # ⭐ **审计与动作同连接、同事务、单次 commit**（`BL-v0915-3`）——
+            #   「做了但没记」/「记了但没做」结构上不存在。**这条是真实事件换来的**：
+            #   v0.9.15 那次重置在系统里查无此事 ⇒ 事后无从对账。
+            #   为什么不走 `audit_service.log`、为什么 detail 不含凭据：见 `services/cli_audit` docstring。
+            uid = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+            cli_audit.record_password_reset(conn, tenant=target, user_id=uid)
+        conn.commit()
         conn.close()
         if n == 0:
             print(

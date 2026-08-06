@@ -179,7 +179,7 @@ def test_no_monkeypatch_undo_in_tests() -> None:
         「不 `monkeypatch.undo()`：会连带撤掉 `tmp_db_path` fixture 的 `SQLITE_DB_PATH` patch」
         —— **纯注释，无守护**；
       · **第二次（v0.9.15 实测）**：我在 provisioning 测里用了它 ⇒ 在**真库**建了一行租户
-        \+ 一个真实租户目录，**当时没有任何东西响**，是我事后手工 `sqlite3` 查真库才发现。
+        + 一个真实租户目录，**当时没有任何东西响**，是我事后手工 `sqlite3` 查真库才发现。
 
     ⭐ **与运行期安全网的分工（两半，缺一不可）**：
       · `tests/conftest.py::_no_test_may_touch_real_data_dir` —— **检测**：任何路径改动了真实
@@ -216,4 +216,57 @@ def test_no_monkeypatch_undo_in_tests() -> None:
         "       calls = {'n': 0}; real = mod.fn\n"
         "       def _flaky(): calls['n'] += 1; raise ... if calls['n'] == 1 else real()\n"
         "  （实测代价：v0.9.15 一条测据此在真库建了一行租户 + 一个真实租户目录。）"
+    )
+
+
+def test_no_hand_rolled_env_mutation_inside_tests():
+    """⛔ 测试/fixture **函数体内**禁止手搓 `os.environ` 写（改用 `monkeypatch.setenv/delenv`）。
+
+    ⚠️ **这条是我自己踩出来的**（`BL-v0915-3` 实施期）：我写了
+    `os.environ["KNOT_INITIAL_ADMIN_PASSWORD"] = …` + `finally: os.environ.pop(…)`，
+    而 `conftest.py` 用的是**模块级** `os.environ.setdefault(..., "admin123")`（只设一次）
+    ⇒ 那个 `pop` 把它**永久删掉**，后续 3 个 owner-gate 测直接 ERROR。
+    单跑我的文件**全绿**，只有全量才暴露 —— 与 v0.9.15 禁 `monkeypatch.undo()` **同一族**：
+    **手搓 save/restore 而没有真 restore，只是换了语法。**
+
+    ⭐ **允许模块级**（`conftest.py` 的 session 级 setup 是有意的、且本就无「还原」语义）——
+    禁的是**函数体内**：那里的意图必然是「只在这个测里改」，而它需要 teardown 还原。
+
+    判据 AST（R-SENTINEL-AST）：文本匹配答不了「这次赋值在函数里还是模块级」，
+    且本 docstring 正在**讨论** `os.environ.pop` 这个名字。
+    """
+    import ast as _ast
+
+    _WRITE_ATTRS = {"pop", "setdefault", "update", "clear", "popitem"}
+
+    def _is_environ(node) -> bool:
+        # `os.environ` / `environ`（`from os import environ`）
+        if isinstance(node, _ast.Attribute) and node.attr == "environ":
+            return True
+        return isinstance(node, _ast.Name) and node.id == "environ"
+
+    violations = []
+    for py in sorted(_TESTS.rglob("test_*.py")) + sorted(_TESTS.rglob("conftest.py")):
+        tree = _ast.parse(py.read_text(encoding="utf-8"))
+        for fn in _ast.walk(tree):
+            if not isinstance(fn, _ast.FunctionDef | _ast.AsyncFunctionDef):
+                continue
+            for n in _ast.walk(fn):
+                bad = None
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute) \
+                        and n.func.attr in _WRITE_ATTRS and _is_environ(n.func.value):
+                    bad = f"os.environ.{n.func.attr}(...)"
+                elif isinstance(n, _ast.Assign) and any(
+                        isinstance(tg, _ast.Subscript) and _is_environ(tg.value) for tg in n.targets):
+                    bad = "os.environ[...] = ..."
+                elif isinstance(n, _ast.Delete) and any(
+                        isinstance(tg, _ast.Subscript) and _is_environ(tg.value) for tg in n.targets):
+                    bad = "del os.environ[...]"
+                if bad:
+                    violations.append(f"{py}:{n.lineno} 在 {fn.name}() 里 {bad}")
+    assert not violations, (
+        "测试函数体内手搓 os.environ 写（会漏还原、污染整个 session）：\n  "
+        + "\n  ".join(violations)
+        + "\n⇒ 改用 `monkeypatch.setenv` / `monkeypatch.delenv(..., raising=False)`（自动还原）。"
+          "\n   模块级 setup 不受限（那本就没有还原语义）。"
     )

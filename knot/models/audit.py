@@ -66,12 +66,17 @@ AuditAction = Literal[
     "user.totp.recovery_code_used",  # recovery code 单次使用（高危 — 2FA 兜底使用必入 audit）
     # 审计自身（meta-audit, R-57）
     "audit.retention_change", "audit.purge",
+    # `BL-v0915-3` 破坏性 CLI 留痕：凭据列静态加密迁移（`migrate_encrypt_v045`）——
+    # 它重写 data_sources / app_settings 的敏感列，属**凭据面**动作，此前零审计。
+    # emit 在 `knot/scripts/migrate_encrypt_v045.py`（per-prefix 守护见 tests/scripts/test_cli_audit_trail.py）
+    "crypto.migrate_encrypt",
 ]
 
 AuditResourceType = Literal[
     "user", "datasource", "api_key", "budget",
     "agent_model", "prompt", "catalog", "metric", "logicform", "monitor", "few_shots",
     "saved_report", "audit",
+    "crypto",   # `BL-v0915-3`：凭据列加密迁移（跨表，非单一 datasource/api_key）
     # v0.8.5 (②a) BI 模式
     "bi_report", "report_folder",
     # v0.8.14 分享 IM 凭据 + 投递目标白名单

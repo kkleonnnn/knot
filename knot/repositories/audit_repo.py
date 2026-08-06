@@ -7,6 +7,7 @@ R-50 INSERT-only 守护：本模块**只暴露** `insert / list_filtered / delet
 from __future__ import annotations
 
 import json
+import sqlite3
 from typing import Any
 
 from knot.repositories.base import get_conn
@@ -26,10 +27,28 @@ def insert(
     user_agent: str | None = None,
     request_id: str | None = None,
     catalog_id: int | None = None,  # v0.6.2.5 R-PB-A1-10：操作关联 catalog（NULL = 无关）
+    conn: sqlite3.Connection | None = None,
 ) -> int:
-    """单行 INSERT；返回 lastrowid。"""
+    """单行 INSERT；返回 lastrowid。
+
+    ⭐ **`conn` 给了就用调用方的连接、且不 commit 不 close**（事务归调用方）——
+    这是 v0.9.8 `platform_audit_repo.insert(conn, ...)` 那条承重设计在租户侧的等价物：
+    **让审计 INSERT 与被记录的动作成为同一个事件**（同连接、同事务、单次 commit）
+    ⇒ 「做了但没记」与「记了但没做」结构上不存在。
+
+    **为什么破坏性 CLI 必须走这条路，而不是 `audit_service.log`**：后者
+    ① 自己开连接（本函数不传 conn 时的老路）⇒ 与动作**两个事务**；
+    ② R-47 fail-soft **吞异常** ⇒ 「口令改了、审计没写、还打印 ✓」——
+    那正是 `BL-v0915-3` 要修的东西（真实发生过：v0.9.15 那次重置在系统里查无此事）。
+    R-47 的原意是「请求路径业务不阻断」，CLI 没有这个需求，其正确行为恰恰相反。
+
+    `conn=None` 时**完全走原路径**（开连接 → commit → close）⇒ 唯一生产调用方
+    `audit_service.log` 行为 byte-equal（全仓 AST 扫过：其余 `*.insert` 都是 `platform_audit_repo`）。
+    """
     payload = json.dumps(detail_json or {}, ensure_ascii=False)
-    conn = get_conn()
+    owns_conn = conn is None
+    if owns_conn:
+        conn = get_conn()
     cur = conn.execute(
         "INSERT INTO audit_log "
         "(actor_id, actor_role, actor_name, action, resource_type, resource_id, "
@@ -39,8 +58,9 @@ def insert(
          success, payload, client_ip, user_agent, request_id, catalog_id),
     )
     aid = cur.lastrowid
-    conn.commit()
-    conn.close()
+    if owns_conn:                 # 调用方注入 conn 时**刻意不 commit / 不 close**（见 docstring）
+        conn.commit()
+        conn.close()
     return aid
 
 
