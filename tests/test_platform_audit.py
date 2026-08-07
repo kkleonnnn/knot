@@ -601,7 +601,18 @@ def test_legacy_single_tenant_paths_are_all_unauthenticated(tmp_db_path):
     for key, cls in policy.items():
         by_path.setdefault(key.split(" ", 1)[1], set()).add(cls)
 
-    assert _LEGACY_SINGLE_TENANT_PATHS, "该集合空了 —— 本测在空集上通过（探针没到达）"
+    # ⭐ **v0.9.17：表已空 —— 原「空集即探针没到达」的护栏在此退役，但它保护的前提换了个更强的载体。**
+    # 原护栏防的是「集合空了 ⇒ 下面的循环恒真 ⇒ 本测静默变成摆设」。
+    # 而**空**恰恰是本片追求的目标状态（tick 改自建 ctx 后没有任何路径绕过 tid 解析）
+    # ⇒ 若保留原句，本测会因为**达成目标**而永久红。
+    # ⇒ 改为：空 = **最强情形**，显式断言并说明；非空时下面的逐条检查照常生效。
+    if not _LEGACY_SINGLE_TENANT_PATHS:
+        # 免限流那个判断的前提，在空集下**强于**原先：不是「那条路无 JWT」，
+        # 而是「**根本没有**绕过 tid 解析的路」⇒ 漂移更不可能外部触发。
+        # ⚠️ 该前提的存续由 `test_tenant_resolution.py::test_R14_legacy_paths_exact`
+        #    （断言表必须为空）与 `::test_R15_no_generic_fallback`（零容忍）共同守 ——
+        #    有人往表里加路径时，那两条先红，本测的逐条检查随即重新生效。
+        return
     bad = {
         p: sorted(by_path.get(p, {"<不在路由表里>"}))
         for p in _LEGACY_SINGLE_TENANT_PATHS

@@ -20,18 +20,31 @@ from pydantic import BaseModel
 
 from knot.api._audit_helpers import audit
 from knot.api.bi_reports import require_report_perm
+from knot.core import tenant_context as _tenant_ctx
 from knot.repositories import bi_report_schedule_repo as sched_repo
+from knot.repositories import tenant_repo
 from knot.services import bi_schedule_service as sched_svc
 
 router = APIRouter()
 
 
 @router.post("/api/bi/scheduler/tick")
-async def scheduler_tick(request: Request):
+async def scheduler_tick(request: Request, tenant: str):
     """CronJob 敲钟：扫到期 schedule → 原子认领 → 刷新。token 门（无 token→503 / 错→401）。
 
     独立 egress/security env `KNOT_SCHEDULER_TOKEN` **调用期读**（同 webhook.py R-SL-69 范式，
-    非 settings.py — 便于 monkeypatch.setenv 测 + 与 CronJob Header 对齐）。未设 = disabled（安全默认）。"""
+    非 settings.py — 便于 monkeypatch.setenv 测 + 与 CronJob Header 对齐）。未设 = disabled（安全默认）。
+
+    ⭐ **v0.9.17：`tenant` 必填（slug 或数字 id）—— 本端点是「自建 ctx」端点**（照 `auth.login` 家法）。
+    此前它在 `_LEGACY_SINGLE_TENANT_PATHS` 里，由 middleware 走 `resolve_single_tenant()` 设 ctx
+    ⇒ **依赖「全站恰 1 个 active 租户」**，lift 后即失效。
+    ⚠️ **必填而非「可选 + 回退」**（kk 拍板方案①）：tick 会**写**（刷新报表）⇒ 破坏性动作不得有默认目标；
+    且「一个全局密钥能 fan-out 所有租户」是**独立的跨租户操作权问题** —— 让服务端遍历所有租户会**固化**它，
+    改为每次触发只作用于**一个**租户，CronJob 逐租户调用（清单从 `GET /api/platform/tenants` 取）。
+    ⚠️ 用 `resolve_*`（**只返 active**）而非 `get_*`：停用租户不该有定时刷新。
+    ⚠️ 入口无条件 `clear_active_tenant()`（R-13）：本端点无 JWT，但陈旧 Authorization 仍可能让
+    middleware 设上别家的 ctx。
+    """
     token = os.environ.get("KNOT_SCHEDULER_TOKEN", "")
     if not token:
         raise HTTPException(status_code=503, detail="调度器未启用（未配置 KNOT_SCHEDULER_TOKEN）")
@@ -39,11 +52,25 @@ async def scheduler_tick(request: Request):
     presented = auth[7:] if auth[:7].lower() == "bearer " else ""
     if not secrets.compare_digest(presented, token):   # 守护者 B-3：常量时间比对
         raise HTTPException(status_code=401, detail="无效调度 token")
-    loop = asyncio.get_event_loop()                     # 卸 sync SQLAlchemy 刷新到线程池
-    # v0.9.0 C2：run_in_executor 不 copy contextvars → copy_context().run 传播请求 tenant/catalog ctx 到
-    # worker 线程（fail-closed tenant ctx 否则 raise）；ctx.run 天然隔离每次调用 → 无线程池残留。
-    _ctx = contextvars.copy_context()
-    return await loop.run_in_executor(None, lambda: _ctx.run(sched_svc.run_due))
+
+    entry_tok = _tenant_ctx.clear_active_tenant()       # R-13 入口不变量（先清，再自建）
+    try:
+        spec = (tenant or "").strip()
+        row = (tenant_repo.resolve_tenant_by_id(int(spec)) if spec.isdigit()
+               else tenant_repo.resolve_tenant_by_slug(spec))
+        if row is None:
+            raise HTTPException(status_code=404, detail="租户不存在或不可服务")
+        tok = _tenant_ctx.set_active_tenant(row)
+        try:
+            loop = asyncio.get_event_loop()             # 卸 sync SQLAlchemy 刷新到线程池
+            # v0.9.0 C2：run_in_executor 不 copy contextvars → copy_context().run 传播 tenant/catalog ctx
+            # 到 worker 线程（fail-closed 否则 raise）；ctx.run 天然隔离每次调用 → 无线程池残留。
+            _ctx = contextvars.copy_context()
+            return await loop.run_in_executor(None, lambda: _ctx.run(sched_svc.run_due))
+        finally:
+            _tenant_ctx.reset_active_tenant(tok)
+    finally:
+        _tenant_ctx.reset_active_tenant(entry_tok)
 
 
 class ScheduleRequest(BaseModel):
