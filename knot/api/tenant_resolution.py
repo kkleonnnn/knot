@@ -23,11 +23,12 @@ from knot.repositories import tenant_repo
 # 之所以敢留：R-T-GATE 仍硬锁第二租户（`assert_no_second_active_tenant_served`）⇒ 单租户下二者等价；
 # 之所以必须写成**显式表而不是「解析不出就回退单租户」**：后者就是 OOS-1v2 禁的 fail-open 全局回退，
 # 一旦写成通用回退，将来任何解析失败都会静默落到某个默认租户 = 跨租户供数。
-_LEGACY_SINGLE_TENANT_PATHS = frozenset({
-    # 无 JWT（调度器共享密钥）⇒ tid 不适用。已登记 R-T-GATE 就绪清单「调度器 tick 租户域化」，
-    # 本片不动（且「一个全局密钥能 fan-out 所有租户」是独立的跨租户操作权问题，不在本片范围）
-    "/api/bi/scheduler/tick",
-})
+# ⭐ **v0.9.17 起为空** —— 最后一条 `/api/bi/scheduler/tick` 已摘除：
+#    它改为**自建 ctx 端点**（`tenant` 参数必填，见 `api/bi_schedule.scheduler_tick`）
+#    ⇒ 本表连同它那处 `resolve_single_tenant()` 回退一起消失。
+# ⚠️ **保留空表而不删掉这段**：它是「哪些路径无 JWT」的**唯一记录点**；
+#    将来若再出现同类端点，作者会在这里看到「上一个是怎么处理的」（答案：自建 ctx，不是加回本表）。
+_LEGACY_SINGLE_TENANT_PATHS: frozenset[str] = frozenset()
 # v0.9.4 step 7 已兑现：`/api/auth/login` **已从本表摘除** —— 它改为端点内按 `?c=<slug>` 自建 ctx
 # （`api/auth.login` + `_resolve_login_tenant`）。摘除后 login 请求若带陈旧 Authorization，
 # middleware 可能据此设 ctx，但端点入口 `clear_active_tenant()` 无条件清掉（R-13）⇒ 无影响。
@@ -74,9 +75,6 @@ def resolve_for_request(request) -> dict | None:
     （`tests/api/test_platform_admin.py::test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant`）。
     """
     tenant_repo.assert_no_second_active_tenant_served()          # D5 · R-T-GATE 请求侧硬门
-
-    if request.url.path in _LEGACY_SINGLE_TENANT_PATHS:
-        return tenant_repo.resolve_single_tenant()
 
     payload = _bearer_payload(request)
     if payload is None:

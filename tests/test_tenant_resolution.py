@@ -117,41 +117,27 @@ def test_unknown_tenant_leaves_ctx_unset(tmp_db_path):
 
 
 def test_R15_no_generic_fallback(tmp_db_path):
-    """⭐ **静态守护**：`resolve_single_tenant` 在本模块内**只允许**出现在临时路径表那一支里。
+    """⭐ **静态守护**：`resolve_for_request` 内**不得出现** `resolve_single_tenant`（v0.9.17 收紧为零容忍）。
 
-    为何要静态守护而不只靠上面的行为测：将来有人为了「让它别崩」加一句
-    `return tenant_repo.resolve_single_tenant()` 兜底，行为测在**单租户环境下全绿**
-    （单租户时回退与正解等价！），而多租户上线后就是静默跨租户供数。
-    ⇒ 单租户环境**测不出** fail-open，只能静态钉住。
+    **为何必须静态**：将来有人为了「让它别崩」加一句兜底，行为测在**单租户环境下全绿**
+    （单租户时回退与正解等价！），多租户上线后就是**静默跨租户供数** ⇒ 单租户环境**测不出**这个 fail-open。
 
-    revert-to-bad：在 `resolve_for_request` 末尾把 `return tenant_repo.resolve_tenant_by_id(tid)`
-    改成 `return tenant_repo.resolve_tenant_by_id(tid) or tenant_repo.resolve_single_tenant()`
-    → 本测转红（上面所有行为测**仍全绿**）。
+    ⭐ **v0.9.17 起判据从「只允许在临时路径表那一支」收紧为「一处都不许有」** ——
+    因为那张表已空（tick 改自建 ctx），豁免的载体消失了。
+    取材：在函数末尾加 `or tenant_repo.resolve_single_tenant()` ⇒ 本测转红（行为测仍全绿）。
     """
     src = (_REPO / "knot" / "api" / "tenant_resolution.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     fn = next(n for n in tree.body
               if isinstance(n, ast.FunctionDef) and n.name == "resolve_for_request")
-    calls = [n.lineno for n in ast.walk(fn)
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-             and n.func.attr == "resolve_single_tenant"]
-    # 允许的唯一位置：临时路径表那一支（`if request.url.path in _LEGACY_SINGLE_TENANT_PATHS:` 的子树内）
-    allowed = set()
-    for node in ast.walk(fn):
-        if not isinstance(node, ast.If):
-            continue
-        gated_by_legacy_table = any(
-            isinstance(n, ast.Name) and n.id == "_LEGACY_SINGLE_TENANT_PATHS"
-            for n in ast.walk(node.test)
-        )
-        if gated_by_legacy_table:
-            allowed |= {n.lineno for n in ast.walk(node)
-                        if isinstance(n, ast.Call)
-                        and getattr(n.func, "attr", None) == "resolve_single_tenant"}
-    assert len(calls) == 1, f"预期恰 1 处 resolve_single_tenant，实得 {len(calls)} 处 @ {calls}"
-    assert set(calls) == allowed, (
-        f"resolve_single_tenant 出现在临时路径表分支之外（实得行 {calls}，分支内 {sorted(allowed)}）"
-        f" —— 那是 OOS-1v2 禁的 fail-open 全局回退：单租户下与正解等价 ⇒ 行为测抓不到。"
+    hits = [n.lineno for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "resolve_single_tenant"]
+    assert not hits, (
+        f"`resolve_for_request` 里出现了 `resolve_single_tenant`（行 {hits}）——\n"
+        "  ⛔ 那是「假设全站恰 1 个 active 租户」的回退：单租户下它与正解等价 ⇒ **行为测抓不到**，\n"
+        "     而多租户上线后就是静默跨租户供数。\n"
+        "  ⇒ 无 JWT 的端点请**自建 ctx**（见 `auth.login` / `bi_schedule.scheduler_tick` 两个先例）。"
     )
 
 
@@ -162,14 +148,15 @@ def test_R14_legacy_paths_exact():
     """⭐ 临时表**精确内容**断言 —— 增项必须是显式决策，不能顺手加。
 
     表里每一项都是「本请求没有能决定租户的 JWT」的例外；每加一项就多一条绕过 tid 解析的路径。
-    **step 7 已摘掉 `/api/auth/login`**（改为端点内按 `?c=<slug>` 自建 ctx）⇒ 现仅剩 1 项。
-    剩下那项（调度器 tick）无 JWT，已登记 R-T-GATE 就绪清单「调度器 tick 租户域化」。
+    **v0.9.4 step 7 摘 `/api/auth/login`**、**v0.9.17 摘 `/api/bi/scheduler/tick`**（均改自建 ctx）
+    ⇒ **表现已为空**。保留空表是刻意的：它是「哪些路径无 JWT」的唯一记录点，
+    下一个同类端点的作者会在这里看到「上两个是怎么处理的」——答案是**自建 ctx，不是加回本表**。
     """
-    assert tr._LEGACY_SINGLE_TENANT_PATHS == frozenset({
-        "/api/bi/scheduler/tick",
-    }), (
-        "临时路径表变了。增项 = 多一条绕过 tid 解析的路径，必须走显式决策 + 写明摘除条件；"
-        "减项（step 7 摘 login）请同步本断言。"
+    assert tr._LEGACY_SINGLE_TENANT_PATHS == frozenset(), (
+        "⭐ v0.9.17 起本表**应为空** —— 最后一项 `/api/bi/scheduler/tick` 已改为**自建 ctx 端点**"
+        "（`tenant` 参数必填）。\n"
+        "  ⛔ **要加回任何一项，先问：该端点能不能像 login / tick 那样自建 ctx？**"
+        "（两次的答案都是能）—— 加进本表 = 多一条绕过 tid 解析的路径。"
     )
 
 
