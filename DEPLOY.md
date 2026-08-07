@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.15 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.16 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -244,9 +244,12 @@ nano .env   # 找到 OPENROUTER_API_KEY=  填值
 docker build -t knot .
 docker run -d -p 8000:8000 \
   -v $(pwd)/data:/app/knot/data \
+  -v $(pwd)/_local_catalog.py:/app/knot/services/agents/_local_catalog.py:ro \
   --env-file .env \
   --restart unless-stopped \
   --name knot knot
+#   ⚠️ 第 2 个挂载 = **私有 catalog**（v0.9.16 起不再进镜像）—— 详见下文「私有 catalog」段。
+#      **只用 SQL 数据源的部署可以省掉它**（启动日志会有一条 WARN 提示，不影响功能）。
 
 # 4. 验证启动（10 秒后）
 sleep 10 && docker logs knot | tail -10
@@ -925,6 +928,33 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   要搬数据是一次显式迁移：停用 → 搬文件 → 校验 → 改指向。
 
 ---
+
+## 🔒 私有 catalog（v0.9.16 起不进镜像）
+
+**这是什么**：`_local_catalog.py` 是**部署方自己写的**业务 catalog（真实表名 / 字段词典 /
+业务口径 / 表间关系），`few_shots.yaml` 同理（真实问法样例）。两者**从来不在仓库里**
+（`.gitignore` 已排），但 v0.9.16 之前会被 `COPY . .` **烤进镜像** ——
+镜像一旦分发/推仓库，业务口径就跟着走了。
+
+**v0.9.16 起**：两个文件排出构建上下文，改为**运行时挂载**。
+
+```bash
+# 只读挂载（推荐 :ro —— 应用只读它，不写）
+-v /opt/knot/_local_catalog.py:/app/knot/services/agents/_local_catalog.py:ro
+-v /opt/knot/few_shots.yaml:/app/knot/services/few_shots.yaml:ro          # 可选
+```
+
+| 情形 | 后果 |
+|---|---|
+| **挂了** | 与 v0.9.15 之前**完全一致** |
+| **没挂**（只用 SQL 数据源） | 正常工作 —— file 层退回仓内 `_template_catalog.py`；启动日志一条 WARN |
+| **没挂**（但用 HTTP 数据源） | ⚠️ HTTP 虚拟表消失 ⇒ 实时接口查询**会落 SQL**。**启动日志会明确告警**，不是静默 |
+
+⚠️ **最后一行是本片的承重点**：直接排除而不加告警 = 把一条泄漏换成一条**静默的正确性回归**
+（R-v096-4 明禁）。所以排除与 WARN 是**同一个决定的两半**，别只做一半。
+守护：`catalog_loaders.warn_if_private_catalog_missing`（缺则响 / 在则静默，双向实测）。
+
+**k8s**：用 `ConfigMap` 或 `Secret` 挂同样两个路径（`subPath` 挂单文件）。
 
 ## ⛔ 破坏性 CLI 一律要显式 `--tenant`（v0.9.15 起 · **一次真实事故立的规矩**）
 

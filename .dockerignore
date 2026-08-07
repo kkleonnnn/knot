@@ -62,6 +62,16 @@ htmlcov/
 #    （测试用不着它进镜像：CI 的 pytest 跑在 checkout 上，不经 docker。）
 tests/eval/
 
+# ── 部署方私有 catalog（v0.9.16）────────────────────────────────────────
+# 这两个文件是**部署方本地的**（`.gitignore:31,32` 已排出仓库），内容是真实业务
+# 表名 / 方言 / few-shot ⇒ 不该烤进可分发的镜像。
+# ⚠️ **逐文件列，不排目录** —— 同目录下 `_template_catalog.py` 与
+#    `few_shots.example.yaml` 是**仓内模板，必须留**（Dockerfile:22 还显式 COPY 前者）。
+# ⚠️ 不挂载**不会崩**：`catalog_loaders` 有三级回退（真 catalog → 模板 → 空），
+#    `few_shots` 同样回退到 `.example.yaml`。挂载方式见 DEPLOY「私有 catalog」段。
+knot/services/agents/_local_catalog.py
+knot/services/few_shots.yaml
+
 # ── 本文件自身产物（tar exporter 的输出必须不落进上下文）────────────────
 *.tar
 
