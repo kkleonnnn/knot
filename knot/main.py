@@ -206,10 +206,10 @@ async def _bump_threadpool():
 
 # v0.6.0.5 F-C — audit 自动清理 startup hook（守护者 M-C1 chunk DELETE + fire-and-forget）
 @app.on_event("startup")
-async def _warn_if_owner_tenant_not_served():
+async def _warn_if_owner_tenant_not_active():
     """v0.9.6：被服务租户不是起源租户 → 响亮 WARN（否则 file 层静默变空）。理由见该函数 docstring。"""
     from knot.services.agents import catalog_loaders
-    catalog_loaders.warn_if_owner_tenant_not_served()
+    catalog_loaders.warn_if_owner_tenant_not_active()
     catalog_loaders.warn_if_private_catalog_missing()   # v0.9.16：未挂载私有 catalog ⇒ HTTP 静默落 SQL
 
 

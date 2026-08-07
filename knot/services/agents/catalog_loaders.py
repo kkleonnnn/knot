@@ -85,14 +85,9 @@ def warn_if_private_catalog_missing() -> None:
     只在起源租户 + 文件缺失时响（非 owner 本就该空）；消息不含表名/路径（#262）。
     """
     from knot.core.logging_setup import logger
-    from knot.core.tenant_context import OWNER_TENANT_ID
-    from knot.repositories import tenant_repo
-    try:
-        served = tenant_repo.resolve_single_tenant()
-    except Exception:
-        return
-    if served.get("id") != OWNER_TENANT_ID:
-        return                       # 非起源租户：file 层本就该空，由 owner-gate 负责
+    # ⚠️ v0.9.17：**不再解析租户** —— 本函数问的是「**文件在不在**」，与有几个租户无关。
+    #    原版走 `resolve_single_tenant()` ⇒ lift 后（>1 active）它 raise ⇒ 早退 ⇒ **WARN 永不响**。
+    #    file 层本就只归起源租户（v0.9.6 owner-gate）⇒ 文件缺失只影响它，无需再判「被服务的是谁」。
     if (pathlib.Path(__file__).parent / "_local_catalog.py").exists():
         return                       # 已挂载 ⇒ 静默（正常情形不出声）
     logger.warning(
@@ -103,32 +98,31 @@ def warn_if_private_catalog_missing() -> None:
     )
 
 
-def warn_if_owner_tenant_not_served() -> None:
-    """启动期钩子：**被服务的租户不是起源租户**时响亮告警（G14 的静默失败）。
+def warn_if_owner_tenant_not_active() -> None:
+    """起源租户被停用/删除 ⇒ 响亮告警（v0.9.6 立，v0.9.17 改为**与租户数无关**）。
 
-    ⚠️ **为什么需要它**：`tenant_repo.resolve_single_tenant()` 只要求 **恰 1 个 active**、
-    **不要求 `id == OWNER_TENANT_ID`**（实读）⇒ 停用 tenant#1 + active tenant#2 ⇒ **boot 成功**，
-    而 owner-gate 下 **file 层对被服务的那个租户静默消失**（表/词典/口径/relations 全空）
-    ⇒ 部署方自己的 catalog 没了却**没有任何声音**。
-    ⇒ 照 v0.9.5 `platform_admin.warn_if_noncompliant` 的范式：**只在异常情形告警**，正常静默。
-
-    ⚠️ 无 active 租户 / >1 active（R-T-GATE）时 `resolve_single_tenant()` 自己 raise ——
-    本函数**吞掉**那种情况（不是本函数要诊断的事，且启动序另有处理）。
-    ⚠️ 消息只含租户 id 与后果，**不含**部署方表名 / env 名（#262 纪律）。
+    **守什么**：owner-gate 下 file 层**只归起源租户**；它若被停用/删除，部署方自己的 catalog
+    （表/词典/口径/relations）**静默全空**，而 boot 照样成功。
+    ⚠️ **v0.9.17 改判据**：原版问「**被服务的**租户是不是起源租户」—— 那个概念只在单租户下成立，
+    且走 `resolve_single_tenant()` ⇒ lift 后（>1 active）raise ⇒ 早退 ⇒ **WARN 永不响**。
+    改为**直接问起源租户本身**（`get_tenant` 不过滤 status）⇒ 任何租户数下都成立。
+    ⚠️ 消息只含租户 id 与后果，不含部署方表名 / env 名（#262）。
     """
     from knot.core.logging_setup import logger
     from knot.core.tenant_context import OWNER_TENANT_ID
     from knot.repositories import tenant_repo
-    try:
-        served = tenant_repo.resolve_single_tenant()
-    except Exception:
-        return                      # 0 / >1 active：启动序另有处理，不是本函数的诊断面
-    tid = served.get("id")
-    if tid != OWNER_TENANT_ID:
+    row = tenant_repo.get_tenant(OWNER_TENANT_ID)
+    if row is None:
         logger.warning(
-            f"[catalog] 被服务的租户 id={tid} **不是起源租户**（{OWNER_TENANT_ID}）⇒ "
-            f"file 层 catalog 对它为空（表/词典/业务口径/relations 全空）、HTTP 路由被门挡住。"
-            f"若这不是预期：起源租户可能被停用/删除 —— 见 CLAUDE.md R-T-GATE 就绪清单。"
+            f"[catalog] 起源租户（id={OWNER_TENANT_ID}）**不存在** ⇒ "
+            f"file 层 catalog 无归属租户（表/词典/业务口径/relations 全空）。"
+            f"若这不是预期：见 CLAUDE.md R-T-GATE 就绪清单「禁停用/删除起源租户」。"
+        )
+    elif row.get("status") != "active":
+        logger.warning(
+            f"[catalog] 起源租户（id={OWNER_TENANT_ID}）status={row.get('status')!r}（非 active）⇒ "
+            f"file 层 catalog 对任何被服务的租户都为空（表/词典/业务口径/relations 全空）。"
+            f"若这不是预期：见 CLAUDE.md R-T-GATE 就绪清单「禁停用/删除起源租户」。"
         )
 
 
