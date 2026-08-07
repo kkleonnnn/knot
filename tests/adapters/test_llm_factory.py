@@ -68,6 +68,7 @@ def test_protocol_runtime_check_rejects_non_adapter():
 def test_factory_unknown_provider_raises():
     """v0.3.2 R-7：传 typo provider 必须显式失败，不再 silently fallback。"""
     import pytest
+
     from knot.models.errors import ProviderNotImplementedError
 
     with pytest.raises(ProviderNotImplementedError) as exc_info:

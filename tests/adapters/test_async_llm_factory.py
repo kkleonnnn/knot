@@ -6,14 +6,14 @@
 - factory.get_async_adapter 正确路由 + 缺 impl 时 AssertionError
 - 未知 provider 抛 ProviderNotImplementedError（与 get_adapter 一致）
 """
+import pytest
+
 from knot.adapters.llm import AsyncLLMAdapter
 from knot.adapters.llm.anthropic_native import AnthropicAdapter
 from knot.adapters.llm.factory import get_adapter, get_async_adapter
 from knot.adapters.llm.openai_compat import OpenAICompatAdapter
 from knot.adapters.llm.openrouter import OpenRouterAdapter
 from knot.models.errors import ProviderNotImplementedError
-
-import pytest
 
 
 def test_R31_anthropic_satisfies_async_protocol():

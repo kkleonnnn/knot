@@ -62,7 +62,6 @@ def test_F6a_sse_interrupt_records_incurred_cost(client, auth_headers, monkeypat
         return orig_sel(*a, **k)
     monkeypatch.setattr(query_module.query_steps, "select_agent_key", _sel)
 
-    admin = user_repo.get_user_by_username("admin")
     before = user_repo.get_user_by_username("admin").get("monthly_cost_usd") or 0
 
     conv = client.post("/api/conversations", json={"title": "f6a"}, headers=auth_headers)

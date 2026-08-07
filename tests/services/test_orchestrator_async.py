@@ -8,7 +8,7 @@
 """
 import pytest
 
-from knot.models.errors import KnotError, BudgetExceededError, LLMNetworkError
+from knot.models.errors import BudgetExceededError, KnotError, LLMNetworkError
 from knot.services.agents import orchestrator
 
 

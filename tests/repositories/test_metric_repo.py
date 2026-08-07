@@ -16,7 +16,6 @@ from knot.models.errors import MetadataError
 from knot.repositories import metric_repo
 from knot.repositories.base import get_conn
 
-
 # ─── OOS-1v2（租户库内禁列）：0 tenant_id/project_id ──────────────────────────────
 
 def test_metrics_schema_no_tenant(tmp_db_path):

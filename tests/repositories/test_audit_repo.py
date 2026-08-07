@@ -15,7 +15,6 @@ import pytest
 from knot.repositories import audit_repo
 from knot.repositories.base import get_conn
 
-
 # ─── R-58 schema 必含 client_ip + user_agent + actor_name 独立列 ────
 
 def test_R58_schema_has_client_ip_user_agent_columns(tmp_db_path):

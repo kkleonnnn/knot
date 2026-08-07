@@ -16,7 +16,6 @@ from knot.services.desensitize import (
     desensitize_text,
 )
 
-
 # ─── build_table_alias_map ──────────────────────────────────────────────
 
 

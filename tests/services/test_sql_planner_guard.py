@@ -14,7 +14,6 @@ R-PA-10（漏洞 #6）：CTE (WITH...) 识别为可执行查询（pre-existing v
 from knot.services.agents.sql_planner import _is_executable_query
 from knot.services.agents.sql_planner_tools import _run_tool
 
-
 # ── R-PA-9: execute_sql 路径笛卡尔积/fan-out 守护 ──────────────────────────
 
 def test_R_PA_9_execute_sql_blocks_cross_join():

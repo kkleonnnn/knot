@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from knot.core import tenant_context as tc
-from knot.core.logging_setup import logger      # iso2c：loguru sink 捕获逃逸留痕（caplog 抓不到 loguru）
+from knot.core.logging_setup import logger  # iso2c：loguru sink 捕获逃逸留痕（caplog 抓不到 loguru）
 from knot.repositories import base, tenant_repo
 
 # ─────────────────────── 隔离（fail-closed + 文件边界）───────────────────────
@@ -47,7 +47,8 @@ def test_iso2_get_conn_resolves_db_dir_production_layout(tmp_db_path):
     tok = tc._active_tenant_ctx.set({"id": 2, "slug": "t2", "name": "T2", "status": "active", "db_dir": "tenants/2"})
     try:
         assert base._tenant_db_path() == (anchor_parent / "tenants" / "2" / "knot.db").resolve()
-        c = base.get_conn(); c.close()
+        c = base.get_conn()
+        c.close()
         assert (anchor_parent / "tenants" / "2" / "knot.db").exists()
     finally:
         tc._active_tenant_ctx.reset(tok)
@@ -155,12 +156,15 @@ def test_iso3_double_tenant_file_isolation(tmp_db_path):
     """
     conn = tenant_repo.get_platform_conn()
     conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) VALUES (2,'t2','T2','suspended','tenants/2')")
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
     tok = tc._active_tenant_ctx.set(tenant_repo.get_tenant(2))
     try:
         c2 = base.get_conn()
         c2.execute("CREATE TABLE IF NOT EXISTS _probe (x INTEGER)")
-        c2.execute("INSERT INTO _probe VALUES (42)"); c2.commit(); c2.close()
+        c2.execute("INSERT INTO _probe VALUES (42)")
+        c2.commit()
+        c2.close()
     finally:
         tc._active_tenant_ctx.reset(tok)
     # tenant#1（autouse db_dir='.'）库不应有 tenant#2 的 _probe 表
@@ -181,12 +185,15 @@ def test_iso_executor_copy_context_isolation(tmp_db_path):
         ctx = contextvars.copy_context()   # 捕获 autouse tenant#1 ctx
 
         def _with_ctx():
-            c = base.get_conn(); c.close(); return "GOT"
+            c = base.get_conn()
+            c.close()
+            return "GOT"
         assert pool.submit(lambda: ctx.run(_with_ctx)).result() == "GOT"
 
         def _no_ctx():
             try:
-                base.get_conn(); return "GOT"
+                base.get_conn()
+                return "GOT"
             except tc.TenantContextError:
                 return "FAIL_CLOSED"
         assert pool.submit(_no_ctx).result() == "FAIL_CLOSED", "ctx.run 不应把 tenant ctx 泄漏进复用线程"
@@ -506,9 +513,9 @@ def test_tripwire5_tenant_db_no_tenant_columns(tmp_db_path):
 def test_iso7_tenant_db_git_ignored():
     """⑦ 租户库文件被 .gitignore（**/data/tenants/）—— 防运行时库（含 seed admin 哈希）裸奔进 git。"""
     top = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True).stdout.strip()
+                         capture_output=True, text=True, check=False).stdout.strip()
     r = subprocess.run(["git", "check-ignore", "knot/data/tenants/1/knot.db"],
-                       cwd=top, capture_output=True, text=True)
+                       cwd=top, capture_output=True, text=True, check=False)
     assert r.returncode == 0, "tenants/<id>/knot.db 必须被 .gitignore 忽略"
 
 

@@ -247,6 +247,7 @@ def test_R41_migrate_not_called_in_main_or_base():
     result = subprocess.run(
         ["grep", "-rn", "migrate_encrypt", "knot/main.py", "knot/repositories/base.py"],
         capture_output=True, text=True,
+        check=False,
     )
     assert result.returncode != 0, f"R-41：startup hook 不应引用 migrate；命中：{result.stdout}"
 

@@ -135,8 +135,8 @@ def test_xlsx_truncates_at_5000_rows_with_metadata():
 
 def test_xlsx_complex_value_json_serialized():
     """dict/list 复杂值 → JSON 字符串落 cell（不丢失数据）。"""
-    from io import BytesIO
     import json as _json
+    from io import BytesIO
 
     from openpyxl import load_workbook
 

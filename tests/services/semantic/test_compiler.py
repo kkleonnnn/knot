@@ -58,7 +58,8 @@ def test_no_time_no_dims_default_limit():
 # ─── 保守 raise（→ F4 回退）─────────────────────────────────────────
 
 def test_multi_object_raises():
-    bad = dict(_DAU); bad["base_object"] = "shop.users"
+    bad = dict(_DAU)
+    bad["base_object"] = "shop.users"
     with pytest.raises(CompileError):
         _build_sql(LogicForm(metrics=["gmv", "dau"]), {"gmv": _GMV, "dau": bad}, _TABLES, _time_ctx())
 
@@ -80,7 +81,8 @@ def test_http_table_raises():
 
 
 def test_time_set_no_date_col_raises():
-    nodate = dict(_GMV); nodate["dimensions"] = '["city"]'
+    nodate = dict(_GMV)
+    nodate["dimensions"] = '["city"]'
     with pytest.raises(CompileError):
         _build_sql(LogicForm(metrics=["gmv"], time="this_month_to_latest"), {"gmv": nodate}, _TABLES, _time_ctx())
 
@@ -236,7 +238,8 @@ def test_multi_base_time_base_without_date_fallback():
 
 def test_multi_base_scalar_with_time_per_base():
     """多 base 标量 + time：各 base 子查询各注入**自己 base** 的日期窗。"""
-    uc_dated = dict(_UC); uc_dated["dimensions"] = '["date","region"]'    # users 带 date
+    uc_dated = dict(_UC)
+    uc_dated["dimensions"] = '["date","region"]'    # users 带 date
     sql = _build_sql(LogicForm(metrics=["gmv", "uc"], time="this_month_to_latest"),
                      {"gmv": _GMV, "uc": uc_dated}, _TABLES2, _time_ctx())
     assert "FROM shop.orders o WHERE (o.status='paid') AND (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
@@ -295,7 +298,9 @@ def test_multi_base_dimensional_passes_safety_gates():
 
 def test_multi_base_dimensional_time_per_metric_base():
     """R-SL-109：多 base 维度 + time → 维度域 UNION 分支 + agg 各注入自己 base 的日期窗（共同维度 date）。"""
-    gmv_d = dict(_GMV_C); dau_d = dict(_DAU_C); dau_d["dimensions"] = '["date","city"]'
+    gmv_d = dict(_GMV_C)
+    dau_d = dict(_DAU_C)
+    dau_d["dimensions"] = '["date","city"]'
     sql = _build_sql(LogicForm(metrics=["gmv", "dau"], dimensions=["date"], time="this_month_to_latest"),
                      {"gmv": gmv_d, "dau": dau_d}, _TABLES2, _time_ctx())
     assert "SELECT DISTINCT o.date FROM shop.orders o WHERE (o.date BETWEEN '2026-06-01' AND '2026-06-21')" in sql
@@ -747,14 +752,16 @@ def test_derived_dispatch_before_metric_bases():
 def test_derived_ops_no_nullif_except_divide():
     """R-SL-133：×/+/− op → 对应 SQL 运算符；**仅 divide 包 NULLIF**（其余裸算术）。"""
     for op, sym in (("multiply", "*"), ("add", "+"), ("subtract", "-")):
-        m = dict(_ARPU); m["lineage"] = f'{{"op":"{op}","left":"gmv","right":"dau"}}'
+        m = dict(_ARPU)
+        m["lineage"] = f'{{"op":"{op}","left":"gmv","right":"dau"}}'
         sql = _build_sql(LogicForm(metrics=["arpu"]), {**_DERIVED_MBN, "arpu": m}, _TABLES2, _time_ctx())
         assert f" {sym} " in sql and "NULLIF" not in sql
 
 
 def test_derived_unknown_op_raises():
     """⭐ R-SL-133 注入安全：op ∉ 白名单（divide/multiply/add/subtract）→ CompileError（0 裸拼运算符）。"""
-    m = dict(_ARPU); m["lineage"] = '{"op":"powerrr","left":"gmv","right":"dau"}'
+    m = dict(_ARPU)
+    m["lineage"] = '{"op":"powerrr","left":"gmv","right":"dau"}'
     with pytest.raises(CompileError):
         _build_sql(LogicForm(metrics=["arpu"]), {**_DERIVED_MBN, "arpu": m}, _TABLES2, _time_ctx())
 

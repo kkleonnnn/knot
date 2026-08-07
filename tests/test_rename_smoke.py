@@ -18,7 +18,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ─── R-67 包名 / 目录 / 一致性 ────────────────────────────────────────
 
 def test_R67_knot_package_dir_exists():
@@ -146,7 +145,6 @@ def test_R72_routes_count_unchanged():
     路由计数守护对上游 FastAPI/Starlette include_router 内部实现变更鲁棒。
     """
     from knot.main import app
-
     from tests._route_count import flatten_app_routes
     routes = flatten_app_routes(app)
     assert len(routes) >= 80, f"路由数下限应 ≥ 80（防路由蒸发）；实际：{len(routes)}"
@@ -159,6 +157,6 @@ def test_R72_import_knot_main_succeeds():
 
 def test_R67_services_agents_importable():
     """knot.services.agents.X 可 import（git mv 后路径生效）。"""
+    import knot.services.agents.catalog  # noqa: F401
     import knot.services.agents.orchestrator  # noqa: F401
     import knot.services.agents.sql_planner  # noqa: F401
-    import knot.services.agents.catalog  # noqa: F401

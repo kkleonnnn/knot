@@ -58,8 +58,8 @@ npm run dev  # 默认 5173 端口
 
 ```bash
 # 后端
-ruff check knot/                       # 代码风格
-lint-imports                           # 7 contracts KEPT
+ruff check knot/ tests/ scripts/       # 代码风格（与 CI 同口径 —— 2026-08-06 起含 tests/ + scripts/）
+lint-imports                           # 9 contracts KEPT
 python3 scripts/check_file_sizes.py    # R-94 文件行数硬上限
 pytest tests/ -v --tb=short --ignore=tests/eval
 

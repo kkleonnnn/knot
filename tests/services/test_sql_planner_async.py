@@ -7,7 +7,7 @@
 """
 import pytest
 
-from knot.models.errors import KnotError, BudgetExceededError, LLMNetworkError
+from knot.models.errors import BudgetExceededError, KnotError, LLMNetworkError
 from knot.repositories import budget_repo
 from knot.services.agents import sql_planner
 

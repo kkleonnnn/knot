@@ -10,7 +10,6 @@ import configparser
 import subprocess
 from pathlib import Path
 
-
 IMPORTLINTER_PATH = Path(".importlinter")
 # 字面量分割避免被 _v050_rename.py 误替
 _OLD_NS = "bi" + "_agent"  # 旧命名空间字面量
@@ -102,6 +101,7 @@ def test_R71_lint_imports_all_kept():
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
     assert result.returncode == 0, (
         f"lint-imports 必须全 KEPT；returncode={result.returncode}\n"

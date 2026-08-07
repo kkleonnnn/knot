@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ─── 主修守护：startup auto-purge 测试期跳过（防 fire-and-forget WAL 锁竞争）──
 
 

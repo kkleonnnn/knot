@@ -38,14 +38,21 @@ async def test_R27_concurrent_add_agent_cost_no_lost_updates(tmp_db_path):
         b = cost_service.empty_buckets()
 
         # 三 agent 用 asyncio.gather 并发累加（模拟真实 stream 场景下的让步）
+        #
+        # ⚠️ 下面三行的 `# noqa: B023` 是**判定为误报**后加的（chore 清 tests lint 时逐个核过），
+        #    理由：B023「闭包引用了循环变量」是**语法启发式** —— 它不看闭包会不会活过本次迭代。
+        #    这里三个闭包在**同一次迭代内**就被 `asyncio.gather` await 掉了（见下一行）
+        #    ⇒ `b` / `i` 在它们运行时**还没变** ⇒ 晚绑定在结构上不可能发生。
+        #    ⛔ 若日后把 gather 移出循环（或改成 `tasks.append(...)` 攒起来最后一起 await），
+        #       这三条豁免**立刻失效** —— 那时必须改成默认参数绑定 `def f(b=b, i=i)`，不是继续 noqa。
         async def _add_clarifier():
-            cost_service.add_agent_cost(b, "clarifier", 0.001 * (i % 7), 20 + i, 10 + (i % 3))
+            cost_service.add_agent_cost(b, "clarifier", 0.001 * (i % 7), 20 + i, 10 + (i % 3))  # noqa: B023
 
         async def _add_sql_planner():
-            cost_service.add_agent_cost(b, "sql_planner", 0.005 * (i % 11), 100 + i * 2, 50 + (i % 5))
+            cost_service.add_agent_cost(b, "sql_planner", 0.005 * (i % 11), 100 + i * 2, 50 + (i % 5))  # noqa: B023
 
         async def _add_presenter():
-            cost_service.add_agent_cost(b, "presenter", 0.002 * (i % 5), 30 + (i % 9), 15 + (i % 7))
+            cost_service.add_agent_cost(b, "presenter", 0.002 * (i % 5), 30 + (i % 9), 15 + (i % 7))  # noqa: B023
 
         await asyncio.gather(_add_clarifier(), _add_sql_planner(), _add_presenter())
 
