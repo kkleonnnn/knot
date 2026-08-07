@@ -758,3 +758,47 @@ def test_endpoint_non_owner_malicious_put_writes_but_execution_is_refused(non_ow
     assert "不在本租户的出网白名单内" in res["error"], (
         f"不是 ③ 的 allowlist 拦下的：{res['error']!r}（若是 ② 的消息，说明 source_id 没绑上，本测没验到 ③）")
     assert no_network == [], f"③ 失效：真发出了请求 {no_network}"
+
+
+# ─── v0.9.16：私有 catalog 排出镜像 ⇒ 缺失时必须「退模板 + 响亮告警」 ───────────
+
+def test_v0916_missing_private_catalog_falls_back_to_template(tmp_db_path, monkeypatch):
+    """守什么：私有 catalog 缺失 ⇒ file 层退到**模板**（`source_tag == "example"`），不抛。
+
+    取材：把 `_template_catalog.py` 也藏起来 ⇒ `source_tag` 变 `empty`（证明本测测的是那一级回退）。
+    """
+    import pathlib
+
+    from knot.services.agents import catalog_loaders as cl
+
+    real = pathlib.Path(cl.__file__).parent / "_local_catalog.py"
+    if real.exists():
+        monkeypatch.setattr(cl.importlib, "import_module",
+                            lambda name: (_ for _ in ()).throw(ImportError(name)))
+    tag = cl._load_from_files()[4]
+    assert tag == "example", f"私有 catalog 缺失时未退到模板（source_tag={tag!r}）"
+
+
+def test_v0916_missing_private_catalog_warns_loudly(tmp_db_path, monkeypatch):
+    """⭐ 守什么：缺失时**响亮告警**（HTTP 会落 SQL）；文件在时**静默**。
+
+    ⚠️ 这条是**排除动作的前提条件**：直接排而不告警 = 把泄漏换成静默正确性回归（R-v096-4 明禁）。
+    取材：删掉 `warn_if_private_catalog_missing` 里的 `logger.warning` ⇒ 本测红。
+    """
+    import io
+    import pathlib
+
+    from knot.core.logging_setup import logger
+    from knot.services.agents import catalog_loaders as cl
+
+    monkeypatch.setattr(cl, "__file__", str(pathlib.Path(tmp_db_path).parent / "fake_loaders.py"))
+
+    buf = io.StringIO()
+    sid = logger.add(buf, format="{message}", level="WARNING")
+    try:
+        cl.warn_if_private_catalog_missing()
+    finally:
+        logger.remove(sid)
+    out = buf.getvalue()
+    assert "私有 catalog 未挂载" in out, f"缺失时没有告警 —— 静默落 SQL 复发：{out!r}"
+    assert "静默落 SQL" in out, f"告警没说清后果，运维看不出要不要管：{out!r}"

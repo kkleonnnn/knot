@@ -31,10 +31,15 @@ BACKEND_ACK = {
     "knot/services/engine_cache.py":       361,  # v0.9.1 失效器三拆（user/tenant 版 + tid 前缀键，346→361，MF3）；v0.8.24 +invalidate_all（340→346）
     # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）
     "knot/repositories/migrations.py":     395,  # v0.9.2 MF2 + 对抗加固：_migrate_uploads_to_isolated 双修（conn-路径派生 + 同名归一化列签名比 + 两 commit/表 + metadata↔physical + fail-closed，357→395）
-    "knot/main.py":                        334,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK；v0.9.5 +平台密钥合规 WARN 钩子（→314）；v0.9.6 +起源租户未被服务 WARN 钩子（6 行 = 装配下限：decorator/def/docstring/2 行体）314→321（headroom 3）；v0.9.7 +起源租户 egress 走 env 回退 WARN 钩子（同一装配下限；`tenant_repo` / `_tenant_ctx` 已在顶部 import，故体内仅 1 行 import + 1 行调用）321→328（headroom 3）；v0.9.12 +静态明文巡检钩子 328→334（**装配下限 = 注释 1 + import 1 + 空行 1 + 调用 1 = 4 行**：逐租户循环与全部理由**已刻意搬进** `repositories/secret_at_rest.warn_all_tenants_at_startup`，main.py 只保留接线 —— 原先写在 main.py 里的版本要 +42 行，那不是 cap 该让路的理由）
+    "knot/main.py":                        338,  # v0.9.0 C2 +tenant 启动序 ❶-❺（platform bootstrap/逐租户 init_db）+ tenant middleware（249→306）+ C4 ❷.5 存量迁移 gate（+3）；app 工厂编排 inherent → ACK；v0.9.5 +平台密钥合规 WARN 钩子（→314）；v0.9.6 +起源租户未被服务 WARN 钩子（6 行 = 装配下限：decorator/def/docstring/2 行体）314→321（headroom 3）；v0.9.7 +起源租户 egress 走 env 回退 WARN 钩子（同一装配下限；`tenant_repo` / `_tenant_ctx` 已在顶部 import，故体内仅 1 行 import + 1 行调用）321→328（headroom 3）；v0.9.12 +静态明文巡检钩子 328→334（**装配下限 = 注释 1 + import 1 + 空行 1 + 调用 1 = 4 行**：逐租户循环与全部理由**已刻意搬进** `repositories/secret_at_rest.warn_all_tenants_at_startup`，main.py 只保留接线 —— 原先写在 main.py 里的版本要 +42 行，那不是 cap 该让路的理由）；v0.9.16 +私有 catalog 未挂载 WARN 接线（**装配下限 = 1 行调用**：函数体与全部理由都在 catalog_loaders）334→335（headroom 3）
     "knot/repositories/tenancy_migration.py": 370,  # v0.9.0 C4 存量迁移：crash-safe + 并发-safe + 校验/fsync/resume-保全/denylist 防御纵深（守护者 Stage 4 两轮对抗加固）；v0.9.2 +db_dir 含容守卫（一处守 C4+uploads 两条写侧路径）；13 fn 单一内聚迁移关注点，拆分反损可读性 → ACK
     "knot/services/bi_report_service.py":  340,  # v0.8.5~.8 BI 编排（脱敏/diff-by-id/tiled 刷新/reorder）；v0.8.8 ③ +reorder 2 fn 302>300 → ACK
     "knot/api/bi_reports.py":              500,  # BI 报表 CRUD + reorder + 导出 + da-asst /analyze；v0.8.12 +RBAC(require_report_perm/create门/权限API) + C4b get_report _perms + C5 da-asst key/model GET/PUT →478（headroom 22）
+    # v0.9.16 +第二条启动 WARN（私有 catalog 未挂载 ⇒ HTTP 查询静默落 SQL）。**已压到装配下限**：
+    # docstring 4 行（只留「它是排除动作的前提条件」+ #262 边界）+ 三段 early-return + 4 行消息 = 20 行；291→316。
+    # ⚠️ 与 v0.9.6 的 warn_if_owner_tenant_not_served **同族同文件**是刻意的：两条都是「file 层为什么空」的诊断，
+    #    分开放会让下一个人只找到一条。
+    "knot/services/agents/catalog_loaders.py": 320,
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 

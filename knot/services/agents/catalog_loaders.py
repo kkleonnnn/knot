@@ -77,6 +77,32 @@ def load_file_layer() -> tuple:
     return _load_from_files()
 
 
+def warn_if_private_catalog_missing() -> None:
+    """未挂载私有 catalog ⇒ 响亮告警（v0.9.16）。
+
+    **它是排除动作的前提条件，不是装饰**：排掉 `_local_catalog.py` 后 file 层落模板
+    ⇒ HTTP 虚拟表消失 ⇒ **查询静默落 SQL**（v0.7.29b），而 R-v096-4 明禁静默。
+    只在起源租户 + 文件缺失时响（非 owner 本就该空）；消息不含表名/路径（#262）。
+    """
+    from knot.core.logging_setup import logger
+    from knot.core.tenant_context import OWNER_TENANT_ID
+    from knot.repositories import tenant_repo
+    try:
+        served = tenant_repo.resolve_single_tenant()
+    except Exception:
+        return
+    if served.get("id") != OWNER_TENANT_ID:
+        return                       # 非起源租户：file 层本就该空，由 owner-gate 负责
+    if (pathlib.Path(__file__).parent / "_local_catalog.py").exists():
+        return                       # 已挂载 ⇒ 静默（正常情形不出声）
+    logger.warning(
+        "[catalog] 私有 catalog 未挂载 ⇒ file 层退回内置模板："
+        "HTTP 虚拟表消失、实时接口查询会**静默落 SQL**（v0.7.29b 失败模式）。"
+        "若本部署确实使用 HTTP 数据源，请按 DEPLOY「私有 catalog」段 bind-mount 该文件；"
+        "若本部署只用 SQL 数据源，可忽略本条。"
+    )
+
+
 def warn_if_owner_tenant_not_served() -> None:
     """启动期钩子：**被服务的租户不是起源租户**时响亮告警（G14 的静默失败）。
 

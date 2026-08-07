@@ -199,16 +199,25 @@ _FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("嵌套 node_modules", ("frontend/node_modules/a.js", "deep/x/node_modules/b.js"), "**/node_modules/"),
     # ⚠️ 同理：`.pyc` 被 `**/*.py[cod]` 顶班 ⇒ 本族用**非 .pyc** 文件，才测得到目录规则本身。
     ("pycache",         ("knot/__pycache__/CACHEDIR.TAG",),                         "**/__pycache__/"),
+    # v0.9.16：部署方私有 catalog —— 从 `_MUST_STAY` **移过来**（这个决定本身变了，不是加豁免）。
+    # 该目录无其他规则覆盖 ⇒ mutant 非空判据（v3.1-B #7）。
+    # ⚠️ 两个文件各有各的规则 ⇒ **拆两族**：合成一族时 mutant 只需一个逃逸就通过
+    #    ⇒ 另一条规则永远得不到覆盖（v3.1-B #7 顶班的变体）。
+    ("私有 catalog(py)", ("knot/services/agents/_local_catalog.py",),
+                                              "knot/services/agents/_local_catalog.py"),
+    ("私有 catalog(yaml)", ("knot/services/few_shots.yaml",), "knot/services/few_shots.yaml"),
 )
 
-# 本片**刻意不排**的（下一片才处理）—— 正向断言，让这个决定**机械可见**
+# **必须留在上下文**的（正向断言，让这个决定机械可见）
+# v0.9.16：`_local_catalog.py` 已从此处**移入** `_FAMILIES`（私有 catalog 族）。
 _MUST_STAY = ("knot/main.py", "requirements.txt",
               # v0.9.14：lock 是 Dockerfile 安装行的输入 ⇒ 排掉它构建当场失败
               "requirements.lock",
               "frontend/package-lock.json",
               "knot/repositories/schema.sql", "knot/prompts/sql_planner.md",
+              # ⚠️ 同目录的**模板**必须留（v0.9.16 排的是私有那两个，不是整目录）
               "knot/services/agents/_template_catalog.py",
-              "knot/services/agents/_local_catalog.py")
+              "knot/services/few_shots.example.yaml")
 
 
 def _make_fixture(root: pathlib.Path, dockerignore_text: str) -> None:
@@ -259,10 +268,15 @@ def test_Se2_required_files_still_reach_the_context(tmp_path):
     ⭐ Codex R4 的教训：**纯负断言在空集上恒真** ——
     一个把整个仓库都排除掉的 `.dockerignore` 会让 Se1 通过，而镜像**完全坏掉**。
 
-    ⚠️ `_local_catalog.py` **刻意在必留清单里**：本片**不排**私有 catalog
-    （排它会让 file 层落 `_template_catalog` ⇒ HTTP 查询静默落 SQL = v0.7.29b 失败模式，
-    而 R-v096-4 明禁）。⇒ 下一片改 bind-mount + 启动 WARN 后才排。
-    **把这个决定写成断言，是为了让下一片必须显式改掉它 —— 决定不能静默翻转。**
+    ⭐ **v0.9.16 已翻转该决定**：`_local_catalog.py` 从本清单**移入** `_FAMILIES`（私有 catalog 族）。
+    翻转的前提条件是 v0.9.13 写在这里的那两条，已逐条兑现：
+    **bind-mount**（DEPLOY「私有 catalog」段）+ **启动 WARN**
+    （`catalog_loaders.warn_if_private_catalog_missing`，双向实证：缺则响、在则静默）
+    ⇒ 「HTTP 查询静默落 SQL」不再静默，R-v096-4 满足。
+    ⚠️ 留下的是**同目录的模板**（`_template_catalog.py` / `few_shots.example.yaml`）——
+    排的是私有那两个，**不是整目录**。
+    ⭐ **这条断言起过作用**：v0.9.16 的测绘一度写下「排出镜像天然安全」（只看了「不崩」），
+    是本段散文让执行者读到「不崩 ≠ 无静默降级」⇒ **决定不能静默翻转，兑现了。**
     """
     ctx = tmp_path / "ctx"
     ctx.mkdir()
@@ -286,8 +300,16 @@ def test_Se1_mutant_each_family_reddens_on_its_own(tmp_path, family, files, rule
     ctx = tmp_path / "ctx"
     ctx.mkdir()
     text = DOCKERIGNORE.read_text(encoding="utf-8")
-    mutated = "\n".join(ln for ln in text.splitlines() if ln.strip() != rule)
-    assert mutated != text, f"注入前提不成立：`.dockerignore` 里找不到规则 {rule!r} ⇒ 本测空跑"
+    # ⚠️ **判据必须是「真的删到了行」，不能是 `mutated != text`**（v0.9.16 实测该守护失效）：
+    #    `"\n".join(splitlines())` 会丢掉原文结尾换行 ⇒ 两串**恒不相等**
+    #    ⇒ 连一个**完全不存在**的规则都能让它通过（实测坐实）。
+    #    ⇒ 那正是本仓第 ② 问「注入真能产生那个后果吗」——守护在，但它守不住。
+    kept = [ln for ln in text.splitlines() if ln.strip() != rule]
+    assert len(kept) < len(text.splitlines()), (
+        f"注入前提不成立：`.dockerignore` 里**没有一行**等于 {rule!r} ⇒ 本测空跑。\n"
+        f"    ⚠️ 规则要写**整行原文**（mutant 按整行匹配），不是文件名片段。"
+    )
+    mutated = "\n".join(kept)
     _make_fixture(ctx, mutated)
 
     entries = _context_entries(ctx, tmp_path)
@@ -342,12 +364,10 @@ _EXCLUDED_TRACKED_PREFIXES = {
     "tests/eval/":  "⚠️ **业务隐私目录整体排除**（`.gitignore:25` 分节）—— 见下面那条测的说明",
 }
 
-# 允许「未被跟踪但**进**上下文」的 —— ⭐ **恰好一项**，且是**刻意**的
-_ALLOWED_UNTRACKED = {
-    "knot/services/agents/_local_catalog.py":
-        "⚠️ 刻意保留：直接排会让 file 层落 `_template_catalog` ⇒ HTTP 查询静默落 SQL "
-        "= v0.7.29b 失败模式，R-v096-4 明禁。⇒ 下一片改 bind-mount + 启动 WARN 后才排。",
-}
+# 允许「未被跟踪但**进**上下文」的 —— ⭐ **v0.9.16 起为空**
+# （唯一一项 `_local_catalog.py` 已被排出上下文 ⇒ 条目删除，不留过期豁免：
+#  清单里留着已不成立的条目 = 祝福一个不存在的风险）
+_ALLOWED_UNTRACKED: dict[str, str] = {}
 
 
 def _tracked_files() -> set[str]:

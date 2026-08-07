@@ -5,7 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.15 — 租户开通（provisioning · lift 弧 P2）
+## [Unreleased] - v0.9.16 — 私有 catalog 排出构建上下文（lift 弧 · R-T-GATE 清单项）
+
+**部署方私有 catalog 不再进镜像。** `_local_catalog.py`（真实表名/词典/业务口径/表间关系）与
+`few_shots.yaml`（真实问法样例）**从来不在仓库里**（`.gitignore` 已排），但此前会被
+`COPY . .` 烤进镜像 ⇒ 镜像一旦分发，业务口径跟着走。改为**运行时 bind-mount**（kk 拍板方案①）。
+
+- **`.dockerignore` 排两个文件** —— ⚠️ **逐文件列，不排目录**：同目录的
+  `_template_catalog.py` / `few_shots.example.yaml` 是**仓内模板，必须留**。
+- ⭐ **排除与启动 WARN 是同一个决定的两半**：直接排会让 file 层退到模板 ⇒ file HTTP 虚拟表消失
+  ⇒ 实时接口查询**静默落 SQL**（v0.7.29b 失败模式），而 **R-v096-4 明禁静默**。
+  ⇒ 新增 `catalog_loaders.warn_if_private_catalog_missing`（缺则响、在则静默，双向实测），
+  接进既有 startup hook（不新增 hook）。
+- **哨兵改判据、不加豁免**：`_local_catalog.py` 从 `_MUST_STAY` **移入** `_FAMILIES`；
+  `_ALLOWED_UNTRACKED` 那条唯一豁免**删除**（留着 = 祝福一个不存在的风险）。
+- DEPLOY 新增「私有 catalog」段（挂载命令 + **三种情形各自后果**）+ 主 `docker run` 加该挂载。
+
+⭐⭐ **上一片留下的哨兵散文救了这一片**：v0.9.16 的测绘一度写下「排出镜像天然安全」——
+只看了「不崩」。而 `test_dockerignore_context.py` 那条正向断言旁边写着排除的**前提条件**
+（「bind-mount + 启动 WARN 后才排」）⇒ 执行者读到才发现**「不崩」≠「无静默降级」**。
+⇒ 这是 v0.9.13「**把决定写成断言，让下一片必须显式改掉它**」的兑现。
+
+⚠️ **顺手修一个既有缺陷**：mutant 测那句「注入前提不成立」的守护**从来没生效过** ——
+`"\n".join(splitlines())` 丢掉原文结尾换行 ⇒ `mutated != text` **恒真**
+⇒ 连一个**完全不存在**的规则都能让它通过（实测坐实）。改判「真的删到了行」。
+⭐ 本仓第 ② 问的干净实例：**守护在，但它守不住** —— 而它正是被我自己写错的规则字符串触发暴露的。
+另：私有 catalog 一族**拆成两族**（两个文件各有各的规则，合成一族时 mutant 只需一个逃逸即通过
+⇒ 另一条规则永远得不到覆盖）。
+
+## v0.9.15 — 租户开通（provisioning · lift 弧 P2）
 
 > **定性**：平台面**第一个写端点**。开通出来的租户**恒 suspended**（不可服务、对请求与登录两条
 > 解析路径都不可见）⇒ 本片可在 R-T-GATE lift 之前完整落地，**全站行为不变**。
