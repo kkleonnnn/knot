@@ -643,7 +643,21 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 >   该列**没有任何写端点**（v0.9.5 E2 刻意零平台写操作）⇒ 唯一配置途径是运维直接 `UPDATE platform.db`
 >   （SQL 原文见 DEPLOY.md「多租户运维门」）。**漏配 ⇒ 该租户 HTTP 数据源全部静默拒绝**
 >   —— fail-closed 正确，但**与 bug 不可区分** ⇒ 与「禁停用/删除起源租户」**同族，写在一起**。
-> - ▶ **启动/请求期残留的 `resolve_single_tenant`** → **lift 前**。⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 **95/166**，且**第三处** `main.py:245`（audit purge 后台任务）**从未登记**）⇒ 按**符号 + 文件**记：`main.py` **3 处**（prompt seed / TOTP rollout / audit purge）+ `auth.py`（登录无 slug 回退）+ `tenant_resolution.py`（无 tid 回退）= **生产 5 处**；另 CLI 脚本 3 处已支持 `--tenant`（非阻塞）。
+> - ▶ **启动/请求期残留的 `resolve_single_tenant`** → **lift 前**。⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 **95/166**，且**第三处** `main.py:245`（audit purge 后台任务）**从未登记**）⇒ 按**符号 + 文件**记：`main.py` **3 处**（prompt seed / TOTP rollout / audit purge）+ `auth.py`（登录无 slug 回退）+ `tenant_resolution.py`（无 tid 回退）+ `tenancy_migration`（C4 存量迁移，**本质单租户、可留**）+ `catalog_loaders` **2 处**（两条启动 WARN）= **AST 实测 8 处**（2026-08-06 重测）。
+> ⚠️ **原登记「5 处」已陈旧** —— `tenancy_migration` 与 `catalog_loaders` **从未被登记**（与 v0.9.7 发现 `main.py` 第三处从未登记同形：**清单本身会漂**）。
+> ⚠️⚠️ **其中一处是 v0.9.16 我自己新加的**（`warn_if_private_catalog_missing`）——lift 后 >1 active ⇒ `resolve_single_tenant()` raise ⇒ 它 `except: return` 早退⇒ **那条 WARN 从此永远不响**。不紧急（今天 N=1 且它是诊断非安全门），但**必须随 lift 一起改**。
+> ⭐⭐ **2026-08-06 逐处实读后，清单对其中三处的定性被推翻**（照着清单做会做错账）：
+> - **`auth.py` 登录无代号回退 ≠ fail-open**：`resolve_single_tenant()` 在 active ≠1 时 **raise**
+>   ⇒ 第二租户一激活，无代号登录**全部 401**，**绝不会「挑一个」租户**（守护者 Q5/Q2 当初已查明，
+>   `auth.py` docstring 写着，且有测 `test_no_slug_login_with_two_active_tenants_is_401`）。
+>   ⇒ 真实性质 = **可用性**（老链接失效），**不是跨租户访问** ⇒ **不是安全阻断项**，是产品迁移决定。
+> - **`tenant_resolution.py` 那处不是「无 tid 回退」**：它只在 `_LEGACY_SINGLE_TENANT_PATHS`
+>   分支里，而该表**恰含一条** `/api/bi/scheduler/tick` ⇒ **它与「调度器 tick 域化」是同一项**，
+>   清单当成了两项。无 tid 的一般情形早已正确：middleware 不设 ctx ⇒ `get_current_user` 401。
+> ⇒ **三处不准同一个成因：清单是手写散文，而代码比它准。** 加上 v0.9.7 的行号漂与本次 5→8，
+>   已是**第三个数据点** ⇒ **该清单必须派生（AST 扫 + 与清单比对，漏登记即红）**，列为独立 chore。
+> ⭐ **这是 v3.1-B #1 那条推论的现场实例**：我在**做多租户的片里**又新增了一个依赖「唯一」的回退—— 规则折进去了，同一小时就违反了 ⇒ **说明该清单必须派生，不能手写**（下一片做）。
+> CLI 侧：v0.9.15 消掉 2 处（`reset_admin_password` / `migrate_encrypt_v045` 回退物理删除），现剩 **2 处**（`purge_audit_log` 仅 dry-run 可达 / `scan_secrets_at_rest` 只读），均非阻塞。
 > - ✅ **平台审计落点 `platform_audit` = v0.9.8 已闭合**（R7）：平台库新增 `platform_audit` 表
 >   + `tenants.updated_at` + 单一写口 `tenant_repo.update_tenant` + 只读端点 `GET /api/platform/audit`。
 >   ⭐ **承重设计不是表而是写法**：审计 INSERT 与被记录的动作**同连接、同事务、单次 commit**

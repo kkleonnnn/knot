@@ -802,3 +802,59 @@ def test_v0916_missing_private_catalog_warns_loudly(tmp_db_path, monkeypatch):
     out = buf.getvalue()
     assert "私有 catalog 未挂载" in out, f"缺失时没有告警 —— 静默落 SQL 复发：{out!r}"
     assert "静默落 SQL" in out, f"告警没说清后果，运维看不出要不要管：{out!r}"
+
+
+# ─── v0.9.17：两条启动 WARN 与「租户数」解耦（lift 后仍须有效）───────────────
+
+def _warn_output(fn) -> str:
+    import io
+
+    from knot.core.logging_setup import logger
+    buf = io.StringIO()
+    sid = logger.add(buf, format="{message}", level="WARNING")
+    try:
+        fn()
+    finally:
+        logger.remove(sid)
+    return buf.getvalue()
+
+
+def test_v0917_owner_inactive_warns_regardless_of_tenant_count(tmp_db_path):
+    """守什么：起源租户被停用 ⇒ 告警；且**再多一个 active 租户也照样告警**。
+
+    取材：把判据改回 `resolve_single_tenant()` ⇒ 两 active 时它 raise ⇒ WARN 静默 ⇒ 本测红。
+    """
+    from knot.repositories import tenant_repo
+    from knot.services.agents import catalog_loaders as cl
+
+    conn = tenant_repo.get_platform_conn()
+    conn.execute("UPDATE tenants SET status='suspended' WHERE id=1")
+    conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) "
+                 "VALUES (2,'t2','T2','active','tenants/2')")
+    conn.commit()
+    conn.close()
+
+    out = _warn_output(cl.warn_if_owner_tenant_not_active)
+    assert "起源租户" in out and "suspended" in out, f"起源租户被停用却没告警：{out!r}"
+
+
+def test_v0917_private_catalog_warn_does_not_depend_on_tenant_count(tmp_db_path):
+    """守什么：私有 catalog 缺失的告警**不依赖「恰 1 个 active 租户」**。
+
+    取材：恢复 `resolve_single_tenant()` 前置 ⇒ 两 active 时早退 ⇒ 本测红。
+    """
+    import pathlib
+
+    from knot.repositories import tenant_repo
+    from knot.services.agents import catalog_loaders as cl
+
+    conn = tenant_repo.get_platform_conn()
+    conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) "
+                 "VALUES (2,'t2','T2','active','tenants/2')")
+    conn.commit()
+    conn.close()
+
+    if (pathlib.Path(cl.__file__).parent / "_local_catalog.py").exists():
+        pytest.skip("本机存在真实私有 catalog；该分支由 v0.9.16 那条测覆盖")
+    out = _warn_output(cl.warn_if_private_catalog_missing)
+    assert "私有 catalog 未挂载" in out, f"两 active 租户下告警消失了：{out!r}"
