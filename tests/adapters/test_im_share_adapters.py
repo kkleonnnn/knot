@@ -101,12 +101,40 @@ def _clear_lark_cache():
     lk._token_cache.clear()
 
 
-def _lark_router(counter):
-    """按 URL 路由 mock 响应；counter 记 token 端点命中次数。"""
+#: mock 认可的 (app_id → app_secret)。**其余一律视为凭据错误。**
+#: ⚠️ 现有用例用的两组：`("cli_x","sec")` 与 `("c","s")` —— 保持它们通过，
+#: 但**任何第三组组合从此拿不到 token**。
+_LARK_VALID_CREDS = {"cli_x": "sec", "c": "s"}
+
+
+def _lark_router(counter, *, valid_creds=None, token_by_app=None):
+    """按 URL 路由 mock 响应；counter 记 token 端点命中次数。
+
+    ⭐ **v0.9.18 P-a0：token 端点从此校验 `app_secret`**（原先**无条件**返 `code:0`+token）。
+
+    ⚠️ **为什么这是本片的必做项而不是加强**（Stage 2 lens A 实跑坐实）：
+    P-a 的核心验收是「**同 `app_id` + 错 secret ⇒ 拿不到 token**」。
+    在旧 router 下，那条判据**修复前后都不成立** —— 因为 mock 无论 secret 是什么都发 token
+    ⇒ 「拿到了 token」这个事件在 oracle 里**无法区分**「缓存串了」与「mock 太宽松」。
+    ⇒ **五问②：注入产生不了要测的后果 ⇒ 取材证明是空的。**
+    先修 harness，P-a 的判据才有意义。
+
+    `token_by_app` 可选：让不同 app_id 拿到**不同** token 串，供 P-a 断言
+    「B 从未取得 A 的 token」这类**内容级**判据（比「拿到了/没拿到」更强）。
+    """
+    creds = _LARK_VALID_CREDS if valid_creds is None else valid_creds
+
     def _post(url, timeout=None, headers=None, json=None, data=None, files=None, **k):
         if "tenant_access_token" in url:
             counter["token"] += 1
-            return _Resp({"code": 0, "tenant_access_token": "t-abc", "expire": 7200})
+            body = json or {}
+            app_id, app_secret = body.get("app_id"), body.get("app_secret")
+            # ⭐ 真实飞书对错误凭据返 code=10014；照抄它，让 adapter 走它真实的失败分支
+            if creds.get(app_id) != app_secret:
+                counter.setdefault("rejected", []).append(app_id)
+                return _Resp({"code": 10014, "msg": "invalid app_secret"})
+            tok = (token_by_app or {}).get(app_id, "t-abc")
+            return _Resp({"code": 0, "tenant_access_token": tok, "expire": 7200})
         if "im/v1/images" in url:
             return _Resp({"code": 0, "data": {"image_key": "img_v2_KEY"}})
         if "im/v1/messages" in url:
@@ -131,6 +159,25 @@ def test_lark_three_step_double_encoded_content(monkeypatch):
     assert img_msg["receive_id"] == "oc_chat"
     # caption 非空 → 先发 text 消息
     assert any(m.get("msg_type") == "text" for m in counter["msgs"])
+
+
+def test_lark_router_rejects_wrong_secret(monkeypatch):
+    """⭐ 守 **harness 本身**（v0.9.18 P-a0）：错 secret ⇒ 换不到 token。
+
+    ⚠️ **为什么这条测的对象是 mock 而不是生产码**：P-a 要断言的性质是
+    「同 `app_id` + 错 secret ⇒ 拿不到 token」。若 mock 无条件发 token，
+    那条断言**在修复前后都不成立** ⇒ 它证明不了任何事（五问②）。
+    ⇒ 本测钉住 harness 的判别力：**mock 必须能区分对/错 secret**。
+    删掉 `_lark_router` 里的 secret 校验 ⇒ 本测红 ⇒ P-a 的核心判据不会在无声中变空。
+    """
+    import requests
+    counter = {"token": 0}
+    monkeypatch.setattr(requests, "post", _lark_router(counter))
+    with pytest.raises(lk.LarkError):
+        lk.LarkImageAdapter().send_image(b"P", "", "oc_1", app_id="cli_x",
+                                         app_secret="WRONG", region="feishu")
+    assert counter["token"] == 1, "应当**真的**去换过一次 token（而不是在更早的地方就失败了）"
+    assert counter.get("rejected") == ["cli_x"], "mock 未按 secret 拒绝 —— harness 无判别力"
 
 
 def test_lark_token_cached_across_sends(monkeypatch):
