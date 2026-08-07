@@ -116,6 +116,19 @@ def get_tenant_by_slug(slug: str) -> dict | None:
 #: ⇒ 与 `id`/`slug`/`created_at` 同一条理由，只是它更狠：那三个改了是「身份错”，这个改了是「数据没了」。
 _MUTABLE_TENANT_FIELDS = ("status", "allowed_http_hosts", "name")
 
+#: 审计里**只记「已变更」、绝不记内容**的字段（v0.9.18 P-a · C3 结构性修法）。
+#:
+#: ⭐ **为什么是一份具名集合，而不是在脱敏那行再加一个 `or k == "..."`**（kk 2026-08-07 裁定）：
+#: 该行原为 `if k == "allowed_http_hosts"` —— **硬编单名**。加第二份 allowlist 时若只是补一个名字，
+#: **第三份来的时候会原样重演一次**，而那次没有任何东西会提醒你。
+#: ⇒ 集合 + 派生哨兵（`tests/test_allowlist_column_registration.py`）＝
+#: **凡进入 `_MUTABLE_TENANT_FIELDS` 的 `allowed_*` 字段，不登记在此就红。**
+#: 先例：guard chore 的「载体名 4 份清单 → 1 份真相源」。
+#:
+#: ⚠️ **为什么这些字段不能记内容**：它们是**部署方的内网主机清单**，而
+#: `GET /api/platform/audit` 会把 `detail_json` 原样返回（#262 同族：诊断信息经异常/响应流出）。
+_REDACTED_IN_AUDIT = frozenset({"allowed_http_hosts"})
+
 
 def seed_default_tenant(db_dir: str = DEFAULT_TENANT_DB_DIR) -> None:
     """seed 恰 1 行 tenant#1（幂等：tenants 非空则跳）。生产 db_dir='tenants/1'；测试传 '.'。
@@ -205,8 +218,8 @@ def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | Non
         # detail：逐字段记 before→after；allowlist 只记「已变更」（内容是部署方内网主机清单）
         detail = {}
         for k, v in fields.items():
-            if k == "allowed_http_hosts":
-                detail[k] = "changed"      # ⛔ 绝不记内容（#262 同族 + 该端点返回 detail_json）
+            if k in _REDACTED_IN_AUDIT:    # ⛔ 绝不记内容（#262 同族 + 该端点返回 detail_json）
+                detail[k] = "changed"      # ⭐ 集合而非硬编单名 —— 见 `_REDACTED_IN_AUDIT` 的理由
             else:
                 detail[k] = {"from": before.get(k), "to": v}
         platform_audit_repo.insert(
