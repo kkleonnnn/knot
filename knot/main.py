@@ -218,9 +218,7 @@ async def _warn_if_owner_egress_uses_env_fallback():
     """v0.9.7 B-3 ③：起源租户的 allowlist 仍走 env 回退（未迁移到 tenants 列）→ WARN。理由见该函数 docstring。"""
     from knot.adapters.http import url_allowlist as _egress
     _egress.warn_if_owner_using_env_fallback(tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID))
-    # v0.9.18 P-a：webhook 外发那份**同类的** allowlist（此前漏了这条 WARN）。
-    # ⭐ 它同时是运维的唯一答案来源：`KNOT_WEBHOOK_ALLOWED_HOSTS` 从未写进 DEPLOY/README
-    #    ⇒ 「现网到底配没配」查它需要集群权限，而**启动日志有没有这一行就是答案**。
+    # v0.9.18 P-a：webhook 那份**同类的** allowlist（理由全在被调函数的 docstring 里，此处只接线）。
     from knot.adapters.notification import webhook as _wh_egress
     _wh_egress.warn_if_owner_using_env_fallback(tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID))
 
