@@ -124,6 +124,7 @@ def create_tenant(
     slug: str,
     name: str,
     allowed_http_hosts: str,
+    allowed_webhook_hosts: str,
     actor: str | None = None,
     source: str | None = None,
 ) -> dict:
@@ -179,8 +180,9 @@ def create_tenant(
     conn = tenant_repo.get_platform_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO tenants (slug, name, status, db_dir, allowed_http_hosts) VALUES (?,?,?,?,?)",
-            (slug, name, _NEW_TENANT_STATUS, db_dir, allowed_http_hosts),
+            "INSERT INTO tenants (slug, name, status, db_dir, allowed_http_hosts, allowed_webhook_hosts) "
+            "VALUES (?,?,?,?,?,?)",
+            (slug, name, _NEW_TENANT_STATUS, db_dir, allowed_http_hosts, allowed_webhook_hosts),
         )
         tenant_id = int(cur.lastrowid)
         platform_audit_repo.insert(
@@ -193,7 +195,9 @@ def create_tenant(
             # ⛔ 绝不记：初始口令 · allowed_http_hosts 的**内容**（后者是部署方内网主机清单，
             #    而 `GET /api/platform/audit` 会返回 detail —— v0.9.8 已立同款禁令）。
             detail={"db_dir": db_dir, "status": _NEW_TENANT_STATUS,
-                    "allowed_http_hosts_configured": allowed_http_hosts != ""},
+                    "allowed_http_hosts_configured": allowed_http_hosts != "",
+                    # v0.9.18 P-a：同样**只记「配了没配」，绝不记内容**（内网主机清单）
+                    "allowed_webhook_hosts_configured": allowed_webhook_hosts != ""},
         )
         conn.commit()          # ⚠️ **单次** commit —— 拆成两次就把「不存在做了但没记」这条性质丢了
     finally:

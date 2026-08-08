@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.16 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.18 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -1033,17 +1033,42 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   - **出网白名单**：改读平台库 `tenants.allowed_http_hosts`（逗号分隔）。**起源租户（tenant#1）在该列为
     `NULL` 时回退 `KNOT_HTTP_ALLOWED_HOSTS`** ⇒ **现网 ConfigMap 不动即可继续工作**（启动期会 WARN 提示迁移）。
 
-  ### 🔧 配置某租户的出网白名单（**唯一途径** —— 该列无写端点）
+  ### 🔧 配置某租户的出网白名单（**两列**，唯一途径 —— 均无写端点）
+
+  ⚠️ **两列是两个不同的出网方向，必须分别配**：
+  | 列 | 管什么 | 回退 env（仅起源租户） |
+  |---|---|---|
+  | `allowed_http_hosts` | KNOT 从哪些 host **读**业务数据（HTTP 数据源） | `KNOT_HTTP_ALLOWED_HOSTS` |
+  | `allowed_webhook_hosts` | KNOT 往哪些 host **发**告警（monitor webhook） | `KNOT_WEBHOOK_ALLOWED_HOSTS` |
+
+  ⛔ **严禁混用**：把读取白名单里的 host 顺手抄进外发列，等于「允许读某内网 API」
+  变成「允许往那儿推数据」—— 两个方向的攻击面完全不同。
 
   ```bash
   # platform.db 位置 = 数据根 / platform.db（数据根 = SQLITE_DB_PATH 的父目录）
+  # ⭐ 一条 UPDATE 同时设两列 —— 分两条跑容易只跑了一条就被打断
   sqlite3 /app/knot/data/platform.db \
-    "UPDATE tenants SET allowed_http_hosts='api.example.com,api2.example.com' WHERE id=2;"
+    "UPDATE tenants SET allowed_http_hosts='api.example.com,api2.example.com',
+                        allowed_webhook_hosts='hooks.example.com' WHERE id=2;"
 
-  # 查看当前配置（NULL = 未配置；'' = 显式全拒绝）
+  # ⭐⭐ 跑完**必须**复核（quote() 是唯一能区分 NULL 与 '' 的显示法）
   sqlite3 /app/knot/data/platform.db \
-    "SELECT id, slug, quote(allowed_http_hosts) FROM tenants;"
+    "SELECT id, slug, quote(allowed_http_hosts), quote(allowed_webhook_hosts) FROM tenants;"
   ```
+
+  ⛔⛔ **漏 `WHERE` 会一次写全表** —— 把某个租户的 host 给了**所有**租户（含起源租户）。
+  且直接 SQL **不经写口** ⇒ **不 stamp `updated_at`、不进 `platform_audit`** ⇒ **零留痕**，
+  而症状是「别人的 webhook 忽然能发了」，没有人会为此报障。**跑完必须用上面那条 SELECT 复核。**
+
+  ### ⚠️ 行为变化提示（v0.9.18 起 —— 配置前请先读这段）
+
+  `allowed_webhook_hosts` **是 v0.9.18 新增的列**。在它之前，webhook 外发只看进程 env
+  `KNOT_WEBHOOK_ALLOWED_HOSTS`，而该 env **此前从未在本手册或 README 中出现**
+  （只在 `.env.example` 里被注释掉）⇒ **多数部署很可能从未设过它 ⇒ webhook 外发一直是静默全拒**。
+
+  ⇒ **一旦你按上面配置了这一列，该租户的 webhook 会从「静默全拒」变成「真的发出去」。**
+  这是**用户可感知**的变化 —— 配置前请确认目标 host 确实是你想接收告警的地方，
+  否则运维会遇到「怎么突然开始发告警了」。
 
   - **三态语义**（改错会静默出事，务必看清）：
     | 值 | 起源租户（tenant#1） | 其他租户 |

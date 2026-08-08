@@ -131,7 +131,7 @@ def test_destructive_clis_can_target_a_freshly_provisioned_suspended_tenant(tmp_
     _prepare()
     from knot.repositories import tenant_provisioning as tp
 
-    out = tp.create_tenant(slug="newco", name="NewCo", allowed_http_hosts="")
+    out = tp.create_tenant(slug="newco", name="NewCo", allowed_http_hosts="", allowed_webhook_hosts="")
     assert out["tenant"]["status"] == "suspended", "前提：本片开通的新租户恒 suspended"
     tid = str(out["tenant"]["id"])
 

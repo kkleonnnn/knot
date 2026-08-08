@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.16 — 私有 catalog 排出构建上下文（lift 弧 · R-T-GATE 清单项）
+## [Unreleased] - v0.9.18 — P-a：webhook 出网租户域化 + lark token 缓存键含租户与 secret 摘要
+
+### Security
+- **webhook 外发 allowlist 租户域化**：从进程 env `KNOT_WEBHOOK_ALLOWED_HOSTS` 改读平台库
+  `tenants.allowed_webhook_hosts`（本仓第三条平台迁移）。三态语义与 v0.9.7 的 `allowed_http_hosts`
+  **逐字同构**（`NULL`=未配置 ⇒ 仅起源租户回退 env / `''`=明确的「禁」/ 非空=该集合，**永不取并集**）。
+  ⚠️ 该缺陷与 v0.9.7 修掉的 `url_allowlist` **完全同形**却逃过了那次清扫 ——
+  它的 docstring 自称「**独立** egress allowlist、**≠** 数据源那个」，
+  **被标注为「与正在修的那个无关」的同类物，结构上就被那次修复的扫描面排除了。**
+- **lark token 缓存键**：`(region, app_id)` → `tenant_cache_key(region, app_id, sha256(secret)[:16])`。
+  原实现是「查缓存 → 命中即返 → **只有 miss 才带 secret 去 POST**」
+  ⇒ **命中缓存这条路上，调用方没有证明过任何东西**：填入他人的 `app_id`（标识符、非秘密）
+  + 任意 secret 即可取得并使用对方的 `tenant_access_token`（≤2h）。
+  ⭐ **承重的是 secret 摘要，不是租户维度** —— 后者在摘要已存在时是纵深防御（见测的断言消息）。
+- **拒绝消息收敛**：不再点名 env 名（域化后对非起源租户是**误导的**），诊断只进服务端日志。
+
+### Changed
+- 平台审计脱敏从**硬编单个列名**改为具名集合 `_REDACTED_IN_AUDIT` + 派生哨兵
+  ⇒ 第三份 allowlist 落地时会被**逼着登记**，而不是重演一次硬编。
+- 开通端点 / provisioning 写口新增 `allowed_webhook_hosts`（**必填、允许空串**，与既有那列同规矩）。
+
+### ⚠️ 运维行为变化（配置前必读）
+`KNOT_WEBHOOK_ALLOWED_HOSTS` 此前**从未出现在 DEPLOY / README**（仅 `.env.example` 且被注释）
+⇒ **多数部署很可能从未设过它 ⇒ webhook 外发一直是静默全拒**。
+⇒ **一旦按 DEPLOY 配置了新列，该租户的 webhook 会从「静默全拒」变成「真的发出去」** —— 用户可感知。
+
+### 诚实边界（本片**不**声称）
+- ⛔ **不声称「webhook 出网已受控」** —— `requests.post` **未禁重定向** ⇒ allowlist **仍只管第一跳**。
+  租户让自己合规的 host 返 307/308（**保留方法与 body**）即可把请求引向别处。**重定向禁令在 P-a'。**
+- SQL 数据源那条出网路径**至今零 allowlist**（`datasources.py` 的守卫首行 `if db_type != "http": return`）
+  —— 口径已定（host 由部署方控），处置在 **P-a'**。
+- 启动序在 2 active 租户下仍起不来（**P-b**）· R-T-GATE 未 lift（**P-c**）。
+
+
+## [已发布] - v0.9.16 — 私有 catalog 排出构建上下文（lift 弧 · R-T-GATE 清单项）
 
 **部署方私有 catalog 不再进镜像。** `_local_catalog.py`（真实表名/词典/业务口径/表间关系）与
 `few_shots.yaml`（真实问法样例）**从来不在仓库里**（`.gitignore` 已排），但此前会被

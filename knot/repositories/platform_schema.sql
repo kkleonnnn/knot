@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS tenants (
     --   ''   = **已配置为空** ⇒ 部署方明确表达「禁」⇒ 全拒绝，**起源租户也不回退 env**
     --   非空 = 该 host 集本身（**永不与 env 或其他租户取交集/并集** —— 取交集会「为给客租户开权而放宽起源租户」）
     allowed_http_hosts TEXT,
+    -- v0.9.18 P-a: webhook 外发 allowlist（**与上面那列同三态语义**，但**是另一个能力**）。
+    -- ⚠️ **为什么必须是独立一列而不是复用 allowed_http_hosts**：数据源读取与告警外发是两个方向
+    --    的出网，混用会让「允许读某内网 API」顺带变成「允许往那儿推数据」。
+    -- ⚠️ 未配置时的 env 回退名是 KNOT_WEBHOOK_ALLOWED_HOSTS（≠ 数据源那个 KNOT_HTTP_ALLOWED_HOSTS）。
+    -- ⛔ **本列内容 = 部署方内网主机清单** ⇒ 已登记 `tenant_repo._REDACTED_IN_AUDIT`（审计只记「已变更」）。
+    allowed_webhook_hosts TEXT,
     -- v0.9.8：平台元数据变更时间线（此前缺 ⇒「谁改了 db_dir」无时间线）。
     -- 由 `tenant_repo.update_tenant` 这个**单一写口** stamp；直接 UPDATE 绕过它则不 stamp（已诚实登记）。
     updated_at  TEXT

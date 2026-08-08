@@ -114,20 +114,14 @@ def get_tenant_by_slug(slug: str) -> dict | None:
 #: 而**数据不会跟着搬** ⇒ 「租户还在、数据不见了」，且旧目录变成无人引用的孤儿。
 #: 真要搬数据必须是一次**显式的迁移**（停用 → 搬文件 → 校验 → 改指向），不是走通用写口改一个字段。
 #: ⇒ 与 `id`/`slug`/`created_at` 同一条理由，只是它更狠：那三个改了是「身份错”，这个改了是「数据没了」。
-_MUTABLE_TENANT_FIELDS = ("status", "allowed_http_hosts", "name")
+_MUTABLE_TENANT_FIELDS = ("status", "allowed_http_hosts", "allowed_webhook_hosts", "name")
 
-#: 审计里**只记「已变更」、绝不记内容**的字段（v0.9.18 P-a · C3 结构性修法）。
-#:
-#: ⭐ **为什么是一份具名集合，而不是在脱敏那行再加一个 `or k == "..."`**（kk 2026-08-07 裁定）：
-#: 该行原为 `if k == "allowed_http_hosts"` —— **硬编单名**。加第二份 allowlist 时若只是补一个名字，
-#: **第三份来的时候会原样重演一次**，而那次没有任何东西会提醒你。
-#: ⇒ 集合 + 派生哨兵（`tests/test_allowlist_column_registration.py`）＝
-#: **凡进入 `_MUTABLE_TENANT_FIELDS` 的 `allowed_*` 字段，不登记在此就红。**
-#: 先例：guard chore 的「载体名 4 份清单 → 1 份真相源」。
-#:
-#: ⚠️ **为什么这些字段不能记内容**：它们是**部署方的内网主机清单**，而
-#: `GET /api/platform/audit` 会把 `detail_json` 原样返回（#262 同族：诊断信息经异常/响应流出）。
-_REDACTED_IN_AUDIT = frozenset({"allowed_http_hosts"})
+#: 审计**只记「已变更」、绝不记内容**的字段 —— 它们是部署方内网主机清单，而
+#: `GET /api/platform/audit` 会原样返回 `detail_json`（#262 同族）。
+#: ⭐ **是集合不是硬编单名**（v0.9.18 P-a）：原为 `if k == "allowed_http_hosts"`；只补第二个名字的话，
+#: **第三份 allowlist 来时会原样重演，且没有任何东西会提醒你**。
+#: 完整理由 + 派生哨兵见 `tests/test_allowlist_column_registration.py`（不登记在此即红）。
+_REDACTED_IN_AUDIT = frozenset({"allowed_http_hosts", "allowed_webhook_hosts"})
 
 
 def seed_default_tenant(db_dir: str = DEFAULT_TENANT_DB_DIR) -> None:
