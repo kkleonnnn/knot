@@ -180,6 +180,109 @@ def test_lark_router_rejects_wrong_secret(monkeypatch):
     assert counter.get("rejected") == ["cli_x"], "mock 未按 secret 拒绝 —— harness 无判别力"
 
 
+# ─── v0.9.18 P-a · D2：token 缓存键含租户 + secret 摘要 ────────────────
+def _tenant_ctx(tid: int):
+    from knot.core.tenant_context import set_active_tenant
+    return set_active_tenant({"id": tid, "db_dir": "."})
+
+
+def _reset(tok):
+    from knot.core.tenant_context import reset_active_tenant
+    reset_active_tenant(tok)
+
+
+def test_cache_is_really_hit_for_same_tenant_same_secret(monkeypatch):
+    """⭐ **先证明缓存真被命中**，否则下面「跨租户不命中」测的是「两次都去换 token」（五问③）。
+
+    ⚠️ **不能复用 `test_lark_token_cached_across_sends`**：它两次传**同一个** `app_secret`
+    且不涉及租户 —— 键加了 secret 摘要后它**照样绿**，故对本片的改动**零判别力**（Stage 2 A6）。
+    本测显式在**同一租户 ctx** 下跑，才是「新键仍然会命中」的证据。
+    """
+    import requests
+    counter = {"token": 0}
+    monkeypatch.setattr(requests, "post", _lark_router(counter))
+    tok = _tenant_ctx(1)
+    try:
+        a = lk.LarkImageAdapter()
+        a.send_image(b"P", "", "oc_1", app_id="cli_x", app_secret="sec", region="feishu")
+        a.send_image(b"P", "", "oc_2", app_id="cli_x", app_secret="sec", region="feishu")
+    finally:
+        _reset(tok)
+    assert counter["token"] == 1, "同租户同凭据第二次没命中缓存 —— 后续「不命中」类断言将失去意义"
+
+
+def test_tenant_b_never_obtains_tenant_a_token(monkeypatch):
+    """⭐ **内容级判据**：B 不只是「也去换了一次」，而是**从未持有 A 的那个 token 串**。
+
+    ⚠️ 「不同租户拿到不同 token」只证明**隔离**；本测更进一步 ——
+    断言**所有出站请求的 Authorization 头里都不出现 A 的 token**（P-a0 备的 `token_by_app` 使之可能）。
+    revert-to-bad：键去掉租户维度 ⇒ B 命中 A 的缓存 ⇒ 本测红且**点名那个 token 串**。
+    """
+    import requests
+    counter = {"token": 0}
+    seen_auth: list = []
+    router = _lark_router(counter, token_by_app={"cli_x": "TOKEN-OF-A"})
+
+    def _spy(url, timeout=None, headers=None, **k):
+        if headers and "Authorization" in headers:
+            seen_auth.append(headers["Authorization"])
+        return router(url, timeout=timeout, headers=headers, **k)
+
+    monkeypatch.setattr(requests, "post", _spy)
+
+    tok = _tenant_ctx(1)                       # 租户 A 先发一次 ⇒ 其 token 进缓存
+    try:
+        lk.LarkImageAdapter().send_image(b"P", "", "oc_a", app_id="cli_x", app_secret="sec", region="feishu")
+    finally:
+        _reset(tok)
+    assert any("TOKEN-OF-A" in h for h in seen_auth), "前置不成立：A 根本没拿到它的 token"
+
+    seen_auth.clear()
+    counter["token"] = 0
+    tok = _tenant_ctx(2)                       # 租户 B：**app_id 与 secret 都与 A 相同**
+    try:
+        lk.LarkImageAdapter().send_image(b"P", "", "oc_b", app_id="cli_x",
+                                         app_secret="sec", region="feishu")
+    finally:
+        _reset(tok)
+    # ⭐ 隔离的是**租户维度**：凭据完全相同 ⇒ 唯一能让键不同的就是租户
+    #    ⇒ B 必须**自己去换一次**，不得直接复用 A 的缓存条目。
+    assert counter["token"] == 1, (
+        "租户 B 用相同凭据时**命中了 A 的缓存条目** —— 缓存键里没有租户维度。\n"
+        "⇒ 这是纵深防御层：secret 摘要挡住了「猜 app_id」那条路，本断言挡住的是"
+        "「缓存条目跨租户共用」本身。"
+    )
+
+
+def test_rotating_secret_takes_effect_immediately(monkeypatch):
+    """理由②：同租户换 secret ⇒ **立刻**重新换取，而非沿用缓存里的旧 token（≤2h）。
+
+    ⚠️⚠️ **初版这条测判别力为零，是跑 revert 才发现的**（记在这里因为它是本片最贵的一课）：
+    初版让旧 secret **一开始就无效** ⇒ 换取失败 ⇒ **失败不写缓存** ⇒ 第二次仍是 miss
+    ⇒ `counter == 2` 在「键含 secret」与「键不含 secret」两种实现下**都成立**
+    ⇒ 判据**表示不了**「旧 token 被复用」这个我要排除的事件（五问②）。
+    ⇒ 修法：**旧 secret 必须先成功一次并进缓存**，然后才轮换 —— 那时「复用旧 token」才可能发生。
+    """
+    import requests
+    counter = {"token": 0}
+    creds = {"cli_x": "sec-OLD"}                       # ⚠️ 可变 ⇒ 中途轮换
+    monkeypatch.setattr(requests, "post",
+                        _lark_router(counter, valid_creds=creds,
+                                     token_by_app={"cli_x": "TOKEN-OLD"}))
+    tok = _tenant_ctx(1)
+    try:
+        a = lk.LarkImageAdapter()
+        a.send_image(b"P", "", "oc_1", app_id="cli_x", app_secret="sec-OLD", region="feishu")
+        assert counter["token"] == 1                   # 前置：旧凭据成功且**已进缓存**
+        creds["cli_x"] = "sec-NEW"                     # ← 轮换
+        a.send_image(b"P", "", "oc_2", app_id="cli_x", app_secret="sec-NEW", region="feishu")
+    finally:
+        _reset(tok)
+    assert counter["token"] == 2, (
+        "换 secret 后**没有**重新换取 token —— 说明它命中了旧 secret 那条缓存 ⇒ 键里没有 secret 维度"
+    )
+
+
 def test_lark_token_cached_across_sends(monkeypatch):
     import requests
     counter = {"token": 0}

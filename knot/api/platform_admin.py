@@ -236,6 +236,10 @@ class TenantCreateRequest(BaseModel):
     slug: str = Field(pattern=tenant_provisioning.SLUG_PATTERN)
     name: str
     allowed_http_hosts: str
+    #: v0.9.18 P-a：**同样必填、同样允许空串**（与上一列同三态语义，见其 docstring 段）。
+    #: ⚠️ **刻意也不给默认值** —— 两列各是一个独立的出网能力，替部署方默认任一个都是替它选语义。
+    #: 由 `tests/test_allowlist_column_registration.py` 的派生断言强制（含「必填」那条）。
+    allowed_webhook_hosts: str
 
 
 class TenantCreated(BaseModel):
@@ -287,6 +291,7 @@ async def create_tenant_platform(
             slug=body.slug,
             name=body.name,
             allowed_http_hosts=body.allowed_http_hosts,
+            allowed_webhook_hosts=body.allowed_webhook_hosts,
             actor=actor,            # = "platform"（E1：无「谁做的」身份，DEPLOY 已写明该代价）
             source="api",
         )

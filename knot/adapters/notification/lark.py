@@ -51,8 +51,37 @@ def _post(url: str, **kw) -> dict:
     return data
 
 
+def _cache_key(region: str, app_id: str, app_secret: str) -> tuple:
+    """token 缓存键（v0.9.18 P-a）：**租户 + region + app_id + secret 摘要**。
+
+    ⭐ **两个独立理由，缺一不可 —— 删掉 secret 摘要会同时破坏①，即使②看上去还能用别的方式实现。**
+
+    **理由①（安全 · 承重）：`app_secret` 必须参与判定。**
+    改造前键是 `(region, app_id)`，而 `_tenant_token` 是「查缓存 → 命中即 `return` →
+    **只有 miss 才带 secret 去 POST**」⇒ **命中缓存这条路上，调用方没有证明过任何东西。**
+    租户 B 把 `app_id` 填成 A 的（`app_id` 是**标识符不是秘密**）、secret 随便填，
+    即可拿到 **A 的 `tenant_access_token`** 并以 A 的身份发消息（约 2h）。
+
+    **理由②（正确性）：同租户内换了 secret 要立刻生效**，而不是等旧 token 自然过期（≤2h）。
+
+    ⚠️ **将来若有人为「省一次 hash」把 secret 摘出键：②看起来还成立（可以改用显式失效），
+    而①已经塌了。** 所以这两条必须都写在这里，而不是只留一条。
+
+    ⚠️ 用 `tenant_cache_key`（与其余 7 处进程级缓存**同一个 helper**，不自创第二套键法）——
+    它返回 **tuple**，故摘要作为**第三个位置参数**传入，**不是** `tenant_cache_key(...) + digest`
+    （`tuple + str` 是 `TypeError`）。
+    ⚠️ 只存**摘要**：明文 secret 不进缓存键、不进日志、不进异常。
+    """
+    import hashlib
+
+    from knot.core.tenant_context import tenant_cache_key
+
+    digest = hashlib.sha256(app_secret.encode("utf-8")).hexdigest()[:16]
+    return tenant_cache_key(region, app_id, digest)
+
+
 def _tenant_token(region: str, app_id: str, app_secret: str) -> str:
-    key = (region, app_id)
+    key = _cache_key(region, app_id, app_secret)
     cached = _token_cache.get(key)
     now = time.time()
     if cached and cached[1] - _TOKEN_SAFETY_SEC > now:

@@ -40,6 +40,16 @@ BACKEND_ACK = {
     # ⚠️ 与 v0.9.6 的 warn_if_owner_tenant_not_served **同族同文件**是刻意的：两条都是「file 层为什么空」的诊断，
     #    分开放会让下一个人只找到一条。
     "knot/services/agents/catalog_loaders.py": 320,
+    # v0.9.18 P-a：`_REDACTED_IN_AUDIT` 集合 + 新列进 `_MUTABLE_TENANT_FIELDS`。
+    # **已压到承重下限**：集合注释从 12 行压到 5 行（完整理由搬进
+    # `tests/test_allowlist_column_registration.py` 的 docstring），只留「为什么是集合不是硬编单名」——
+    # 删掉那句，下一个人就会在脱敏那行补第三个名字，而**第三份 allowlist 来时无人提醒**。
+    "knot/repositories/tenant_repo.py":    310,
+    # v0.9.18 P-a：`TenantCreateRequest` 新增 `allowed_webhook_hosts`（必填）+ 开通调用处透传。
+    # **装配下限 = 字段 1 行 + 调用 1 行 + 「为什么不给默认值」3 行注释**。
+    # ⚠️ 那 3 行是承重的：该文件自己写着「必填且允许空串…否则开通动作就替部署方静默选了一种语义」——
+    #    新列若被人补上默认值，那句话对它就成了假的，而**没有任何测会红**（默认值仍是合法输入）。
+    "knot/api/platform_admin.py":          310,
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 

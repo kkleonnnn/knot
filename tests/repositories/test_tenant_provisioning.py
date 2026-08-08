@@ -41,7 +41,7 @@ def test_db_dir_is_opaque_lowercase_hex_and_not_derived_from_slug(tmp_db_path):
     ⭐ 纯小写 hex 还顺带关掉一个洞（守护者 Q1）：macOS/Windows 文件系统**大小写不敏感**，
     而 SQLite `UNIQUE(slug)` **大小写敏感** ⇒ `AcmeCo` 与 `acmeco` 会是两个租户**共用一个目录**。
     """
-    out = tp.create_tenant(slug="acmeco", name="Acme", allowed_http_hosts=_HOSTS)
+    out = tp.create_tenant(slug="acmeco", name="Acme", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     db_dir = out["tenant"]["db_dir"]
 
     assert re.fullmatch(r"tenants/[0-9a-f]{16}", db_dir), (
@@ -73,7 +73,7 @@ def test_hostile_slug_cannot_reach_the_filesystem(tmp_db_path):
     root = base._tenant_db_path().parent.resolve()      # autouse tenant#1，db_dir='.' ⇒ 数据根
     raised = None
     try:
-        tp.create_tenant(slug="../evil", name="X", allowed_http_hosts="")
+        tp.create_tenant(slug="../evil", name="X", allowed_http_hosts="", allowed_webhook_hosts="")
     except Exception as e:                              # noqa: BLE001 —— 属性断言必须无条件执行
         raised = e
     # ① 真属性（**无条件**）：数据根外零产物
@@ -92,7 +92,7 @@ def test_ctx_is_restored_exactly_on_success(tmp_db_path):
     tenant#1 ctx，且中间件每请求自己 set ⇒ 泄漏会被**掩盖**（v0.9.4 记过的盲区）。
     """
     before = tc._active_tenant_ctx.get()
-    tp.create_tenant(slug="t-ok", name="OK", allowed_http_hosts=_HOSTS)
+    tp.create_tenant(slug="t-ok", name="OK", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     assert tc._active_tenant_ctx.get() == before, "成功路径后 ctx 未复原 —— 第二个生产者泄漏了"
 
 
@@ -109,7 +109,7 @@ def test_ctx_is_restored_exactly_on_exception(tmp_db_path, monkeypatch):
 
     monkeypatch.setattr(base, "init_db", _boom)
     with pytest.raises(RuntimeError, match="建库中途炸了"):
-        tp.create_tenant(slug="t-boom", name="Boom", allowed_http_hosts=_HOSTS)
+        tp.create_tenant(slug="t-boom", name="Boom", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
 
     assert tc._active_tenant_ctx.get() == before, (
         "异常路径后 ctx 未复原 —— 后续请求会带着一个不可服务租户的 ctx（fail-closed 被虚化）"
@@ -123,7 +123,7 @@ def test_failed_db_build_leaves_the_discoverable_state(tmp_db_path, monkeypatch)
     """
     monkeypatch.setattr(base, "init_db", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     with pytest.raises(RuntimeError):
-        tp.create_tenant(slug="t-half", name="Half", allowed_http_hosts=_HOSTS)
+        tp.create_tenant(slug="t-half", name="Half", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
 
     row = tenant_repo.get_tenant_by_slug("t-half")
     assert row is not None, "行不在 ⇒ 失败没留痕，运维无从发现"
@@ -156,9 +156,9 @@ def test_resume_when_row_exists_but_db_missing(tmp_db_path, monkeypatch):
     monkeypatch.setattr(base, "init_db", _flaky_init)
 
     with pytest.raises(RuntimeError, match="boom"):
-        tp.create_tenant(slug="t-resume", name="R", allowed_http_hosts=_HOSTS)
+        tp.create_tenant(slug="t-resume", name="R", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
 
-    out = tp.create_tenant(slug="t-resume", name="R", allowed_http_hosts=_HOSTS)
+    out = tp.create_tenant(slug="t-resume", name="R", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     assert out["resumed"] is True
     assert out["initial_password"]
     assert tp._tenant_db_exists(out["tenant"]), "续做后库仍不存在"
@@ -170,9 +170,9 @@ def test_refuse_when_row_and_db_both_exist(tmp_db_path):
     ⚠️ Q2：此时无法区分「建库后被中断」与「真实在用但被停用的租户」
     ⇒ 续做会重置一个**可能在用**的租户的凭据 ⇒ 拒绝是**唯一不猜的**分支。
     """
-    tp.create_tenant(slug="t-dup", name="D", allowed_http_hosts=_HOSTS)
+    tp.create_tenant(slug="t-dup", name="D", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     with pytest.raises(tp.TenantProvisioningError) as ei:
-        tp.create_tenant(slug="t-dup", name="D", allowed_http_hosts=_HOSTS)
+        tp.create_tenant(slug="t-dup", name="D", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     msg = str(ei.value)
     assert "不续做" in msg
     assert "reset_admin_password" in msg and "--tenant" in msg, (
@@ -183,7 +183,7 @@ def test_refuse_when_row_and_db_both_exist(tmp_db_path):
 def test_refuse_active_tenant(tmp_db_path):
     """有行 + **active** → 拒绝（不碰在服务的租户）。"""
     with pytest.raises(tp.TenantProvisioningError, match="正在服务中"):
-        tp.create_tenant(slug="default", name="X", allowed_http_hosts=_HOSTS)   # tenant#1 是 active
+        tp.create_tenant(slug="default", name="X", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")   # tenant#1 是 active
 
 
 # ── status / 口令 / 审计 ──────────────────────────────────────────────────
@@ -194,7 +194,7 @@ def test_new_tenant_is_suspended_and_invisible_to_both_resolvers(tmp_db_path):
     只断 `status == 'suspended'` 表示不了「解析器是否真的过滤」——
     而那两条解析器才是 R-T-GATE 与登录的实际入口。
     """
-    out = tp.create_tenant(slug="t-hidden", name="H", allowed_http_hosts=_HOSTS)
+    out = tp.create_tenant(slug="t-hidden", name="H", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     tid = out["tenant"]["id"]
 
     assert out["tenant"]["status"] == "suspended"
@@ -208,7 +208,7 @@ def test_initial_password_actually_works_and_forces_change(tmp_db_path):
 
     没有这条，「一律拒绝/随便写个哈希」也能让上面各条通过 = 把功能删掉还绿。
     """
-    out = tp.create_tenant(slug="t-pwd", name="P", allowed_http_hosts=_HOSTS)
+    out = tp.create_tenant(slug="t-pwd", name="P", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     tok = tc.set_active_tenant(out["tenant"])
     try:
         conn = base.get_conn()
@@ -228,15 +228,15 @@ def test_initial_password_actually_works_and_forces_change(tmp_db_path):
 
 def test_two_tenants_get_different_initial_passwords(tmp_db_path):
     """⭐ kk② 的正面证明：两个租户的初始口令**不同**（全局共享口令是被消除的那个东西）。"""
-    a = tp.create_tenant(slug="t-a", name="A", allowed_http_hosts=_HOSTS)
-    b = tp.create_tenant(slug="t-b", name="B", allowed_http_hosts=_HOSTS)
+    a = tp.create_tenant(slug="t-a", name="A", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
+    b = tp.create_tenant(slug="t-b", name="B", allowed_http_hosts=_HOSTS, allowed_webhook_hosts="")
     assert a["initial_password"] != b["initial_password"]
     assert a["tenant"]["db_dir"] != b["tenant"]["db_dir"]
 
 
 def test_initial_password_never_lands_in_audit(tmp_db_path):
     """口令**绝不**进平台审计（`GET /api/platform/audit` 会返回 detail）。"""
-    out = tp.create_tenant(slug="t-secret", name="S", allowed_http_hosts="internal.corp")
+    out = tp.create_tenant(slug="t-secret", name="S", allowed_http_hosts="internal.corp", allowed_webhook_hosts="")
     pwd = out["initial_password"]
     blob = "\n".join(str(a) for a in _audit_rows())
     assert pwd not in blob, "初始口令泄漏进了平台审计"
@@ -247,7 +247,7 @@ def test_initial_password_never_lands_in_audit(tmp_db_path):
 
 def test_allowed_http_hosts_empty_string_is_preserved_not_nulled(tmp_db_path):
     """`''` 必须原样存下 —— v0.9.7 三态里它是「部署方明确的**禁**」，与 `NULL`（未配置）不同。"""
-    out = tp.create_tenant(slug="t-deny", name="D", allowed_http_hosts="")
+    out = tp.create_tenant(slug="t-deny", name="D", allowed_http_hosts="", allowed_webhook_hosts="")
     assert out["tenant"]["allowed_http_hosts"] == "", (
         "空串被写成了 NULL ⇒ 「明确禁止」被静默变成「未配置」（起源租户会回退 env）"
     )
@@ -278,14 +278,14 @@ def test_d2pp_invalid_slug_is_refused(bad, tmp_db_path):
     """
     n_before = len(tenant_repo.list_tenants())
     with pytest.raises(tp.TenantProvisioningError, match="不合法"):
-        tp.create_tenant(slug=bad, name="X", allowed_http_hosts="")
+        tp.create_tenant(slug=bad, name="X", allowed_http_hosts="", allowed_webhook_hosts="")
     assert len(tenant_repo.list_tenants()) == n_before, f"非法 slug {bad!r} 仍建了行"
 
 
 @pytest.mark.parametrize("ok", ["ac", "acme", "acme-inc", "a1", "x9-y8-z7", "a" + "b" * 30])
 def test_d2pp_valid_slug_is_accepted(ok, tmp_db_path):
     """⭐ **反向守护**：合法 slug 必须**过** —— 否则「一律拒绝」也能让上面那组通过。"""
-    out = tp.create_tenant(slug=ok, name="X", allowed_http_hosts="")
+    out = tp.create_tenant(slug=ok, name="X", allowed_http_hosts="", allowed_webhook_hosts="")
     assert out["tenant"]["slug"] == ok
 
 

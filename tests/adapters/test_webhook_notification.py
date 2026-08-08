@@ -86,3 +86,76 @@ def test_send_posts_to_allowed(monkeypatch):
                                                       target="https://hooks.example.com/abc"))
     assert calls["url"] == "https://hooks.example.com/abc"
     assert calls["json"]["title"] == "GMV 异动" and calls["json"]["level"] == "warn"
+
+
+# ─── v0.9.18 P-a · 租户域化后的**发送路径**（非起源租户）────────────────
+def _ctx(tid: int, **extra):
+    from knot.core.tenant_context import set_active_tenant
+    row = {"id": tid, "db_dir": "."}
+    row.update(extra)
+    return set_active_tenant(row)
+
+
+def _reset(tok):
+    from knot.core.tenant_context import reset_active_tenant
+    reset_active_tenant(tok)
+
+
+def _non_owner_tid() -> int:
+    from knot.core.tenant_context import OWNER_TENANT_ID
+    return OWNER_TENANT_ID + 1
+
+
+def test_non_owner_with_own_allowlist_really_sends(monkeypatch):
+    """⭐ **正对照**：非起源租户配了自己的 allowlist ⇒ 请求**真的发出**。
+
+    ⚠️ **为什么必须有这一条**：只测「拒绝」的话，一个「拦住所有人」的实现会**全绿**
+    —— 那是 fail-closed 的假通过（v0.9.7 立的形状）。
+    ⚠️ **刻意不 stub `send`**（Stage 2 S1）：既有 e2e `tests/api/test_monitors_admin.py:82`
+    直接 `monkeypatch.setattr(WebhookNotificationAdapter, "send", ...)` **把被测适配器整个换掉**
+    ⇒ 沿用那个 fixture 写本测必假绿。此处只 stub `requests.post`，被测代码路径完整执行。
+    revert-to-bad：`get_webhook_allowed_hosts` 改回读 env ⇒ 非起源租户的 host 不在 env 里 ⇒ 本测红。
+    """
+    import requests
+    monkeypatch.setenv("KNOT_WEBHOOK_ALLOWED_HOSTS", "owner-only.example.com")   # 故意**不含**下面那个 host
+    sent = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(requests, "post",
+                        lambda url, json, timeout: sent.update(url=url) or _Resp())
+    tok = _ctx(_non_owner_tid(), allowed_webhook_hosts="hooks.tenant-b.example")
+    try:
+        wh.WebhookNotificationAdapter().send(
+            Notification(title="t", body="b", target="https://hooks.tenant-b.example/x"))
+    finally:
+        _reset(tok)
+    assert sent.get("url") == "https://hooks.tenant-b.example/x", (
+        "非起源租户配了自己的 allowlist，请求却没发出 —— 域化没生效，或实现变成了「拦住所有人」"
+    )
+
+
+def test_non_owner_with_null_column_makes_zero_network_attempt(monkeypatch, no_network):
+    """⭐ 非起源租户**未配置**（列为 NULL）⇒ 全拒 + **零出网尝试**（fail-closed）。
+
+    ⚠️ 主 oracle 是出网探针记录列表，**不是**「抛了 WebhookError」——
+    后者分不清「被 allowlist 拒」与「网络连不上」（P-a0 清掉的正是那个形状）。
+    revert-to-bad：删掉 `is_owner_tenant()` 那一支 ⇒ 非起源租户也回退 env
+    ⇒ 若 env 里恰好有该 host 就会真的发出去 ⇒ 本测红。
+    """
+    monkeypatch.setenv("KNOT_WEBHOOK_ALLOWED_HOSTS", "hooks.tenant-b.example")   # env 里**有**它
+    tok = _ctx(_non_owner_tid())                                                 # 但该租户列为 NULL
+    try:
+        try:
+            wh.WebhookNotificationAdapter().send(
+                Notification(title="t", body="b", target="https://hooks.tenant-b.example/x"))
+        except Exception:                      # noqa: BLE001 —— 类型不是本测要断的
+            pass
+    finally:
+        _reset(tok)
+    assert no_network == [], (
+        f"非起源租户未配置 allowlist，却发生了 {len(no_network)} 次出网尝试：{no_network}\n"
+        "⇒ 它落回了进程 env = 用部署方的白名单给客租户放权。"
+    )

@@ -405,7 +405,9 @@ def test_audit_endpoint_pagination_is_bounded_and_cursor_works(client, monkeypat
 
 # ─── v0.9.15 d1：`POST /api/platform/tenants`（平台面第一个写端点）────────────
 
-_BODY = {"slug": "acme", "name": "Acme Inc", "allowed_http_hosts": "api.acme.example"}
+_BODY = {"slug": "acme", "name": "Acme Inc", "allowed_http_hosts": "api.acme.example",
+         # v0.9.18 P-a：**两列都必填** —— 漏传任一即 422（见下面那条参数化测）
+         "allowed_webhook_hosts": "hooks.acme.example"}
 
 
 def test_create_shares_the_same_secret_gate(client, monkeypatch):
@@ -486,17 +488,36 @@ def test_create_conflicts_return_409_with_actionable_message(client, monkeypatch
     assert r2.status_code == 409 and "正在服务中" in r2.json()["detail"]
 
 
-def test_create_requires_allowed_http_hosts_but_accepts_empty_string(client, monkeypatch):
-    """`allowed_http_hosts` **必填**（漏传 422）但 `''` 合法（= 部署方明确的「禁」）。
+def _allowlist_columns() -> tuple[str, ...]:
+    """开通请求体里所有 allowlist 列 —— **从写口派生**（v0.9.18 P-a），不硬编。
+
+    ⭐ 与 `tests/test_allowlist_column_registration.py` 同一个真相源
+    ⇒ **第三份 allowlist 落地时，下面那条测自动覆盖它**，不需要有人记得回来加一格。
+    """
+    from knot.repositories import tenant_repo
+    return tuple(f for f in tenant_repo._MUTABLE_TENANT_FIELDS if f.startswith("allowed_"))
+
+
+@pytest.mark.parametrize("omitted", _allowlist_columns())
+def test_create_requires_every_allowlist_column_but_accepts_empty_string(client, monkeypatch, omitted):
+    """每个 allowlist 列都**必填**（漏传任一 ⇒ 422），但 `''` 合法（= 部署方明确的「禁」）。
 
     ⚠️ v0.9.7 三态：`''` ≠ `NULL`（未配置 ⇒ 起源租户回退 env）
     ⇒ 不能用「留空 = 默认」，否则开通动作替部署方**静默选了一种语义**。
+    ⚠️ **v0.9.18 P-a 从单列改为参数化**：原版只钉 `allowed_http_hosts` ⇒
+    新增第二列时它**照样绿**，而那一列可以悄悄带上默认值。
     """
     monkeypatch.setenv(_ENV, _GOOD)
-    r = client.post(_URL, json={"slug": "x1", "name": "X"}, headers=_hdr(_GOOD))
-    assert r.status_code == 422, f"漏传 allowed_http_hosts 竟被接受：{r.text}"
+    cols = _allowlist_columns()
 
-    r2 = client.post(
-        _URL, json={"slug": "x2", "name": "X", "allowed_http_hosts": ""}, headers=_hdr(_GOOD)
-    )
+    # ① 漏传**这一列** ⇒ 422（其余列都给全，确保红的理由就是这一列）
+    body = {"slug": "x1", "name": "X"}
+    body.update({c: "api.example.com" for c in cols if c != omitted})
+    r = client.post(_URL, json=body, headers=_hdr(_GOOD))
+    assert r.status_code == 422, f"漏传 {omitted} 竟被接受：{r.text}"
+
+    # ② 全给齐、**这一列为空串** ⇒ 201（`''` 是合法的「禁」）
+    body2 = {"slug": "x2", "name": "X"}
+    body2.update({c: ("" if c == omitted else "api.example.com") for c in cols})
+    r2 = client.post(_URL, json=body2, headers=_hdr(_GOOD))
     assert r2.status_code == 201, r2.text

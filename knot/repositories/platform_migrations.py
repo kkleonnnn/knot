@@ -36,6 +36,13 @@ def run_platform_migrations(conn) -> None:
     if "allowed_http_hosts" not in cols:
         conn.execute("ALTER TABLE tenants ADD COLUMN allowed_http_hosts TEXT")
 
+    # v0.9.18 P-a: tenants.allowed_webhook_hosts —— webhook 外发 allowlist（与上一列同三态、不同能力）。
+    # ⭐ **本条是本机制的第三个用户** ⇒ 「加平台列」已是可组合的常规动作（v0.9.7 第一 · v0.9.8 第二）。
+    # ⚠️ 存量库升上来时该列为 NULL ⇒ 起源租户回退 env、非起源租户全拒（fail-closed），
+    #    **与本列不存在时的行为一致** ⇒ 迁移本身不改变任何现网行为。
+    if "allowed_webhook_hosts" not in cols:
+        conn.execute("ALTER TABLE tenants ADD COLUMN allowed_webhook_hosts TEXT")
+
     # v0.9.8: tenants.updated_at —— 平台元数据变更时间线（此前缺 ⇒「谁改了 db_dir」无时间线）。
     # ⭐ **本条是本机制的第二个用户** —— 它顺带证明「加平台列」不是一次性动作而是可组合的：
     #   从**既无 allowed_http_hosts 也无 updated_at** 的 pre-v0.9.7 存量库升级，一次调用后两列都在
