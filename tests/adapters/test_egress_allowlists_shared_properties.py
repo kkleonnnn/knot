@@ -145,3 +145,45 @@ def test_no_tenant_ctx_raises_rather_than_returning_empty_set(column):
             _resolve(mod)
     finally:
         reset_active_tenant(tok)
+
+
+@pytest.mark.parametrize("column", _MANAGED)
+def test_every_allowlist_has_a_startup_env_fallback_warn(column):
+    """⭐ 每份 allowlist 都必须有**同一种**启动 WARN，且**接线进启动序**（v0.9.18 P-a 补漏）。
+
+    ⚠️ **为什么这条测存在**：`url_allowlist` v0.9.7 就有这个 WARN，而 webhook 那份**漏了** ——
+    正是「同类物没被一起处理」的又一实例。⇒ 把它变成派生断言，第三份 allowlist 也逃不掉。
+
+    ⭐ **它守的不只是代码整齐**：`KNOT_WEBHOOK_ALLOWED_HOSTS` 从未写进 DEPLOY/README
+    ⇒ 「现网配没配」只能靠集群权限去查，而**启动日志有没有这一行就是答案**
+    ⇒ 这条 WARN 是**没有运维权限的人唯一的观测口**。删了它，那个问题就再也答不了。
+
+    revert-to-bad：删掉 `webhook.warn_if_owner_using_env_fallback` 或它在 `main.py` 的接线 ⇒ 本测红。
+    """
+    import ast
+    import pathlib as _p
+
+    mod = _RESOLVERS[column]
+    assert hasattr(mod, "warn_if_owner_using_env_fallback"), (
+        f"[{column}] 该 allowlist 模块没有启动期 env-fallback WARN —— "
+        "运维将无法知道「现网配没配」（那需要集群权限）。"
+    )
+    # ⚠️ 光有函数不够 —— 必须**真的接进启动序**（否则它永远不响；v0.9.16 那条哑掉的 WARN 同形）
+    src = (_p.Path(__file__).resolve().parents[2] / "knot/main.py").read_text(encoding="utf-8")
+    called = {
+        n.func.attr
+        for n in ast.walk(ast.parse(src))
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+    }
+    assert "warn_if_owner_using_env_fallback" in called, (
+        "`main.py` 启动序里没有任何 `warn_if_owner_using_env_fallback(...)` 调用 —— WARN 永不会响"
+    )
+    # 且**每份** allowlist 各自被调一次（两份共用一个函数名 ⇒ 数调用次数）
+    n_calls = sum(
+        1 for n in ast.walk(ast.parse(src))
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "warn_if_owner_using_env_fallback"
+    )
+    assert n_calls >= len(_MANAGED), (
+        f"启动序里只有 {n_calls} 处 env-fallback WARN 调用，但有 {len(_MANAGED)} 份 allowlist "
+        f"⇒ 至少有一份的 WARN 没接线（它会静默地永不响）。"
+    )
