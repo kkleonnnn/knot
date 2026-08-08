@@ -50,6 +50,14 @@ BACKEND_ACK = {
     # ⚠️ 那 3 行是承重的：该文件自己写着「必填且允许空串…否则开通动作就替部署方静默选了一种语义」——
     #    新列若被人补上默认值，那句话对它就成了假的，而**没有任何测会红**（默认值仍是合法输入）。
     "knot/api/platform_admin.py":          310,
+    # v0.9.19 C0：修一个自 v0.9.7 起就在线上的缺陷 —— `/status` 的 `run_in_executor` 漏了
+    # `copy_context().run` ⇒ 探测线程无 tenant ctx ⇒ `is_url_allowed` 抛 → 被 except 吞
+    # ⇒ **所有 HTTP 数据源恒显示 "error"**（HTTP 200、无日志、潜伏一整个版本弧）。
+    # +12 行 = `import contextvars` 1 + ctx 传播 4（含 3 行「为什么」）+ 两处 `reraise_if_tenant_error` 7。
+    # **已压过一轮**（详细论证搬进 `tests/api/test_datasource_probe_tenant_ctx.py` 的模块 docstring）；
+    # 剩下的全是「别改回去」的理由 —— 删了它，下一个人会把 `except Exception: return "error"` 写回来，
+    # 而那正是这个缺陷能潜伏这么久的机制。
+    "knot/api/admin/datasources.py":       316,
     "knot/services/query_steps.py":        370,  # SSE 主控编排 + 纯业务步骤；v0.7.27 →306；v0.8.2 B6.4 +跨期对比 guard（_COMPARE_RE + _known_names + _period_comparison_unrepresented + _has_lag_window）306→366→370（headroom 4）→ feature 增长再 ACK
 }
 
