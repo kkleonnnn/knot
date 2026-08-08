@@ -26,7 +26,7 @@ BACKEND_ACK = {
     "knot/api/query.py":                   558,  # v0.8.3 →541；v0.8.20 F6a +_flush_interrupt_cost（SSE 中断落账 helper + 2 except 调用）541→556（headroom 2）
     "knot/repositories/message_repo.py":   390,  # v0.7.4 C3 +get_messages engine enrich（F2/R-SL-46）；无 split 计划
     "knot/services/agents/sql_planner.py": 365,  # ReAct 调度（沿用既有 cap，保 headroom）
-    "knot/adapters/db/doris.py":           392,  # v0.8.0 B6.1 +auto-LIMIT；v0.8.5 ②a +is_safe_sql wrapper →373；v0.8.19a +drop_sqlite_table（删上传表清理）+ load_rows_to_sqlite 命名参数修（既存 P1）373→390（headroom 2）
+    "knot/adapters/db/doris.py":           407,  # v0.8.0 B6.1 +auto-LIMIT；v0.8.5 ②a +is_safe_sql wrapper →373；v0.8.19a +drop_sqlite_table（删上传表清理）+ load_rows_to_sqlite 命名参数修（既存 P1）373→390（headroom 2）；v0.9.19 安全修复 `build_connection_url` 改 `URL.create()` **按组件构造**（原 f-string 拼接让 `db_database` 能改写连接实参 host ⇒ 校验 host 的门是装饰品）392→402（headroom 5）。**已压过一轮**：完整论证在 `tests/adapters/test_db_url_injection.py` 的模块 docstring，此处只留「为什么不是过滤 `?#&`」与「为什么返对象不返字符串」——删了它，下一个人会把 f-string 写回来。
     "knot/services/semantic/compiler.py":  350,  # v0.7.13 抽 multi_base/compile_helpers 394→275；v0.7.14~.31 outer/frame/Q5 guard →311；v0.8.0 B6.1 +_guard_fragments choke-point 片段校验（§安全承重）311→348→350（headroom 2）→ feature 增长再 ACK
     "knot/services/engine_cache.py":       361,  # v0.9.1 失效器三拆（user/tenant 版 + tid 前缀键，346→361，MF3）；v0.8.24 +invalidate_all（340→346）
     # v0.8.22：base.py 373→84（历史迁移块拆入 migrations.py，释放 v0.9.0 get_conn 双层解析 headroom）→ base ACK 移除（≤300 auto-caught）

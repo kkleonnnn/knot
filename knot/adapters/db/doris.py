@@ -14,10 +14,22 @@ from knot.config import (
 )
 
 
-def build_connection_url(host, port, user, password, database) -> str:
-    from urllib.parse import quote_plus
-    encoded_password = quote_plus(password)
-    return f"mysql+pymysql://{user}:{encoded_password}@{host}:{port}/{database}?charset=utf8mb4"
+def build_connection_url(host, port, user, password, database) -> sqlalchemy.engine.URL:
+    """按**组件**构造连接 URL —— 严禁 f-string 拼接（v0.9.19 安全修复）。
+
+    ⛔ **原实现让 `db_database` 能改写连接目标**（实测）：它与 `db_host` 是同一表单里的自由文本，
+    填 `db1?host=evil…#` ⇒ 那段成为查询参数，而 pymysql 把查询参数当**连接实参**
+    ⇒ `url.host`（门校验的）与真正连过去的 host **不是同一个值** ⇒ 校验 host 的门是装饰品。
+    ⭐ 选「按组件」而非「过滤 `?#&`」：后者消灭一个 payload，前者消灭**这一类**。
+    ⚠️ 返回 **URL 对象**而不是字符串 —— 字符串要被 `make_url()` 解析回来，那一步就是注入重现的地方。
+    全文见 `tests/adapters/test_db_url_injection.py` 模块 docstring。
+    """
+    return sqlalchemy.engine.URL.create(
+        "mysql+pymysql",
+        username=user, password=password,   # URL.create 自己转义 ⇒ 不再需要 quote_plus
+        host=host, port=port, database=database,
+        query={"charset": "utf8mb4"},
+    )
 
 
 def create_engine(host, port, user, password, database):
