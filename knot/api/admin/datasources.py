@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -74,7 +75,11 @@ def _test_source(s):
             return "error"
         except _rq.ConnectionError:
             return "error"
-        except Exception:
+        except Exception as e:
+            # v0.9.19 C0：租户 ctx 错误**绝不吞**（同 audit_service / desensitize 等 5 处范式）——
+            # 吞掉它就是把「忘了建 ctx」这个 bug 伪装成「这个源连不上」这个业务结果。
+            from knot.core.tenant_context import reraise_if_tenant_error as _rt
+            _rt(e)
             # JSON 解析失败 / 其他异常 → 保守 error
             return "error"
     try:
@@ -83,7 +88,9 @@ def _test_source(s):
         )
         ok, _ = db_connector.test_connection(engine)
         return "online" if ok else "error"
-    except Exception:
+    except Exception as e:
+        from knot.core.tenant_context import reraise_if_tenant_error as _rt
+        _rt(e)                                   # 同上：租户 ctx 错误必须响亮，不得伪装成「连不上」
         return "error"
 
 
@@ -134,9 +141,13 @@ async def admin_datasources_status(admin=Depends(require_tenant_admin)):
     # v0.8.21：实时探测所有源（并发；可能慢，前端异步调不阻塞列表）+ 写缓存 → 返 {id: status}。
     sources = data_source_repo.list_datasources()
     loop = asyncio.get_event_loop()
+    # v0.9.19 C0：`run_in_executor` 不传播 contextvars ⇒ 必须 `copy_context().run`（同 bi_* 三处）。
+    # ⛔ 漏它 = 自 v0.9.7 起的线上缺陷：http 源恒 "error"。全文见
+    #    `tests/api/test_datasource_probe_tenant_ctx.py` 的模块 docstring。
+    _ctx = contextvars.copy_context()
     with ThreadPoolExecutor() as pool:
         statuses = await asyncio.gather(
-            *[loop.run_in_executor(pool, _test_source, s) for s in sources]
+            *[loop.run_in_executor(pool, _ctx.run, _test_source, s) for s in sources]
         )
     now = time.time()
     result = {}
