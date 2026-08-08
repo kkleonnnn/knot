@@ -69,6 +69,34 @@ def get_webhook_allowed_hosts() -> set[str]:
     return resolve_allowed_hosts()[0]
 
 
+def warn_if_owner_using_env_fallback(owner_row: dict | None) -> None:
+    """启动期 WARN：起源租户仍在用 **env 回退**（未迁移到 `tenants.allowed_webhook_hosts`）。
+
+    ⭐ **与 `url_allowlist.warn_if_owner_using_env_fallback` 同形** —— v0.9.18 实施期发现
+    webhook 这边**漏了这个同类物**（http 那边 v0.9.7 就有，接线在 `main.py`）。
+
+    ⭐⭐ **它还解决一个运维问题**：`KNOT_WEBHOOK_ALLOWED_HOSTS` **此前从未写进 DEPLOY/README**
+    ⇒ 没人知道现网到底设没设，而**查它需要集群权限**。
+    ⇒ 让**跑着的系统在启动时自己回答**：日志里有没有这一行，就是答案。
+
+    ⚠️ `owner_row` 由调用方传入：`adapters` 不得 import `repositories`（`adapters-no-business`）。
+    传错只会少打/多打一条 WARN，**不影响任何授权判定** —— 判据同 `url_allowlist` 那条。
+    ⚠️ **只报 env 名，绝不报 env 值，也不报条目数**（#262；理由见 `send` 里那段）。
+    """
+    from knot.core.logging_setup import logger
+
+    if owner_row is None:
+        logger.warning("[webhook-egress] 起源租户不存在 —— 无法判断 allowlist 配置状态（平台库异常？）")
+        return
+    if owner_row.get(COLUMN_NAME) is not None:
+        return                                          # 已迁移到列 ⇒ 静默
+    logger.warning(
+        f"[webhook-egress] 起源租户的 {COLUMN_NAME} 未配置 → 回退 env {ENV_NAME}。"
+        f"⚠️ 若该 env 也未设置，**webhook 外发会全部被拒**（该功能实际不可用）。"
+        f"建议迁移到 tenants.{COLUMN_NAME} —— SQL 见 DEPLOY.md「多租户运维门」。"
+    )
+
+
 def is_webhook_url_allowed(url: str) -> bool:
     """webhook target host 是否在 KNOT_WEBHOOK_ALLOWED_HOSTS（host-only，复用 url_allowlist 同模式，独立 env）。"""
     if not url:
@@ -93,10 +121,15 @@ class WebhookNotificationAdapter:
             # ⇒ 诊断细节（来源是列还是 env、集合多大）只进服务端日志，**不进异常**。
             from knot.core.logging_setup import logger
 
-            hosts, source = resolve_allowed_hosts()
+            # ⚠️ **只记来源机制，连「条目数」都不记** —— 与 `url_allowlist.check_url_allowed` 同规矩。
+            # **为什么**（v0.9.18 实施期发现）：在 `env-fallback` 分支下，host 集**就是** env 的值
+            # ⇒ `len(...)` 仍是 env 派生（#262 的规则含**日志**，不只是响应）。
+            # ⚠️⚠️ 初版我写了 `size={len(hosts)}` 而 `test_no_env_value_in_messages` **没拦下** ——
+            #     那个哨兵只跟踪**直接**从 `os.environ` 赋值的名字，而这里的 `hosts` 来自函数调用
+            #     ⇒ **污点传播在函数边界断了**。哨兵没红不等于没泄漏（已登记该缺口）。
             logger.warning(
                 f"[webhook-egress] 拒绝外发：target 的 host 不在本租户 allowlist 内 "
-                f"(source={source}, size={len(hosts)})"
+                f"(source={resolve_allowed_hosts()[1]})"
             )
             raise WebhookError(f"webhook 目标 host 未被允许: {n.target!r}（请联系部署方配置外发白名单）")
         import requests  # 延迟 import（与 http executor 同库；本机无亦不阻断 import）
