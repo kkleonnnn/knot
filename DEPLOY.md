@@ -1033,6 +1033,31 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   - **出网白名单**：改读平台库 `tenants.allowed_http_hosts`（逗号分隔）。**起源租户（tenant#1）在该列为
     `NULL` 时回退 `KNOT_HTTP_ALLOWED_HOSTS`** ⇒ **现网 ConfigMap 不动即可继续工作**（启动期会 WARN 提示迁移）。
 
+  ### ⚠️ 先读这一条（v0.9.19 订正 —— 此前本手册的运维指令在容器里跑不了）
+
+  **`sqlite3` CLI 此前不在镜像里** —— 基础镜像 `python:3.11-slim` 不带它，而 Dockerfile 也没装
+  （实测 `docker run --rm python:3.11-slim which sqlite3` → 无）。
+  ⇒ **下面这些 `sqlite3 …` 指令，自 v0.9.7 写下之日起就跑不了**，而手册一直照着写。
+  **v0.9.19 已在 Dockerfile 装上它** ⇒ 现在可用。
+
+  ⭐ **但复核请优先用这条**（不需要判读、也不需要 `sqlite3`）：
+
+  ```bash
+  kubectl exec -n <ns> <pod> -- python3 -m knot.scripts.show_tenant_allowlists
+  ```
+
+  它逐租户打印**每一列的语义**，而不是原始值：
+
+  ```
+  ── 租户 #1  slug='default'  status=active
+     allowed_http_hosts       = 未配置（NULL）→ 起源租户回退 env；其他租户全部拒绝
+     allowed_webhook_hosts    = 2 项：hooks.example.com, alt.example.com
+  ```
+
+  ⚠️ **为什么不让你自己看原始值**：`NULL`（未配置）与 `''`（明确的「禁」）**语义相反**，
+  而裸 `SELECT` 把两者都显示成空白 —— 靠 `quote()` 分辨要你**记得加**、还要**逐字判读**。
+  这个脚本**只读**（守护测钉死），把判读那一步消掉。
+
   ### 🔧 配置某租户的出网白名单（**两列**，唯一途径 —— 均无写端点）
 
   ⚠️ **两列是两个不同的出网方向，必须分别配**：
