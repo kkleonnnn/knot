@@ -12,6 +12,16 @@ WORKDIR /app
 # v0.9.14 依赖钉版本：roots 仍走 requirements.txt（extras 意图不丢），
 #   精确版本由 requirements.lock 当 **constraints** 钉住。
 #   ⚠️ 两行必须一起改 —— 只改安装行不改 COPY 行，lock 根本没进镜像、构建当场失败（Sd1 守护）。
+# v0.9.19 C0'''：装 `sqlite3` CLI —— **DEPLOY 里所有运维指令都依赖它**
+# （平台库配置 / `quote()` 三态复核 / provisioning 应急杠杆），而基础镜像**不带它**
+# ⇒ 实测 `docker run --rm python:3.11-slim which sqlite3` → 无
+# ⇒ 那些指令**自 v0.9.7 写下之日起就跑不了**，而文档一直照着写。
+# ⚠️ 它只是让**既有文档不再撒谎**；结构化的只读复核走
+#    `python -m knot.scripts.show_tenant_allowlists`（不需要人肉判读 NULL vs ''）。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.txt -c requirements.lock
 COPY . .
