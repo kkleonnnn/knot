@@ -255,6 +255,26 @@ jobs:
           docker run --rm --entrypoint sh knot-ci-smoke -c "ls /app/knot/static/index.html" \
             || (echo "::error::R-PA-7.3 frontend static COPY 守护失败"; exit 1)
           echo "R-PA-7.1/7.2/7.3 三守护 PASS"
+      # ⭐ v0.9.19 C0'''：`sqlite3` **真的在镜像里**（不是「Dockerfile 里写了 apt-get」）
+      #
+      # ⛔⛔ **本步骤是非阻断的** —— 本 job 有 `continue-on-error: true`（R-PA-15）
+      #     ⇒ 它失败时 PR 仍报绿。**读日志时别把 "sqlite3 PASS" 当成保证。**
+      # ⚠️ **为什么不挪到那个阻断的 `dockerignore-context` job**：那个 job 之所以**能**阻断，
+      #    正是因为它 `FROM scratch` + tar exporter ⇒ **零 Docker Hub 拉取**。
+      #    而验「镜像里有没有 sqlite3」必须构建**真镜像** ⇒ 必然拉 `python:3.11-slim`
+      #    ⇒ 会把 R-PA-15 要避的 rate-limit 噪声请回来。**这是 CI 设计里的真实张力，不是疏忽。**
+      # ⇒ 已登记：若将来要它阻断，需先解决 registry 拉取的稳定性（例如镜像缓存 / 自建 registry）。
+      #
+      # ⚠️ **为什么单列一步而不是靠上面的 `docker build`**：那一步只证明**构建没失败**。
+      #    而 DEPLOY 的 5 条运维指令依赖的是「**镜像里有这个二进制**」——
+      #    两者不是同一件事（apt 源换了 / 包名改了 / 多阶段构建把它落在别的 stage，
+      #    都能让构建成功而二进制不在最终镜像里）。
+      #    ⇒ 判据必须问「跑出来是什么」：在镜像里**真的执行一次**。
+      - name: sqlite3 在最终镜像里（DEPLOY 运维指令的前提）
+        run: |
+          docker run --rm --entrypoint sh knot-ci-smoke -c "sqlite3 -version" \
+            || (echo "::error::镜像里没有 sqlite3 —— DEPLOY 的平台库运维指令全部不可执行"; exit 1)
+          echo "sqlite3 PASS"
 
   # ⭐ v0.9.13 P0 —— 构建上下文泄漏守护（**阻断**）
   #
