@@ -18,7 +18,9 @@ console 同时输出。
 - env KNOT_LOG_FORMAT=json: 强制 flat JSON
 - env LOG_LEVEL=INFO|DEBUG|WARNING|ERROR (默认 INFO)
 """
+import inspect as _inspect
 import json
+import logging as _stdlib_logging
 import os
 import sys
 import uuid
@@ -130,22 +132,80 @@ class _JsonFileSink:
         self._fp.flush()
 
 
+class _InterceptHandler(_stdlib_logging.Handler):
+    """把 **stdlib `logging`** 的记录转发进 loguru（v0.9.19 C0'' —— 修一个既有的观测缺陷）。
+
+    ⛔ **不接管会怎样**（实测，`KNOT_LOG_FORMAT=json` 即容器非 tty 的默认）：
+        loguru → {"time":…, "level":"WARNING", "msg":"…", …}     ← 结构化，Kibana 可索引
+        stdlib → 裸消息                                            ← **无 JSON、无 level 字段**
+    因为本模块**从不配置 stdlib root**，那些记录落到 `logging.lastResort`。
+
+    ⚠️ **它不是「日志格式不统一」这种整齐问题** —— 全仓有 **6 个模块 / ~19 处**用 stdlib
+    （`adapters/http/executor` · `url_allowlist` · `agents/catalog_loaders` · `catalog` ·
+    `query_helper` · `core/crypto/fernet`），其中包含**运维唯一观测口**那几条启动 WARN。
+    ⚠️⚠️ 实证：`DEPLOY.md` 记录升级排练用 `docker logs … | grep -i warn` 认定
+    「v0.9.7 的 allowlist WARN 真的响了」—— 而那条消息**原文无 "warn" 字样**、
+    `lastResort` 又不加 level 前缀 ⇒ **那次验证复现不出来**。
+    ⇒ **两条被当成「同形」的 WARN（stdlib 的与 loguru 的）其实不同形。**
+
+    实现照 loguru 官方范式：找到对应 level、回溯到**真实调用点**的栈深度再转发。
+    """
+
+    def emit(self, record: _stdlib_logging.LogRecord) -> None:
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:                       # stdlib 自定义等级 loguru 不认 ⇒ 用数值
+            level = record.levelno
+        # ⚠️ **depth 算法照 loguru 官方范式**（我的初版写错过）：从**本帧**起走，
+        #    直到跳出 stdlib logging 自己的文件 —— 否则 `logger`/`func`/`line` 三个字段
+        #    会指向 `logging.callHandlers` 这类内部帧，而不是**真实调用点**
+        #    ⇒ 日志「有 level 了」但**指不出是谁打的** = 修了一半。
+        frame, depth = _inspect.currentframe(), 0
+        while frame and (depth == 0 or frame.f_code.co_filename == _stdlib_logging.__file__):
+            frame = frame.f_back
+            depth += 1
+        # ⛔ **绝不把「活的异常对象」交给 loguru**（v0.9.19 —— 一条测抓出来的）：
+        #    `exception=record.exc_info` 会让**任何** `diagnose=True` 的 sink 渲染出
+        #    traceback 各帧的**局部变量值**。实证：`catalog_loaders` 那条带 `exc_info` 的兜底日志
+        #    会把**整个 catalog（真实库表名）**打进日志。
+        #    ⚠️ 在生产 sink 上设 `diagnose=False` **不够** —— 它只挡住我配的那几个 sink；
+        #    只要对象还是活的，将来任何新 sink / 调试时临时加的 sink 都会再次泄漏。
+        # ⇒ **改为把 traceback 渲染成纯文本并入消息** ⇒ 局部变量在结构上**不可能**被渲染出来。
+        msg = record.getMessage()
+        if record.exc_info:
+            msg = f"{msg}\n{_stdlib_logging.Formatter().formatException(record.exc_info)}"
+        logger.opt(depth=depth).log(level, msg)
+
+
 # 仅初始化一次（避免 reload 时重复 sink）
 if not getattr(logger, "_knot_configured", False):
     logger.remove()
     logger.configure(patcher=_patcher)
 
+    # ⭐ v0.9.19 C0''：**先**接管 stdlib root —— 否则 6 个模块 / ~19 处 stdlib 日志
+    # （含运维唯一观测口的那几条启动 WARN）在生产 JSON 模式下是**裸消息、无 level**。
+    _stdlib_logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
+
+    # ⛔ **`diagnose=False` 是安全要求，不是风格**（v0.9.19 C0''）：
+    # loguru 默认 `diagnose=True` 会把 traceback **各帧的局部变量值**渲染进日志。
+    # 实证：`catalog_loaders` 那条带 `exc_info` 的兜底日志，会把**整个 catalog**（真实库表名）
+    # 打进日志 —— 由 `test_catalog_tenant_isolation::test_observability_never_logs_catalog_content` 抓到。
+    # ⚠️ 这**不是本片引入的类**：`logger.exception` 今天已在 4 个文件里（含 `api/deps.py` 鉴权路径、
+    # `api/query.py`）⇒ 那些路径的异常日志**今天就在 dump 局部变量**（口令 / token / 业务数据都可能在作用域里）。
+    # 本片只是把 stdlib 那一批也接了进来，从而让这个既有暴露**被一条既有测抓住**。
+    # ⇒ `backtrace` 保留（栈本身有价值、不含值），**`diagnose` 全部关掉**。
     if _is_json_mode():
         # JSON 模式（生产 / kibana）— 用 sink callable bypass loguru 模板
-        logger.add(_json_stderr_sink, level=_LEVEL)
-        logger.add(_JsonFileSink(_LOG_DIR), level=_LEVEL)
+        logger.add(_json_stderr_sink, level=_LEVEL, diagnose=False)
+        logger.add(_JsonFileSink(_LOG_DIR), level=_LEVEL, diagnose=False)
     else:
         # Text 模式（dev / 终端）— loguru 原生 format 模板
-        logger.add(sys.stderr, level=_LEVEL, format=_TEXT_FMT, enqueue=False)
+        logger.add(sys.stderr, level=_LEVEL, format=_TEXT_FMT, enqueue=False, diagnose=False)
         logger.add(
             str(_LOG_DIR / "knot_{time:YYYY-MM-DD}.log"),
             level=_LEVEL,
             format=_FILE_TEXT_FMT,
+            diagnose=False,
             rotation="00:00",
             retention="7 days",
             encoding="utf-8",

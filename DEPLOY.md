@@ -520,7 +520,7 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 | 7. 平台审计 | `SELECT * FROM platform_audit` | **恰 1 条**：`platform.tenant_create` / `system:boot` / `startup` / `{"db_dir":"tenants/1","seed":true}` |
 | 8. 存量 token | 拿升级前的 token 打任意端点 | **401 `JWT_NO_TID`** ⇒ 全员被登出一次（**预期**，见硬前提 1） |
 | 9. 重新登录 | 登录后解 JWT payload | `{"sub":"1","ver":1,"tid":1,…}` —— `tid` 已注入，正常工作 |
-| 10. 启动 WARN | `docker logs knot 2>&1 \| grep -i warn` | v0.9.7 的 allowlist WARN **真的响了**（`allowed_http_hosts` 为 NULL ⇒ 起源租户回退 env）⇒ 见下「必须补的一步」 |
+| 10. 启动 WARN | `docker logs knot 2>&1 \| jq -c 'select(.level=="WARNING")'` | ⚠️⚠️ **本行于 v0.9.19 订正** —— 原记录写「用 `grep -i warn` 认定它**真的响了**」，而**那次验证复现不出来**：该 WARN 走 **stdlib logging**，而当时 `logging_setup` **从不接管 stdlib root** ⇒ 它落 `logging.lastResort` = **裸消息、无 level 前缀**，且消息原文**没有 "warn" 字样** ⇒ `grep -i warn` **命中 0 行**。⇒ **那条「运维唯一观测口」当时在机制层就看不见。** v0.9.19 已加 `InterceptHandler` 把 stdlib 转发进 loguru（`tests/test_stdlib_logging_intercepted.py` 守）⇒ **从此按 `level` 过滤才是可靠判据**，`grep -i warn` 不是。 |
 | 11. 备份文件 | `ls data/*.bak` | 两个 `.bak` **留在数据根不动**，且**不被当成数据库加载**（实测无副作用） |
 
 **⚠️ 升级后必须补的一步（否则埋一个「以后才炸」的雷）**：给 tenant#1 显式配 `allowed_http_hosts`。
