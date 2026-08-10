@@ -210,34 +210,18 @@ def _add_second_active_tenant():
     conn.close()
 
 
-def test_iso6_r_t_gate_single_active_tenant(tmp_db_path):
-    """⑥ R-T-GATE：**`assert_no_second_active_tenant_served` 本尊**（v0.9.4 D5 首次真实现）。
-
-    ⚠️ **v0.9.4 §II-4 重指**：本测此前 docstring 写着该函数名、**实际测的是 `resolve_single_tenant`**
-    —— 即「文档声称 vs 实际」的同一 gap 在测层复制了一遍。D5 真实现后重指本尊。
-    **只对 >1**（R3）：1 active 通过；2 active → raise。
-    """
-    tenant_repo.assert_no_second_active_tenant_served()      # 1 active → 通过（不 raise）
-    _add_second_active_tenant()
-    with pytest.raises(tc.TenantContextError, match="R-T-GATE"):
-        tenant_repo.assert_no_second_active_tenant_served()  # 2 active → fail-closed
-
-
-def test_iso6_gate_allows_zero_active(tmp_db_path):
-    """⑥ 续 · **R3 裁定**：门**只对 >1** —— `0 active` 必须**放过**（不 raise）。
-
-    若对 0 也 raise（原 `resolve_single_tenant` 的 `!=1`），唯一租户被 suspend 时整站含
-    `POST /api/auth/login` 全部 500 ⇒ 与②「登录失败统一返 401 账号或密码错误」直接打架。
-    0 active 的语义交上层：受保护 API 因无可解析租户自然 401。
-    """
-    conn = tenant_repo.get_platform_conn()
-    conn.execute("UPDATE tenants SET status='suspended'")
-    conn.commit()
-    conn.close()
-    assert tenant_repo.list_active_tenants() == []
-    tenant_repo.assert_no_second_active_tenant_served()      # 0 active → 不得 raise
-    with pytest.raises(tc.TenantContextError):
-        tenant_repo.resolve_single_tenant()                   # 对照：旧解析器对 0 仍 raise（未改其语义）
+# ─── ⑥ R-T-GATE：**v0.9.20（P-c）已 lift，本节两条测已删** ────────────────
+#
+# 原有两条直调 `tenant_repo.assert_no_second_active_tenant_served()`：
+#   · `test_iso6_r_t_gate_single_active_tenant`（1 active 通过 / 2 active raise）
+#     ⇒ 断言的**正是 lift 移除的那件事** ⇒ 理由与断言**同时过期** ⇒ 删。
+#   · `test_iso6_gate_allows_zero_active`（0 active 不得 raise）
+#     ⇒ 断言仍值钱，但**已被请求级的更强版本覆盖**：
+#       `tests/api/test_tenant_resolution_api.py::test_zero_active_tenants_login_returns_401_not_500`
+#       （断到 HTTP 层：受保护端点 401 + 登录端点统一 401 而**不是** 500，自带 revert-to-bad）
+#     ⇒ 保留一个单元级重复品只会把覆盖账面撑虚（v3.1-B #8）⇒ 删，覆盖由上面那条承担。
+#
+# ⚠️ **删测是减少覆盖的动作** —— 故在此留痕，并已在 CHANGELOG 写明「被谁覆盖」。
 
 
 def test_iso6_resolve_tenant_by_id_filters_status(tmp_db_path):

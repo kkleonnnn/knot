@@ -264,37 +264,18 @@ def resolve_tenant_by_slug(slug: str) -> dict | None:
     return dict(row) if row else None
 
 
-def assert_no_second_active_tenant_served() -> None:
-    """R-T-GATE 请求侧硬门（v0.9.4 D5 —— **首次真实现**）：active 租户 **>1** 即 fail-closed。
-
-    ⭐ **B-1 承重**：LOCKED（`docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md:150`）把本函数指定为硬 CI，
-    但**此前全仓无任何实现** —— 真正在挡的只是 `resolve_single_tenant()` 抛错的**副作用**。v0.9.4 把请求
-    路径改为「按 JWT tid 解析」后，`len(active)` 这条判定就不在请求路径上了 ⇒ 必须显式补，否则 R-T-GATE
-    在请求侧**无声消失**。
-
-    ⭐ **只对 `>1`**（守护者 Stage 3 R3/MF3 裁定，**不是** `!=1`）：
-      - 名副其实（"no **second** active"）；
-      - `0 active` 交给上层语义：受保护 API 因无可解析租户自然 401，**登录端点得以返回锁定的
-        `401 账号或密码错误`**（②统一错误）而不是 500。若此处对 0 也 raise，唯一租户被 suspend 时
-        整站含 login 全部 500，与②直接打架。
-
-    **lift 片**（**非 v0.9.5** —— 那片只做鉴权拆分、R-T-GATE 一行不动）**= 删掉本函数的唯一调用点
-    （一行）** —— 语义单点、可 review。⚠️ lift 的前置条件见 CLAUDE.md 的 R-T-GATE 就绪清单。
-    """
-    n = len(list_active_tenants())
-    if n > 1:
-        raise TenantContextError(
-            f"R-T-GATE：检测到 {n} 个 active 租户，隔离栈就绪前不得同时服务多租户 —— 拒绝服务（fail-closed）。"
-            "就绪清单见 CLAUDE.md §R-T-GATE（per-tenant file catalog / http_spec 凭据 / egress 域化 / "
-            "开通口令 / 鉴权拆分 / audit-on-drift）"
-        )
-
-
 def resolve_single_tenant() -> dict:
     """v0.9.0 单租户解析器：platform.db tenants 恰 1 active → 返之；0 或 >1 → raise（fail-closed）。
 
-    多租户解析（JWT tid → 库）= 0.1。>1 active 由 R-T-GATE `assert_no_second_active_tenant_served` 挡
-    （0.9.0~0.2 期间隔离栈未就绪，永远只有 1 个可服务租户）。
+    ⚠️ **v0.9.20（P-c）起 R-T-GATE 已 lift** —— 原先「>1 active 由请求侧硬门挡住」的前提**不再成立**，
+    该门（`assert_no_second_active_tenant_served`）连同其唯一调用点已**物理删除**。
+    ⇒ 本函数**不在请求路径上**（请求一律按 JWT `tid` 解析），它只服务于**明确要求「恰 1 个 active」**
+    的少数场景 —— AST 实测生产码剩 3 处：`api/auth.py`（登录无代号回退）+ CLI 2 处
+    （`purge_audit_log` 仅 dry-run 可达 / `scan_secrets_at_rest` 只读）。
+
+    ⚠️ **它在 active ≠ 1 时 raise 的语义未变**，且这正是 `auth.py` 那处的行为依据：
+    第二家公司一激活，**不带 `?c=<代号>` 的登录一律 401**（不会「挑一个租户」）——
+    那是**可用性**问题（老链接失效，产品迁移动作），**不是**跨租户访问。
     """
     active = list_active_tenants()
     if len(active) != 1:
