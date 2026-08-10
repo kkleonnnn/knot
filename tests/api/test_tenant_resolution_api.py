@@ -159,21 +159,13 @@ def test_login_issued_token_carries_tid_and_works(client):
 # ─── 5. R-T-GATE 在请求路径上真的活着 ───────────────────────────────────
 
 
-def test_two_active_tenants_blocks_every_request(client, admin_token):
-    """D5：插入第二个 active 租户 → **每个请求** fail-closed（R-T-GATE 请求侧硬门）。
-
-    这是**故意的**：隔离栈就绪前严禁服务第二租户。gate 只对 `>1` raise（0 active 交上层语义）。
-    v0.9.5 lift = 删 `resolve_for_request` 里那一行。
-    revert-to-bad：删掉 `assert_no_second_active_tenant_served()` → 本测转红（请求变 200）。
-    """
-    from knot.repositories import tenant_repo
-    conn = tenant_repo.get_platform_conn()
-    conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) "
-                 "VALUES (2,'t2','T2','active','tenants/2')")
-    conn.commit()
-    conn.close()
-    with pytest.raises(TenantContextError, match="R-T-GATE"):
-        client.get("/api/auth/me", headers=_bearer(admin_token))
+# ⭐ v0.9.20 P-c：`test_two_active_tenants_blocks_every_request` **已删**。
+# 它断言「2 active ⇒ 每个请求 fail-closed」—— **那正是 lift 移除的东西**
+# ⇒ 理由与断言**同时**过期（v3.1-B #8 的「过期的是理由不是断言」在此**不适用**）。
+# ⚠️ 曾考虑改名成 `test_token_for_suspended_tenant_is_401` 保住断言 —— 但那条**本文件上方已存在**
+#   （`test_suspended_tenant_token_gets_401`，自带 revert-to-bad）⇒ 改名等于
+#   **删一条强断言 + 加一条重复品**，账面上像没删。⇒ 直接删。
+# ⇒ 「tid 指向的租户不可服务就拒」这条性质由上方那条承担。
 
 
 def test_zero_active_tenants_login_returns_401_not_500(client):
