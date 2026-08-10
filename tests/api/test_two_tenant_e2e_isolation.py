@@ -68,8 +68,16 @@ def two_tenants(monkeypatch):
         try:
             base_mod.init_db()
             admin = user_repo.get_user_by_username("admin")
-            user_repo.update_user(admin["id"], must_change_password=0,
-                                  display_name=_MARK_USER.format(tid=tid))
+            # ⭐ `password_hash` 自 v0.9.19 D3 起**必须显式设**：
+            # `KNOT_INITIAL_ADMIN_PASSWORD`（conftest 设为 admin123）只对**起源租户**生效，
+            # 非起源租户 seed 的是**随机口令**。本文件下方多条测用 `admin123` 登录 **t2**，
+            # 此前之所以能通过，靠的正是 D3 修掉的那个缺陷（「A 公司的口令能进 B 公司」）。
+            # ⇒ 登录口令由**本测自己设定**，与部署方的 seed 口令解耦。
+            import bcrypt as _bcrypt
+            user_repo.update_user(
+                admin["id"], must_change_password=0,
+                display_name=_MARK_USER.format(tid=tid),
+                password_hash=_bcrypt.hashpw(b"admin123", _bcrypt.gensalt()).decode())
             knowledge_repo.create_knowledge_doc(_MARK_DOC.format(tid=tid), f"f{tid}.md", 1)
             from knot.api.deps import create_token
             tokens[tid] = create_token(admin["id"])

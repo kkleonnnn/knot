@@ -28,6 +28,7 @@ import os
 import sqlite3
 from pathlib import Path
 
+from knot.core import tenant_context as _tenant_ctx
 from knot.core.logging_setup import logger
 from knot.repositories import tenant_repo
 
@@ -329,7 +330,14 @@ def migrate_anchor_db_to_tenant_once() -> str:
       锚点有 + target 有(残片/空 或 有标记)          → resumed（先保全既有 target→.pre-resume.bak 再覆盖重迁）
       锚点有 + target 有(用户数据 且 无标记)         → raise（疑似违反铁律先上现网 → 拒覆盖）
     """
-    t1 = tenant_repo.resolve_single_tenant()
+    # v0.9.19 P-b：**点名起源租户**，不是「唯一 active 的那个」。
+    # ⛔ 原写法两个毛病：① active≠1 时 raise ⇒ **boot 崩**（本函数第一行，是最先炸的那处）；
+    #    ② **今天就错**：停用 tenant#1 + 有 active tenant#2 时它返回 **tenant#2**
+    #       ⇒ 锚点库会被迁进**错误的租户目录**。
+    # ⇒ 锚点库（pre-tenancy 的 knot.db）**永远属于起源租户**，故按 id 点名。
+    t1 = tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID)
+    if t1 is None:
+        raise RuntimeError("起源租户不存在 —— 平台库异常，拒绝迁移（不猜目标）")
     anchor = Path(tenant_repo.SQLITE_DB_PATH)
     target = anchor.parent / t1["db_dir"] / "knot.db"
 
