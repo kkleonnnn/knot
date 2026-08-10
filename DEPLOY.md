@@ -907,7 +907,7 @@ test_no_slug_login_with_two_active_tenants_is_401` 守）。
 curl -sS -X POST http://<host>/api/platform/tenants \
   -H "Authorization: Bearer $KNOT_PLATFORM_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"slug":"acme","name":"Acme Inc","allowed_http_hosts":"api.acme.example"}'
+  -d '{"slug":"acme","name":"Acme Inc","allowed_http_hosts":"api.acme.example","allowed_webhook_hosts":"hooks.acme.example"}'
 ```
 
 **返回 201**：`{"tenant": {...}, "initial_password": "<仅此一次>", "resumed": false}`
@@ -921,9 +921,18 @@ curl -sS -X POST http://<host>/api/platform/tenants \
    ```bash
    python -m knot.scripts.reset_admin_password --tenant <slug>
    ```
-3. **`allowed_http_hosts` 必填，且 `""` 与「不传」语义不同**：
-   `""` = 部署方明确的「**禁止出网**」；不传 = 422（**刻意不给默认值** —— 否则开通动作
+3. **两份 allowlist 都必填，且 `""` 与「不传」语义不同**：
+   - `allowed_http_hosts` —— **读**数据源（HTTP 实时接口）能连哪些主机；
+   - `allowed_webhook_hosts` —— **发**告警（webhook）能发到哪些主机（v0.9.18 起）。
+
+   `""` = 部署方明确的「**禁止出网**」；不传 = **422**（**刻意不给默认值** —— 否则开通动作
    就替你静默选了一种语义）。三态含义见 `platform_schema.sql` 的列注释。
+   ⚠️ **两者方向相反、严禁混用**：一份管「往外读」、一份管「往外发」。
+   ⚠️ **将来若再加第三份 allowlist，本段与上面那条 `curl` 都要同步** ——
+   它们由 `tests/test_doc_invariants.py::test_deploy_provision_curl_covers_all_required_fields`
+   从 `TenantCreateRequest` **派生校验**（漏一个即红），不必靠人肉记得。
+   ⚠️ 本条 v0.9.18 加了 `allowed_webhook_hosts` 之后**手册漏改了一版** ——
+   那版的 `curl` 照抄会直接 422，而文档写着「返回 201」。那次漏改正是本哨兵存在的理由。
 4. ⛔ **别靠目录名认租户**（Stage 3 Q1）：`db_dir` 是服务端生成的**无意义随机串**
    （如 `tenants/43b658915072c9b2`），**刻意不可辨识、且不可更改**。
    要查「哪家公司对应哪个目录」请用 `GET /api/platform/tenants` 或 `GET /api/platform/audit`
