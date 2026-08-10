@@ -566,9 +566,16 @@ def test_rtgate_compensating_gate_still_blocks_activation(two_tenants):
     lift 之后，「第二家能不能真的进来」不再由请求路径决定，而由**能不能被激活**决定
     ⇒ 判据随之从「请求 fail-closed」变成「**激活被拒，且拒绝理由点名还差哪三条**」。
 
-    ⚠️ **必须打在写口上，不是 CLI 上**：门装在 `tenant_repo.update_tenant`
-    （`UPDATE tenants SET` 那一行的正上方），CLI 只是它的一个调用方。
-    本测直调写口 ⇒ 摘掉门必红，且**不依赖 CLI 是否存在**。
+    ## ⭐ 门为什么装在写口、不装在激活 CLI 里（Stage 3 MF1 —— Stage 1 初版就是写在 CLI 的，错的）
+    CLI 是**决策点**；能力被行使的那一行是 `tenant_repo.update_tenant` 里的 `UPDATE tenants SET`。
+    门只在 CLI ⇒ ① 将来任何平台写端点 / 脚本绕过它；
+                 ② **已经是 active 的非起源行**（备份恢复 / 演练残留 / 直改库）不被任何东西拦。
+    ⇒ 现在它与既有的 owner 守卫（禁停用起源租户）**同层、同判据、对称**。
+    ⚠️ Stage 1 初版引了 v0.9.6 owner-gate 当先例，**却只抄了它的注释格式（写摘除条件），
+       没抄它的装门位置** —— 那道门在 `catalog_loaders.load_file_layer()` 这个 choke point，
+       不在它的调用方。⇒ 判据不是「有没有先例」，是「**先例的门在哪一行，我的在哪一行**」。
+
+    本测**直调写口** ⇒ 摘掉门必红，且**不依赖 CLI 是否存在**。
 
     ⚠️ **正对照同样承重**：起源租户**仍可**被写（否则「一律拒绝」也能让本测通过 = 把功能删掉）。
 

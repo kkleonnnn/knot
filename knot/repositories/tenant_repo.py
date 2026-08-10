@@ -203,24 +203,14 @@ def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | Non
     #
     # **为什么需要它**：lift R-T-GATE 之前，唯一可服务的租户**恒是起源租户**
     #   （禁停用起源租户 + 门禁第二 active）⇒ 唯一的 tenant admin 就是**部署方本人**
-    #   ⇒ 下列三条「租户盲」的能力今天**无害**。**lift 正是第一次把它们交给非部署方。**
+    #   ⇒ 三条「租户盲」的能力今天**无害**（**逐条见下方 raise 的消息** —— 不在此复述，
+    #     免得两处漂开）。**lift 正是第一次把它们交给非部署方。**
+    #   出处：`api/admin/datasources.py` 的 SSRF 守卫函数体第一行就 return（非 http 一律放行）·
+    #   `config/settings.PROVIDER_API_KEYS`（12 处站点的回退末跳）· `repositories/base.py` 的 seed INSERT。
     #
-    #   ① **SQL 数据源出网零 allowlist** —— `api/admin/datasources.py` 的 SSRF 守卫
-    #      **函数体第一行**就 `if db_type != "http" or not http_config: return`
-    #      ⇒ 非起源租户 admin 可建 doris/mysql/postgres 源指向部署方内网任意 host:port，
-    #        而 `/api/admin/datasources/status` 每次加载即发起连接 ⇒ 内网探活。
-    #   ② **LLM key 回退末跳 = 进程 env** —— `config/settings.PROVIDER_API_KEYS`，12 处生产站点
-    #      （`key = ... or PROVIDER_API_KEYS.get(...)`）⇒ 第二家没填 key 时**花部署方的账**，
-    #        其业务问题与 schema 以部署方账号出境。⚠️ DEPLOY 把「env 兜底」列为受支持配置。
-    #   ③ **新租户 admin 行预填部署方内网 DB 坐标** —— `repositories/base.py` 的 seed INSERT
-    #      带 `DEFAULT_DB_HOST` / `DEFAULT_DB_PORT`，且 `engine_cache` 对空值再回退。
-    #
-    # ⭐ **为什么门在这一行而不在激活 CLI 里**（Stage 3 MF1 —— 初版就是写在 CLI 的，错的）：
-    #   CLI 是**决策点**，而能力被行使的那一行是下方的 `UPDATE tenants SET`。
-    #   门只在 CLI ⇒ ① 将来任何平台写端点/脚本绕过它；② 已经是 active 的非起源行
-    #   （备份恢复 / 演练残留 / 直改库）不被任何东西拦。
-    #   ⇒ 与上面那道 owner 守卫**同层、同判据、对称** —— 这才是本仓 v0.9.6 owner-gate 的真正先例
-    #     （那道门在 `catalog_loaders.load_file_layer()` 这个 choke point，不在它的调用方）。
+    # ⭐ **门在这一行、不在激活 CLI 里** —— 完整理由见
+    #   `tests/test_file_catalog_owner_gate.py::test_rtgate_compensating_gate_still_blocks_activation`
+    #   的 docstring（一句话：CLI 是**决策点**，能力在下方 `UPDATE tenants SET`）。
     #
     # 🔓 **摘除条件（三条全部租户域化后，本门连同其测一并删除）**：
     #   ① SQL 数据源出网纳入 per-tenant allowlist；② LLM key 去掉 env 回退（非起源租户 fail-closed）；

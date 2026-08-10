@@ -268,6 +268,9 @@ _DOC_REQUIRED_FLAGS = {
     "reset_admin_password": ("--tenant",),
     "migrate_encrypt_v045": ("--tenant", "--all-tenants"),
     "purge_audit_log": ("--tenant", "--dry-run"),      # dry-run 允许无目标（0 副作用）
+    # ⭐ v0.9.20 P-c：改租户服务状态 —— **两个**参数都必填、都无默认
+    # （`--status` 尤其不给默认：「默认激活」是最危险的那个默认）。
+    "set_tenant_status": ("--tenant", "--status"),
 }
 
 
