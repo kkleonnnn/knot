@@ -634,7 +634,25 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 
 > **OOS-1v2（v0.9.0 红线修订仪式改立 · 原 OOS-1 单租户死线正式翻转）**：多租户隔离模型 = **C 方案（平台库 + per-tenant SQLite 文件，fail-closed）**。**租户库内严禁 tenant_id/project_id 列**——行级租户列对 LogicForm 编译器 fail-open（漏注一条 = 静默跨租户供数），文件边界是唯一隔离载体；租户归属列仅允许存在于平台库（tenants 等平台元数据表）。catalog_id 仍 = 租户内水平切分 ≠ 租户隔离。tenant 上下文 fail-closed（无 ctx → raise，严禁全局回退）。配套 **R-T-GATE**：隔离栈就绪（uploads/凭据/egress/catalog/调度器/缓存与限流键/开通口令）前严禁放开第二租户开通。
 >
-> **⭐ R-T-GATE 就绪清单（v0.9.4 增补 · lift 前必清）**：v0.9.1 进程内缓存 ✅ · v0.9.2 uploads ✅ ·
+> ## ⭐⭐ R-T-GATE **已于 v0.9.20（P-c）lift** —— 下面整份清单是**历史**，读之前先看这一段
+>
+> **现在的事实**：请求侧那道「>1 active 就全站 fail-closed」的硬门（`assert_no_second_active_tenant_served`）
+> 连同其唯一调用点**已物理删除**。「当前是哪家公司」**完全由 JWT 的 `tid` 决定**。
+>
+> ⛔ **但「第二家能不能真的进来」由另一道门决定** —— `tenant_repo.update_tenant` 里的
+> **临时代偿门**：**非起源租户不得被激活**。它守的是**三条至今仍租户盲的能力**：
+> ① **SQL 数据源出网零 allowlist**（`api/admin/datasources.py` 的 SSRF 守卫函数体第一行就 `return`，
+>    非 http 一律放行）· ② **LLM key 回退末跳 = 进程 env**（`config/settings.PROVIDER_API_KEYS`，
+>    12 处站点；⚠️ DEPLOY 把「env 兜底」列为**受支持配置**）· ③ **新租户 admin 行预填部署方内网 DB 坐标**
+>    （`repositories/base.py` 的 seed INSERT）。
+> ⇒ **三条全部租户域化后，删掉那道门（连同 `test_rtgate_compensating_gate_still_blocks_activation`）**
+>   即可真正放第二家进来。**别单独摘门。**
+> ⚠️ 为什么这三条**以前无害**：lift 前唯一可服务的租户恒是起源租户 ⇒ 唯一的 tenant admin 就是
+>   **部署方本人**。**lift 正是第一次把它们交给非部署方** —— 这是 v3.1-B #1「1 → N」推论的又一实例。
+> ⚠️ 状态变更的**唯一留痕途径** = `python -m knot.scripts.set_tenant_status --tenant X --status Y`
+>   （走 `update_tenant` 单一写口 ⇒ 审计与动作同事务）。运维直改平台库仍绕过它。
+>
+> **⭐ 以下为 lift 前的就绪清单（v0.9.4 增补），保留作历史**：v0.9.1 进程内缓存 ✅ · v0.9.2 uploads ✅ ·
 > v0.9.3 catalog 载体 ✅ · **v0.9.4 JWT tid 请求级解析 ✅**（middleware 读 tid + `get_current_user`
 > tid 门 + 漂移 tripwire + 登录按 slug 自建 ctx）· **B-3 三项（v0.9.3 原理上修不了，必须单独做）**：per-tenant file catalog
 > （`_local_catalog.py` 现为单一进程级模块，空-DB 租户会被注入部署方真实业务规则+库表）+ **per-tenant

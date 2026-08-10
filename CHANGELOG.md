@@ -5,7 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.19 — P-b：启动序逐租户化 + seed 口令按租户（lift 的唯一硬阻塞）
+## [Unreleased] - v0.9.20 — P-c：lift R-T-GATE（放开第二家公司 · 代码层）
+
+### Changed (BREAKING)
+- ⭐⭐ **lift R-T-GATE** —— 请求侧那道「>1 个 active 租户即全站 fail-closed」的硬门
+  （`assert_no_second_active_tenant_served`）连同其**唯一调用点物理删除**。
+  从此「当前请求属于哪家公司」**完全由 JWT 的 `tid` 决定**，解析函数不再关心一共有几家。
+  - ⚠️ **正因如此它不得有任何回退**：解析不出 tid / tid 指向的租户不可服务 ⇒ 返 `None`
+    （不设 ctx ⇒ 下游 401），**绝不能挑一个租户顶上** —— 那是 OOS-1v2 禁的 fail-open 全局回退。
+  - ⭐ **最强验收不是新写的测，是一条已存在的预演转正**：`test_two_tenant_e2e_isolation`
+    的 21 个测函数此前靠 monkeypatch **仅测内**关掉那道门来跑双租户，现在门真没了
+    ⇒ 它成为**唯一**的隔离验收。
+  - ⚠️ **「21 passed」本身是弱判据**（monkeypatch 早已把门变 no-op ⇒ 一起删后代码路径逐字相同，
+    绿是构造性必然）。⇒ 另跑了能产生跨租户读的注入：**id 不动、只把 `db_dir` 换成 t1 的**
+    （漂移 tripwire 比的是 id，库路径由 `db_dir` 派生 ⇒ 该注入对 tripwire 结构上不可见）
+    ⇒ **3 failed / 18 passed**，失败信息原文
+    `assert 'ADMIN-OF-TENANT-1' == 'ADMIN-OF-TENANT-2'` = 真的读到别家数据
+    ⇒ **判据非空**，这 21 条抓得住跨租户读。
+
+### Added
+- ⛔ **临时代偿门：非起源租户不得被激活**（装在 `tenant_repo.update_tenant` 里
+  `UPDATE tenants SET` 那一行的正上方，与既有 owner 守卫同层对称）。
+  它守的是**三条至今仍租户盲的能力**：① SQL 数据源出网**零 allowlist**
+  （`datasources.py` 的 SSRF 守卫函数体第一行就 `return`，非 http 一律放行）·
+  ② LLM key 回退末跳 = **进程 env**（12 处站点；DEPLOY 还把 env 兜底列为受支持配置）·
+  ③ 新租户 admin 行**预填部署方内网 DB 坐标**。
+  - ⭐ **这三条以前无害**：lift 前唯一可服务的租户恒是起源租户 ⇒ 唯一的 tenant admin
+    就是部署方本人。**lift 正是第一次把它们交给非部署方** —— v3.1-B #1「1 → N」推论的实例。
+  - ⚠️ **门必须在能力那一行、不在 CLI**：CLI 是决策点。门只在 CLI ⇒ 将来任何平台写端点
+    绕过它，且**已经是 active 的非起源行**（备份恢复 / 直改库）不被任何东西拦。
+  - 🔓 摘除条件写进代码注释 + DEPLOY + CHANGELOG 三处；守护
+    `test_rtgate_compensating_gate_still_blocks_activation`（revert 实证 **1 failed / 25 passed** = 唯一抓住）。
+- ⭐ **`python -m knot.scripts.set_tenant_status --tenant X --status Y`** ——
+  改租户服务状态的**唯一留痕途径**（走 `update_tenant` 单一写口 ⇒ 审计与动作同事务）。
+  两个参数**都必填、都无默认**（「默认激活」是最危险的默认），缺任一即非 0 退出 + 零写入。
+  激活被拒时**一次把所有阻塞项报全**（代偿门三条 + 该租户自己的配置缺口），不让运维一轮一轮试。
+
+### Fixed
+- **回退路径**（此前**不存在**）：lift 后若回退镜像到 v0.9.19 且仍有 2 个 active
+  ⇒ 门回来了 ⇒ **整站 500**（全仓 `exception_handler` **0 处**）；回退到 ≤v0.9.18
+  ⇒ 启动序 `resolve_single_tenant()` 抛错 ⇒ **BOOT FAILED**。
+  而降级工具**只存在于被回退掉的那个版本里**。
+  ⇒ DEPLOY 新增「**先降到 1 active 再换镜像**」，并给**不依赖新 CLI 的裸 SQL**。
+- **跨大版本回滚脚本会删掉别家的数据**：`rm -rf tenants platform.db` 在 lift 前只可能删起源租户
+  （其数据由 `.pre-tenancy.bak` 复位）；lift 后 `tenants/` 可能有第二家公司的库 ⇒ 已加警告 + 留档步骤。
+- **5 处过期散文**（lift 后为假 / 今天就为假）：平台端点「不是运维逃生舱」→ **反过来了**
+  （回退预案正要用它）· 运维门标题「lift R-T-GATE 前」· 「lift 前必须把 `company` 改必填」
+  （kk 裁定不改：该回退 fail-closed ⇒ 是**可用性**不是跨租户访问）· 漂移基线的「仅锁死期间成立」限定语
+  （**限定语作废、基线本身不变且更要紧**）· `platform_schema.sql` 里一句「`db_dir` 还没被强制」——
+  ⚠️ **v0.9.15 早已强制，而本片一次独立评审信了那句话、据此报了一条并不存在的缺陷**
+  ⇒ 过期注释不是文档瑕疵，**它在主动制造假发现**。
+
+### Removed
+- `test_gate_runs_before_tid_resolution` / `test_two_active_tenants_blocks_every_request`
+  / 两条 `test_iso6_*` —— **断言与理由同时过期**，或**在别处已有更强版本**。
+  ⚠️ 删测是减少覆盖的动作 ⇒ 每处都留了注释写明「被谁覆盖」，且**实测替代者真的在守**：
+  注入「无凭证回退 tenant#1」⇒ **8 failed**（覆盖比被删那条更广）。
+  ⇒ v3.1-B #8「过期的是理由不是断言」**不是无条件的** ——
+  先问「这条断言在别处有没有更强的版本」；有，就该删而不是改名，否则重复品把覆盖账面撑虚。
+- `test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant` → **断言反转**为
+  `..._stays_usable_with_two_active_tenants`：平台面在双租户下**可用**，
+  而这正是回退预案的前提（它走平行认证路径，不经租户 JWT）。
+
+### Notes
+- **不声称**：第二家公司真的可以进来（代偿门仍拒绝激活）· SQL 数据源出网受控（P-a'）·
+  禁重定向（P-a''）· 多副本安全（R10'）· 运维直改平台库仍绕过写口与两道门
+  ⇒ 只声称「**经 CLI 的**状态变更被审计」。
+
+## [v0.9.19] - P-b：启动序逐租户化 + seed 口令按租户（lift 的唯一硬阻塞）
 
 ### Fixed
 - ⭐ **两家公司同时启用时，进程根本起不来**（lift 前的唯一硬阻塞，已实跑复现 `BOOT FAILED`）：
