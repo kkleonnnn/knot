@@ -1031,8 +1031,13 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   （引擎缓存改「比对数据源行的版本号」而不是靠 TTL；限流改共享计数器 —— 登录类本就低频，
   写平台库可接受，查询类另议）。**不需要引入 Redis**（详 `docs/plans/v0.9-lift-arc-remaining-plan.md` D-E）。
   单租户部署不受此限（今日 R-T-GATE 硬锁第二租户，故现网即单租户）。
-- **`_local_catalog.py` 是部署级、全体租户共享**：其中的真实业务表名/方言/HTTP endpoint 对**每个**租户可见；
-  且空-DB 租户会 fallback 到它（含 business_rules）。开通第二租户前必须先做 per-tenant file catalog。
+- ✅ **file catalog 已归起源租户独占**（v0.9.4 登记 → **v0.9.6 已闭合**）：
+  `_local_catalog.py`（部署方的真实业务表名 / 词典 / 业务口径 / 关系）只对**起源租户**可见；
+  其余租户在唯一 choke point `catalog_loaders.load_file_layer()` 拿到**完整的空**五元组
+  （**刻意不是半空** —— `business_rules` 若还回落文件层，等于继续泄漏部署方口径）。
+
+  ⚠️ 原登记写的是「对**每个**租户可见…开通第二租户前必须先做」——**那句自 v0.9.6 起为假**，
+  本手册漏改了。⇒ 它**不再是**开通第二租户的前置项。
 - ✅ **HTTP 虚拟表凭据 + 出网白名单已 per-tenant 化**（v0.9.7 B-3 ②③ —— 原「走进程 env、租户盲」已闭合）：
   - **凭据**：`http_spec` 必须带 `source_id` → 指向**该租户库**的 `data_sources` 行（`http_config` 走 Fernet）。
     env 引用形态（`base_url_env` / `auth_*_env`）已**物理删除**；`adapters/http/executor.py` 现在**零 env 读取**
@@ -1138,8 +1143,14 @@ curl -sS -X POST http://<host>/api/platform/tenants \
   - ⚠️ **审计表 append-only** —— 无清理机制（量级极小：只记租户生命周期与元数据变更）。
     要加清理必须走一次显式评审（有 CI 哨兵挡着）。
 
-- **每个新租户 seed 的初始 admin 口令目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD`**（v0.9.4 登记）：
-  开通第二租户前必须改成 per-tenant 初始口令 / 一次性邀请流，否则「A 公司的人能进 B 公司」有现成入口。
+- ✅ **每个租户的初始 admin 口令已 per-tenant 化**（v0.9.4 登记 → **v0.9.15 + v0.9.19 已闭合**）：
+  seed 口令有**两个入口**，两个都已堵：
+  - **开通端点**（v0.9.15）：`POST /api/platform/tenants` 恒生成 per-tenant 随机口令，只在响应里给一次；
+  - **启动的逐租户 `init_db()` 循环**（v0.9.19 P-b）：`KNOT_INITIAL_ADMIN_PASSWORD` **只对起源租户生效**
+    （`repositories/base.py` 的 `is_owner_tenant()` 判断），其余租户一律随机强口令。
+
+  ⚠️ 原登记写的是「目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD` ⇒『A 公司的人能进 B 公司』有现成入口」——
+  **那句自 v0.9.19 起为假**，但本手册漏改了一版。⇒ 若你读到的是旧版本手册，以本条为准。
 - **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：lift 前必须把 `company` 改为必填。
   ⚠️ **开通第二租户当天的症状形状（务必先知道，否则会被误诊为认证故障）**：第二租户一激活，
   **所有还在用老链接（无 `?c=`）的用户会同时收到「账号或密码错误」** —— 这是**预期的 fail-closed**
