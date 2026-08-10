@@ -198,6 +198,47 @@ def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | Non
             "  ⇒ 真要下线整个部署，请停服务进程，而不是把起源租户标成 suspended。"
         )
 
+    # ── ⛔ v0.9.20 P-c：**临时代偿门** —— 非起源租户不得被激活 ──────────────
+    # ⚠️⚠️ **这道门是代偿控制，不是修复。摘除条件写在下面，别单独摘。**
+    #
+    # **为什么需要它**：lift R-T-GATE 之前，唯一可服务的租户**恒是起源租户**
+    #   （禁停用起源租户 + 门禁第二 active）⇒ 唯一的 tenant admin 就是**部署方本人**
+    #   ⇒ 下列三条「租户盲」的能力今天**无害**。**lift 正是第一次把它们交给非部署方。**
+    #
+    #   ① **SQL 数据源出网零 allowlist** —— `api/admin/datasources.py` 的 SSRF 守卫
+    #      **函数体第一行**就 `if db_type != "http" or not http_config: return`
+    #      ⇒ 非起源租户 admin 可建 doris/mysql/postgres 源指向部署方内网任意 host:port，
+    #        而 `/api/admin/datasources/status` 每次加载即发起连接 ⇒ 内网探活。
+    #   ② **LLM key 回退末跳 = 进程 env** —— `config/settings.PROVIDER_API_KEYS`，12 处生产站点
+    #      （`key = ... or PROVIDER_API_KEYS.get(...)`）⇒ 第二家没填 key 时**花部署方的账**，
+    #        其业务问题与 schema 以部署方账号出境。⚠️ DEPLOY 把「env 兜底」列为受支持配置。
+    #   ③ **新租户 admin 行预填部署方内网 DB 坐标** —— `repositories/base.py` 的 seed INSERT
+    #      带 `DEFAULT_DB_HOST` / `DEFAULT_DB_PORT`，且 `engine_cache` 对空值再回退。
+    #
+    # ⭐ **为什么门在这一行而不在激活 CLI 里**（Stage 3 MF1 —— 初版就是写在 CLI 的，错的）：
+    #   CLI 是**决策点**，而能力被行使的那一行是下方的 `UPDATE tenants SET`。
+    #   门只在 CLI ⇒ ① 将来任何平台写端点/脚本绕过它；② 已经是 active 的非起源行
+    #   （备份恢复 / 演练残留 / 直改库）不被任何东西拦。
+    #   ⇒ 与上面那道 owner 守卫**同层、同判据、对称** —— 这才是本仓 v0.9.6 owner-gate 的真正先例
+    #     （那道门在 `catalog_loaders.load_file_layer()` 这个 choke point，不在它的调用方）。
+    #
+    # 🔓 **摘除条件（三条全部租户域化后，本门连同其测一并删除）**：
+    #   ① SQL 数据源出网纳入 per-tenant allowlist；② LLM key 去掉 env 回退（非起源租户 fail-closed）；
+    #   ③ seed 不再写部署方 DB 坐标。守护：`test_rtgate_compensating_gate_still_blocks_activation`。
+    #
+    # ⚠️ **诚实边界**：运维直接 `sqlite3 UPDATE` 仍绕过本门（与上面那道守卫同）。
+    if fields.get("status") == "active" and not _is_owner_id:
+        raise ValueError(
+            f"拒绝激活非起源租户（id={tenant_id}）—— R-T-GATE 虽已 lift，但仍有 **3 条能力是租户盲的**，"
+            "激活等于把它们交给非部署方：\n"
+            "  ① SQL 数据源出网**零 allowlist**（该租户 admin 可让服务端连部署方内网任意 host:port）\n"
+            "  ② LLM API key 回退到**进程 env**（该租户不填 key 就花部署方的账、以部署方账号出境）\n"
+            "  ③ 新租户 admin 行**预填部署方内网 DB 坐标**\n"
+            "⇒ 三条全部租户域化后，删掉本门（tenant_repo 内，注释里写了摘除条件）即可激活。\n"
+            "⇒ 若你确知在做什么且必须现在激活：直接改平台库（DEPLOY「多租户运维门」），"
+            "但那**不会留审计**，且上述三条风险照旧。"
+        )
+
     conn = get_platform_conn()
     try:
         row = conn.execute("SELECT * FROM tenants WHERE id=?", (tenant_id,)).fetchone()
