@@ -228,25 +228,14 @@ def _httpbearer_credentials(header):
 # ─── 5. R-T-GATE 顺序 ──────────────────────────────────────────────────
 
 
-def test_gate_runs_before_tid_resolution(tmp_db_path):
-    """D5：R-T-GATE 硬门在解析之前 —— 2 个 active 租户 → 无论 token 如何都 raise。
-
-    revert-to-bad：把 `assert_no_second_active_tenant_served()` 那行挪到函数末尾 / 删掉 → 本测转红。
-    """
-    from knot.repositories import tenant_repo
-    conn = tenant_repo.get_platform_conn()
-    conn.execute("INSERT INTO tenants (id,slug,name,status,db_dir) "
-                 "VALUES (2,'t2','T2','active','tenants/2')")
-    conn.commit()
-    conn.close()
-    with pytest.raises(TenantContextError, match="R-T-GATE"):
-        tr.resolve_for_request(_mk_request(f"Bearer {_tok(tid=1)}"))
-    # 连「完全没凭证」也必须被 gate 挡住（证明 gate 在最前，不是解析失败后才跑）
-    with pytest.raises(TenantContextError, match="R-T-GATE"):
-        tr.resolve_for_request(_mk_request(None))
-
-
-# ─── 6. B-4 租户漂移 tripwire（kk 决策②「做，要接上」） ─────────────────
+# ⭐ v0.9.20 P-c：`test_gate_runs_before_tid_resolution` **已删**。
+# 它断言「R-T-GATE 硬门在 tid 解析之前跑」—— 门没了 ⇒ **断言无对象**。
+# ⚠️ 曾考虑改写成「2 active + 无凭证 ⇒ 不得回退到任何租户」保住它 ——
+#   但那条性质**本文件已有两条更强的**：
+#     · `test_unusable_credential_leaves_ctx_unset`（6 参数化，断「无 Authorization ⇒ 返 None、绝不回退」）
+#     · `test_R15_no_generic_fallback`（**AST 静态**封死回退，连写法都不许出现）
+#   而改写版只多一个「2 active」的 setup，**该分支根本不读 active 数** ⇒ 判别力近零。
+# ⇒ 直接删，覆盖由上述两条承担。
 
 
 def test_B4_drift_tripwire_has_production_call_site():

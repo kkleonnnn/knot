@@ -253,21 +253,32 @@ def test_non_ascii_configured_secret_does_not_500(monkeypatch):
         "若是 TypeError 说明生产在用 compare_digest(str, str)，非 ASCII env 值会 500")
 
 
-# ─── 验收 11：第二 active 租户 → 平台端点同样 fail-closed ──────────────────
+# ─── 验收 11：第二 active 租户下，平台面**仍然可用**（v0.9.20 断言反转）──────
 
 
-def test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant(tmp_db_path, monkeypatch):
-    """⭐⭐ 验收 11：出现第二个 active 租户时，**平台端点同样 fail-closed**。
+def test_platform_endpoint_stays_usable_with_two_active_tenants(tmp_db_path, monkeypatch):
+    """⭐⭐ 两个 active 租户时，平台面**仍然可用**（v0.9.20 P-c：**断言反转**，不是删测）。
 
-    `assert_no_second_active_tenant_served()` 是 `resolve_for_request` 的**第一行**
-    （在 Bearer 解析与路径判断**之前**）⇒ 整站含平台面全 raise。
-    ⇒ **别把这个端点当运维逃生舱** —— 它恰在多租户出问题时不可用。
-    本测存在的意义就是把这个反直觉的事实钉住，免得后人在故障预案里依赖它。
-    照仓内既有口径（`test_tenant_resolution.py::test_gate_runs_before_tid_resolution`）
-    在 `resolve_for_request` 层断言，而非走 HTTP（HTTP 层会是 500，信息量更低）。
+    ## 它的前身断言的是**相反**的事，而那件事已被 lift 移除
+    v0.9.4~v0.9.19 期间本测叫 `..._is_not_an_escape_hatch_under_second_tenant`，
+    断言「出现第二个 active 租户 ⇒ 平台端点**同样** fail-closed」——
+    因为 `assert_no_second_active_tenant_served()` 是 `resolve_for_request` 的**第一行**
+    （在 Bearer 解析与路径判断之前）⇒ 整站含平台面全 raise。
+    P-c 删掉了那道门 ⇒ **那个断言的对象不存在了**。
+
+    ## 为什么反转后**更**值钱，而不是「顺手改成能过」
+    lift 的回退预案（DEPLOY「先降到 1 active 再换镜像」）**恰恰要用平台面**：
+    出问题时运维要能列出租户、查平台审计、把第二家降回 suspended。
+    ⇒ 「平台面在多租户下可用」从**反直觉的坑**变成了**回退路径的前提**
+      —— 它现在是一条必须被守住的性质，而不只是一条被记录的事实。
+
+    ⚠️ 平台面**本就是平行认证路径**（v0.9.5 E1：out-of-band 共享密钥，不经租户 JWT）
+    ⇒ 它不依赖租户 ctx，这一点在 lift 前后都成立；变的只是「有没有一道门抢在它前面」。
+
+    revert-to-bad：把任何形式的「active 数 > 1 就拒」加回 `resolve_for_request`
+    ⇒ 本测红，且失败信息点名「回退路径会连同故障一起失效」。
     """
     from knot.api import tenant_resolution as tr
-    from knot.core.tenant_context import TenantContextError
     from knot.repositories import tenant_repo
 
     conn = tenant_repo.get_platform_conn()
@@ -276,14 +287,30 @@ def test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant(tmp_db_pat
     conn.commit()
     conn.close()
     monkeypatch.setenv(_ENV, _GOOD)
+    assert len(tenant_repo.list_active_tenants()) == 2, "前提不成立：不是 2 个 active"
 
     class _Req:
         def __init__(self, path, hdr):
             self.headers = {"authorization": hdr} if hdr else {}
             self.url = type("U", (), {"path": path})()
 
-    with pytest.raises(TenantContextError, match="R-T-GATE"):
+    # ① 解析层：不得因为「有两家」而抛
+    try:
         tr.resolve_for_request(_Req(_URL, f"Bearer {_GOOD}"))
+    except Exception as e:                                    # noqa: BLE001
+        pytest.fail(
+            f"两个 active 租户时 `resolve_for_request` 抛了 {type(e).__name__}: {e}\n"
+            "⇒ 平台面在多租户下不可用 ⇒ **lift 的回退预案会连同故障一起失效**"
+            "（DEPLOY「先降到 1 active 再换镜像」那一步要用平台面列租户/查审计）。"
+        )
+
+    # ② 端点层：真的能拿到数据（防「解析不抛但端点仍 5xx」）
+    from knot.main import app
+    from tests.conftest import NoAmbientTenantTestClient
+    with NoAmbientTenantTestClient(app) as c:
+        r = c.get(_URL, headers=_hdr(_GOOD))
+    assert r.status_code == 200, f"平台端点在双租户下不可用：{r.status_code} {r.text[:200]}"
+    assert len(r.json()) == 2, f"应能列出两家，实得 {r.json()}"
 
 
 # ─── D3' 响应契约：显式投影两道 ────────────────────────────────────────────

@@ -44,7 +44,14 @@ BACKEND_ACK = {
     # **已压到承重下限**：集合注释从 12 行压到 5 行（完整理由搬进
     # `tests/test_allowlist_column_registration.py` 的 docstring），只留「为什么是集合不是硬编单名」——
     # 删掉那句，下一个人就会在脱敏那行补第三个名字，而**第三份 allowlist 来时无人提醒**。
-    "knot/repositories/tenant_repo.py":    310,
+    # v0.9.20 P-c：lift R-T-GATE 后新增**临时代偿门**（非起源租户不得被激活）。
+    # **已压两轮到承重下限**：① 「为什么装这一行而不是 CLI」搬进哨兵测的 docstring；
+    # ② 三条阻塞能力不在注释里复述（只在 `raise` 的消息里列一次 —— 两处写会漂开）。
+    # ⚠️ 剩下的都删不得：**摘除条件**（删了它，下一个人不知道满足什么才能摘门）+
+    #    **诚实边界**（直改库仍绕过）+ raise 消息本身（那是运维唯一会读到的东西，
+    #    也是 `test_rtgate_compensating_gate_still_blocks_activation` 断言的对象）。
+    # ⚠️ 本门是**临时**的 —— 三条能力域化后它连同其测一并删除，届时应把本 ACK 调回 310。
+    "knot/repositories/tenant_repo.py":    320,
     # v0.9.18 P-a：`TenantCreateRequest` 新增 `allowed_webhook_hosts`（必填）+ 开通调用处透传。
     # **装配下限 = 字段 1 行 + 调用 1 行 + 「为什么不给默认值」3 行注释**。
     # ⚠️ 那 3 行是承重的：该文件自己写着「必填且允许空串…否则开通动作就替部署方静默选了一种语义」——

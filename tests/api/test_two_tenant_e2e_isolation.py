@@ -84,10 +84,12 @@ def two_tenants(monkeypatch):
         finally:
             tc.reset_active_tenant(tok)
 
-    # R-T-GATE **仅测内**解除（生产码不动，另有守护测证明它活着）
-    from knot.api import tenant_resolution as tr
-    monkeypatch.setattr(tr.tenant_repo, "assert_no_second_active_tenant_served", lambda: None)
-
+    # ⭐ v0.9.20（P-c）：R-T-GATE 已 lift ⇒ 原先那行「仅测内」解除门的 monkeypatch **已删除**。
+    # ⚠️ 它与生产码里那一行是**同一件事实的两半** —— 只删一边没有任何意义：
+    #    实测（Stage 1 §0.2）只删 monkeypatch 而留着门 ⇒ **18 failed / 3 passed**
+    #    （门是 `resolve_for_request` 第一行，本 fixture 造的正是 2 个 active 租户）；
+    #    仍绿的 3 条恰好都**不走 HTTP 请求**，交叉印证是同一个成因。
+    # ⇒ 本文件从此是**真·双租户**下的端到端隔离验收，不再是「预演」。
     with NoAmbientTenantTestClient(app) as c:
         yield c, tokens
     shutil.rmtree(d, ignore_errors=True)

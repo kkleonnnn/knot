@@ -268,6 +268,9 @@ _DOC_REQUIRED_FLAGS = {
     "reset_admin_password": ("--tenant",),
     "migrate_encrypt_v045": ("--tenant", "--all-tenants"),
     "purge_audit_log": ("--tenant", "--dry-run"),      # dry-run 允许无目标（0 副作用）
+    # ⭐ v0.9.20 P-c：改租户服务状态 —— **两个**参数都必填、都无默认
+    # （`--status` 尤其不给默认：「默认激活」是最危险的那个默认）。
+    "set_tenant_status": ("--tenant", "--status"),
 }
 
 
@@ -283,7 +286,20 @@ def test_live_docs_do_not_show_commands_that_would_be_refused():
     ⚠️ 判据刻意用文本而非 AST（R-SENTINEL-AST 要求写明理由）：
     扫的是 **Markdown 散文里的命令行**，那里没有 AST 可言；
     且「同一行里有没有那个 flag」正是照抄者会遇到的判据本身。
-    自匹配风险天然不存在：扫描面只有 `.md`，而本文件是 `.py`。
+
+    ## ⛔ v0.9.20 修一个假阳性：**「提到工具名」≠「调用它」**
+    本 docstring 原先写着「自匹配风险天然不存在：扫描面只有 `.md`，而本文件是 `.py`」——
+    **那句话只想到了「测文件匹配自己」这一种自匹配**，漏了真正会发生的那种：
+    **`.md` 里提到工具名、但那句话不是命令**。
+    实证：v0.9.20 在 DEPLOY 写下
+    「⚠️ 顺序不能反：`knot.scripts.set_tenant_status` 这个工具**只存在于 v0.9.20**」
+    —— 一句**关于**该工具的警告，被判成「照抄即被拒的范例」。
+
+    ⇒ 判据改为「**这一行是不是一次调用**」：匹配 `-m knot.scripts.<mod>`（`python -m` 形态）。
+    ⚠️ **实测收紧零削弱**：活文档里含工具名 10 行，其中 `-m` 调用 **9 行**，
+    差集**恰好只有上面那一行散文** ⇒ 所有真实范例仍在扫描面内。
+    ⚠️ 这正是 R-SENTINEL-AST 的内核在**非 Python 载体**上的复现：
+    **讨论一个名字的文件必然含有那个名字** ⇒ 判据必须能表示「它在这里是被调用还是被谈论」。
 
     ⚠️ 扫描面**派生**自 `git ls-files`，不是枚举清单 —— 后者会漂（新活文档没人记得加）。
     实测切换前后命中集**完全相同**（今天 0 违规）⇒ 零代价、纯赚。
@@ -293,7 +309,8 @@ def test_live_docs_do_not_show_commands_that_would_be_refused():
         name = p.relative_to(_REPO).as_posix()
         for lineno, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             for mod, flags in _DOC_REQUIRED_FLAGS.items():
-                if f"knot.scripts.{mod}" in line and not any(f in line for f in flags):
+                # ⚠️ `-m ` 前缀是承重的：只认**调用形态**，不认散文里提到的名字（见 docstring）。
+                if f"-m knot.scripts.{mod}" in line and not any(f in line for f in flags):
                     offenders.append(
                         f"{name}:{lineno} 的 `{mod}` 范例缺 {'/'.join(flags)} ⇒ 照抄即被拒"
                     )

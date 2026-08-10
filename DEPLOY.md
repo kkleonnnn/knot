@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.19 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.20 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -573,7 +573,47 @@ docker save <现网镜像:tag> | gzip > knot-rollback-$(date +%F).tar.gz
    **「重新部署当前版本」本身就是一个有风险的动作** —— 换节点 / 清了本地镜像 / CI 重跑都会触发重建，
    可能当场坏在**与升级完全无关**的地方。
 
+### ⭐ 回滚（v0.9.20 → v0.9.19）—— **lift 之后必须先降到 1 个 active 租户**
+
+> **v0.9.20 lift 了 R-T-GATE**（删掉「出现第二个 active 租户就全站 fail-closed」那道门）。
+> ⇒ **回退镜像之前，必须先把 active 租户降回 1 个**，否则：
+>
+> | 回退到 | 会发生什么 |
+> |---|---|
+> | **v0.9.19** | 那道门回来了，而现在有 2 个 active ⇒ **整站 500**（含登录页、含 `/api/platform/*`）—— 全仓无 `exception_handler`，未捕获异常直接 500 |
+> | **≤ v0.9.18** | 启动序的 `resolve_single_tenant()` 在 active ≠ 1 时抛错 ⇒ **BOOT FAILED，进程起不来** |
+>
+> ⚠️⚠️ **顺序不能反**：`knot.scripts.set_tenant_status` 这个工具**只存在于 v0.9.20**
+> —— 先换镜像再想降级，解药就跟着被回退掉了。
+
+**先降级（在还跑着 v0.9.20 时做，有审计）**：
+
+```bash
+docker exec -it knot python -m knot.scripts.set_tenant_status --tenant <slug> --status suspended
+```
+
+**若已经换完镜像才发现**（此时上面那个工具不存在了）—— 直接改平台库，**无审计**：
+
+```bash
+docker stop knot
+sqlite3 /path/to/knot/data/platform.db \
+  "UPDATE tenants SET status='suspended' WHERE id != 1;"
+sqlite3 /path/to/knot/data/platform.db \
+  "SELECT id, slug, status FROM tenants;"        # 确认只剩 1 个 active
+# 再启动旧镜像
+```
+
+> ⚠️ 上面这条裸 SQL **刻意写在这里** —— 回退路径**不能依赖被回退掉的那个版本里的工具**。
+> ⚠️ 它绕过 `platform_audit` ⇒ 请自行记录「谁、什么时候、为什么」。
+
 ### 回滚（v0.9.x → v0.8.x）
+
+> ⚠️⚠️ **v0.9.20 起先读这一条**：下面的 `rm -rf tenants platform.db` 会删掉
+> **`tenants/` 目录下的所有租户库**。lift 之前那里只可能有起源租户（其数据由
+> `knot.db.pre-tenancy.bak` 复位）⇒ 删它等于「重来一次」；
+> **lift 之后那里可能有第二家公司的数据库**，删它就是**删掉别人家的数据**。
+> ⇒ 本节的跨代回滚**只在「恰有 1 个租户」时有效**。若已开通/激活过其他公司：
+> 先 `cp -a tenants /path/to/safe/` 留档，并单独规划那些库的去向。
 
 ```bash
 docker stop knot && docker rm knot
@@ -894,8 +934,12 @@ test_no_slug_login_with_two_active_tenants_is_401` 守）。
 **⚠️ 无「谁做的」身份** | out-of-band 共享密钥不携带身份 ⇒ 平台侧动作**无法审计到人**。这也是 v0.9.5 **刻意零平台写操作**的原因（只有一个只读端点 `GET /api/platform/tenants`）。 |
 **不得进入的地方** | **日志 / 前端存储 / 报错响应**。服务端只记 env **名** + 不合规**原因**，**永不记值**（守护：`tests/test_no_env_value_in_messages.py`）；503 响应连「不合规原因」也不给（否则等于告知调用方本部署配了弱密钥 + 期望格式）。 |
 
-> ⚠️ **平台端点不是运维逃生舱**：R-T-GATE 硬门在请求解析的**第一行** ⇒ 出现第二个 active 租户时
-> **整站（含 `/api/platform/*`）全部 fail-closed**。故障预案**不要**依赖它。
+> ⭐ **v0.9.20 起平台端点在多租户下可用**（R-T-GATE 已 lift）——
+> 它走的是**平行认证路径**（out-of-band 共享密钥，不经租户 JWT），不依赖租户 ctx。
+> ⚠️ **此前本段写着「它不是运维逃生舱、故障预案不要依赖它」，那是 lift 前的事实** ——
+> 当时那道门在请求解析第一行 ⇒ 出现第二个 active 租户时整站含它全部 fail-closed。
+> ⇒ 现在**反过来**：回退预案（见上「回滚 v0.9.20 → v0.9.19」）**正要用它**列租户 / 查平台审计。
+> 守护：`tests/api/test_platform_admin.py::test_platform_endpoint_stays_usable_with_two_active_tenants`。
 
 ---
 
@@ -1011,7 +1055,7 @@ curl -sS -X POST http://<host>/api/platform/tenants \
 ⇒ 列出租户 id / slug：`GET /api/platform/tenants`（**不要**靠 `ls data/tenants/` 猜 ——
 `db_dir` 是服务端生成的不透明随机串，刻意不可辨识）。
 
-## ⚠️ 多租户运维门（v0.9.3 起 · lift R-T-GATE 前）
+## ⚠️ 多租户运维门（v0.9.3 起 · **v0.9.20 已 lift R-T-GATE**）
 
 - **`replicas=1`**（⚠️ **v0.9.7 订正了这条的理由** —— 原文写「不同副本可能停在**不同租户的** catalog 上」，
   那是 **v0.9.3 之前**的症状；v0.9.3 已把 catalog 改成**按租户分槽**，同一请求在任何副本上都用**本租户**的槽。
@@ -1151,7 +1195,11 @@ curl -sS -X POST http://<host>/api/platform/tenants \
 
   ⚠️ 原登记写的是「目前来自同一个 `KNOT_INITIAL_ADMIN_PASSWORD` ⇒『A 公司的人能进 B 公司』有现成入口」——
   **那句自 v0.9.19 起为假**，但本手册漏改了一版。⇒ 若你读到的是旧版本手册，以本条为准。
-- **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：lift 前必须把 `company` 改为必填。
+- **登录未带 `?c=` 时回退到唯一 active 租户**（v0.9.4 登记）：
+  ⭐ **v0.9.20 裁定：不改成必填，保持现状** —— 该回退走 `resolve_single_tenant()`，
+  它在 active ≠ 1 时**抛错**⇒ 第二家一激活，不带代号的登录**一律 401**，
+  **绝不会「挑一个租户」** ⇒ 这是**可用性**问题（老链接失效 = 产品迁移动作），**不是**跨租户访问。
+  ⇒ 原登记写的「lift 前必须改」已作废；届时要做的是**给各公司发专属登录链接**。
   ⚠️ **开通第二租户当天的症状形状（务必先知道，否则会被误诊为认证故障）**：第二租户一激活，
   **所有还在用老链接（无 `?c=`）的用户会同时收到「账号或密码错误」** —— 这是**预期的 fail-closed**
   （无代号时的回退走 `resolve_single_tenant()`，它在 active ≠1 时 raise ⇒ 统一 401，
@@ -1163,5 +1211,10 @@ curl -sS -X POST http://<host>/api/platform/tenants \
 - **登录失败分支「公司代号不存在 / 租户停用」目前只落 INFO 日志、无审计**（v0.9.4 登记）：无租户库可写，
   平台侧审计尚不存在。排查这类失败请 grep 日志 `[login] 未知或停用的公司代号`。
 - **租户漂移告警**（v0.9.4）：日志固定事件名 `tenant_ctx_drift`（WARN）。
-  **【以下基线仅 R-T-GATE 锁死期间成立】** 单租户下**不应出现** ——
-  出现即代表 tenant ctx 被污染 / 异步传播串了 / 有第二条设 ctx 的路径，请当作事故排查。
+  ⭐ **基线（v0.9.20 起，lift 之后仍然成立且更要紧）**：**任何租户数下都不应出现**。
+  它比对的是「JWT 里写的 `tid`」与「实际连到的租户库」——
+  ⇒ 出现即代表 tenant ctx 被污染 / 异步传播串了 / 有第二条设 ctx 的路径，**当作事故排查**。
+  ⚠️ 此前本段写着「**仅 R-T-GATE 锁死期间成立**、单租户下不应出现」——
+  那个限定语是 lift 前的写法（当时只可能有一家，漂移必然是 bug）。
+  **lift 之后限定语作废，而基线本身不变**：多租户下漂移不再是「不可能的事」，
+  它是**跨租户供数**的直接信号 ⇒ 从「异常」升级为**安全事件**（已由 R-10 写入 `platform_audit`）。

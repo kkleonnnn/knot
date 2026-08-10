@@ -551,57 +551,65 @@ def test_no_second_http_client_in_http_adapter():
 # ─── 耦合 tripwire（验收 8c · 行为级）──────────────────────────────────
 
 
-def test_rtgate_still_locks_second_tenant(two_tenants):
-    """⭐⭐ **R-T-GATE 仍硬锁第二 active 租户**（**行为级**断言，不是存在性）。
+def test_rtgate_compensating_gate_still_blocks_activation(two_tenants):
+    """⭐⭐ **代偿门仍在**：非起源租户**不得被激活**（v0.9.20 P-c · 行为级）。
 
-    ⚠️ **为什么必须行为级**：断言「`assert_no_second_active_tenant_served` 那一行还在」只能抓**删除**，
-    抓不住这四种「**事实上 lift 了而行还在**」：`if False:` 包起来 · 本体改 no-op ·
-    **把调用点移到 tid 解析之后**（不再是第一行 ⇒ 对平台/无 token 路径失效）· 前面插 early return。
-    ⇒ 这里断言的是**后果**：两个 active 租户时请求**仍 fail-closed**。
-    **你要排除的事件是「R-T-GATE 事实上不再生效」，不是「那一行不见了」。**
+    ## 它是上一条测的**转生**，不是新写的
+    前身 `test_rtgate_still_locks_second_tenant` 断言的是「两个 active 租户时请求仍 fail-closed」，
+    而**那正是 lift 移除的东西** ⇒ 它的断言与理由**同时过期** ⇒ 断言删掉。
+    但它还承载着另一样东西：`pytest.fail` 的消息**就是「lift 还差什么」的清单**
+    —— 那是该清单在 **CI 里的唯一登记点**（其余全在文档里）。
+    ⇒ 清单必须**转生**，否则 §5.11 的诚实收窄会降格成一段只活在文档里的话，
+      而本仓刚连着两次证明**只活在文档里的承诺会静默过期**（v0.9.19 / #294）。
 
-    ## ⚠️ v0.9.7：本测**不是**因为摘门而失效 —— 它的**理由**换了，断言没换
-    v0.9.6 时它的标题是「门存在 ⇒ R-T-GATE 未 lift」，理由是「门是代偿控制，lift 必须撞一条点名它的红测」。
-    ②③ 落地、门已摘 ⇒ 那个理由过期了。但**断言本身仍然必要**：R-T-GATE 距离可以 lift 还差
-    一串 blocker（见下方消息）⇒ 谁去 lift 都该撞上一条**告诉他还差什么**的红测。
-    ⚠️ 实测坐实它「摘门后**不会红、会静默变绿而理由变假**」—— 因为它的断言是**纯行为级**、
-    代码里根本不引用那道门（门只活在 `pytest.fail` 的消息和 docstring 里）。
-    ⇒ **这类测最危险的失效形态不是转红，是「继续绿着，但守的已经不是原来那件事」。**
-    取材=injection：注释掉 `resolve_for_request` 里那行 gate（或下述四种中和手法任一）→ 本测红。
+    ## 断言什么
+    lift 之后，「第二家能不能真的进来」不再由请求路径决定，而由**能不能被激活**决定
+    ⇒ 判据随之从「请求 fail-closed」变成「**激活被拒，且拒绝理由点名还差哪三条**」。
+
+    ## ⭐ 门为什么装在写口、不装在激活 CLI 里（Stage 3 MF1 —— Stage 1 初版就是写在 CLI 的，错的）
+    CLI 是**决策点**；能力被行使的那一行是 `tenant_repo.update_tenant` 里的 `UPDATE tenants SET`。
+    门只在 CLI ⇒ ① 将来任何平台写端点 / 脚本绕过它；
+                 ② **已经是 active 的非起源行**（备份恢复 / 演练残留 / 直改库）不被任何东西拦。
+    ⇒ 现在它与既有的 owner 守卫（禁停用起源租户）**同层、同判据、对称**。
+    ⚠️ Stage 1 初版引了 v0.9.6 owner-gate 当先例，**却只抄了它的注释格式（写摘除条件），
+       没抄它的装门位置** —— 那道门在 `catalog_loaders.load_file_layer()` 这个 choke point，
+       不在它的调用方。⇒ 判据不是「有没有先例」，是「**先例的门在哪一行，我的在哪一行**」。
+
+    本测**直调写口** ⇒ 摘掉门必红，且**不依赖 CLI 是否存在**。
+
+    ⚠️ **正对照同样承重**：起源租户**仍可**被写（否则「一律拒绝」也能让本测通过 = 把功能删掉）。
+
+    revert-to-bad：删掉 `tenant_repo.update_tenant` 里那道代偿门 ⇒ 本测红，
+    失败信息点名「非起源租户被激活了」并列出三条未域化能力。
     """
-    from knot.api import tenant_resolution as tr
-    from knot.core.tenant_context import TenantContextError
+    from knot.repositories import tenant_repo
 
-    class _Req:
-        headers: dict = {}
-        url = type("U", (), {"path": "/api/conversations"})()
-
-    # ⚠️⚠️ **必须 `try/except/else`，不能用 `pytest.raises(..., match=...)`**（守护者 Stage 4 §II）：
-    # `match=` 本身已保证「异常消息含 R-T-GATE」⇒ 紧随其后的 `assert ... , "<说明>"` **永不失败**
-    # ⇒ 那段精心写的说明**永远不会被显示**；而**真实的**失败模式（有人 lift ⇒ 不抛）只会得到
-    # pytest 的 `DID NOT RAISE TenantContextError`，**不点名任何门** ⇒ 「lift 就撞一条点名这个门的红测」
-    # 这个设计意图在最后一寸失效。
-    # ⭐ **这是同一个错的第四次**：门放「决定处」而非「能力处」（三次）→ 说明放「**成功路径**」
-    # 而非「**失败路径**」（本次）。**统一判据：门装在能力被行使的那一行；消息挂在事情真的出错的那一行。**
+    # ① 反侧：激活非起源租户 → 必须被拒，且理由要点名那三条
     try:
-        tr.resolve_for_request(_Req())
-    except TenantContextError as e:
-        assert "R-T-GATE" in str(e), f"fail-closed 了但不是 R-T-GATE 挡的：{e}"
+        tenant_repo.update_tenant(2, status="active")
+    except ValueError as e:
+        msg = str(e)
+        for needle in ("allowlist", "env", "DB 坐标"):
+            assert needle in msg, (
+                f"代偿门拒绝了，但**没说清还差什么** —— 消息里找不到 {needle!r}：\n{msg}\n"
+                "⇒ 这道门的全部价值就是告诉下一个人「摘我之前要先做什么」；"
+                "消息说不清 = 它只是个障碍，不是登记点。"
+            )
     else:
         pytest.fail(
-            "两个 active 租户时请求**未** fail-closed —— **R-T-GATE 事实上已不生效**。\n"
-            "\n✅ B-3 三项已于 v0.9.6/v0.9.7 全部关闭（① file catalog owner-gate ·\n"
-            "   ② per-tenant `http_spec` 凭据 · ③ egress 租户域化）—— 那部分不再是 blocker。\n"
-            "⛔ **但 lift 仍差下列各项**（CLAUDE.md 的 R-T-GATE 就绪清单为准）：\n"
-            "   · provisioning：`db_dir` UNIQUE + 格式约束 + **禁停用/删除起源租户**\n"
-            "   · 登录 `company` 改必填（现未带则回退唯一 active 租户 = lift 后 fail-open）\n"
-            "   · per-tenant 初始口令 / 一次性邀请流（现单一 `KNOT_INITIAL_ADMIN_PASSWORD`）\n"
-            "   · **平台侧审计落点 `platform_audit`**（R-10 audit-on-drift 卡在这里）\n"
-            "   · `/api/bi/scheduler/tick` 租户域化 · `_get_secret` 单一全局 + 公开默认值\n"
-            "   · 启动/请求期残留的 `resolve_single_tenant`（生产 5 处）· `replicas=1` 运维门\n"
-            "   · `_business_rules` 归正\n"
-            "⇒ 若你正在 lift：把上列逐条清完，并在**同一个 PATCH** 里删掉本测（连同它的理由）。"
+            "⛔ **非起源租户被激活了 —— 代偿门已失效**。\n"
+            "lift R-T-GATE 之后，唯一还挡着「第二家真的进来」的就是这道门。它守的是三条**租户盲**能力：\n"
+            "   ① SQL 数据源出网**零 allowlist**（该租户 admin 可让服务端连部署方内网任意 host:port）\n"
+            "   ② LLM API key 回退到**进程 env**（该租户不填 key 就花部署方的账、以部署方账号出境）\n"
+            "   ③ 新租户 admin 行**预填部署方内网 DB 坐标**\n"
+            "⇒ 若你正在做「放第二家进来」：把上列逐条清完，并在**同一个 PATCH** 里删掉这道门与本测。\n"
+            "⇒ 若你只是重构路过：你摘掉的是一道**代偿控制**，请把它装回去。"
         )
+
+    # ② 正对照：起源租户仍可被写（防「一律拒绝」式假通过）
+    assert tenant_repo.update_tenant(1, name="起源租户改个名") is True, (
+        "起源租户也被拒了 —— 代偿门写成了「谁都不许改」，那是把功能删掉，不是加门。"
+    )
 
 
 # ─── 已知现状登记（验收 12 · xfail 非 strict）──────────────────────────

@@ -67,15 +67,19 @@ def resolve_for_request(request) -> dict | None:
     ⚠️ 不设 ctx **不等于**放行：下游任何碰 DB 的代码都会撞 fail-closed（`current_tenant()` raise）
     ⇒ 漏网只会**响亮崩掉**，不会静默跨租户供数。
 
-    顺序：**先 R-T-GATE 硬门，再解析 tid**（D5）。gate 只对 **>1 个 active 租户** raise；
-    0 active 交由上层语义（受保护 API 因无可解析租户自然 401；login 得以返回统一的
-    「账号或密码错误」而不是 500）。**lift 片**（**非 v0.9.5**）= 删 gate 那一行。
-    ⚠️ 本 gate 是本函数**第一行** —— 在 Bearer 解析与路径判断**之前** ⇒ 第二 active 租户时
-    **整站（含 `/api/platform/*`）全部 fail-closed**；平台端点**不是**逃生舱
-    （`tests/api/test_platform_admin.py::test_platform_endpoint_is_not_an_escape_hatch_under_second_tenant`）。
-    """
-    tenant_repo.assert_no_second_active_tenant_served()          # D5 · R-T-GATE 请求侧硬门
+    ⭐ **v0.9.20（P-c）已 lift R-T-GATE** —— 原本这里的第一行是
+    `tenant_repo.assert_no_second_active_tenant_served()`，它在出现 **>1 个 active 租户**时 raise，
+    使**整站（含 `/api/platform/*`）全部 fail-closed**。该门连同函数本体已**物理删除**。
 
+    ⇒ **现在起，「当前是哪家公司」完全由 JWT 的 `tid` 决定**，本函数不再关心一共有几家。
+    ⚠️ **正因如此，本函数不得有任何回退**：解析不出 tid、或 tid 指向的租户不可服务 ⇒ 返 `None`
+    （不设 ctx ⇒ 下游 `get_current_user` 401），**绝不能挑一个租户顶上** ——
+    那是 OOS-1v2 禁的 fail-open 全局回退，且在多租户下等于**跨租户供数**。
+    守护：`test_R15_no_generic_fallback`（AST 静态封死回退）+ `test_unusable_credential_leaves_ctx_unset`。
+
+    0 active 的语义**未变**：受保护 API 因无可解析租户自然 401；login 返回统一的
+    「账号或密码错误」而不是 500。
+    """
     payload = _bearer_payload(request)
     if payload is None:
         return None

@@ -366,6 +366,21 @@ def test_detail_call_sites_do_not_pass_credential_identifiers():
 
 
 def _sql_hits(needle: str) -> list[str]:
+    """扫「真的会执行这条 SQL 的行」。
+
+    ⛔ **v0.9.20 修一个假阳性：注释里*讨论*这条 SQL 的行不算写入点。**
+    实证：P-c 在代偿门旁写了一句注释「…能力在下方 `UPDATE tenants SET`」
+    ⇒ 本哨兵报「`UPDATE tenants` 出现 2 处」，而第二处是**散文**。
+    ⇒ 这正是 R-SENTINEL-AST 的内核：**讨论一个名字的文件必然含有那个名字**
+      —— 而这条哨兵有正当理由用文本匹配（SQL 是字符串字面量，AST 看不到动的是哪张表），
+      所以修法不是换成 AST，而是**让判据能表示「这里是执行还是谈论」**。
+
+    ⚠️ **只跳 `#` 注释行，刻意不跳缩进的普通行** —— 真实写入的两种形态都必须留在扫描面内：
+      · `conn.execute("UPDATE tenants SET …")`（同一行，不以 `#` 开头）
+      · 三引号 SQL 里独占一行的 `UPDATE tenants SET …`（以空白开头，也不以 `#` 开头）
+    ⚠️ **docstring 里的提及仍会命中** —— 那是刻意保留的保守侧：宁可让人显式处置，
+      也不要因为「跳过所有字符串」而漏掉三引号里的真 SQL。
+    """
     hits = []
     for path in _py_files():
         try:
@@ -373,6 +388,8 @@ def _sql_hits(needle: str) -> list[str]:
         except (OSError, UnicodeDecodeError):
             continue
         for i, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue                      # ← 注释在**谈论**它，不是在执行它
             if needle in line:
                 hits.append(f"{path.relative_to(_KNOT.parent)}:{i}")
     return hits

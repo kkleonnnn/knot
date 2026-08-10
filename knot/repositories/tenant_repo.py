@@ -198,6 +198,37 @@ def update_tenant(tenant_id: int, *, actor: str | None = None, source: str | Non
             "  ⇒ 真要下线整个部署，请停服务进程，而不是把起源租户标成 suspended。"
         )
 
+    # ── ⛔ v0.9.20 P-c：**临时代偿门** —— 非起源租户不得被激活 ──────────────
+    # ⚠️⚠️ **这道门是代偿控制，不是修复。摘除条件写在下面，别单独摘。**
+    #
+    # **为什么需要它**：lift R-T-GATE 之前，唯一可服务的租户**恒是起源租户**
+    #   （禁停用起源租户 + 门禁第二 active）⇒ 唯一的 tenant admin 就是**部署方本人**
+    #   ⇒ 三条「租户盲」的能力今天**无害**（**逐条见下方 raise 的消息** —— 不在此复述，
+    #     免得两处漂开）。**lift 正是第一次把它们交给非部署方。**
+    #   出处：`api/admin/datasources.py` 的 SSRF 守卫函数体第一行就 return（非 http 一律放行）·
+    #   `config/settings.PROVIDER_API_KEYS`（12 处站点的回退末跳）· `repositories/base.py` 的 seed INSERT。
+    #
+    # ⭐ **门在这一行、不在激活 CLI 里** —— 完整理由见
+    #   `tests/test_file_catalog_owner_gate.py::test_rtgate_compensating_gate_still_blocks_activation`
+    #   的 docstring（一句话：CLI 是**决策点**，能力在下方 `UPDATE tenants SET`）。
+    #
+    # 🔓 **摘除条件（三条全部租户域化后，本门连同其测一并删除）**：
+    #   ① SQL 数据源出网纳入 per-tenant allowlist；② LLM key 去掉 env 回退（非起源租户 fail-closed）；
+    #   ③ seed 不再写部署方 DB 坐标。守护：`test_rtgate_compensating_gate_still_blocks_activation`。
+    #
+    # ⚠️ **诚实边界**：运维直接 `sqlite3 UPDATE` 仍绕过本门（与上面那道守卫同）。
+    if fields.get("status") == "active" and not _is_owner_id:
+        raise ValueError(
+            f"拒绝激活非起源租户（id={tenant_id}）—— R-T-GATE 虽已 lift，但仍有 **3 条能力是租户盲的**，"
+            "激活等于把它们交给非部署方：\n"
+            "  ① SQL 数据源出网**零 allowlist**（该租户 admin 可让服务端连部署方内网任意 host:port）\n"
+            "  ② LLM API key 回退到**进程 env**（该租户不填 key 就花部署方的账、以部署方账号出境）\n"
+            "  ③ 新租户 admin 行**预填部署方内网 DB 坐标**\n"
+            "⇒ 三条全部租户域化后，删掉本门（tenant_repo 内，注释里写了摘除条件）即可激活。\n"
+            "⇒ 若你确知在做什么且必须现在激活：直接改平台库（DEPLOY「多租户运维门」），"
+            "但那**不会留审计**，且上述三条风险照旧。"
+        )
+
     conn = get_platform_conn()
     try:
         row = conn.execute("SELECT * FROM tenants WHERE id=?", (tenant_id,)).fetchone()
@@ -264,37 +295,18 @@ def resolve_tenant_by_slug(slug: str) -> dict | None:
     return dict(row) if row else None
 
 
-def assert_no_second_active_tenant_served() -> None:
-    """R-T-GATE 请求侧硬门（v0.9.4 D5 —— **首次真实现**）：active 租户 **>1** 即 fail-closed。
-
-    ⭐ **B-1 承重**：LOCKED（`docs/plans/v0.9.0-oos1-ceremony-multitenant-base.md:150`）把本函数指定为硬 CI，
-    但**此前全仓无任何实现** —— 真正在挡的只是 `resolve_single_tenant()` 抛错的**副作用**。v0.9.4 把请求
-    路径改为「按 JWT tid 解析」后，`len(active)` 这条判定就不在请求路径上了 ⇒ 必须显式补，否则 R-T-GATE
-    在请求侧**无声消失**。
-
-    ⭐ **只对 `>1`**（守护者 Stage 3 R3/MF3 裁定，**不是** `!=1`）：
-      - 名副其实（"no **second** active"）；
-      - `0 active` 交给上层语义：受保护 API 因无可解析租户自然 401，**登录端点得以返回锁定的
-        `401 账号或密码错误`**（②统一错误）而不是 500。若此处对 0 也 raise，唯一租户被 suspend 时
-        整站含 login 全部 500，与②直接打架。
-
-    **lift 片**（**非 v0.9.5** —— 那片只做鉴权拆分、R-T-GATE 一行不动）**= 删掉本函数的唯一调用点
-    （一行）** —— 语义单点、可 review。⚠️ lift 的前置条件见 CLAUDE.md 的 R-T-GATE 就绪清单。
-    """
-    n = len(list_active_tenants())
-    if n > 1:
-        raise TenantContextError(
-            f"R-T-GATE：检测到 {n} 个 active 租户，隔离栈就绪前不得同时服务多租户 —— 拒绝服务（fail-closed）。"
-            "就绪清单见 CLAUDE.md §R-T-GATE（per-tenant file catalog / http_spec 凭据 / egress 域化 / "
-            "开通口令 / 鉴权拆分 / audit-on-drift）"
-        )
-
-
 def resolve_single_tenant() -> dict:
     """v0.9.0 单租户解析器：platform.db tenants 恰 1 active → 返之；0 或 >1 → raise（fail-closed）。
 
-    多租户解析（JWT tid → 库）= 0.1。>1 active 由 R-T-GATE `assert_no_second_active_tenant_served` 挡
-    （0.9.0~0.2 期间隔离栈未就绪，永远只有 1 个可服务租户）。
+    ⚠️ **v0.9.20（P-c）起 R-T-GATE 已 lift** —— 原先「>1 active 由请求侧硬门挡住」的前提**不再成立**，
+    该门（`assert_no_second_active_tenant_served`）连同其唯一调用点已**物理删除**。
+    ⇒ 本函数**不在请求路径上**（请求一律按 JWT `tid` 解析），它只服务于**明确要求「恰 1 个 active」**
+    的少数场景 —— AST 实测生产码剩 3 处：`api/auth.py`（登录无代号回退）+ CLI 2 处
+    （`purge_audit_log` 仅 dry-run 可达 / `scan_secrets_at_rest` 只读）。
+
+    ⚠️ **它在 active ≠ 1 时 raise 的语义未变**，且这正是 `auth.py` 那处的行为依据：
+    第二家公司一激活，**不带 `?c=<代号>` 的登录一律 401**（不会「挑一个租户」）——
+    那是**可用性**问题（老链接失效，产品迁移动作），**不是**跨租户访问。
     """
     active = list_active_tenants()
     if len(active) != 1:
