@@ -32,6 +32,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   （`test_two_tenant_e2e_isolation` / `test_file_catalog_owner_gate` 用同一个 env 口令登录 tenant#2）
   ⇒ 处置是让它们**显式设定自己要用的口令**，不是退回修复（v3.1-B #8「既有测的绿是真的吗」）。
 
+### Docs
+- **修「开通一家新公司」的手册示例**（riding，不 bump）：v0.9.18 给开通请求加了必填字段
+  `allowed_webhook_hosts`，而 `DEPLOY.md` 的 `curl` 示例与说明段**都没同步**
+  ⇒ 运维照手册敲得到 **422**，而手册紧接着写着「返回 201」
+  ⇒ **「开通一家新公司」这条流程断在第一步**，且失败信息与手册说法直接矛盾。
+  ⭐ **配了一条派生哨兵**（`test_doc_invariants::test_deploy_provision_curl_covers_all_required_fields`）：
+  期望值从 `TenantCreateRequest.model_fields` **现算**，**不硬编字段名** ——
+  否则加第四个必填字段时本测会连同手册一起静默过期。
+  revert-to-bad 实证：还原成漏改那一版 ⇒ **1 failed / 10 passed**
+  ⇒ 该哨兵是**唯一**抓住它的（其余 10 条 doc-invariant 断言对它结构上盲）。
+- **修 DEPLOY「还差什么」清单里 2 条已过期的登记**（同族，同片修）：
+  - 「file catalog 对**每个**租户可见 ⇒ 开通第二租户前必须先做 per-tenant 化」——
+    **v0.9.6 owner-gate 已闭合**（非起源租户在 `load_file_layer()` 拿完整空五元组），手册漏改；
+  - 「每个新租户 seed 的初始 admin 口令来自**同一个** `KNOT_INITIAL_ADMIN_PASSWORD`
+    ⇒『A 公司的人能进 B 公司』有现成入口」—— **v0.9.15 + v0.9.19 两个入口都已堵**，手册漏改。
+  ⚠️ 后一条是**上一片（v0.9.19 P-b）自己造成的**：改了代码没扫手册
+  ⇒ 同一形状（v3.1-B #8「扫两侧」）本片内第二次。
+  ⚠️ 清单里另外 4 条（平台端点不是逃生舱 / 运维门标题 / `company` 改必填 / drift 基线）
+  是 **lift 之后**才为假，**刻意不在本片改** —— 它们属 P-c 的散文清扫面。
+
 ### Notes
 - **不声称**：lift 可做（P-c）· SQL 数据源出网受控（P-a'）· 禁重定向（P-a''）·
   `auth.py` 无代号登录在 lift 后仍会 401（**可用性**问题，kk 已裁为产品迁移动作）。

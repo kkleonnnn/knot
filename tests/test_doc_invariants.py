@@ -296,3 +296,53 @@ def test_contributing_ruff_command_matches_ci():
         f"    CONTRIBUTING: {doc_cmd!r}\n"
         f"  ⇒ 贡献者照文档跑会得到与闸门不同的结果（本地绿、CI 红，或反之）。"
     )
+
+
+def test_deploy_provision_curl_covers_all_required_fields():
+    """⭐ DEPLOY 的开通 `curl` 示例必须覆盖 `TenantCreateRequest` 的**全部必填字段**。
+
+    ## 为什么需要它（一次真实漏改）
+    v0.9.18（P-a）给 `TenantCreateRequest` 加了必填字段 `allowed_webhook_hosts`，
+    **而 DEPLOY 的 `curl` 与说明段都没同步** ⇒ 运维照手册敲会得到 **422**，
+    而手册紧接着写着「**返回 201**」。⇒ 「开通一家新公司」这条流程**断在第一步**，
+    且失败信息（`Field required`）与手册的说法直接矛盾。
+
+    ## 判据形式：**派生**，不是清单
+    期望值从 `TenantCreateRequest.model_fields` **现算**（`is_required()`），
+    **不硬编字段名** —— 否则将来加第四个必填字段时，本测会连同手册一起静默过期
+    （本仓 v0.9.18 那份 `_REDACTED_IN_AUDIT` 的教训：「只补第二个名字的话，
+    第三份来时会原样重演，且没有任何东西会提醒你」）。
+
+    ⚠️ **本测锚在「示例真的带了哪些键」**，不是「手册里提没提这个名字」——
+    散文里提到某字段与 `curl` 里真的传了它，是两件事。
+
+    revert-to-bad：把 `curl` 里任一必填字段删掉 ⇒ 本测红并点名缺哪个。
+    """
+    import json
+
+    from knot.api.platform_admin import TenantCreateRequest
+
+    required = {n for n, f in TenantCreateRequest.model_fields.items() if f.is_required()}
+    assert required, "TenantCreateRequest 没有必填字段？模型被重构了 ⇒ 本测需同步"
+
+    deploy = Path("DEPLOY.md").read_text(encoding="utf-8")
+    # 取「POST /api/platform/tenants」那段 curl 里 -d 后面的 JSON 字面
+    m = re.search(
+        r"curl[^`]*?/api/platform/tenants.*?-d\s+'(\{.*?\})'",
+        deploy, flags=re.DOTALL,
+    )
+    assert m, (
+        "DEPLOY.md 里找不到 `POST /api/platform/tenants` 的 curl 示例（-d '{...}'）——\n"
+        "  示例被改写了？本测需同步。**不要**因为找不到就删掉本测：\n"
+        "  它守的是「照手册敲会不会 422」，而那件事发生过。"
+    )
+    sent = set(json.loads(m.group(1)).keys())
+
+    missing = required - sent
+    assert not missing, (
+        f"DEPLOY 的开通 curl 缺必填字段：{sorted(missing)}\n"
+        f"  示例传了：{sorted(sent)}\n"
+        f"  模型必填：{sorted(required)}\n"
+        "  ⇒ 运维照手册敲会得到 **422**，而手册写着「返回 201」。\n"
+        "  ⇒ 请同步 curl **与**下方「四条必读」里那条讲 allowlist 的说明。"
+    )

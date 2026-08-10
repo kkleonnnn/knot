@@ -1,0 +1,13 @@
+# 2026-08-10 清理的分支（内容均已在 main 或 docs/plans 里；本文件是保险绳）
+# 恢复：git branch <name> <hash>
+
+docs/v0.9.19-Pb-startup-tenant-loop	ea0f5291b18cbcaf2624a1237d0d5ca5f786017b	docs(plan): P-b Stage 1 自核订正四处（**非独立评审 · 不计 Stage 3 留痕**）
+docs/v0.9.19-Pa-prime-stage1	cf1f37288ccc0001b6ce8ffdd39f377bd0ffb9b0	docs(review): P-a' Stage 2 三 lens 初审整合（0 代码 · 给 Stage 3 的输入）
+docs/v0.9.19-Pa-prime-stage1-rewrite	127189b4726a2ffe93991a2de97736d0abb9f7db	docs(review): P-a' Stage 2 第二轮初审整合（0 代码 · 含 §G 对比第一轮）
+docs/v0.9.19-Pa-prime-stage1-v3	07dd9c85e8f10adba4e0dad75a8a452ba354b895	docs(review): P-a' Stage 2 第三轮整合 —— 兼**停片建议**（0 代码）
+
+# 第二批（同日）
+docs/v0.9.18-Pa-stage1	bdcd711c557d6c1f6b812637b8d552f8e8a15a16	docs(review): P-a Stage 2 三 lens 初审整合（0 代码 · 给 Stage 3 的输入）
+docs/v0.9.18-Pa-stage1-rewrite	0c39c333983ab979cb1c1a4a429fef7e34279675	docs(plan): P-a Stage 1 落 Stage 3 裁定（minor-revise · 两 must + 一订正）
+docs/v0.9.18-lift-stage1	46aaf98e43314071276c7f49f6be7f5cfbf6aeb8	docs(plan): v0.9.18 lift R-T-GATE Stage 1（0 代码）
+feat/v0.9.1-tenant-cache-isolation	75be4985fa41b1d6c3deb1a983452beeaeb42f64	v0.9.1 Stage 4 硬化 — #5 DS-stats 隔离测驱动生产端点（去 tautology）
