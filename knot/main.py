@@ -37,7 +37,7 @@ from knot.repositories import init_db, tenancy_migration, tenant_repo
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.9.18")
+app = FastAPI(title="KNOT", version="0.9.19")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -91,13 +91,35 @@ for _t in tenant_repo.list_tenants():
 # 仅 DB 行不存在时 INSERT；已有则跳过（不覆盖 admin 已编辑值，R-PA-2.3）
 from knot.services.prompt_service import seed_defaults_from_files as _seed_prompts  # noqa: E402
 
-# ❺ tenant#1 ctx 下 DB-touching 启动（seed_prompts）；finally reset 防 ctx 泄进 serving 使 fail-closed 虚化
-_t1_tok = _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())
-try:
-    _seed_result = _seed_prompts()
-    logger.info(f"prompt seed: {_seed_result}")
-finally:
-    _tenant_ctx.reset_active_tenant(_t1_tok)
+
+def _for_each_tenant(what: str, fn) -> None:
+    """对**每个**租户跑一次 `fn()`（v0.9.19 P-b —— 启动序逐租户化）。
+
+    ⛔ **原写法 `set_active_tenant(resolve_single_tenant())` 在 active≠1 时 raise**
+    ⇒ 第二家公司一激活，**下次重启整个平台起不来**（lift 的唯一硬阻塞）。
+
+    ⚠️ **用 `list_tenants()` 而非 `list_active_tenants()`**（与下方 `init_db()` 循环一致）：
+    suspended 租户将来会被激活，那时不该缺 prompt；且**数据不因 suspended 而停止增长**。
+
+    ⚠️ **每个租户各自 try/finally** —— 一家失败不得让其余家被跳过（否则「一家坏了全家不 seed」）。
+    ⚠️⚠️ **但 `TenantContextError` 必须原样抛** —— 吞掉它就是把
+    「这条路径忘了建 ctx」这个 **bug** 伪装成「这家租户处理失败」这个业务结果（C0 立的范式）。
+    """
+    from knot.core.tenant_context import reraise_if_tenant_error as _rt
+
+    for _t in tenant_repo.list_tenants():
+        _tok = _tenant_ctx.set_active_tenant(_t)
+        try:
+            fn()
+        except Exception as e:                       # noqa: BLE001
+            _rt(e)                                   # 租户 ctx 错误 → 响亮抛出，不吞
+            logger.warning(f"[startup] {what} 对 tenant#{_t['id']} 失败（其余租户继续）: {e}")
+        finally:
+            _tenant_ctx.reset_active_tenant(_tok)
+
+
+# ❺ **逐租户** DB-touching 启动（seed_prompts）；finally reset 防 ctx 泄进 serving 使 fail-closed 虚化
+_for_each_tenant("prompt seed", lambda: logger.info(f"prompt seed: {_seed_prompts()}"))
 
 
 # v0.4.5 R-45 / v0.5.0 R-68：master key fail-fast 在 init_db() 之后、所有路由注册之前。
@@ -163,11 +185,10 @@ from knot.services.totp_service import apply_rollout_session_invalidation as _ap
 #   warm 单一租户只会固化错配、warm 全部则启动成本随租户数线性增长；冷槽由 `catalog_state` 的 lazy miss
 #   loader 兜（D5'，冷进程两形态测见 tests/test_catalog_tenant_isolation.py）。
 #   `resolve_single_tenant()` 仍在（R-T-GATE 前置，详 docs/plans/v0.9.3 §5）。
-_t1_tok2 = _tenant_ctx.set_active_tenant(tenant_repo.resolve_single_tenant())
-try:
-    logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}")
-finally:
-    _tenant_ctx.reset_active_tenant(_t1_tok2)
+_for_each_tenant(
+    "totp rollout",
+    lambda: logger.info(f"totp rollout session invalidation: {_apply_totp_rollout()}"),
+)
 
 
 # v0.9.12 静态明文敏感值**只读**巡检（逐租户 WARN，不阻断启动）—— 全部理由见 secret_at_rest 模块头
@@ -258,33 +279,46 @@ async def _audit_auto_purge_if_stale():
         # tenant ctx；purge() 本体不自解析（靠继承）。⚠️ 依赖本行 set：删了 → _purge 撞 fail-closed，
         # TenantContextError 被下方 except 静默吞 → auto-purge 静默停（守护者 Stage 4 §V-2 纠错）。
         from knot.core import tenant_context as _tc
+        from knot.core.tenant_context import reraise_if_tenant_error as _rt
         from knot.repositories import tenant_repo as _tr
-        _tok = _tc.set_active_tenant(_tr.resolve_single_tenant())
-        try:
-            last = settings_repo.get_app_setting("audit.last_purge_at", "")
-            should_run = True
-            if last:
-                try:
-                    last_dt = _dt.datetime.fromisoformat(last)
-                    if (_dt.datetime.now() - last_dt).days < 7:
-                        should_run = False
-                except ValueError:
-                    pass  # 坏数据 → 触发清理
-            if not should_run:
-                logger.info(f"[audit_auto_purge] 上次清理 {last}，未到 7 天阈值，跳过")
-                return
-            # 真跑 — chunk DELETE 由 audit_repo 内部保证
-            from anyio import to_thread
 
-            from knot.scripts.purge_audit_log import purge as _purge
-            stats = await to_thread.run_sync(
-                lambda: _purge(dry_run=False, trigger="auto", actor=None)
-            )
-            logger.info(f"[audit_auto_purge] startup 自动清理完成: {stats}")
-        except Exception as e:
-            logger.warning(f"[audit_auto_purge] 失败 (silent fail): {type(e).__name__}: {e}")
-        finally:
-            _tc.reset_active_tenant(_tok)
+        # v0.9.19 P-b：**逐租户**清理（原 `resolve_single_tenant()` 在 active≠1 时 raise
+        # ⇒ 该任务对**所有**租户静默失效；而每家有自己的 `audit_log` 与 `last_purge_at`）。
+        # ⚠️ 本函数是 async 且带 `await` ⇒ 用不了模块级那个同步 `_for_each_tenant`，此处内联同形。
+        for _t in _tr.list_tenants():
+            _tok = _tc.set_active_tenant(_t)
+            try:
+                last = settings_repo.get_app_setting("audit.last_purge_at", "")
+                should_run = True
+                if last:
+                    try:
+                        last_dt = _dt.datetime.fromisoformat(last)
+                        if (_dt.datetime.now() - last_dt).days < 7:
+                            should_run = False
+                    except ValueError:
+                        pass  # 坏数据 → 触发清理
+                if not should_run:
+                    logger.info(
+                        f"[audit_auto_purge] tenant#{_t['id']} 上次清理 {last}，未到 7 天阈值，跳过"
+                    )
+                    continue      # ⚠️ `continue` 不是 `return` —— 一家跳过不得让其余家被跳过
+                # 真跑 — chunk DELETE 由 audit_repo 内部保证
+                from anyio import to_thread
+
+                from knot.scripts.purge_audit_log import purge as _purge
+                stats = await to_thread.run_sync(
+                    lambda: _purge(dry_run=False, trigger="auto", actor=None)
+                )
+                logger.info(f"[audit_auto_purge] tenant#{_t['id']} startup 自动清理完成: {stats}")
+            except Exception as e:
+                # ⚠️ 租户 ctx 错误**必须原样抛**（C0 范式）—— 本处的注释此前自己写着
+                #    「TenantContextError 被下方 except 静默吞 → auto-purge 静默停」，那正是要修的。
+                _rt(e)
+                logger.warning(
+                    f"[audit_auto_purge] tenant#{_t['id']} 失败 (silent fail): {type(e).__name__}: {e}"
+                )
+            finally:
+                _tc.reset_active_tenant(_tok)
 
     asyncio.create_task(_maybe_purge())
 

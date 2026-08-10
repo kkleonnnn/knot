@@ -106,10 +106,18 @@ def init_db():
         import bcrypt
 
         from knot.config import DEFAULT_DB_HOST, DEFAULT_DB_PORT
+
         # v0.8.20 F7（R-LP-v3-EX-3-1）：seed admin 初始口令 —— env KNOT_INITIAL_ADMIN_PASSWORD 优先，
         # 无则**随机强口令** + 一次性日志打印。消除「跨部署同一已知 admin123 + 首启竞态」（攻击者抢先
         # 首登→白名单内改密+enroll 夺 admin）。must_change_password=1 仍保留（首登强制改）。
-        _env_pwd = os.environ.get("KNOT_INITIAL_ADMIN_PASSWORD", "").strip()
+        # ⭐ v0.9.19 P-b（D3）：**env 只对起源租户生效**。
+        # ⛔ 原写法读全局 env ⇒ 启动的**逐租户 init_db 循环**给每个缺库的租户 seed 出
+        #    **同一个已知口令** ⇒ 「A 公司的人能进 B 公司」（实测：两租户都能用同一口令登录）。
+        # ⚠️ **这是 seed 口令的第二个入口** —— 经开通端点建的租户本来就是 per-tenant 随机
+        #    （`tenant_provisioning`），但**启动循环**这条一直没堵。
+        # ⇒ 起源租户仍可用 env（否则部署方拿不到自己的初始口令）；其余租户一律随机。
+        from knot.core.tenant_context import is_owner_tenant as _is_owner
+        _env_pwd = os.environ.get("KNOT_INITIAL_ADMIN_PASSWORD", "").strip() if _is_owner() else ""
         _init_pwd = _env_pwd or secrets.token_urlsafe(12)
         seed_pwd = bcrypt.hashpw(_init_pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         conn.execute(

@@ -292,8 +292,8 @@ Agent 的生命周期与 **MINOR 版本号**绑定，不与 PATCH 绑定：
    v0.9.11 二次实证：备份退回 `copy2` 得 `1 failed, 14 passed` ⇒ **Sa1 是 WAL-safe 唯一守护者**
    （同文件另一条内容级断言的数据已被 checkpoint 进主文件 ⇒ copy2 也拷得到 ⇒ 它通过）
    ⇒ 由此在两处 docstring 互引「删了谁就没人守了」。
-   ⭐⭐ **跑 revert 前的五问**（v0.9.11 守护者归纳四条 + **v0.9.14 Stage 4 增第 ⑤ 条** ——
-   五种失效模式**互不重叠**，各有实证）：
+   ⭐⭐ **跑 revert 前的六问**（v0.9.11 守护者归纳四条 + **v0.9.14 Stage 4 增 ⑤** +
+   **v0.9.19 增 ⑥** —— 六种失效模式**互不重叠**，各有实证）：
    **① 探针会到达吗**（v0.9.11 Sa2/Sa5：停在 `DID NOT RAISE`，真属性的断言根本不执行）·
    **② 注入真能产生那个后果吗**（v0.9.9 两支合并 · v0.9.11 Sa1：WAL 若已 checkpoint 则两种备份无从区分）·
    **③ oracle 会不会恒定**（v0.9.11 Sa4：`frozenset` 迭代在**同进程内本就稳定** ⇒
@@ -317,6 +317,21 @@ Agent 的生命周期与 **MINOR 版本号**绑定，不与 PATCH 绑定：
    > ⚠️ **同族的第二种出口：判据本来就不该是等值。**「镜像内 `pip freeze` == lock」
    > 按字面**不可能成立**（镜像必然多出基础镜像预装）⇒ 判据应为 **⊇ + 差集具名并注明来源**。
    > ⇒ 问自己：**我要的是「两边一样」，还是「这一边包含那一边」？**
+   ⭐⭐ **⑥ 我确实在实验环境里吗**（v0.9.19 立 · **同一片内两次实证，形状完全一样**）：
+   > **当「实验成功」的症状与「环境搭错了」的症状**相同**时，先看结果就必然读错。**
+   > ⇒ **造实验环境时，第一件事是验证「我确实在实验环境里」，而不是直接看实验结果。**
+
+   | 实证 | 我以为看到的 | 实际发生的 |
+   |---|---|---|
+   | 用 `KNOT_DATA_DIR=<临时目录>` 造隔离（**真正控制路径的是 `SQLITE_DB_PATH`**） | 「缺陷成功复现：BOOT FAILED」 | 探针**全打在真实开发库上**，制造了一个 active 租户 ⇒ **本地 dev server 从那天起起不来**；我把那次污染读成了实验成功 |
+   | 子进程 env 填 `KNOT_MASTER_KEY="k"*44`（**长度对但不是合法 Fernet key**） | 「两条测都红 ⇒ 缺陷还在」 | 子进程死在「缺少加密主密钥」，**红的理由与被测缺陷毫无关系** |
+
+   ⚠️ **它与 ①②④ 都不同**：①是探针没到达、②是注入没产生后果、④是消息在撒谎 ——
+   **⑥ 是探针打在了另一个系统上**，而那个系统的反应恰好和我预期的一样。
+   ⇒ **机械形式**：实验载体（子进程 / 容器 / 临时目录）**开头第一件事是自证隔离，不满足就立刻退出**，
+   且**「环境没隔离」与「实验失败」必须报成两条不同的消息** ——
+   否则下一个人（包括我自己）会再读错一次。载体：`tests/test_startup_with_multiple_tenants.py`
+   的 `_PREAMBLE`（`exit 9`）+ `_guard_isolation()`。
 3. 承重面变更的 **v3.1-B 枚举表逐条有答**；
 4. **实施期偏离 Stage 1 的每一处都给出理由**；
 5. ⭐ **实施期发现自己写错的东西写进记录** —— v0.9 弧证明这是最高价值的一节。
@@ -674,9 +689,23 @@ v0.3.0 起 `pip install -e .` editable 安装；解释器原生识别 `knot` 包
 >   该列**没有任何写端点**（v0.9.5 E2 刻意零平台写操作）⇒ 唯一配置途径是运维直接 `UPDATE platform.db`
 >   （SQL 原文见 DEPLOY.md「多租户运维门」）。**漏配 ⇒ 该租户 HTTP 数据源全部静默拒绝**
 >   —— fail-closed 正确，但**与 bug 不可区分** ⇒ 与「禁停用/删除起源租户」**同族，写在一起**。
-> - ▶ **启动/请求期残留的 `resolve_single_tenant`** → **lift 前**。⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 **95/166**，且**第三处** `main.py:245`（audit purge 后台任务）**从未登记**）⇒ 按**符号 + 文件**记：`main.py` **3 处**（prompt seed / TOTP rollout / audit purge）+ `auth.py`（登录无 slug 回退）+ `tenant_resolution.py`（无 tid 回退）+ `tenancy_migration`（C4 存量迁移，**本质单租户、可留**）+ `catalog_loaders` **2 处**（两条启动 WARN）= **AST 实测 8 处**（2026-08-06 重测）。
-> ⚠️ **原登记「5 处」已陈旧** —— `tenancy_migration` 与 `catalog_loaders` **从未被登记**（与 v0.9.7 发现 `main.py` 第三处从未登记同形：**清单本身会漂**）。
-> ⚠️⚠️ **其中一处是 v0.9.16 我自己新加的**（`warn_if_private_catalog_missing`）——lift 后 >1 active ⇒ `resolve_single_tenant()` raise ⇒ 它 `except: return` 早退⇒ **那条 WARN 从此永远不响**。不紧急（今天 N=1 且它是诊断非安全门），但**必须随 lift 一起改**。
+> - ✅ **启动序残留的 `resolve_single_tenant` = v0.9.19（P-b）已闭合** —— 这是 lift 的**唯一硬阻塞**：
+>   那 4 处（prompt seed / TOTP rollout / audit purge / C4 存量迁移）在 active ≠ 1 时**抛错**
+>   ⇒ 第二家一激活，**下一次重启整个平台起不来**（已实跑复现 `BOOT FAILED`）。
+>   前三处改**逐租户循环**（照 `main.py` 已有的 per-tenant `init_db()` 先例，每租户各自 try/finally，
+>   `TenantContextError` 必 reraise）；C4 改**点名 `OWNER_TENANT_ID`**
+>   （顺带修掉一个**今天就存在**的错：停用 t1 + active t2 ⇒ 旧写法把锚点库迁进**错误的租户目录**）。
+>   守护 = `tests/test_startup_with_multiple_tenants.py`（**子进程**起真实启动路径 +
+>   1-active 正对照 + AST 哨兵）—— `conftest` 的 `KNOT_SKIP_STARTUP_MIGRATION=1` 与 e2e fixture 的
+>   「必须在 1 active 时 import main」使**既有测结构上盖不到这件事**。
+> ⇒ **AST 实测生产码剩 5 处**（2026-08-10）：`auth.py`（登录无代号回退 —— kk 裁定保留，见下）+
+>   CLI 2 处（`purge_audit_log` 仅 dry-run 可达 / `scan_secrets_at_rest` 只读）+
+>   `scripts/eval_*` 2 处（开发工具）⇒ **启动序与请求处理路径上零残留**。
+> ⚠️ **不写行号**（会漂 —— v0.9.7 实测原登记的 `main.py:103/169` 已漂到 95/166，
+>   且第三处 `main.py:245` **从未登记**）；按**符号 + 文件**记。
+> ⚠️ **「清单会漂」已第五次实证**：本次实测又发现 `tenant_resolution.py` 与 `catalog_loaders` 2 处
+>   **已于 v0.9.17 消掉**而清单停在 2026-08-06 的「8 处」⇒ **该清单必须派生**（AST 扫 + 与清单比对，
+>   漏登记即红），仍列为独立 chore。
 > ⭐⭐ **2026-08-06 逐处实读后，清单对其中三处的定性被推翻**（照着清单做会做错账）：
 > - **`auth.py` 登录无代号回退 ≠ fail-open**：`resolve_single_tenant()` 在 active ≠1 时 **raise**
 >   ⇒ 第二租户一激活，无代号登录**全部 401**，**绝不会「挑一个」租户**（守护者 Q5/Q2 当初已查明，

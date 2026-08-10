@@ -667,6 +667,13 @@ def non_owner_client(tmp_path, monkeypatch):
         admin = user_repo.get_user_by_username("admin")
         if admin and admin.get("must_change_password"):
             user_repo.update_user(admin["id"], must_change_password=0)
+        # ⭐ v0.9.19 D3 起**必须显式设**：`KNOT_INITIAL_ADMIN_PASSWORD` 只对**起源租户**生效，
+        # 非起源租户 seed 的是**随机口令** ⇒ 本 fixture 此前能用 `admin123` 登录 tenant#2，
+        # 靠的正是 D3 修掉的那个缺陷（「A 公司的口令能进 B 公司」）。
+        # ⇒ 登录用的口令由**本测自己设定**，不再借一个跨租户共享的 seed 值。
+        import bcrypt as _bcrypt
+        user_repo.update_user(
+            admin["id"], password_hash=_bcrypt.hashpw(b"admin123", _bcrypt.gensalt()).decode())
         # ⚠️ 必须有**至少一个** datasource：`_infer_source_types_from_datasources` 对**空表**
         # ε2 fail-fast（`MetadataError: DataSource 表为空`）⇒ `PUT`/`reset` 走 `reload(strict=True)` 会 500，
         # 与本片的门无关。真实租户必有数据源 ⇒ 补一个 doris（**非 http**，故不影响 source_type 推断：

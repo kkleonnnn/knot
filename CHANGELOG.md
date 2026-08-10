@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.18 — P-a：webhook 出网租户域化 + lark token 缓存键含租户与 secret 摘要
+## [Unreleased] - v0.9.19 — P-b：启动序逐租户化 + seed 口令按租户（lift 的唯一硬阻塞）
+
+### Fixed
+- ⭐ **两家公司同时启用时，进程根本起不来**（lift 前的唯一硬阻塞，已实跑复现 `BOOT FAILED`）：
+  启动序有 **4 处** `resolve_single_tenant()`，而它在 active 租户数 ≠ 1 时**抛错** ——
+  prompt seed · TOTP rollout · 审计自动清理 · C4 存量迁移（**函数体第一行，最先炸**）。
+  ⇒ 一旦放开第二家（或运维手工激活第二家），**下一次重启就 CrashLoopBackOff，两家一起挂**。
+  改法照 `main.py` 里**已有的**逐租户 `init_db()` 循环，不自创形状。
+  - ⚠️ **每个租户各自 try/finally**：一家失败不得让其余租户被跳过（否则「一家坏了，全家不 seed」）；
+    失败记 WARN 继续，**但 `TenantContextError` 必须 reraise**（C0 已立的 `reraise_if_tenant_error`
+    范式 —— 别把 bug 伪装成业务结果）。
+  - ⚠️ 用 `list_tenants()` 而非 `list_active_tenants()`（与既有 `init_db()` 循环一致）：
+    suspended 租户将来会被激活，**那时不该缺 prompt**；审计数据也不因 suspended 而停止增长。
+- **C4 存量迁移改「点名起源租户」**：它拿 `t1["db_dir"]` 定位迁移目标，而锚点库**永远属于起源租户**
+  ⇒ 语义上要的是 `OWNER_TENANT_ID`，不是「恰好只有一个 active 的那个」。
+  ⚠️ 这**同时修掉一个今天就存在的错**：停用 tenant#1 + 有 active tenant#2 时，
+  旧写法会返回 **tenant#2** ⇒ 把锚点库迁进**错误的租户目录**。
+
+### Security
+- **`KNOT_INITIAL_ADMIN_PASSWORD` 只对起源租户生效**：seed admin 此前读**全局** env
+  ⇒ 启动的逐租户循环会给**每个缺库的租户** seed 出**同一个已知口令** = 「A 公司的人能进 B 公司」。
+  其余租户一律**随机强口令**。⚠️ 这是 seed 口令的**第二个入口** ——
+  开通端点那条（v0.9.15）本来就是 per-tenant 随机，本条堵的是启动循环这条。
+  ⚠️ **两个既有测因此转红，而它们此前的绿正是建立在该缺陷之上**
+  （`test_two_tenant_e2e_isolation` / `test_file_catalog_owner_gate` 用同一个 env 口令登录 tenant#2）
+  ⇒ 处置是让它们**显式设定自己要用的口令**，不是退回修复（v3.1-B #8「既有测的绿是真的吗」）。
+
+### Notes
+- **不声称**：lift 可做（P-c）· SQL 数据源出网受控（P-a'）· 禁重定向（P-a''）·
+  `auth.py` 无代号登录在 lift 后仍会 401（**可用性**问题，kk 已裁为产品迁移动作）。
+- 单租户（今天的现网形态）**行为不变**，且配了正对照测守住这一点 ——
+  否则「把启动序整个删掉」也能让核心那条变绿（fail-closed 式假通过）。
+
+## [v0.9.18] - P-a：webhook 出网租户域化 + lark token 缓存键含租户与 secret 摘要
 
 ### Security
 - **webhook 外发 allowlist 租户域化**：从进程 env `KNOT_WEBHOOK_ALLOWED_HOSTS` 改读平台库
