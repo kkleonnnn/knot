@@ -526,9 +526,21 @@ def test_no_second_http_client_in_http_adapter():
     只看 `requests.*` 的 oracle **表示不了「换个库」这个事件** —— 有人改用 `httpx` 就绕过了上一条。
     ⚠️ **放行 `urllib.parse`**：`url_allowlist.py` 用它做 URL **解析**，**解析器不是客户端**
     （不放行会误报 —— 实读确认过）。
-    取材=injection：加 `import httpx` → 本测红；`urllib.parse` 不得误报。
+
+    ## ⭐ v0.9.21：同一条理由扩到 `urllib3` 的**解析子模块**，但**只放行 `from` 形态**
+    `url_canon.py` 用 `urllib3.util.parse_url` / `urllib3.exceptions` 做**解析**
+    —— 与上面 `urllib.parse` 的理由**逐字相同**（解析器不是客户端）。
+    ⚠️⚠️ **但只放行 `from urllib3.util import parse_url` 这种形态**，**不放行 `import urllib3.util`**：
+    后者会把 **`urllib3` 这个名字绑进命名空间** ⇒ 紧接着就能 `urllib3.PoolManager()` 发请求
+    ⇒ 豁免会变成逃逸口。`from` 形态下那个名字**根本不存在**。
+    （实施期实测：初版写的就是 `import urllib3.util`，被本哨兵抓住 —— 它抓得对。）
+
+    取材=injection：加 `import httpx` → 本测红；加 `import urllib3.util` → 本测红；
+    `urllib.parse` 与 `from urllib3.util import ...` 不得误报。
     """
     banned = {"httpx", "aiohttp", "http.client", "socket", "urllib.request", "urllib3", "pycurl"}
+    #: 只在 `from X import ...` 形态下放行的**解析**子模块（见上方 docstring）。
+    parser_only_from = {"urllib3.util", "urllib3.exceptions"}
     offenders = []
     for py in sorted((_REPO / "knot" / "adapters" / "http").rglob("*.py")):
         tree = ast.parse(py.read_text(encoding="utf-8"))
@@ -537,6 +549,8 @@ def test_no_second_http_client_in_http_adapter():
             if isinstance(n, ast.Import):
                 mods = [a.name for a in n.names]
             elif isinstance(n, ast.ImportFrom) and n.module:
+                if n.module in parser_only_from:
+                    continue                      # ← 解析子模块，且未绑定 `urllib3` 这个名字
                 mods = [n.module]
             for m in mods:
                 root = m.split(".")[0]

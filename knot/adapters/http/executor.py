@@ -98,8 +98,11 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
     header_value = spec.get("auth_value", "")
 
     # URL 拼接 + allowlist 守护
-    url = url_template.replace("{base_url}", base_url)
-    check_url_allowed(url)  # ← OVERRIDE #3 安全核心
+    # ⭐ v0.9.21：`check_url_allowed` 现在**回传规范化后的 URL**，下面必须发它 ——
+    #    否则门校验的串与真正被发的串不是同一个（那正是 v0.9.21 修的缺陷本身）。
+    #    ⚠️ 端口告警也在那一行发生：写入时校验会被这里的 `str.replace` 击穿
+    #    （`{base_url}:9402` ⇒ 出网那一刻的端口不是写入时校验的那个）。
+    url = check_url_allowed(url_template.replace("{base_url}", base_url))
 
     # auth header 处理
     headers = {}
@@ -112,10 +115,19 @@ def execute(spec: HTTPEndpointSpec, params: dict[str, Any]) -> list[dict[str, An
     _logger = _log.getLogger(__name__)
 
     try:
+        # ⭐ v0.9.21：`allow_redirects=False` —— allowlist **只管第一跳**，
+        #    目标回 302 就能把请求（连同 auth header）引到名单外的主机。
+        #    ⚠️ 这里**不需要**像 webhook 那样显式判 3xx —— 本文件下方有
+        #    `if resp.status_code != 200: raise HTTPAdapterError(...)` 的**兜底分流**
+        #    ⇒ 302 会走那一支、响亮报错（实读确认，非推测）。
+        #    webhook 那处必须显式判，是因为它用 `raise_for_status()`，而它对 3xx **不抛**
+        #    ⇒ 调用方会据此写「已发送」审计。**同一个禁令，两处的兜底能力不同。**
         if method == "GET":
-            resp = requests.get(url, params=params, headers=headers, timeout=timeout_sec)
+            resp = requests.get(url, params=params, headers=headers,
+                                timeout=timeout_sec, allow_redirects=False)
         elif method == "POST":
-            resp = requests.post(url, json=params, headers=headers, timeout=timeout_sec)
+            resp = requests.post(url, json=params, headers=headers,
+                                 timeout=timeout_sec, allow_redirects=False)
         else:
             raise HTTPAdapterError(f"不支持的 HTTP method: {method}")
     except requests.Timeout as e:

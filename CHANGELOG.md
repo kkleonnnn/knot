@@ -5,7 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.20 — P-c：lift R-T-GATE（放开第二家公司 · 代码层）
+## [Unreleased] - v0.9.21 — 出网 allowlist 的单一 URL 解析口径 + 禁跟随重定向
+
+### Security
+- ⭐⭐ **allowlist 可被绕过，且与重定向无关**：三处出网门（数据源 / webhook / IM）都用
+  `urlparse(url).hostname` 取 host，而实际发请求的是 `requests`（urllib3 解析）
+  ⇒ **同一个串两者可给出不同 host**。实测 `http://127.0.0.1:PORT\@allowed.corp/x`：
+  门看到 `allowed.corp` **放行**、请求实连 **127.0.0.1** 并带着该租户凭据。
+  ⇒ 正是 CLAUDE.md 那条「门校验的 X 与真正被用的 X 必须实测是同一个值」点名的形状。
+  - ⚠️ **偏差是双向的**：除绕过外还有**两条误拒**（门拒而实连是合法 host）
+    ⇒ 判据是「**两者必须一致**」，不是「门够不够严」——
+    只测「堵绕过」会让误拒被当成「本来就该拒」而永远留着。
+  - **修法**：新增 `adapters/http/url_canon`，用 `requests` 自己的 `prepare()` 规范化
+    （把有歧义的部分百分号编码进 path ⇒ 只有一种读法），**调用方发规范化串**。
+    `check_url_allowed` 签名改为**回传规范化 URL**。
+  - ⭐ **allowlist 条目也过同一口径** —— 否则等值两边是**两种产出方式**：
+    实测运维写的 `例え.jp` / `::1` / `Allowed.Corp` 会**永不匹配**（fail-closed 但与 bug 不可区分）。
+    ⚠️ `Allowed.Corp` 那条是**既有缺陷**（`_parse` 只 `strip()` 不小写化），非本片引入。
+    不可规范化的条目**丢弃 + WARN**（去重），绝不静默保留成一个永不匹配的串。
+- ⭐ **五处 sender 禁跟随重定向**（allowlist **只管第一跳** —— v0.9.18 明确留的账）：
+  `executor`×2 / `lark` / `telegram` / `webhook`（`datasources` 探测侧原已有）。
+  ⚠️ **只加禁令不够**：`lark`/`telegram`/`webhook` 都用 `raise_for_status()`，而它对 3xx
+  **一律不抛** ⇒ 三处都补了**显式 3xx 判断**。webhook 尤其关键：调用方据 `send()` 成功
+  写「已发送」审计 ⇒ 不判 3xx 等于**把静默失效写进审计**。
+  （`executor` 不需要 —— 它下方有 `status_code != 200` 的兜底分流，**实读确认**。
+  ⇒ **同一个禁令，各处的兜底能力不同，不能照抄。**）
+- **`scheme` 硬断**：`prepare()` 对 `ftp://` 等是 **pass-through**（一个字节不规范化）而
+  `parse_url` 仍给 host ⇒ 不断言就等于放行一个从未被规范化的串。
+  今天不可利用**只因两个前缀判断碰巧互补** —— 那是巧合，不是结构保证。
+
+### Added
+- ⭐ **运行期不动点自检**：对规范化串**再规范化一次**、比对 host，不等即拒绝出网（实测 ~18.6 µs/请求）。
+  **为什么需要**：本设计实际是「同一套规范化跑两次」（helper 返回字符串、调用方交给 `requests` 时会
+  再规范化），而 `requirements.txt` 是 `requests>=2.34,<3`（**浮动 minor**）
+  ⇒ fuzz 只能证**当前版本**。自检把「上游升级后**静默**分叉」变成「**生产期 fail-closed**」。
+  ⚠️ **诚实边界**：它保的是「本片的假设是否仍成立」，**不是**「host 一定正确」。
+- **端口可诊断**（非 80/443 时告警一次，进程内去重）：⚠️ **不改放行语义**——
+  allowlist 现存值全是纯 host 字面，改成 `host:port` 精确匹配会让**所有现存配置立刻全拒**。
+  ⭐ 告警落在**出网那一行**而非写入时：写入时会被 `url_template` 结构性击穿
+  （`{base_url}:9402` ⇒ 出网那一刻的端口不是写入时校验的那个）。
+
+### Notes
+- **不声称**：端口受控（只是「端口可见」）· DNS rebinding / TOCTOU · headers 不受检
+  （`auth_header` 来自零校验 JSON ⇒ 租户可写 `Host`，已登记 backlog）·
+  LLM SDK 出网（`openai`/`anthropic` 底层 httpx，实测 `follow_redirects=True`；
+  base_url 来自 env、租户不可控 ⇒ 非跨租户面，**但是出境面**）·
+  统一出网 helper（**v0.9.22**）· 第二家公司可以进来（代偿门仍在）。
+
+## [v0.9.20] - P-c：lift R-T-GATE（放开第二家公司 · 代码层）
 
 ### Changed (BREAKING)
 - ⭐⭐ **lift R-T-GATE** —— 请求侧那道「>1 个 active 租户即全站 fail-closed」的硬门

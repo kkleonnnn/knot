@@ -39,7 +39,14 @@ def _post(url: str, **kw) -> dict:
         raise LarkError("Lark host 不在 IM egress allowlist")
     import requests
     try:
-        resp = requests.post(url, timeout=_TIMEOUT_SEC, **kw)
+        # ⭐ v0.9.21：禁跟随重定向 —— 本处 POST 带 **app_secret**（body），
+        #    307/308 会把 body **原样**带到重定向目标 ⇒ 凭据出境到未预期主机。
+        #    （实测：302 会把 POST 降成 GET 且丢 body，但 307/308 不会。）
+        resp = requests.post(url, timeout=_TIMEOUT_SEC, allow_redirects=False, **kw)
+        # ⚠️ 必须显式判 3xx：`raise_for_status()` 对 3xx **不抛**（与 webhook 同因）
+        #    ⇒ 不判就会把「没投递」当成功。（三处同形，v0.9.22 的统一 helper 会收拢。）
+        if 300 <= resp.status_code < 400:
+            raise LarkError(f"Lark 目标返回 {resp.status_code}（重定向），出网禁止跟随 —— 未完成")
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:

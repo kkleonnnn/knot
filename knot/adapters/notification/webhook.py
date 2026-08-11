@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import urlparse
 
 from knot.adapters.notification.base import Notification
 
@@ -27,8 +26,34 @@ COLUMN_NAME = "allowed_webhook_hosts"
 ENV_NAME = "KNOT_WEBHOOK_ALLOWED_HOSTS"
 
 
-def _parse(raw: str) -> set[str]:
-    return {h.strip() for h in raw.split(",") if h.strip()}
+#: 已告警过的坏 allowlist 条目（`_parse` 每次调用都重跑 ⇒ 不去重会每次外发刷一条）。
+_BAD_ENTRY_WARNED: set[str] = set()
+
+
+def _parse(raw: str | None) -> set[str]:
+    """逗号分隔 → host 集；空白项丢弃 ⇒ `''` / `' '` 全部 → 空集（= 全拒绝）。
+
+    ⭐ **v0.9.21：条目也过 `url_canon` 的同一口径**（与 `url_allowlist._parse` 逐字同构）——
+    否则等值的两边只规范化一边，运维写的 `例え.jp` / `::1` / `Host.Corp` 会**永不匹配**
+    （fail-closed 但**与 bug 不可区分**）。不可规范化的**丢弃 + WARN（去重）**。
+    """
+    from knot.adapters.http.url_canon import canonical_host_of_entry
+
+    out: set[str] = set()
+    for item in (raw or "").split(","):
+        e = item.strip()
+        if not e:
+            continue
+        host = canonical_host_of_entry(e)
+        if host is None:
+            if e not in _BAD_ENTRY_WARNED:
+                _BAD_ENTRY_WARNED.add(e)
+                from knot.core.logging_setup import logger
+
+                logger.warning(f"[webhook-egress] allowlist 条目无法解析成主机名，**已丢弃**: {e!r}")
+            continue
+        out.add(host)
+    return out
 
 
 def resolve_allowed_hosts() -> tuple[set[str], str]:
@@ -98,21 +123,37 @@ def warn_if_owner_using_env_fallback(owner_row: dict | None) -> None:
 
 
 def is_webhook_url_allowed(url: str) -> bool:
-    """webhook target host 是否在 KNOT_WEBHOOK_ALLOWED_HOSTS（host-only，复用 url_allowlist 同模式，独立 env）。"""
+    """webhook target host 是否在本租户的 webhook allowlist 内（host-only，与数据源那份**物理隔离**）。
+
+    ⭐ v0.9.21：host 由 `url_canon.canonicalize()` 算 —— 与实际发请求的规范化**同一套**
+    （此前用 `urlparse().hostname`，而实际连接由 urllib3 解析 ⇒ 同一串可给出不同 host）。
+    无法规范化（含非 http/https）⇒ `False`（fail-closed）。
+    """
     if not url:
         return False
+    from knot.adapters.http.url_canon import UrlCanonError, canonicalize
+
     try:
-        host = urlparse(url).hostname
-    except ValueError:
+        _, host = canonicalize(url)
+    except UrlCanonError:
         return False
-    return bool(host) and host in get_webhook_allowed_hosts()
+    return host in get_webhook_allowed_hosts()
 
 
 class WebhookNotificationAdapter:
     """NotificationAdapter Protocol 实现：POST webhook（独立 allowlist 守护 R-SL-69）。send 失败抛 WebhookError。"""
 
     def send(self, n: Notification) -> None:
-        if not is_webhook_url_allowed(n.target):
+        # ⭐ v0.9.21：**一次**规范化，门用它的 host 判、请求发它的串
+        # ⇒ 「门校验的」与「真正被发的」是同一个字符串，不是「两次解析碰巧一致」。
+        from knot.adapters.http.url_canon import UrlCanonError, canonicalize
+
+        try:
+            target, host = canonicalize(n.target, method="POST")
+        except UrlCanonError as e:
+            raise WebhookError(str(e)) from None   # 该消息**不含 URL**（有活链路到租户 admin）
+
+        if host not in get_webhook_allowed_hosts():
             # ⛔ **消息里不得出现 env 名 / 列名 / allowlist 内容**（v0.9.18 P-a · Stage 2 S8）：
             #    `monitors.py` 会把本异常的文本拼进 HTTP 响应**并落进租户库的 trigger 审计**
             #    ⇒ 任何这里写下的东西都到得了租户 admin 眼前（#262 同族）。
@@ -136,10 +177,21 @@ class WebhookNotificationAdapter:
 
         try:
             resp = requests.post(
-                n.target,
+                target,                       # ⭐ 规范化串（门校验的就是它）
                 json={"title": n.title, "body": n.body, "level": n.level},
                 timeout=_WEBHOOK_TIMEOUT_SEC,
+                allow_redirects=False,        # ⭐ v0.9.21：allowlist 只管第一跳
             )
+            # ⚠️⚠️ **必须显式判 3xx**（Stage 3 M2，实测）：`allow_redirects=False` 之后
+            #    `raise_for_status()` 对 301/302/303/307/308 **一律不抛**
+            #    ⇒ `send()` 正常返回 ⇒ `monitors.py` 追加「webhook 已发送」并写 `monitor.trigger` 审计
+            #    ⇒ **审计声称投递、实际零投递**。
+            #    ⇒ 禁重定向若不配这一条，等于把一个静默失效**写进审计**。
+            if 300 <= resp.status_code < 400:
+                raise WebhookError(
+                    f"webhook 目标返回 {resp.status_code}（重定向），而出网**禁止跟随重定向** —— "
+                    "未投递。若确需，请把**最终地址**配成 target。"
+                )
             resp.raise_for_status()
         except requests.RequestException as e:
             raise WebhookError(f"webhook POST 失败: {e}") from e
