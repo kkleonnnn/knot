@@ -177,9 +177,9 @@ def _warn_if_unusual_port(normalized: str, host: str) -> None:
       但至少运维能在日志里看见「有人在往一个不寻常的端口打」。
     ⚠️ **诚实收窄**：这不是「端口受控」，只是「端口可见」。
     """
-    import urllib3.util
+    from urllib3.util import parse_url
 
-    port = urllib3.util.parse_url(normalized).port
+    port = parse_url(normalized).port
     if port is None or port in (80, 443):
         return
     key = f"{host}:{port}"

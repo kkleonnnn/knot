@@ -43,7 +43,7 @@
 from __future__ import annotations
 
 import requests
-import urllib3.util
+from urllib3.util import parse_url
 from requests.exceptions import (
     InvalidSchema,
     InvalidURL,
@@ -85,7 +85,7 @@ def _assert_fixed_point(normalized: str, host: str) -> None:
     """
     try:
         again = requests.Request("GET", normalized).prepare().url
-        host2 = urllib3.util.parse_url(again).host
+        host2 = parse_url(again).host
     except Exception as e:                                   # noqa: BLE001
         raise UrlCanonError(
             f"URL 规范化不稳定（二次规范化失败：{type(e).__name__}）—— 拒绝出网。"
@@ -126,14 +126,14 @@ def canonicalize(url: str, *, method: str = "GET") -> tuple[str, str]:
 
     # ⚠️ scheme 硬断必须在**取 host 之前** —— pass-through 形态下 `normalized` 就是原串，
     #    而 `parse_url` 仍会给出 host ⇒ 不断言就等于放行一个未规范化的串。
-    scheme = (urllib3.util.parse_url(normalized).scheme or "").lower()
+    scheme = (parse_url(normalized).scheme or "").lower()
     if scheme not in _ALLOWED_SCHEMES:
         raise UrlCanonError(
             f"出网只允许 {'/'.join(_ALLOWED_SCHEMES)}，实际是 {scheme or '(无)'} —— 拒绝出网。"
         )
 
     try:
-        host = urllib3.util.parse_url(normalized).host
+        host = parse_url(normalized).host
     except LocationParseError:
         raise UrlCanonError("出网地址的主机名无法解析 —— 拒绝出网。") from None
     if not host:
