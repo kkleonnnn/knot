@@ -273,6 +273,20 @@ def no_network(monkeypatch):
     monkeypatch.setattr(requests, "get", _probe)
     monkeypatch.setattr(requests, "post", _probe)
     monkeypatch.setattr(requests, "head", _probe)      # v0.9.7：探测侧走 HEAD
+
+    # ⭐ v0.9.22：`urllib.request` 那条路径此前**完全没被探针盖到**
+    # （`or_catalog` 的模型目录同步走它 ⇒ 该测若跑到真链路会打向 openrouter.ai）。
+    # ⚠️ **必须 patch `OpenerDirector.open`，不是 `urlopen`**（实测）：
+    #    `or_catalog` 走的是自建 opener（`_OPENER`，装了 `_NoRedirect`）
+    #    ⇒ patch `urlopen` 对它**毫无作用**，而那正是唯一的生产调用形态。
+    #    `OpenerDirector.open` 是两者**共同的**收敛点（`urlopen` 内部也调它）。
+    import urllib.request
+
+    def _probe_open(self, fullurl=None, *a, **k):
+        calls.append(getattr(fullurl, "full_url", fullurl))
+        raise AssertionError("❌ 发生了真实网络请求（urllib）—— 出网门失效")
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", _probe_open)
     return calls
 
 

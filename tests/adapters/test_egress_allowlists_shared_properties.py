@@ -187,3 +187,61 @@ def test_every_allowlist_has_a_startup_env_fallback_warn(column):
         f"启动序里只有 {n_calls} 处 env-fallback WARN 调用，但有 {len(_MANAGED)} 份 allowlist "
         f"⇒ 至少有一份的 WARN 没接线（它会静默地永不响）。"
     )
+
+
+# ─── v0.9.22：代理面启动期 WARN ─────────────────────────────────────────
+
+
+def test_proxy_env_warn_names_the_var_but_never_its_value(caplog, monkeypatch):
+    """⭐ 代理 WARN 必须**点名 env、不打值** —— 代理 URL 常内嵌凭据（#262）。
+
+    ⚠️ **反向断言（值不在消息里）必须先证明 caplog 非空** —— 对空集做否定断言恒真
+    （CLAUDE.md 六问③ 的高频形态；本仓已踩 3 次）。这里由 `assert caplog.records` +
+    「名字在消息里」这两条**正向**断言提供该证明：它们过了，说明消息真的被抓到了。
+    ⭐ `url_canon` 用的是 **stdlib logging**（不是 loguru）⇒ `caplog` 在此**确实抓得到**
+    （这正是 CLAUDE.md 刻意不一律禁 `caplog` 的那个合法用法）。
+    """
+    import logging
+
+    from knot.adapters.http import url_canon as ua
+
+    for n in ua._PROXY_ENVS + ("no_proxy", "NO_PROXY"):
+        monkeypatch.delenv(n, raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "http://bob:s3cr3t@proxy.internal:8080")
+
+    with caplog.at_level(logging.WARNING, logger="knot.adapters.http.url_canon"):
+        ua.warn_if_proxy_env_may_bypass_allowlist()
+
+    assert caplog.records, "代理 env 已设置却没打 WARN —— 探针没到达（六问①）"
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "HTTPS_PROXY" in text, f"WARN 没点名 env: {text!r}"
+    for leaked in ("s3cr3t", "bob", "proxy.internal"):
+        assert leaked not in text, (
+            f"⛔ 代理 env 的**值**泄漏进日志: {leaked!r} in {text!r} —— "
+            "代理 URL 常内嵌凭据，只许报名字（#262）。"
+        )
+
+
+def test_proxy_env_warn_is_silent_when_no_proxy_configured(caplog, monkeypatch):
+    """⭐ 无代理时必须**静默** —— 否则每次启动一条噪声 WARN，真信号会被淹掉。
+
+    ⚠️ 「没打日志」这条否定断言同样需要证明「打了就抓得到」：本测**先**在设了 env 的前提下
+    跑一次并断言有记录（可达性正对照），**再**清掉 env 断言零新增记录。
+    """
+    import logging
+
+    from knot.adapters.http import url_canon as ua
+
+    with caplog.at_level(logging.WARNING, logger="knot.adapters.http.url_canon"):
+        monkeypatch.setenv("HTTP_PROXY", "http://p:1")
+        ua.warn_if_proxy_env_may_bypass_allowlist()
+        assert caplog.records, "可达性正对照失败 —— 这条测的否定断言不可信"
+        baseline = len(caplog.records)
+
+        for n in ua._PROXY_ENVS:
+            monkeypatch.delenv(n, raising=False)
+        ua.warn_if_proxy_env_may_bypass_allowlist()
+
+    assert len(caplog.records) == baseline, (
+        f"无代理 env 时仍打了 WARN（+{len(caplog.records) - baseline} 条）"
+    )
