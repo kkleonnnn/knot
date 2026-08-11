@@ -43,7 +43,6 @@
 from __future__ import annotations
 
 import requests
-from urllib3.util import parse_url
 from requests.exceptions import (
     InvalidSchema,
     InvalidURL,
@@ -51,6 +50,7 @@ from requests.exceptions import (
     URLRequired,
 )
 from urllib3.exceptions import LocationParseError
+from urllib3.util import parse_url
 
 #: 允许出网的 scheme。⚠️ **必须硬断** —— `PreparedRequest.prepare_url` 对某些形态是
 #: **pass-through**（如 `ftp://allowed.corp:21/x` 一个字节都不规范化），

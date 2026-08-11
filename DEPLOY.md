@@ -1,6 +1,6 @@
 # KNOT 部署手册
 
-> **当前版本** v0.9.20 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
+> **当前版本** v0.9.21 · 内测期（v0.6.1.4→0.6.5.6 升级 runbook 见 [docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md](docs/plans/v0.6.5.6-upgrade-from-v0.6.1.4-k8s.md)；v0.6.5.x→v0.7.x 为纯内测迭代，无强制迁移步骤）
 > **预估时长** 首次部署 10-15 分钟（docker build ~10 min + 配置 ~3 min）
 
 本文档面向**运维 / 部署人员**。若有问题不清楚直接问 AI 助手并附上本文链接即可。
@@ -522,6 +522,25 @@ tenant#1 目录 `data/tenants/1/knot.db`，并新建平台库 `data/platform.db`
 | 9. 重新登录 | 登录后解 JWT payload | `{"sub":"1","ver":1,"tid":1,…}` —— `tid` 已注入，正常工作 |
 | 10. 启动 WARN | `docker logs knot 2>&1 \| jq -c 'select(.level=="WARNING")'` | ⚠️⚠️ **本行于 v0.9.19 订正** —— 原记录写「用 `grep -i warn` 认定它**真的响了**」，而**那次验证复现不出来**：该 WARN 走 **stdlib logging**，而当时 `logging_setup` **从不接管 stdlib root** ⇒ 它落 `logging.lastResort` = **裸消息、无 level 前缀**，且消息原文**没有 "warn" 字样** ⇒ `grep -i warn` **命中 0 行**。⇒ **那条「运维唯一观测口」当时在机制层就看不见。** v0.9.19 已加 `InterceptHandler` 把 stdlib 转发进 loguru（`tests/test_stdlib_logging_intercepted.py` 守）⇒ **从此按 `level` 过滤才是可靠判据**，`grep -i warn` 不是。 |
 | 11. 备份文件 | `ls data/*.bak` | 两个 `.bak` **留在数据根不动**，且**不被当成数据库加载**（实测无副作用） |
+
+### ⭐ v0.9.21：allowlist 条目怎么写（**写法有硬要求，写错会被丢弃**）
+
+出网检查与实际发请求现在用**同一套规范化**（v0.9.21 修的就是「两边解析不一致」）。
+⇒ **条目也会被规范化**，请按下表写：
+
+| 你写 | 实际生效 | 说明 |
+|---|---|---|
+| `api.example.com` | `api.example.com` | 常规 |
+| `Allowed.Corp` | `allowed.corp` | **自动转小写** —— ⚠️ v0.9.21 之前写大写**从来就没生效过**（两个方向都拒） |
+| `例え.jp` | `xn--r8jz45g.jp` | IDN 自动转 punycode —— ⚠️ 之前同样从未生效 |
+| `::1` / `[::1]` | `[::1]` | IPv6 自动补方括号 |
+| `not a host!!` | **丢弃 + WARN** | 解析不出主机名的条目会被**丢弃**，并在日志打一条（每进程一次） |
+
+⚠️ **为什么丢弃而不是保留**：保留会得到一个**永不匹配**的串
+⇒ 症状是「这个主机连不上」，与「写错了一个字母」**不可区分**。丢弃 + 告警才能让运维看见。
+⚠️ **端口**：allowlist **仍只比对主机名**。目标端口非 80/443 时日志会告警一次
+（`egress 目标端口非 80/443`），但**不影响放行** —— 该主机的任意端口都通。
+若要「端口也受控」，需要一次带配置迁移的独立改动（未做）。
 
 **⚠️ 升级后必须补的一步（否则埋一个「以后才炸」的雷）**：给 tenant#1 显式配 `allowed_http_hosts`。
 现在 NULL = 未配置 ⇒ 起源租户**回退** env `KNOT_HTTP_ALLOWED_HOSTS`（所以现网能正常跑），
