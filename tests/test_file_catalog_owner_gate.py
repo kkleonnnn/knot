@@ -521,7 +521,7 @@ def test_all_outbound_requests_calls_live_inside_execute():
 
 
 def test_no_second_http_client_in_http_adapter():
-    """⭐ 验收 8e：`adapters/http/**` **不得引入第二个 HTTP 客户端**。
+    """⭐ 验收 8e：**`knot/` 全仓**不得引入第二个 HTTP 客户端（v0.9.22 扩面）。
 
     只看 `requests.*` 的 oracle **表示不了「换个库」这个事件** —— 有人改用 `httpx` 就绕过了上一条。
     ⚠️ **放行 `urllib.parse`**：`url_allowlist.py` 用它做 URL **解析**，**解析器不是客户端**
@@ -541,8 +541,24 @@ def test_no_second_http_client_in_http_adapter():
     banned = {"httpx", "aiohttp", "http.client", "socket", "urllib.request", "urllib3", "pycurl"}
     #: 只在 `from X import ...` 形态下放行的**解析**子模块（见上方 docstring）。
     parser_only_from = {"urllib3.util", "urllib3.exceptions"}
+    #: ⭐ v0.9.22 扩面后必须加的**窄豁免**：`urllib.request` 在 banned set 里，
+    #: 而 `or_catalog` **必须** import 它 —— 它是全仓唯一合法的 `urlopen` 出口
+    #: （装了 `_NoRedirect` 的 `_OPENER`；直调 `urlopen` 由
+    #: `tests/test_outbound_redirect_policy.py::test_urlopen_is_not_called_directly_anywhere` 禁）。
+    #: ⚠️ **按 (文件, 模块) 精确豁免，不是整个文件豁免** —— 该文件若哪天 `import httpx` 仍会红。
+    #: ⚠️ 实施期实测：扩面时**忘了同步豁免面** ⇒ 本条当场红在 `or_catalog`。
+    #:    评审给的「扩面零假红」结论**在这一点上是错的**（它没把 banned set 与新扫描面交叉核）。
+    file_scoped_allow = {("knot/api/admin/or_catalog.py", "urllib.request")}
     offenders = []
-    for py in sorted((_REPO / "knot" / "adapters" / "http").rglob("*.py")):
+    # ⭐ v0.9.22：扫描面从 `adapters/http/**` **扩到整个 `knot/`**。
+    # **为什么扩**：本条的 banned set 与 `parser_only_from` 豁免形状**已经是对的**
+    # （v0.9.21 校准过），只是作用域太小 —— 而「换个库出网」这件事**在哪个包里都一样危险**。
+    # ⚠️ 且它管住的是 `tests/test_outbound_redirect_policy.py` **管不了的那一半**：
+    # `httpx.Client().post(...)` / `urllib3.PoolManager().request(...)` 是**实例方法**
+    # ⇒ 「模块名.verb」那种调用级判据**结构上认不出**（实测 0 命中）
+    # ⇒ 只能在 **import 级**拦。两条哨兵**互补，不重叠**。
+    # ⭐ 实测扩面后**零假红**（`knot/` 今天只有 `requests` / `urllib.request` / `urllib3.util`）。
+    for py in sorted((_REPO / "knot").rglob("*.py")):
         tree = ast.parse(py.read_text(encoding="utf-8"))
         for n in ast.walk(tree):
             mods = []
@@ -554,6 +570,8 @@ def test_no_second_http_client_in_http_adapter():
                 mods = [n.module]
             for m in mods:
                 root = m.split(".")[0]
+                if (py.relative_to(_REPO).as_posix(), m) in file_scoped_allow:
+                    continue                      # ← 该文件对该模块的窄豁免（见上）
                 if m in banned or (root in banned and root != "urllib"):
                     offenders.append(f"{py.relative_to(_REPO)}:{n.lineno} {m}")
     assert not offenders, (

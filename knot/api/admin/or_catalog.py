@@ -2,10 +2,42 @@
 
 from __future__ import annotations
 
+import urllib.request
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from knot import config as cfg
 from knot.api.deps import require_tenant_admin
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """⭐ v0.9.22：**不跟随重定向**的 handler。
+
+    ## 为什么需要它
+    出网 allowlist **只管第一跳** —— 目标回一个 302 就能把请求引到名单外的主机。
+    本仓其余 6 个出网点都是 `requests` 形态、已带 `allow_redirects=False`（v0.9.21）；
+    **只有这一处是 `urlopen`**，而它**默认跟随** ⇒ 它之所以在上一片被漏掉，
+    正因为**形态不同**（按「找 `allow_redirects`」的扫描面结构上找不到它）。
+
+    ## 机理（实测）
+    `redirect_request` 返 `None` ⇒ `http_error_302` 直接 return
+    ⇒ 落到 `http_error_default` ⇒ **抛 `HTTPError(code=302)`**、第二跳零发生。
+    ⭐ **这正是选它而非换 `requests` 的理由**：3xx 变成 `HTTPError`
+    ⇒ 与 4xx/5xx **共用调用处那条既有 `except`** ⇒ 上游异常一律 **503、不写表**（fail-closed 保住）。
+    ⚠️ 换 `requests` 反而会引入 **4 处 fail-open**（4xx/5xx/**以及 302 的响应体**都不抛
+    ⇒ 那个体会被当模型目录 upsert）+ 一个**不可关闭的 `.netrc` 凭据出境面**（实测）。
+
+    ⚠️ **诚实边界**：`urlopen` 与 `requests` **同样**走 `HTTP_PROXY`
+    ⇒ 代理面**今天就存在**，不是本片引入的，也不由本片解决（启动期 WARN 提示）。
+    """
+
+    def redirect_request(self, *a):          # noqa: D102
+        return None
+
+
+#: 全仓**唯一**允许的 `urlopen` 替代品（哨兵会禁掉直调 `urllib.request.urlopen`）。
+_OPENER = urllib.request.build_opener(_NoRedirect())
+
 
 router = APIRouter()
 
@@ -21,7 +53,8 @@ async def admin_sync_or_catalog(admin=Depends(require_tenant_admin)):
 
     设计：
     - 网络超时 30s
-    - User-Agent 显式 "knot/X.Y.Z"
+    - User-Agent = `knot`（**不带版本** —— v0.9.22 去掉，理由见下方注释）
+    - **不跟随重定向**（走 `_OPENER`）⇒ 3xx 与 4xx/5xx 同路 503、不写表
     - 失败 503（不刷写表）
     - 成功 200 + {fetched_count, upserted_count, sample}
     """
@@ -32,9 +65,17 @@ async def admin_sync_or_catalog(admin=Depends(require_tenant_admin)):
     from knot.repositories import model_catalog_repo
 
     url = "https://openrouter.ai/api/v1/models"
-    req = urllib.request.Request(url, headers={"User-Agent": "knot/0.6.0.6"})
+    # ⭐ UA **不带版本**（v0.9.22）：原写死 `knot/0.6.0.6`，那个字面**漂了 30+ PATCH**。
+    # ⚠️ 修法刻意不是「从真相源读版本」而是**把版本从 UA 里去掉** ——
+    #    UA 里的版本在这里**零功能价值**，而「两个地方要同步」这件事本身就是漂移的来源。
+    #    （本仓的修法优先级：**让两者结构上不可能不同** 优于「记得同步」。）
+    # ⚠️ 顺带发现（**不在本片修**）：`pyproject.toml` 的 `version` 是 `0.3.0`，
+    #    比实际漂了约 60 个 PATCH，且**不在 4 源点里** ⇒ 已登记 backlog。
+    req = urllib.request.Request(url, headers={"User-Agent": "knot"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        # ⭐ v0.9.22：走 `_OPENER`（**不跟随重定向**）而非 `urllib.request.urlopen`。
+        #    ⇒ 3xx 会抛 `HTTPError`，与 4xx/5xx **共用下面那条 except** ⇒ 照旧 503、不写表。
+        with _OPENER.open(req, timeout=30) as resp:
             payload = _json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, _json.JSONDecodeError, TimeoutError) as e:
         raise HTTPException(status_code=503, detail=f"OpenRouter API 拉取失败: {type(e).__name__}")

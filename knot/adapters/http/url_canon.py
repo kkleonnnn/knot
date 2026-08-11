@@ -42,6 +42,9 @@
 """
 from __future__ import annotations
 
+import logging as _log
+import os
+
 import requests
 from requests.exceptions import (
     InvalidSchema,
@@ -99,6 +102,10 @@ def _assert_fixed_point(normalized: str, host: str) -> None:
         )
 
 
+#: 本模块的日志器（stdlib logging —— 与 `url_allowlist` 同，故 `caplog` 抓得到）。
+_logger = _log.getLogger(__name__)
+
+
 def canonicalize(url: str, *, method: str = "GET") -> tuple[str, str]:
     """→ `(规范化后的 URL, host)`。失败一律抛 `UrlCanonError`（**ValueError 子类**）。
 
@@ -141,6 +148,50 @@ def canonicalize(url: str, *, method: str = "GET") -> tuple[str, str]:
 
     _assert_fixed_point(normalized, host)
     return normalized, host
+
+
+#: 进程 env 里能把出网**改道**的代理变量（`requests` 与 `urllib.request` **两者都读**）。
+#: ⚠️ 这份清单只驱动**一条诊断日志**，漏一个名字的后果是少打一行 WARN，不影响任何授权判定。
+#: 与 `tests/adapters/test_url_canon_single_parser.py::listener` 清空的那份有交叉核对
+#: （`test_proxy_env_names_cover_the_fixtures_cleared_set`）—— 两份刻意**各自独立**，
+#: 因为测里那份是「让否定断言有意义」的前提，不该由被测代码定义。
+_PROXY_ENVS = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy")
+
+
+def warn_if_proxy_env_may_bypass_allowlist() -> None:
+    """启动期 WARN：进程 env 设了代理 ⇒ **字节实际去哪，不由 allowlist 校验的那个 host 决定**。
+
+    ⭐ **为什么放在 `url_canon` 而不是某一份 allowlist 里**：代理面对**四个出网点全部成立**
+    （数据源 / webhook / IM / 模型目录），而 `url_allowlist` 只是**数据源那一份**名单
+    （webhook 有自己的一份）⇒ 放那里会读成「只跟数据源有关」。
+    本模块是四处**共用**的规范化口径，且本条说的正是它自己的诚实边界：
+    **它算出一个 host，它不控制字节去哪。**
+    ⚠️ 诚实说明：是 size 闸门（`url_allowlist` 304 > 300）让我去重看归属的；上面那个理由独立成立。
+
+    ⭐ **这是 CLAUDE.md 那条判据的又一个实例**：「门校验的 X」与「真正被用的 X」
+    ——v0.9.21 修的是 `urlparse` vs `urllib3` 的**解析**分叉，本条是**传输层**的同一形状：
+    allowlist 校验 `https://a.corp` 之后，`HTTPS_PROXY=http://p.internal:8080` 会让
+    TCP 连接实际打到 `p.internal`，而 `a.corp` 只剩请求行里的一个字符串。
+
+    ⚠️ **它不是缺陷，也不是本片引入的** —— 企业 egress 代理是合法部署形态，
+    且 `urlopen` 与 `requests` **两者都读**这些 env（v0.9.22 实测；我原方案把「关不掉 `trust_env`」
+    记成换库的代价，**定性反了** —— 代理面今天就在）。
+    ⇒ 故只 WARN、不拒，作用是**让跑着的系统在启动时自己回答「现网到底有没有代理」**
+    （查它需要集群权限，而日志里有没有这一行就是答案 —— 与 webhook 那条 WARN 同一个用途）。
+
+    ⚠️ **只报 env 名，绝不报值**（#262）：代理 URL 常内嵌凭据（`http://user:pass@proxy`）
+    ⇒ 打值 = 把代理凭据写进日志。`NO_PROXY` 同理只报「有没有设」。
+    """
+    present = [name for name in _PROXY_ENVS if os.environ.get(name, "").strip()]
+    if not present:
+        return
+    no_proxy_set = any(os.environ.get(n, "").strip() for n in ("no_proxy", "NO_PROXY"))
+    _logger.warning(
+        f"[egress] 检测到代理 env 已设置: {sorted(set(present))} "
+        f"(NO_PROXY {'已设置' if no_proxy_set else '未设置'}) —— "
+        f"⚠️ 出网请求的**实际目的地由代理决定**，allowlist 校验的 host 只是请求里写的那个。"
+        f"若这不是有意的部署配置，请清掉这些变量。"
+    )
 
 
 def canonical_host_of_entry(entry: str) -> str | None:

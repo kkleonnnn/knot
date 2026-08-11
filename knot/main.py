@@ -37,7 +37,7 @@ from knot.repositories import init_db, tenancy_migration, tenant_repo
 # 必须早于 StaticFiles 挂载；幂等 — 保留为模块级副作用
 mimetypes.add_type("application/javascript", ".jsx")
 
-app = FastAPI(title="KNOT", version="0.9.21")
+app = FastAPI(title="KNOT", version="0.9.22")
 
 # v0.6.0.15 — CORS env 配置（开源 readiness）
 # 生产部署应显式设置 KNOT_CORS_ORIGINS（逗号分隔），例如：
@@ -242,6 +242,9 @@ async def _warn_if_owner_egress_uses_env_fallback():
     # v0.9.18 P-a：webhook 那份**同类的** allowlist（理由全在被调函数的 docstring 里，此处只接线）。
     from knot.adapters.notification import webhook as _wh_egress
     _wh_egress.warn_if_owner_using_env_fallback(tenant_repo.get_tenant(_tenant_ctx.OWNER_TENANT_ID))
+    # v0.9.22：代理 env 会让「allowlist 校验的 host」与「字节真的去哪」分叉（理由见被调函数）。
+    from knot.adapters.http import url_canon as _canon
+    _canon.warn_if_proxy_env_may_bypass_allowlist()
 
 
 @app.on_event("startup")

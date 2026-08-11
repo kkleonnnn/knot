@@ -5,7 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.21 — 出网 allowlist 的单一 URL 解析口径 + 禁跟随重定向
+## [Unreleased] - v0.9.22 — 出网禁令的结构化（补最后一个出网点 + 判据硬化 + 代理面告警）
+
+### Security
+- ⭐ **补上唯一没有重定向禁令的出网点**：`api/admin/or_catalog.py` 的模型目录同步走
+  `urllib.request.urlopen`（**默认跟随重定向**）—— v0.9.21 给 6 个出网点逐个加了
+  `allow_redirects=False`，**漏了它**，原因是**形态不同**（不是 `requests`，连那个参数都没有）。
+  处置 = 三行 `_NoRedirect` opener（`build_opener` + `redirect_request` 返 `None`）
+  ⇒ 撞 3xx 直接抛 `HTTPError`，异常层级/UA/`500` fail-closed **全部不变**。
+- ⭐⭐ **把「逐个加」变成结构性的**（本片安全价值全在这里）：新增
+  `tests/test_outbound_redirect_policy.py` —— 出网调用必须带**字面 `False`** 的禁跟随参数。
+  ⚠️⚠️ **原判据「必须显式*声明*重定向策略」被两个独立评审判为无判别力，执行者复跑坐实**：
+  它对 `allow_redirects=True` 与 `allow_redirects=<变量>` **两个 mutant 全部放行**。
+  ⇒ 判据改为 `isinstance(kw.value, ast.Constant) and kw.value.value is False`。
+- **两级并存，不是「下沉到调用级」**（⚠️ 原方案说法错了一半，实测）：`httpx` / `urllib3` /
+  `http.client` 的惯用形态是**实例方法**（`httpx.Client().post(...)`）⇒ 「模块名.动词」这种
+  调用级判据对它们**结构上认不出**（0 命中）。故：
+  - **import 级**（把既有 `test_no_second_http_client_in_http_adapter` 的扫描面从
+    `adapters/http/**` **扩到整个 `knot/`**）管「换库」这一整类 —— 也顺带管住
+    `getattr` / 变量间接 / `partial` / `Session()`，因为它们**都需要本文件先 import 那个库**；
+  - **调用+值级**（本片新文件）管「参数被改成 `True` / 变量 / 漏写」；
+  - **属性级**：`url_canon.py` 内 `requests` 的属性只许 `{Request}` —— 封死「白名单文件里
+    prepare-then-send」（`Session().send(prepared)` 是标准写法）。
+- **全仓禁直调 `urlopen`** —— 它连 `allow_redirects` 这个参数都没有 ⇒ 上面那条按参数名取值的判据
+  **表示不了它**，必须单列一条。唯一合法出口 = `or_catalog._OPENER`。
+- **`knot/` 不得 import `tests/`**：出网哨兵对 `tests/` 用的是**文件白名单**（差分测需要独立于
+  生产实现的发送方式当 oracle），而**目录排除会成为逃逸口**（把出网代码写进 `tests/` 下的 helper
+  再被生产码 import）⇒ 补一条哨兵封住它（实测今天 0 处，纯预防）；白名单里的路径也断言**真的存在**。
+- ⭐ **代理面启动期 WARN**（`url_allowlist.warn_if_proxy_env_may_bypass_allowlist`）：
+  设了 `HTTP(S)_PROXY` 时**字节实际去哪由代理决定**，allowlist 校验的 host 只剩请求行里的一个字符串
+  —— 与 v0.9.21 修的「解析分叉」是**同一形状的传输层版本**。⚠️ 它不是缺陷、也不是本片引入的
+  （企业 egress 代理是合法部署形态），故只 WARN 不拒；作用是**让跑着的系统在启动时自己回答
+  「现网到底有没有代理」**（查它需要集群权限）。⚠️ **只报 env 名、绝不报值**（#262）——
+  代理 URL 常内嵌凭据（实测消息里有 `HTTPS_PROXY`、没有 `bob:s3cr3t@proxy.internal`）。
+- **`no_network` 探针补上 `urllib` 路径**：此前只 patch `requests.get/post/head`
+  ⇒ `urlopen` 那条路径**完全没被盖到**（`or_catalog` 就走它）。
+  ⚠️ **patch 目标是 `OpenerDirector.open`，不是 `urlopen`**（实测）：生产走的是自建 opener
+  ⇒ patch `urlopen` 对它**毫无作用**（实测探针命中 `[]`），而 `OpenerDirector.open`
+  是两者**共同的**收敛点。⇒ ⚠️ 手册 §7 表第 15 条原写「顺手加 `urlopen`」**是个 no-op**，已订正。
+
+### Changed
+- `or_catalog` 的 User-Agent 去掉版本字面（原 `knot/0.6.0.6`，**已漂 30+ PATCH**）——
+  ⚠️ 选**去掉**而不是同步：`from knot.main import app` 在模块级会造成循环 import
+  （实测 `AttributeError: partially initialized module 'knot.api.admin' has no attribute 'router'`）
+  ⇒ **消灭那个同步要求，而不是满足它**（少一个会漂的源点）。
+
+### 明确不做（登记 backlog）
+- ⛔ **不换 `requests`**（原方案 (b)，kk 二次裁定取 (a)）：实测 (b) 的净收益为负 ——
+  ① fail-open **四处**不是一处（4xx/5xx/**以及 302 的响应体**：实测 `302 + {"data":[…]}`
+  在 `requests` 下**不抛**，而紧接着的 `json.loads` 会把该体**当模型目录 upsert**）·
+  ② 带一个**关不掉的凭据出境面**（`requests` 把 `.netrc` 变成 `Authorization: Basic` 发出，
+  `default` 条目匹配**任意 host**；而 `Session()` 已被禁 ⇒ `trust_env` 关不掉）·
+  ③ 异常层级重写（`RequestException` **非** `URLError` 子类 ⇒ 三个 `except` 全落空、
+  超时/DNS 失败从 503 变 500）。
+- 既有 `test_all_outbound_requests_calls_live_inside_execute` **别名盲**（`import requests as _rq`
+  认不出，而 `datasources.py:72` 恰是该形态）—— 本片新文件已解析别名，但**没去修那条旧的**。
+- **LLM 厂商 SDK 的出网**（`openai` / `anthropic` 走 `httpx`，实测 `follow_redirects=True`）。
+- 三处**重复的 3xx 判断**（webhook / lark / telegram 各一份）= 可维护性债，非安全债。
+- `pyproject.toml` 的 `version = "0.3.0"`（已漂 ~60 PATCH，**不在 4 源点内**）。
+
+## [v0.9.21] — 出网 allowlist 的单一 URL 解析口径 + 禁跟随重定向
 
 ### Security
 - ⭐⭐ **allowlist 可被绕过，且与重定向无关**：三处出网门（数据源 / webhook / IM）都用

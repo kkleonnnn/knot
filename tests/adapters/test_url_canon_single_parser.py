@@ -315,3 +315,25 @@ def test_normal_url_still_works(listener, monkeypatch):
         assert hits[-1]["path"] == "/v1/ok", f"正常 URL 没连通：{hits}"
     finally:
         tc.reset_active_tenant(tok)
+
+
+def test_proxy_env_names_cover_what_production_considers_routing_changing():
+    """⭐ 本文件 fixture 清空的代理 env **必须覆盖**生产认为「能改道」的全部名字。
+
+    ⚠️ **这是六问⑥第二形态的机械守护**：`listener` 的所有否定断言（「目标监听器零收到」）
+    只有在**没有代理**时才有意义。若哪天生产在 `_PROXY_ENVS` 里加了一个新名字
+    （比如某个 `*_PROXY` 变体）而本 fixture 没跟着清，那么在设了该变量的机器上
+    ——**包括 CI**—— 那些否定断言会重新变成「对空集的断言」而**不会红**。
+
+    ⚠️ 两份清单刻意**各自独立**（不 import 复用）：测里那份是「让否定断言有意义」的**前提**，
+    不该由被测代码定义 —— 否则被测代码把某个名字删掉，前提也跟着悄悄放松。
+    ⇒ 独立 + 交叉核对，而不是共用一份。
+    """
+    from knot.adapters.http import url_canon as ua
+
+    missing = sorted(set(ua._PROXY_ENVS) - set(_PROXY_ENVS))
+    assert not missing, (
+        f"生产 `url_canon._PROXY_ENVS` 里的 {missing} 没被本文件 fixture 清空 ——\n"
+        "⇒ 在设了这些变量的机器上，本文件的「零收到」断言会静默变成对空集的断言。\n"
+        "请把它们加进本文件的 `_PROXY_ENVS`。"
+    )

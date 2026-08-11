@@ -111,7 +111,72 @@ def test_sync_or_catalog_network_failure_returns_503(client, auth_headers, monke
     def _fail_open(*args, **kwargs):
         raise urllib.error.URLError("simulated network failure")
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fail_open)
+    # ⭐ v0.9.22：patch 目标从 `urllib.request.urlopen` 改为 `_OPENER.open`。
+    # ⚠️ **不改会静默变成空操作** —— 生产码改走 `_OPENER`（不跟随重定向的 opener）之后，
+    #    patch `urlopen` 谁都不影响 ⇒ 本测会**真打 openrouter.ai**（而不是模拟失败）
+    #    ⇒ 「因错误的理由而绿」或因真实网络状况而 flaky。
+    # ⚠️ `URLError` 仍是**正确的**模拟：`_OPENER.open` 的异常谱系与 `urlopen` 相同
+    #    （这正是选「保留 urllib + 自定义 opener」而不是「换 requests」省下来的东西）。
+    from knot.api.admin.or_catalog import _OPENER
+    monkeypatch.setattr(_OPENER, "open", _fail_open)
     r = client.post("/api/admin/sync-or-catalog", headers=auth_headers)
     assert r.status_code == 503
     assert "OpenRouter" in r.json()["detail"]
+
+
+def test_sync_or_catalog_upstream_302_is_fail_closed(client, auth_headers, monkeypatch):
+    """⭐ 验收 #2：上游回 **302** ⇒ 端点 503 且**零 upsert**（`_NoRedirect` 的端点层后果）。
+
+    ⚠️ **oracle 不能只用「模型表行数不变」**（Stage 2 lens A 的 P0-2，我认同）：
+    OpenRouter 式错误体 `{"error": {...}}` 经 `payload.get("data") or []` 得空
+    ⇒ **0 行 upsert** ⇒ 「行数不变」在「fail-open 了」与「fail-closed 了」**两种情况下都真**
+    ⇒ 那是个恒绿判据。⇒ 本测断 **状态码 + `upserted_count` 不存在于响应**。
+
+    ⚠️ **下游为什么必须 fail-closed**（lens A 指出，记录在案）：`Admin.jsx` 只在 catch 里报失败，
+    200 走 `已同步 ${r.upserted_count} 条` ⇒ 若上游失败被吞成 200，admin 会看到**绿色 toast
+    「已同步 0 条」**，而 `upsert` 从不删行 ⇒ **「同步成功无变化」与「上游挂了」不可区分**。
+    """
+    import urllib.error
+
+    from knot.api.admin.or_catalog import _OPENER
+
+    def _redirect(*a, **k):
+        # `_NoRedirect.redirect_request` 返 None ⇒ urllib 落到 `http_error_default` ⇒ HTTPError
+        raise urllib.error.HTTPError("https://openrouter.ai/x", 302, "Found",
+                                     {"Location": "https://evil.example.com/x"}, None)
+
+    monkeypatch.setattr(_OPENER, "open", _redirect)
+    r = client.post("/api/admin/sync-or-catalog", headers=auth_headers)
+    assert r.status_code == 503, f"上游 302 必须 fail-closed，实际 {r.status_code}: {r.text[:200]}"
+    assert "upserted_count" not in r.text, (
+        f"⛔ 上游 302 被吞成了「同步结果」：{r.text[:200]} —— "
+        "前端会显示绿色「已同步 0 条」，admin 无法区分「无变化」与「上游挂了」。"
+    )
+
+
+def test_sync_or_catalog_200_still_syncs(client, auth_headers, monkeypatch):
+    """⭐ 验收 #7 **正对照**：200 路径照常同步 —— 防「一律拒绝」式假通过。
+
+    ⚠️ 没有这一条，「禁重定向」可以用「把整个端点弄坏」来通过上面那些测。
+    """
+    import io
+    import json
+
+    from knot.api.admin.or_catalog import _OPENER
+
+    body = json.dumps({"data": [{
+        "id": "vendor/probe-model", "name": "Probe", "context_length": 4096,
+        "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+    }]}).encode()
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(_OPENER, "open", lambda *a, **k: _Resp(body))
+    r = client.post("/api/admin/sync-or-catalog", headers=auth_headers)
+    assert r.status_code == 200, f"200 路径被打坏了: {r.status_code} {r.text[:200]}"
+    assert r.json().get("upserted_count", 0) >= 1, f"未同步任何模型: {r.json()}"
