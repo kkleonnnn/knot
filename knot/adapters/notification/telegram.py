@@ -54,7 +54,13 @@ class TelegramImageAdapter:
                 data={"chat_id": chat_id, "caption": cap},
                 files={field: ("report.png", png, "image/png")},
                 timeout=_TIMEOUT_SEC,
+                # ⭐ v0.9.21：禁跟随重定向 —— 本处的 **bot token 在 URL 路径里**
+                #    ⇒ 若 Location 保路径，token 会随请求一起到达重定向目标（凭据出境）。
+                allow_redirects=False,
             )
+            # ⚠️ 必须显式判 3xx：`raise_for_status()` 对 3xx **不抛**（与 webhook / lark 同因）。
+            if 300 <= resp.status_code < 400:
+                raise TelegramError(f"TG 目标返回 {resp.status_code}（重定向），出网禁止跟随 —— 未发送")
             resp.raise_for_status()
         except requests.RequestException as e:
             raise TelegramError(f"TG {method} 失败: {m(e)}") from None

@@ -77,13 +77,22 @@ def test_send_posts_to_allowed(monkeypatch):
     calls = {}
 
     class _Resp:
+        # ⭐ v0.9.21：出站点新增「显式判 3xx」⇒ 假响应必须有 status_code
+        #    （`raise_for_status()` 对 3xx **不抛** ⇒ 不显式判会把「没投递」当成功）。
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
     import requests
-    monkeypatch.setattr(requests, "post", lambda url, json, timeout: calls.update(url=url, json=json) or _Resp())
+    monkeypatch.setattr(requests, "post", lambda url, **kw: calls.update(url=url, json=kw.get("json"), kw=kw) or _Resp())
     wh.WebhookNotificationAdapter().send(Notification(title="GMV 异动", body="跌 20%", level="warn",
                                                       target="https://hooks.example.com/abc"))
+    # ⭐ v0.9.21：**断言禁令真的传了** —— 否则本测只证明「没炸」，
+    #    有人摘掉 `allow_redirects=False` 它照样绿（v3.1-B #8「因错误的理由而绿」）。
+    assert calls["kw"].get("allow_redirects") is False, (
+        f"webhook POST 未传 allow_redirects=False：{calls['kw']}"
+    )
     assert calls["url"] == "https://hooks.example.com/abc"
     assert calls["json"]["title"] == "GMV 异动" and calls["json"]["level"] == "warn"
 
@@ -121,11 +130,15 @@ def test_non_owner_with_own_allowlist_really_sends(monkeypatch):
     sent = {}
 
     class _Resp:
+        # ⭐ v0.9.21：出站点新增「显式判 3xx」⇒ 假响应必须有 status_code
+        #    （`raise_for_status()` 对 3xx **不抛** ⇒ 不显式判会把「没投递」当成功）。
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
     monkeypatch.setattr(requests, "post",
-                        lambda url, json, timeout: sent.update(url=url) or _Resp())
+                        lambda url, **kw: sent.update(url=url, kw=kw) or _Resp())
     tok = _ctx(_non_owner_tid(), allowed_webhook_hosts="hooks.tenant-b.example")
     try:
         wh.WebhookNotificationAdapter().send(

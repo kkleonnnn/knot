@@ -12,9 +12,12 @@ _TOKEN = "123456789:AAExampleSecretTokenXYZ-_"
 
 
 class _Resp:
-    def __init__(self, payload, status_ok=True):
+    def __init__(self, payload, status_ok=True, status_code=200):
         self._payload = payload
         self._status_ok = status_ok
+        # ⭐ v0.9.21：出站点新增「显式判 3xx」⇒ 假响应必须有 status_code。
+        # （`raise_for_status()` 对 3xx **不抛** ⇒ 不显式判就会把「没投递」当成功。）
+        self.status_code = status_code
 
     def raise_for_status(self):
         if not self._status_ok:
