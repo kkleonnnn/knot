@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import logging as _log
 import os
-from urllib.parse import urlparse
 
 #: 起源租户 allowlist 的回退源（env **名**；env **值**绝不进消息/日志/响应 —— #262）
 ENV_NAME = "KNOT_HTTP_ALLOWED_HOSTS"
@@ -58,10 +57,43 @@ COLUMN_NAME = "allowed_http_hosts"
 
 _logger = _log.getLogger(__name__)
 
+#: 已告警过的**坏 allowlist 条目**（`_parse` 每次调用都重跑 ⇒ 不去重会每请求刷一条）。
+_BAD_ENTRY_WARNED: set[str] = set()
+
 
 def _parse(raw: str | None) -> set[str]:
-    """逗号分隔 → host 集；空白项丢弃 ⇒ `''` / `' '` / `' , '` 全部 → 空集（= 全拒绝）。"""
-    return {h.strip() for h in (raw or "").split(",") if h.strip()}
+    """逗号分隔 → host 集；空白项丢弃 ⇒ `''` / `' '` / `' , '` 全部 → 空集（= 全拒绝）。
+
+    ⭐ **v0.9.21：条目也过 `url_canon` 的同一口径**（Stage 2 B-P1-1）。
+    不这么做的话，等值的两边只规范化一边 = 拿**两种产出方式**比对（v3.1-C 六问⑤）：
+    实测运维写的 `例え.jp` 会与请求侧的 `xn--r8jz45g.jp` **永不匹配**、`::1` 与 `[::1]` 同理
+    —— fail-closed，但**与 bug 不可区分**（v0.9.7 M5 同族）。
+    ⚠️ 顺带修一个**既有缺陷**（不是本片引入的）：原实现只 `strip()` **不小写化**，
+    而 `urlparse().hostname` **今天也返回小写** ⇒ 运维写 `Allowed.Corp` **今天就已经两个方向全拒**。
+
+    ⚠️ **不可规范化的条目丢弃 + WARN，绝不静默保留** —— 保留会得到一个**永不匹配**的串，
+    那与「写错了一个字母」不可区分（DEPLOY「多租户运维门」已写明这条行为）。
+    """
+    from knot.adapters.http.url_canon import canonical_host_of_entry
+
+    out: set[str] = set()
+    for item in (raw or "").split(","):
+        e = item.strip()
+        if not e:
+            continue
+        host = canonical_host_of_entry(e)
+        if host is None:
+            # ⚠️ **去重**：`_parse` 在**每次** `is_url_allowed` / `check_url_allowed` 里都会重跑
+            #    ⇒ 不去重的话一个坏条目会**每请求刷一条 WARN**（自验时实测刷了 7 次）。
+            #    与端口告警同理：这是**配置问题**，说一次就够。
+            if e not in _BAD_ENTRY_WARNED:
+                _BAD_ENTRY_WARNED.add(e)
+                _logger.warning(            # 只记条目本身（运维自己配的，不是新信息）
+                    f"egress allowlist 条目无法解析成主机名，**已丢弃**: {e!r}"
+                )
+            continue
+        out.add(host)
+    return out
 
 
 def resolve_allowed_hosts() -> tuple[set[str], str]:
@@ -91,8 +123,10 @@ def resolve_allowed_hosts() -> tuple[set[str], str]:
 def get_allowed_hosts() -> set[str]:
     """当前租户允许出网的 host 集。
 
-    ⭐ **签名刻意不变** —— `is_url_allowed` / `check_url_allowed` 经它自动 per-tenant 化，
-    故三个生产调用点（`executor:133` 读侧 · `admin/datasources:31` 写侧 · `:66` 探测侧）**零改动跟随**。
+    ⭐ **本函数签名仍不变**（v0.9.7 起）—— 它经 `resolve_allowed_hosts()` 自动 per-tenant 化。
+    ⚠️ **但 v0.9.21 起 `check_url_allowed` 的签名变了**（改为**回传规范化后的 URL**）：
+    调用方**必须发那个返回值**，否则「门校验的」与「真正被发的」又是两个东西。
+    ⇒ 原先那句「三个生产调用点零改动跟随」**已作废**，别再照它推断。
     ⚠️ 契约变化：v0.9.7 起本函数**可能抛** `TenantContextError`（无 tenant ctx 时）。
     """
     return resolve_allowed_hosts()[0]
@@ -101,30 +135,74 @@ def get_allowed_hosts() -> set[str]:
 def is_url_allowed(url: str) -> bool:
     """判断 URL 是否在**当前租户的** allowlist 内。
 
-    检查 host 字面匹配（不含端口；端口未来按需扩展）。
-    ⚠️ per-tenant 化后，「端口/子域/IP 字面校验缺失」这个既有弱点**按租户放大**（每个租户各自
-    的列都带同一弱点，且各租户互不知情）—— 已登记 backlog，不在 v0.9.7 scope。
+    检查 host 字面匹配（**仍不含端口** —— v0.9.21 只给端口加**可诊断告警**，不改放行语义；
+    改成 `host:port` 精确匹配会让**所有现存纯 host 配置立刻全拒**，那要单独一片 + 迁移）。
+    ⚠️ 「端口/子域/IP 字面校验缺失」这个既有弱点**按租户放大**（每个租户各自的列都带同一弱点，
+    且各租户互不知情）—— 端口那半已由 `check_url_allowed` 的 WARN 变得**可诊断**，其余仍是 backlog。
+
+    ⭐ **v0.9.21：host 改由 `url_canon.canonicalize()` 算**（与 `requests` 将要施加的规范化同一套）。
+    此前用 `urlparse().hostname`，而实际连接由 urllib3 解析 ⇒ 同一串两者可给出**不同 host**
+    （`http://127.0.0.1:9999\\@allowed.corp/x`：门看到 `allowed.corp` 放行、实连 `127.0.0.1`）。
+    ⚠️ **本函数只答「能不能去」，不回传规范化串** —— 写侧（`admin/datasources`）只需要 yes/no，
+    且**不得**把规范化串落进存储（规范化会给裸 host 补 `/` ⇒ `{base_url}` 拼接会得 `//`）。
 
     Args:
         url: 完整 URL（如 https://api.example.com/v1/...）
 
     Returns:
-        True 在 allowlist；False 不在
+        True 在 allowlist；False 不在（**含无法规范化** ⇒ fail-closed）
     """
     if not url:
         return False
+    from knot.adapters.http.url_canon import UrlCanonError, canonicalize
+
     try:
-        parsed = urlparse(url)
-    except ValueError:
-        return False
-    host = parsed.hostname  # 不含端口
-    if not host:
-        return False
+        _, host = canonicalize(url)
+    except UrlCanonError:
+        return False                        # 无法规范化 ⇒ 不放行（fail-closed）
     return host in get_allowed_hosts()
 
 
-def check_url_allowed(url: str) -> None:
-    """守护检查 — 不在**本租户** allowlist 则抛 `HTTPAuthError`。用于 executor 出网前的强制门检。
+#: 已告警过的 `host:port` —— 端口告警是**配置问题**，每请求刷一条会淹掉日志。
+#: ⚠️ 进程内去重 ⇒ 多副本/多 worker 下每个进程各告警一次（可接受：它是诊断不是审计）。
+_PORT_WARNED: set[str] = set()
+
+
+def _warn_if_unusual_port(normalized: str, host: str) -> None:
+    """host 命中 allowlist 但端口非 80/443 ⇒ **告警一次**（不改放行/拒绝语义）。
+
+    ⚠️ **为什么只告警不拦**：allowlist 现存值全是**纯 host 字面**
+    ⇒ 改成 `host:port` 精确匹配会让所有现存配置**立刻全拒**（要单独一片 + 迁移）。
+    ⇒ 本片只让它**可诊断**：allowlist 内主机的任意端口仍放行（内网端口仍可扫），
+      但至少运维能在日志里看见「有人在往一个不寻常的端口打」。
+    ⚠️ **诚实收窄**：这不是「端口受控」，只是「端口可见」。
+    """
+    import urllib3.util
+
+    port = urllib3.util.parse_url(normalized).port
+    if port is None or port in (80, 443):
+        return
+    key = f"{host}:{port}"
+    if key in _PORT_WARNED:
+        return
+    _PORT_WARNED.add(key)
+    _logger.warning(
+        f"egress 目标端口非 80/443: host={host!r} port={port} —— "
+        "allowlist **只比对主机名、不含端口** ⇒ 该主机的任意端口都会放行。"
+        "若这不是预期，请复核该数据源/告警地址的配置。"
+    )
+
+
+def check_url_allowed(url: str) -> str:
+    """守护检查 — 不在**本租户** allowlist 则抛 `HTTPAuthError`；**返回规范化后的 URL**。
+
+    ⭐⭐ **v0.9.21：签名从 `-> None` 改为 `-> str`，调用方必须发这个返回值。**
+    否则门校验的串与真正被发的串**不是同一个** —— 而那正是本片要修的缺陷本身。
+
+    ⭐ **端口告警在这一行**（出网前），不在写入时：写入时校验会被 `url_template` **结构性击穿**
+    （`PUT /api/admin/catalog` 的 `url_template` 零校验 + `executor` 是 `str.replace`
+    ⇒ `{base_url}:9402` 让**出网那一刻**的端口不是写入时校验的那个）。
+    ⇒ 「校验的 X 必须是被用的 X」这条对端口同样适用。
 
     ⭐ **v0.9.7 D11：消息不得枚举 allowlist**（守护者 must-fix M4 —— 实读坐实原实现**不干净**）。
     原写法 `f"(allowed: {sorted(allowed)})"` 把**整份白名单**插进异常，而这条异常经
@@ -139,13 +217,17 @@ def check_url_allowed(url: str) -> None:
     （实测被 `test_SEC_no_env_value_interpolated_into_messages` 拦下，详见手册 D11）。
     """
     from knot.adapters.http.base import HTTPAuthError
+    from knot.adapters.http.url_canon import UrlCanonError, canonicalize
 
-    if is_url_allowed(url):
-        return
     try:
-        host = urlparse(url).hostname or "<unknown>"
-    except ValueError:
-        host = "<unparseable>"
+        normalized, host = canonicalize(url)
+    except UrlCanonError as e:
+        # ⚠️ `UrlCanonError` 的消息**不含 URL**（它有活链路到客户端）⇒ 可直接外露
+        raise HTTPAuthError(str(e)) from None
+
+    if host in get_allowed_hosts():
+        _warn_if_unusual_port(normalized, host)
+        return normalized
 
     from knot.core.tenant_context import current_tenant
     _logger.warning(                                    # 日志 ≠ 响应：来源机制可记，内容不可
