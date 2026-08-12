@@ -41,7 +41,7 @@ def _src(**kw):
 def _stub(monkeypatch, ec, rows: dict, schema="schema-v1"):
     """把 get_user_engine 的 DB 依赖换成内存字典；`create_engine` 每次返**新对象**（= 身份 oracle）。"""
     monkeypatch.setattr(ec.data_source_repo, "get_user_source_ids", lambda uid: sorted(rows))
-    monkeypatch.setattr(ec.data_source_repo, "get_datasource", lambda sid: rows.get(sid))
+    monkeypatch.setattr(ec.data_source_repo, "get_datasource", rows.get)  # rows 原地改 ⇒ 绑定 .get 仍取最新值
     monkeypatch.setattr(ec.db_connector, "create_engine", lambda *a, **k: object())
     monkeypatch.setattr(ec.db_connector, "test_connection", lambda e: (True, ""))
     monkeypatch.setattr(ec.db_connector, "check_readonly_grants", lambda e: ("unknown", ""))

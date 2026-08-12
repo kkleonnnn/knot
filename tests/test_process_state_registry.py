@@ -172,9 +172,11 @@ def derive_process_state() -> dict[str, str]:
         for node in tree.body:
             names, val = [], None
             if isinstance(node, ast.Assign):
-                names = [t.id for t in node.targets if isinstance(t, ast.Name)]; val = node.value
+                names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+                val = node.value
             elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                names = [node.target.id]; val = node.value
+                names = [node.target.id]
+                val = node.value
             for name in names:
                 if val is None:
                     continue

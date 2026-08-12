@@ -5,7 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.9.22 — 出网禁令的结构化（补最后一个出网点 + 判据硬化 + 代理面告警）
+## [Unreleased] - v0.9.23 — R10' 多副本安全（第一批：A 引擎缓存指纹 + C 原子认领 + E 派生哨兵）
+
+> **B（限流共享计数器 + 可信 IP 来源）已由 kk 裁定拆成独立片** —— 它要推翻既有红线 R-限-1
+> 并处置 4 条 must-fix，自己就是一片的量。**本片不改限流** ⇒ 限流仍是每副本各算一份。
+
+### Security
+- ⭐ **R10'-A 数据源引擎缓存的跨副本陈旧，结构性消除**：三个缓存站点的键此前只含
+  `host:port:user`（`get_engine_for_source` 更狠 —— 键里**零连接参数**）⇒ 改 `db_password` /
+  `db_database` 后**键不变** ⇒ 副本 A 改完，副本 B 最多 **1 小时**（`_TTL_SEC`）仍用旧凭据 / 旧库清单。
+  ⇒ 键**尾部**追加连接指纹（`source_fingerprint.py`）：值变则键变 ⇒ 不再依赖 `invalidate_*`
+  （它只对本副本生效）。⚠️ **不用 `data_sources.updated_at` —— 那一列不存在**（加列 =
+  加一条「每个写路径都要记得维护」的约束）。
+  - **指纹覆盖组内全部源行**的排序摘要，不是 `primary` 单行 —— `create_engine` 只用 primary 而
+    `databases` 由**组内全部源**合并 ⇒ 只对 primary 取指纹的话，改 secondary / flip 其 `is_active`
+    **修完仍陈旧**（两个独立评审同结论）。
+  - **HMAC(进程随机 salt)** 而非裸 `sha256` —— 指纹输入含**已解密的明文口令**，
+    裸 sha256 是可离线爆破的无盐快哈希；`json.dumps(sort_keys=True)` 而非 `a|b` 拼接（消除边界歧义）。
+  - ⭐ **换指纹时淘汰旧条目并 `engine.dispose()`**：生产码此前 `.dispose()` **0 处** ⇒ 旧连接池里
+    是用**已撤销口令**认证的**活连接** ⇒ 「凭据轮换生效」只完成了一半。顺带让
+    `get_user_databases`（首个命中即返回）不可能返回旧那条的 `databases`（数据范围错，比连接失败更隐蔽）。
+  - 🔒 **指纹只能加在键尾部**：`invalidate_user_engine_cache` 与 `get_user_databases` **都按位置**
+    解析 `k[0]`/`k[1]`。既有测那条精确三元组断言按预判转红 ⇒ **改判据形状 + 升级成这条红线的守护**。
+- ⭐ **R10'-C 启动期 audit 自动清理改原子认领**：原实现是 read-then-write ⇒ N 副本同时启动会
+  **同时判「该跑」** ⇒ N 个并发 chunk DELETE 打同一租户库，异常被吞成一条 WARN。
+  （「读-判断-写回」在 4 进程下**实测丢 74% 的更新**。）
+  - ⚠️⚠️ **认领 SQL 必须是 upsert，不能是 `UPDATE … WHERE`**：`app_settings` 无预置行
+    ⇒ 纯 UPDATE 在行不存在时 `rowcount=0` ⇒ **全新部署永不 purge**，而那种实现在
+    「已有旧时间戳」的情况下**表现完全正常**（判据因此必须双态）。
+  - ⭐ **认领用独立标记** `audit.purge_claimed_at`，**不提前 stamp `last_purge_at`** ——
+    后者语义是「上次**成功**清理」；认领即 stamp ⇒ purge 抛错后 **7 天内不再重试**。
+
+### Added
+- ⭐ **R10'-E 进程级可变状态清单改为派生**（`tests/test_process_state_registry.py`）：
+  四支扫描面（被改写的模块级名字含 `AugAssign` / **fail-closed 构造** / `@lru_cache` / `global`）
+  与**具名登记表双向相等** —— 未登记即红、**留过期条目也红**。
+  每条登记必须回答「N 个副本各有一份时会发生什么」（配一条测防占位符，它当场抓到我自己写的 6 处「同上」）。
+  - ⭐ **② fail-closed 构造分支是必需的**：① **抓不到 `_bucket = _Bucket()`** ——
+    改写发生在**对象自己的方法内**，模块级那个名字从没被赋值过。
+  - 它还抓出 6 个我漏登记的，其中 **`JWT_SECRET` 有真实多副本含义**：各副本必须同值，
+    否则 A 签的 token 在 B 上验签失败（表现为随机 401）。
+
+### Changed
+- **那张「进程内状态 / 多副本后果」表废除** —— 它此前在 `DEPLOY.md` 与
+  `docs/plans/v0.9-lift-arc-remaining-plan.md` **各抄一份**，而逐条实读发现它
+  **5 行里 4 行要改、另漏 3 项、多 1 项**（两份副本同时错）。
+  ⇒ 单一来源改为上面那份**派生登记表**；DEPLOY 改为指向它 + 写明本版处置了什么、什么仍未处置。
+- `main.py` **净减 12 行**（375→363）—— 它的 ACK 余量实测为 **0**，启动期逻辑必须搬进被调模块。
+
+### ⚠️ 明确不声称 / 已登记
+- **限流仍每副本各算一份**（有效限额 ×N，登录爆破防护被削弱 N 倍）—— B 片处置。
+  另登记一条**既有缺陷**：`_MAX_KEYS` 在**活跃**喷射下无效（实跑：灌 15000 个活跃 key
+  时 `len == 15000` 而上限 10000）⇒ 红线 R-限-4「内存有上限」在该场景下为假。
+- **首启并发建库会崩**：全新库 + 3 副本同时启动 ⇒ **2/3 崩在 `database is locked`**
+  （本地文件系统实测，**与跨节点 NFS 无关**）—— 根因是 `.c4-migration.lock` 那把 flock
+  **比平台库初始化晚获取**、压根没盖住它。已拆独立片；DEPLOY 已写明首次部署仍须先单副本。
+- **uploads.db 是 rollback-journal**（`create_sqlite_engine` 不设 WAL）⇒ 提交阶段阻塞读
+  （实测 135ms/40 万行）；一行 `PRAGMA journal_mode=WAL` 可消除，本片不做。
+- **两个安全可观测计数器**（审计写失败 / 租户漂移）跨副本不可聚合 ⇒ admin 可能读到 0
+  而另一副本已累计 50。只登记（需要真 metrics 通路）。
+- **RWO 卷下多副本须同节点共置**（运维前提，非代码）。
+- 本片新增哨兵**看不见 DB 层 read-then-write** ⇒ 别把它的绿读成「多副本安全」。
+  （已按行为扫过全仓：累加写法**全是原子的** `x = x + ?`，3 处。）
+
+## [v0.9.22] — 出网禁令的结构化（补最后一个出网点 + 判据硬化 + 代理面告警）
 
 ### Security
 - ⭐ **补上唯一没有重定向禁令的出网点**：`api/admin/or_catalog.py` 的模型目录同步走

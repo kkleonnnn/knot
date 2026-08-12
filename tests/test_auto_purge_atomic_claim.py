@@ -79,7 +79,8 @@ finally:
 print(json.dumps({"isolation": True, "setup": "ok"}))
 '''
     env["KNOT_TEST_BARRIER_TS"] = str(time.time())
-    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180)
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180,
+                       check=False)  # 刻意 —— 本文件显式判 rc（rc==9 = 环境没隔离，与失败区分）
     assert r.returncode == 0, f"fixture 建库失败 (rc={r.returncode}): {r.stdout[-800:]}{r.stderr[-800:]}"
     return env
 
@@ -129,7 +130,8 @@ print(json.dumps({"isolation": True, "seeded": True}))
 '''
     env = {**data_root, "KNOT_TEST_BARRIER_TS": str(time.time())}
     code = _PREAMBLE.replace("{{", "{").replace("}}", "}") + seed
-    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180)
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180,
+                       check=False)  # 刻意 —— 本文件显式判 rc（rc==9 = 环境没隔离，与失败区分）
     assert r.returncode == 0, f"seed 失败: {r.stdout[-600:]}{r.stderr[-600:]}"
 
     claimed = _race(data_root, n=4)
@@ -155,7 +157,8 @@ print(json.dumps({"isolation": True, "seeded": True}))
 '''
     env = {**data_root, "KNOT_TEST_BARRIER_TS": str(time.time())}
     code = _PREAMBLE.replace("{{", "{").replace("}}", "}") + seed
-    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180)
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180,
+                       check=False)  # 刻意 —— 本文件显式判 rc（rc==9 = 环境没隔离，与失败区分）
     assert r.returncode == 0, f"seed 失败: {r.stdout[-600:]}{r.stderr[-600:]}"
 
     claimed = _race(data_root, n=3)
@@ -185,7 +188,8 @@ print(json.dumps({"isolation": True, "first": first, "done_marker": done, "secon
 '''
     env = {**data_root, "KNOT_TEST_BARRIER_TS": str(time.time())}
     code = _PREAMBLE.replace("{{", "{").replace("}}", "}") + probe
-    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180)
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=180,
+                       check=False)  # 刻意 —— 本文件显式判 rc（rc==9 = 环境没隔离，与失败区分）
     assert r.returncode == 0, f"探针失败: {r.stdout[-600:]}{r.stderr[-600:]}"
     got = json.loads(r.stdout.strip().splitlines()[-1])
 
