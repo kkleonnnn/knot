@@ -268,16 +268,15 @@ async def _audit_auto_purge_if_stale():
     生产可选：外部 cron 管理 audit 清理时设此 env 禁用启动期自动清理。
     """
     import asyncio
-    import datetime as _dt
 
     if os.getenv("KNOT_SKIP_STARTUP_AUTO_PURGE", "").strip() == "1":
         return
 
-    from knot.repositories import settings_repo
+    from knot.services import audit_service
 
     async def _maybe_purge():
         # v0.9.0 C2（set 点#3）：fire-and-forget create_task 无 tenant ctx（startup hook 非 ❺ 块）→
-        # settings_repo.get_app_setting 撞 fail-closed。入口 set tenant#1 + finally reset。
+        # `claim_auto_purge` 读写租户库 `app_settings` 会撞 fail-closed。入口 set 租户 + finally reset。
         # anyio to_thread.run_sync **copy** contextvars（4.14 实测）→ 下方 to_thread(_purge) 继承本 set 的
         # tenant ctx；purge() 本体不自解析（靠继承）。⚠️ 依赖本行 set：删了 → _purge 撞 fail-closed，
         # TenantContextError 被下方 except 静默吞 → auto-purge 静默停（守护者 Stage 4 §V-2 纠错）。
@@ -291,19 +290,8 @@ async def _audit_auto_purge_if_stale():
         for _t in _tr.list_tenants():
             _tok = _tc.set_active_tenant(_t)
             try:
-                last = settings_repo.get_app_setting("audit.last_purge_at", "")
-                should_run = True
-                if last:
-                    try:
-                        last_dt = _dt.datetime.fromisoformat(last)
-                        if (_dt.datetime.now() - last_dt).days < 7:
-                            should_run = False
-                    except ValueError:
-                        pass  # 坏数据 → 触发清理
-                if not should_run:
-                    logger.info(
-                        f"[audit_auto_purge] tenant#{_t['id']} 上次清理 {last}，未到 7 天阈值，跳过"
-                    )
+                # v0.9.23 R10'-C：**原子认领**（理由全在 `audit_service.claim_auto_purge` 里）。
+                if not audit_service.claim_auto_purge(days=7):
                     continue      # ⚠️ `continue` 不是 `return` —— 一家跳过不得让其余家被跳过
                 # 真跑 — chunk DELETE 由 audit_repo 内部保证
                 from anyio import to_thread
