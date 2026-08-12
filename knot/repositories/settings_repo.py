@@ -65,6 +65,37 @@ def set_app_setting(key: str, value: str):
     conn.close()
 
 
+def claim_if_newer(key: str, value: str) -> bool:
+    """**原子认领**：仅当该 key 缺失、或其现值 **严格小于** `value` 时写入；返回是否认领成功。
+
+    ⭐ **为什么必须是一条 SQL**（v0.9.23 R10'-C）：多副本同时启动会同时读到同一个「上次时间」，
+    「读→判断→写回」这个形状**在 4 进程下实测丢 74% 的更新** ⇒ N 个副本会**同时**认为该由自己跑。
+    本函数照 `bi_report_schedule_repo.claim` 的形状（条件 UPDATE + rowcount，认领与推进无窗口）。
+
+    ⚠️⚠️ **必须是 upsert，不能是 `UPDATE … WHERE`**（Stage 2 两个 lens 独立指出 + 实跑坐实）：
+    `app_settings` 里**没有预置行**（首次由 `set_app_setting` 插入）⇒ 纯 `UPDATE` 在行不存在时
+    `rowcount == 0` ⇒ **全新部署永不认领、该任务永不执行**。
+    ⚠️ 同理**别写 `value IS NULL` 分支** —— schema 是 `value TEXT DEFAULT ''`，那是**死条件**。
+
+    ⚠️ **字符串比较**：调用方必须用**同一个格式化函数**产生 `value`
+    （本仓用 `datetime.isoformat(timespec="seconds")`，字典序 = 时间序）。
+    一旦有写入方带上时区偏移，比较就会错 —— 故本函数只被 `_claim_*` 这类同源调用方使用。
+    """
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at) "
+            "VALUES (?, ?, datetime('now','localtime')) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at "
+            "WHERE app_settings.value < excluded.value",
+            (key, value),
+        )
+        conn.commit()
+        return cur.rowcount == 1
+    finally:
+        conn.close()
+
+
 # ── model_settings 表 ──────────────────────────────────────────────────
 
 def get_model_settings() -> list:

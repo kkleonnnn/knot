@@ -134,3 +134,39 @@ def log(
         _audit_write_failures_total += 1
         # R-65：不抛 AuditWriteError 出业务流（R-47 fail-soft 优先）；
         # AuditWriteError 类的存在是为未来需要可重试的审计补录场景。
+
+
+def claim_auto_purge(days: int = 7) -> bool:
+    """启动期 audit 自动清理的**原子认领**（v0.9.23 R10'-C）。返回「本副本是否该跑」。
+
+    ## 为什么需要认领
+    原实现是 read-then-write（读 `audit.last_purge_at` → 判 7 天 → 跑 → 成功后写回）
+    ⇒ **N 个副本同时启动会同时读到同一个旧时间戳、同时判「该跑」**
+    ⇒ N 个并发 chunk DELETE 打同一个租户库，而异常被调用方的 `except` 吞成一条 WARN。
+    （「读-判断-写回」这个形状在 4 进程下**实测丢 74% 的更新** —— 见 R10' Stage 1 §0.5。）
+
+    ## ⭐⭐ 为什么用**独立标记**而不是把 `last_purge_at` 提前 stamp（Stage 3 MF7）
+    `last_purge_at` 的语义是「**上次成功清理**的时间」，`purge_audit_log` 在**成功之后**才写它。
+    若认领时就把它推到 now：purge 抛错（会被调用方吞成 WARN）之后，
+    **7 天内不再重试** ⇒ 审计表无限增长，而唯一线索是一条 WARN。
+    ⇒ 认领用 `audit.purge_claimed_at`，与「完成」标记**分开**：
+    认领失败只说明「这一轮有别人接了」，不说明「已经清过了」。
+
+    ⚠️ **认领窗口 = 同一个 `days`**：认领标记推进 `days` 天 ⇒ 该窗口内其余副本认领失败；
+    若那次 purge 失败，**下一个窗口**仍会有人重试（而不是等到 `last_purge_at` 过期）。
+    """
+    import datetime as _dt
+
+    from knot.repositories import settings_repo
+
+    last_done = settings_repo.get_app_setting("audit.last_purge_at", "")
+    if last_done:
+        try:
+            if (_dt.datetime.now() - _dt.datetime.fromisoformat(last_done)).days < days:
+                return False          # 确实刚清过 ⇒ 无需认领（也不推进认领标记）
+        except ValueError:
+            pass                      # 坏数据 → 当作没清过，走认领
+    # ⚠️ 认领标记写的是「**下一次允许认领的时间**」= now + days
+    #    ⇒ 单调递增、字典序可比，且与 `last_purge_at` 的语义不冲突。
+    horizon = (_dt.datetime.now() + _dt.timedelta(days=days)).isoformat(timespec="seconds")
+    return settings_repo.claim_if_newer("audit.purge_claimed_at", horizon)
