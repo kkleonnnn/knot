@@ -107,8 +107,21 @@ def test_get_user_engine_single_group_cross_tenant_no_reuse(monkeypatch):
         reset_active_tenant(tok)
     assert e1 is not None and e2 is not None
     assert e1 is not e2, "跨租户同 uid+源复用了引擎（凭据泄漏）"
+    # ⚠️ v0.9.23 R10'-A：键**尾部**追加了连接指纹 ⇒ 此处**不能**再断精确三元组
+    #    （原文 `assert (1,7,gk) in _engine_cache` 已实测在指纹落地后必红）。
+    # ⭐ **改的是判据形状，不是判据本身** —— 本测要证的仍是「两个租户各有自己的条目」，
+    #    而它**顺带成了「指纹只能加在尾部」这条红线的守护**：
+    #    断言前缀恰为 `(tid, 7, gk)` 且**只多出一段** ⇒ 若哪天有人把指纹插到中间，本行会红。
     gk = ec._group_key(src)
-    assert (1, 7, gk) in ec._engine_cache and (2, 7, gk) in ec._engine_cache
+    keys = [k for k in ec._engine_cache if isinstance(k, tuple)]
+    for tid in (1, 2):
+        matched = [k for k in keys if k[:3] == (tid, 7, gk)]
+        assert len(matched) == 1, f"tenant#{tid} 的条目应恰 1 条，实际 {matched}"
+        assert len(matched[0]) == 4, (
+            f"缓存键形状应为 (tid, uid, group_key, fp) 共 4 段，实际 {matched[0]!r} —— "
+            "⚠️ 指纹必须在**尾部**：`invalidate_user_engine_cache` 与 `get_user_databases` "
+            "都按位置解析 k[0]/k[1]，插在中间会静默废掉这两个消费者。"
+        )
 
 
 def test_get_user_engine_multigroup_cross_tenant_no_reuse(monkeypatch):

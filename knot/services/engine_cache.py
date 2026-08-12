@@ -9,6 +9,7 @@ from knot.adapters.db import doris as db_connector
 from knot.core.logging_setup import logger
 from knot.core.tenant_context import current_tenant, tenant_cache_key
 from knot.repositories import data_source_repo
+from knot.services import source_fingerprint
 
 # v0.8.19a F1（上传问数隔离）：上传数据表住**独立** uploads.db（fail-closed 库边界隔离）。
 # v0.9.2：uploads.db 改 **per-tenant**（tenants/<id>/uploads.db）→ 引擎 resolver 迁至
@@ -140,6 +141,33 @@ _engine_cache: dict = {}
 _TTL_SEC = 3600
 
 
+def _put(key: tuple, entry: dict) -> None:
+    """写缓存条目，并**先淘汰同前缀的旧指纹条目 + `dispose()` 其 engine**（v0.9.23 R10'-A）。
+
+    ⭐ **为什么必须 dispose**（Stage 3 MF/lens A-P0-3）：指纹进键后，改一次凭据就多一条键
+    ⇒ 旧条目**永不过期地留着**，而它持有的 SQLAlchemy 连接池里是用**已撤销口令**认证的**活连接**
+    ⇒ 「凭据轮换生效」只完成了「新连接用新口令」那一半。生产码此前 `.dispose()` **0 处**（实测）。
+
+    ⭐ **顺带修掉 A-P0-4**：`get_user_databases` 是「遍历 `_engine_cache` **首个命中即返回**」
+    ⇒ 新旧指纹并存时它返回**最老**那条的 `databases`（数据范围错，比连接失败更隐蔽）。
+    本函数保证同前缀**恒只有一条** ⇒ 那个歧义在结构上消失，不需要改它的遍历逻辑。
+
+    ⚠️ **指纹是键的最后一段**（🔒 R10'-A 红线）：`invalidate_user_engine_cache` 与
+    `get_user_databases` **都按位置**解析 `k[0]`/`k[1]` ⇒ 插在中间会静默废掉这两个消费者。
+    故「同前缀」= `key[:-1]`。
+    """
+    prefix = key[:-1]
+    for k in [k for k in _engine_cache if isinstance(k, tuple) and k[:-1] == prefix and k != key]:
+        old = _engine_cache.pop(k, None)
+        eng = (old or {}).get("engine")
+        try:
+            if eng is not None and hasattr(eng, "dispose"):
+                eng.dispose()      # 释放旧口令的连接池；失败不得影响本次写入
+        except Exception as e:     # noqa: BLE001
+            logger.warning(f"engine_cache dispose 旧条目失败（已丢弃该条目）: {type(e).__name__}: {e}")
+    _engine_cache[key] = entry
+
+
 def _group_key(src: dict) -> str:
     """按 (host, port, user) 标识一个连接组。"""
     return f"{src['db_host']}:{src['db_port']}:{src['db_user']}"
@@ -175,10 +203,13 @@ def get_user_engine(user: dict):
                 groups[_group_key(src)].append(src)
 
             # 缓存 key：单组 (tid,uid,group_key)；多组 (tid,uid,"multi:"+…)（v0.9.1 tid 前缀 = tenant_cache_key）
+            # v0.9.23 R10'-A：键**尾部**追加连接指纹（组级摘要）⇒ 改 password / database /
+            # is_active / 组成员，键必变 ⇒ 跨副本陈旧在结构上不可能（不再依赖 invalidate_*）。
+            fp = source_fingerprint.group_fingerprint([s for g in groups.values() for s in g])
             if len(groups) == 1:
-                cache_key = tenant_cache_key(uid, next(iter(groups.keys())))
+                cache_key = tenant_cache_key(uid, next(iter(groups.keys())), fp)
             else:
-                cache_key = tenant_cache_key(uid, "multi:" + "|".join(sorted(groups.keys())))
+                cache_key = tenant_cache_key(uid, "multi:" + "|".join(sorted(groups.keys())), fp)
             cached = _engine_cache.get(cache_key)
             if cached and (now - cached["ts"]) < _TTL_SEC:
                 return cached["engine"], cached["schema"]
@@ -252,10 +283,10 @@ def get_user_engine(user: dict):
                             "约束：每条 SQL 只能引用同一组内的库。\n"
                         )
                         schema = header + "\n" + "\n\n".join(schema_blocks)
-                    _engine_cache[cache_key] = {
+                    _put(cache_key, {
                         "engine": engine, "schema": schema,
                         "databases": databases, "ts": now,
-                    }
+                    })
                     return engine, schema
             except Exception as e:
                 logger.warning(f"engine_cache user_id={uid} multi-source build failed: {e}")
@@ -263,7 +294,8 @@ def get_user_engine(user: dict):
     # Fallback: legacy doris_* fields on users 表
     if user.get("doris_user") and user.get("doris_password"):
         legacy_key = f"{user.get('doris_host') or cfg.DEFAULT_DB_HOST}:{user.get('doris_port') or cfg.DEFAULT_DB_PORT}:{user['doris_user']}"
-        cache_key = tenant_cache_key(uid, legacy_key)
+        # v0.9.23：同 site 1 —— 该路径凭据在 `users` 行上，故用 legacy 字段映射版指纹。
+        cache_key = tenant_cache_key(uid, legacy_key, source_fingerprint.legacy_user_fingerprint(user))
         cached = _engine_cache.get(cache_key)
         if cached and (now - cached["ts"]) < _TTL_SEC:
             return cached["engine"], cached["schema"]
@@ -280,7 +312,7 @@ def get_user_engine(user: dict):
             if ok:
                 databases = _split_databases(db_database)
                 schema = db_connector.get_schema(engine, databases=databases, max_tables=cfg.SCHEMA_FILTER_MAX_TABLES)
-                _engine_cache[cache_key] = {"engine": engine, "schema": schema, "databases": databases, "ts": now}
+                _put(cache_key, {"engine": engine, "schema": schema, "databases": databases, "ts": now})
                 return engine, schema
         except Exception:
             pass
@@ -300,7 +332,9 @@ def get_engine_for_source(source_id: int):
     src = data_source_repo.get_datasource(source_id)
     if not src or not src.get("is_active"):
         return None
-    cache_key = tenant_cache_key("source", source_id)
+    # v0.9.23 R10'-A：本站点原先键里**零连接参数**（`(tid,"source",id)`）⇒ 连密码都陈旧至 TTL
+    # —— 三个站点里最严重的一个。指纹进尾部后同样结构性消除。
+    cache_key = tenant_cache_key("source", source_id, source_fingerprint.row_fingerprint(src))
     now = time.time()
     cached = _engine_cache.get(cache_key)
     if cached and (now - cached["ts"]) < _TTL_SEC:
@@ -313,7 +347,7 @@ def get_engine_for_source(source_id: int):
         ok, _ = db_connector.test_connection(engine)
         if not ok:
             return None
-        _engine_cache[cache_key] = {"engine": engine, "ts": now}
+        _put(cache_key, {"engine": engine, "ts": now})
         return engine
     except Exception as e:
         logger.warning(f"engine_cache get_engine_for_source({source_id}) failed: {e}")
